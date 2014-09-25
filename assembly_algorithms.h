@@ -1,0 +1,56 @@
+/*
+ *  MEGAHIT
+ *  Copyright (C) 2014 The University of Hong Kong
+ *
+ *  This program is free software: you can redistribute it and/or modify
+ *  it under the terms of the GNU General Public License as published by
+ *  the Free Software Foundation, either version 3 of the License, or
+ *  (at your option) any later version.
+ *
+ *  This program is distributed in the hope that it will be useful,
+ *  but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *  GNU General Public License for more details.
+ *
+ *  You should have received a copy of the GNU General Public License
+ *  along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
+#ifndef ASSEMBLY_ALGORITHMS_H_
+#define ASSEMBLY_ALGORITHMS_H_
+
+#include <vector>
+#include <string>
+#include "succinct_dbg.h"
+
+using std::vector;
+using std::string;
+
+namespace assembly_algorithms {
+
+// traverse simple path
+int64_t NextSimplePathNode(SuccinctDBG &dbg, int64_t curr_node); // return -1 if cannot extend
+int64_t PrevSimplePathNode(SuccinctDBG &dbg, int64_t curr_node); // return -1 if cannot extend
+
+// tips removal
+int64_t Trim(SuccinctDBG &dbg, int len, int min_final_contig_len);
+int64_t RemoveTips(SuccinctDBG &dbg, int max_tip_len, int min_final_contig_len);
+
+// bubble merging
+int64_t PopBubbles(SuccinctDBG &dbg, int max_bubble_len, double low_depth_ratio = 1);
+
+// assembly
+
+void AssembleFromUnitigGraph(SuccinctDBG &dbg, FILE *contigs_file, FILE *multi_file, FILE *final_contig_file, int min_final_contig_len);
+void AssembleFinalFromUnitigGraph(SuccinctDBG &dbg, FILE *final_contig_file, int min_final_contig_len);
+void RemoveLowLocalAndOutputChanged(SuccinctDBG &dbg, FILE *contigs_file, FILE *multi_file, FILE *final_contig_file, FILE *addi_contig_file, FILE *addi_multi_file, 
+                                    double min_depth, int min_len, double local_ratio, int min_final_contig_len);
+void RemoveLowLocalAndOutputFinal(SuccinctDBG &dbg, FILE *final_contig_file, 
+                                  double min_depth, int min_len, double local_ratio, int min_final_contig_len);
+
+// print stat
+void PrintStat(long long genome_size = 0);
+
+}
+
+#endif // define ASSEMBLY_ALGORITHMS_H_

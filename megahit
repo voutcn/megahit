@@ -1,0 +1,585 @@
+/*
+ *  MEGAHIT
+ *  Copyright (C) 2014 The University of Hong Kong
+ *
+ *  This program is free software: you can redistribute it and/or modify
+ *  it under the terms of the GNU General Public License as published by
+ *  the Free Software Foundation, either version 3 of the License, or
+ *  (at your option) any later version.
+ *
+ *  This program is distributed in the hope that it will be useful,
+ *  but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *  GNU General Public License for more details.
+ *
+ *  You should have received a copy of the GNU General Public License
+ *  along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
+#!/usr/bin/python -u
+
+import sys
+import getopt
+import subprocess
+import errno
+import os, glob
+import tempfile
+import warnings
+import shutil
+import math  
+import locale
+import multiprocessing
+
+from datetime import datetime, date, time
+
+usage_message = '''
+megahit version: 0.1 beta
+Copyright (c) HKU-BGI Bioinformatics Algorithms and Core Technology Research Laboratory 
+              & Department of Computer Science, University of Hong Kong
+
+Usage:
+    ./megahit [options] -m <memory_to_use> -l <max_read_len> {-r <reads.fa> | --input_cmd <command>}
+
+Required Arguments:
+    -m/--memory                    <int64>      memory in byte to be used.
+                                                This argument is used to optimize graph building module,
+                                                but the program CANNOT guarantee how much memory will be used.
+                                                This value is recommended to be 90% of the machine's memory.
+    -l/--max-read-len              <int>        maximum read length
+    
+  one of the two below arguments must be specified:       
+    -r/--read-file                 <string>     one fasta/fastq file contains all reads, can be gzip'ed
+    --input-cmd                    <string>     command of input
+                                                This command should output all reads in fasta/fastq format to stdout.
+                                                example:
+                                                --input-cmd "zcat *.fastq.gz"
+                                                If the command is too complex, try to convert all input reads into one
+                                                fasta file, then use the "-r" option.
+
+Optional Arguments:
+  Output options:
+    -o/--out-dir                   <string>     output directory, default: ./megahit_out
+    --min-contig-len               <int>        minimum length of contigs to output, default: 200
+    --keep-tmp-files                            keep all temporay files
+
+  Hardware options:
+    --cpu-only                                  do not use GPU. Use CPU only.
+    --gpu-mem                      <int64>      GPU memory in byte to be used. Default: auto detect to use up all free GPU memory. 
+    --t/--num-cpu-threads          <int>        Number of CPU threads, at least 2. Default: auto detect to use all CPU threads.
+
+  Basic assembly options:
+    --k-min                        <int>        minimum kmer size (<= 123), must be odd number, default: 21
+    --k-max                        <int>        maximum kmer size (<= 123), must be odd number, default: 99
+    --k-step                       <int>        increment of k-mer of each iteration (<= 28), must be even number, default: 10
+    --min-count                    <int>        minimum multiplicity for filtering (k+1)-mer when building the graph for k=k_min,
+                                                default: 2. 
+                                                Change the default value with cautions:
+                                                 this value less than 2 will lead to much more larger memory usage.
+
+  More detail assembly options:
+    --no-mercy                                  Do not add mercy (k+1)-mer for k=k_min, default: off
+    --no-low-local                              Do not progressively remove low local coverage contigs, default: off
+    --low-local-ratio              <double>     Ratio threshold to define low local coverage contigs. Default: 0.2
+    --max-tip-len                  <int>        Tips with length less than this value will be removed.
+                                                Default: 2*k for iteration of kmer_size=k
+    --no-bubble                                 Do not remove bubbles, default: off
+
+Other Arguments:    
+    -h/--help                                   print the usage message      
+'''
+
+class Usage(Exception):
+    def __init__(self, msg):
+        self.msg = msg
+
+host_mem = 0
+gpu_mem = 0
+max_read_len = 0
+read_file = ""
+input_cmd = ""
+out_dir = "./megahit_out/"
+min_contig_len = 200
+k_min = 21
+k_max = 99
+k_step = 10
+min_count = 2
+bin_dir = sys.path[0] + "/bin/"
+max_tip_len = -1
+no_mercy = 0
+no_low_local = 0
+no_bubble = 0
+num_cpu_threads = 0
+low_local_ratio = 0.2
+temp_dir = out_dir + "tmp/"
+keep_tmp_files = 0
+builder = "sdbg_builder_gpu"
+
+def log_file_name():
+    global out_dir
+    return out_dir + "log"
+
+def make_out_dir():
+    global out_dir
+    global temp_dir
+    if os.path.exists(out_dir):
+        pass
+    else:
+        os.mkdir(out_dir)
+
+    if os.path.exists(temp_dir):
+        pass
+    else:
+        os.mkdir(temp_dir)
+
+def check_opt():
+    global host_mem
+    global gpu_mem
+    global max_read_len
+    global read_file
+    global input_cmd
+    global out_dir
+    global min_contig_len
+    global k_min
+    global k_max
+    global k_step
+    global min_count
+    global no_mercy
+    global no_low_local
+    global no_bubble
+    global num_cpu_threads
+    global low_local_ratio
+
+    if host_mem <= 0:
+        print >> sys.stderr, "Memory must be greater than 0."
+        exit(1)
+    if max_read_len <= 1:
+        print >> sys.stderr, "max_read_len must be greater than 1."
+        exit(1)
+    if read_file == "" and input_cmd == "":
+        print >> sys.stderr, "No read_file or input_cmd."
+        exit(1)
+    if read_file != "" and input_cmd != "":
+        print >> sys.stderr, "Both read_file and input_cmd are specified. Please use only one of them."
+        exit(1)
+    if k_min <= 1:
+        print >> sys.stderr, "k_min should be at least 2."
+        exit(1)
+    if k_max >= 123:
+        print >> sys.stderr, "k_max cannot exceed 123."
+        exit(1)
+    if k_max < k_min:
+        print >> sys.stderr, "k_min should be no larger than k_max."
+        exit(1)
+    if k_min % 2 == 0 or k_max % 2 == 0:
+        print >> sys.stderr, "k_min and k_max must be odd numbers."
+        exit(1)
+    if k_step > 28:
+        print >> sys.stderr, "step must be less than 29."
+    if k_step % 2 != 0:
+        print >> sys.stderr, "step must be an even number."
+        exit(1)
+    if min_count <= 0:
+        print >> sys.stderr, "min_count must be greater than 0."
+        exit(1)
+    if low_local_ratio <= 0 or low_local_ratio > 0.5:
+        print >> sys.stderr, "low_local_ratio should be in (0, 0.5]."
+        exit(1)
+    if num_cpu_threads == 0:
+        num_cpu_threads = multiprocessing.cpu_count()
+    if num_cpu_threads <= 1:
+        print >> sys.stderr, "num_cpu_threads should be at least 2."
+        exit(1)
+
+    print "Number of CPU threads %d" % num_cpu_threads
+
+def graph_prefix(kmer_k):
+    global temp_dir
+    return temp_dir + "k" + str(kmer_k)
+
+def delete_temp_files(kmer_k):
+    os.remove(graph_prefix(kmer_k) + ".w")
+    os.remove(graph_prefix(kmer_k) + ".last")
+    os.remove(graph_prefix(kmer_k) + ".isd")
+    os.remove(graph_prefix(kmer_k) + ".dn")
+    os.remove(graph_prefix(kmer_k) + ".f")
+    os.remove(graph_prefix(kmer_k) + ".mul")
+
+    os.remove(graph_prefix(kmer_k) + ".contigs.fa")
+    os.remove(graph_prefix(kmer_k) + ".multi")
+
+    if kmer_k != k_max and no_low_local == 0:
+        os.remove(graph_prefix(kmer_k) + ".addi.fa")
+        os.remove(graph_prefix(kmer_k) + ".addi.multi")
+
+    if kmer_k != k_min:
+        os.remove(graph_prefix(kmer_k) + ".rr.pb")
+        os.remove(graph_prefix(kmer_k) + ".edges.0")
+    else:
+        for i in range(0, max(1, num_cpu_threads / 3)):
+            os.remove(graph_prefix(kmer_k) + ".edges." + str(i))
+        if no_mercy == 0:
+            for i in range(0, num_cpu_threads - 1):
+                os.remove(graph_prefix(kmer_k) + ".mercy." + str(i))
+        os.remove(graph_prefix(kmer_k) + ".cand")
+
+def build_first_graph():
+    global host_mem
+    global gpu_mem
+    global max_read_len
+    global num_cpu_threads
+    global k_min
+    global min_count
+    global bin_dir
+    global temp_dir
+    global read_file
+    global input_cmd
+
+    phase1_out_threads = max(1, int(num_cpu_threads / 3))
+
+    count_cmd = [bin_dir + builder, "count",
+                   "-k", str(k_min),
+                   "-m", str(min_count),
+                   "--host_mem", str(host_mem),
+                   "--gpu_mem", str(gpu_mem),
+                   "--max_read_len", str(max_read_len),
+                   "--output_prefix", graph_prefix(k_min),
+                   "--num_cpu_threads", str(num_cpu_threads),
+                   "--num_output_threads", str(phase1_out_threads)]
+    if read_file != "":
+        count_cmd.append("--input_file")
+        count_cmd.append(read_file)
+    else:
+        count_cmd.append("--input_file")
+        count_cmd.append("-")
+
+    try:
+        log_file = open(log_file_name(), "a")
+        start_time = datetime.now()
+        print >> log_file, "%s" % (" ").join(count_cmd)
+        print >> sys.stderr, "[%s]: Extracting solid (k+1)-mers for k = %d" % (start_time.strftime("%c"), k_min)
+        print >> log_file, "[%s]: Extracting solid (k+1)-mers for k = %d" % (start_time.strftime("%c"), k_min)
+        log_file.flush()
+        if read_file == "":
+            input_thread = subprocess.Popen(input_cmd, shell = True, stdout = subprocess.PIPE)
+            cmd_thread = subprocess.Popen(count_cmd, stdin = input_thread.stdout, stdout = log_file)
+            cmd_thread.wait()
+            ret_code = cmd_thread.returncode
+        else:
+            ret_code = subprocess.call(count_cmd, stdout = log_file)
+        if ret_code != 0:
+            print >> sys.stderr, "Error occurs when running \"builder count\""
+            exit(1)
+        log_file.close()
+
+    except OSError, o:
+        if o.errno == errno.ENOTDIR or o.errno == errno.ENOENT:
+            print >> sys.stderr, "Error: sub-program builder not found"
+        exit(1) 
+
+
+    build_graph(k_min, phase1_out_threads)
+
+def build_graph(kmer_k, num_edge_files):
+    global host_mem
+    global gpu_mem
+    global num_cpu_threads
+    global max_read_len
+    global bin_dir
+    global temp_dir
+    global no_mercy
+    global k_min
+
+    build_cmd = [bin_dir + builder, "build",
+                   "--host_mem", str(host_mem),
+                   "--gpu_mem", str(gpu_mem),
+                   "--input_prefix", graph_prefix(kmer_k),
+                   "--output_prefix", graph_prefix(kmer_k),
+                   "--max_read_len", str(max_read_len),
+                   "--num_cpu_threads", str(num_cpu_threads),
+                   "--num_edge_files", str(num_edge_files)]
+    if no_mercy == 0 and kmer_k == k_min:
+        build_cmd.append("--need_mercy")
+
+    try:
+        log_file = open(log_file_name(), "a")
+        start_time = datetime.now()
+        print >> log_file, "%s" % (" ").join(build_cmd)
+        print >> sys.stderr, "[%s]: Building graph for k = %d" % (start_time.strftime("%c"), kmer_k)
+        print >> log_file, "[%s]: Building graph for k = %d" % (start_time.strftime("%c"), kmer_k)
+        log_file.flush()
+        ret_code = subprocess.call(build_cmd, stdout = log_file)
+        if ret_code != 0:
+            print >> sys.stderr, "Error occurs when running \"builder build\" for k = %d" % kmer_k
+            exit(1)
+        log_file.close()
+    except OSError, o:
+        if o.errno == errno.ENOTDIR or o.errno == errno.ENOENT:
+            print >> sys.stderr, "Error: sub-program builder not found"
+        exit(1)
+
+def iterate(cur_k, step):
+    global bin_dir
+    global num_cpu_threads
+    global max_read_len
+    global k_min
+    global read_file
+    global input_cmd
+
+    next_k = cur_k + step
+    iterator = ""
+    if next_k < 61:
+        iterator = bin_dir + "iterate_edges_k61"
+    elif next_k < 92:
+        iterator = bin_dir + "iterate_edges_k92"
+    else:
+        iterator = bin_dir + "iterate_edges_k124"
+
+    iterate_cmd = [iterator,
+                   "-c", graph_prefix(cur_k) + ".contigs.fa",
+                   "-m", graph_prefix(cur_k) + ".multi",
+                   "-t", str(num_cpu_threads),
+                   "-k", str(cur_k),
+                   "-s", str(step),
+                   "-o", graph_prefix(next_k),
+                   "-l", str(max_read_len)]
+
+    if no_low_local == 0:
+        iterate_cmd.append("--addi_contig_file")
+        iterate_cmd.append(graph_prefix(cur_k) + ".addi.fa")
+        iterate_cmd.append("--addi_multi_file")
+        iterate_cmd.append(graph_prefix(cur_k) + ".addi.multi")
+
+    if cur_k == k_min:
+        if read_file == "":
+            iterate_cmd.append("-r")
+            iterate_cmd.append("-")
+        else:
+            iterate_cmd.append("-r")
+            iterate_cmd.append(read_file)
+
+        iterate_cmd.append("-f")
+        iterate_cmd.append("fasta")
+
+    else:
+        iterate_cmd.append("-r")
+        iterate_cmd.append(graph_prefix(cur_k) + ".rr.pb")
+        iterate_cmd.append("-f")
+        iterate_cmd.append("binary")
+
+    try:
+        log_file = open(log_file_name(), "a")
+        start_time = datetime.now()
+        print >> log_file, "%s" % (" ").join(iterate_cmd)
+        print >> sys.stderr, "[%s]: Extracting iterative edges from k = %d to %d" % (start_time.strftime("%c"), cur_k, next_k)
+        print >> log_file, "[%s]: Extracting iterative edges from k = %d to %d" % (start_time.strftime("%c"), cur_k, next_k)
+        log_file.flush()
+
+        ret_code = 0
+        if cur_k == k_min and read_file == "":
+            input_thread = subprocess.Popen(input_cmd, shell = True, stdout = subprocess.PIPE)
+            cmd_thread = subprocess.Popen(iterate_cmd, stdin = input_thread.stdout, stdout = log_file)
+            cmd_thread.wait()
+            ret_code = cmd_thread.returncode
+        else:
+            ret_code = subprocess.call(iterate_cmd, stdout = log_file)
+        if ret_code != 0:
+            print >> sys.stderr, "Error occurs when running iterator for k = %d to k = %d " % (cur_k, next_k)
+            exit(1)
+
+        log_file.close()
+
+    except OSError, o:
+        if o.errno == errno.ENOTDIR or o.errno == errno.ENOENT:
+            print >> sys.stderr, "Error: sub-program iterater_edge not found"
+        exit(1)
+
+def assemble(cur_k):
+    global bin_dir
+    global k_max
+    global num_cpu_threads
+    global max_tip_len
+    global no_bubble
+    global no_low_local
+    global low_local_ratio
+    global min_contig_len
+
+    assembly_cmd = [bin_dir + "assembler",
+                    "-s", graph_prefix(cur_k),
+                    "-o", graph_prefix(cur_k),
+                    "-t", str(num_cpu_threads),
+                    "--max_tip_len", str(max_tip_len),
+                    "--min_final_contig_len", str(min_contig_len)]
+
+    if no_bubble == 1:
+        assembly_cmd.append("--no_bubble")
+    if no_low_local == 0:
+        assembly_cmd.append("--remove_low_local")
+        assembly_cmd.append("--low_local_ratio")
+        assembly_cmd.append(str(low_local_ratio))
+    if cur_k == k_max:
+        assembly_cmd.append("--is_final_round")
+
+    try:
+        log_file = open(log_file_name(), "a")
+        start_time = datetime.now()
+        print >> log_file, "%s" % (" ").join(assembly_cmd)
+        print >> sys.stderr, "[%s]: Assembling contigs from SdBG for k = %d" % (start_time.strftime("%c"), cur_k)
+        print >> log_file, "[%s]: Assembling contigs from SdBG for k = %d" % (start_time.strftime("%c"), cur_k)
+        log_file.flush()
+        ret_code = subprocess.call(assembly_cmd, stdout = log_file)
+        if ret_code != 0:
+            print >> sys.stderr, "Error occurs when assembling contigs for k = %d" % cur_k
+            exit(1)
+
+        log_file.close()
+        
+    except OSError, o:
+        if o.errno == errno.ENOTDIR or o.errno == errno.ENOENT:
+            print >> sys.stderr, "Error: sub-program assembler not found"
+        exit(1)
+
+def merge_final():
+    log_file = open(log_file_name(), "a")
+    start_time = datetime.now()        
+    print >> sys.stderr, "[%s]: Merging to output final contigs." % (start_time.strftime("%c"))
+    print >> log_file, "[%s]: Merging to output final contigs.." % (start_time.strftime("%c"))
+    os.system("cat " + temp_dir + "*.final.contigs.fa > " + out_dir + "final.contigs.fa")
+    log_file.flush()
+    log_file.close()
+
+def main(argv = None):
+    if argv is None:
+        argv = sys.argv
+
+    try:
+        try:
+            opts, args = getopt.getopt(argv[1:], "hm:l:o:r:t:", 
+                                        ["help",  
+                                         "memory=",
+                                         "max-read-len=",
+                                         "read-file=",
+                                         "input-cmd=",
+                                         "out-dir=",
+                                         "min-contig-len=",
+                                         "cpu-only",
+                                         "gpu-mem=",
+                                         "k-min=",
+                                         "k-max=",
+                                         "k-step=",
+                                         "min-count=",
+                                         "no-mercy",
+                                         "no-low-local",
+                                         "max-tip-len=",
+                                         "no-bubble",
+                                         "low-local-ratio=",
+                                         "keep-tmp-files"])
+        except getopt.error, msg:
+            raise Usage(msg)    
+        if len(opts) == 0:
+            raise Usage(usage_message)
+
+        global host_mem
+        global gpu_mem
+        global max_read_len
+        global read_file
+        global input_cmd
+        global out_dir
+        global min_contig_len
+        global max_tip_len
+        global k_min
+        global k_max
+        global k_step
+        global min_count
+        global bin_dir
+        global no_mercy
+        global no_low_local
+        global no_bubble
+        global num_cpu_threads
+        global low_local_ratio
+        global temp_dir
+        global keep_tmp_files
+        global builder
+
+        for option, value in opts:
+            if option in ("-h", "--help"):
+                raise Usage(usage_message)
+            elif option in ("-o", "--out-dir"):
+                out_dir = value + "/"
+                temp_dir = out_dir + "tmp/"
+            elif option in ("-r", "--readfile"):
+                read_file = value
+            elif option == "--input-cmd":
+                input_cmd = value
+            elif option in ("-m", "--memory"):
+                host_mem = long(value)
+            elif option == "--gpu-mem":
+                gpu_mem = long(value)
+            elif option in ("-l", "--max-read-len"):
+                max_read_len = int(value)
+            elif option == "--min-contig-len":
+                min_contig_len = int(value)
+            elif option in ("-t", "--num-cpu-threads"):
+                num_cpu_threads = int(value)
+            elif option == "--k-min":
+                k_min = int(value)
+            elif option == "--k-max":
+                k_max = int(value)
+            elif option == "--k-step":
+                k_step = int(value)
+            elif option == "--min-count":
+                min_count = int(value)
+            elif option == "--max-tip-len":
+                max_tip_len = int(value)
+            elif option == "--no-bubble":
+                no_bubble = 1
+            elif option == "--no-mercy":
+                no_mercy = 1
+            elif option == "--no-low-local":
+                no_low_local = 1
+            elif option == "--keep-tmp-files":
+                keep_tmp_files = 1
+            elif option == "--cpu-only":
+                builder = "sdbg_builder_cpu"
+            else:
+                print >> sys.stderr, "Invalid option %s", option
+                exit(1)
+
+        check_opt()
+        make_out_dir()
+        build_first_graph()
+        assemble(k_min)
+
+        cur_k = k_min
+        while cur_k < k_max:
+            next_k = min(cur_k + k_step, k_max)
+            if next_k > k_max:
+                k_step = k_max - cur_k
+                next_k = k_max
+
+            iterate(cur_k, next_k - cur_k)
+            build_graph(next_k, 1)
+            assemble(next_k)
+
+            if keep_tmp_files == 0:
+                delete_temp_files(cur_k)
+            cur_k = next_k
+        # end while
+        if keep_tmp_files == 0:
+            delete_temp_files(k_max)
+
+        merge_final()
+
+        log_file = open(log_file_name(), "a")
+
+        start_time = datetime.now()        
+        print >> sys.stderr, "[%s]: ALL DONE." % (start_time.strftime("%c"))
+        print >> log_file, "[%s]: ALL DONE." % (start_time.strftime("%c"))
+        log_file.flush()
+        log_file.close()
+
+    except Usage, err:
+        print >> sys.stderr, sys.argv[0].split("/")[-1] + ": " + str(err.msg)
+        return 2
+
+if __name__ == "__main__":
+    sys.exit(main())
