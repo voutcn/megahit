@@ -10,15 +10,15 @@ Use CPU-only version of MEGAHIT
 ```
 make
 python megahit -h # show the helping manual
-pyhton megahit [options] --cpu-only -m <memory_to_use> -l <max_read_len> {-r <reads.fa> | --input_cmd <command>}
+python megahit [options] --cpu-only -m <memory_to_use> -l <max_read_len> {-r <reads.fa> | --input_cmd <command>}
 ```
 
 Use CUDA version of MEGAHIT, with NVCC version 5.5 or higher.
 
 ```
 make use_gpu=1
-pyhton megahit -h # show the helping manual
-pyhton megahit [options] -m <memory_to_use> -l <max_read_len> {-r <reads.fa> | --input_cmd <command>}
+python megahit -h # show the helping manual
+python megahit [options] -m <memory_to_use> -l <max_read_len> {-r <reads.fa> | --input_cmd <command>}
 ```
 
 We recommend to set `-m` as large as possible, but remember to leave some space for your server. For example, for a 64G server, use `-m 60000000000`, which is about 56GB. Typically, 56GB memory is quite enough for human guts samples containing 15-30G base-pairs.
