@@ -300,11 +300,16 @@ void PrintStat(long long genome_size) {
     // total length
     int64_t total_length = 0;
     int64_t total_contigs = 0;
+    int64_t average_length = 0;
     for (auto it = histogram.begin(); it != histogram.end(); ++it) {
         total_length += it->first * it->second;
         total_contigs += it->second;
     }
     if (genome_size == 0) { genome_size = total_length; }
+
+    if (total_contigs > 0) {
+        average_length = total_length / total_contigs;
+    }
 
     // N50
     int64_t n50 = -1;
@@ -317,7 +322,7 @@ void PrintStat(long long genome_size) {
         }
     }
 
-    printf("Total length: %ld, N50: %ld, Mean: %ld, number of contigs: %ld\n", total_length, n50, total_length / total_contigs, total_contigs);
+    printf("Total length: %ld, N50: %ld, Mean: %ld, number of contigs: %ld\n", total_length, n50, average_length, total_contigs);
     printf("Maximum length: %ld\n", histogram.size() > 0 ? histogram.rbegin()->first : 0);
 }
 

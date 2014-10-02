@@ -93,6 +93,12 @@ public:
 
     FastxReader(): format_(kNull) {}
     FastxReader(gzFile input): buffer_reader_(input) {
+        if (buffer_reader_.eof()) {
+            format_ = kFasta;
+            read_terminator_ = '>';
+            return;
+        }
+
         char first_char = buffer_reader_.NextChar();
         if (first_char == '>') {
             format_ = kFasta;
@@ -107,6 +113,12 @@ public:
 
     void init(gzFile input) {
         buffer_reader_.init(input);
+        if (buffer_reader_.eof()) {
+            format_ = kFasta;
+            read_terminator_ = '>';
+            return;
+        }
+
         char first_char = buffer_reader_.NextChar();
         if (first_char == '>') {
             format_ = kFasta;
@@ -124,6 +136,11 @@ public:
     }
 
     size_t NextSeq(std::string &seq) {
+        if (eof()) {
+            seq.clear();
+            return 0;
+        }
+        
         buffer_reader_.SkipLine();
         seq.clear();
 

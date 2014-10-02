@@ -1,0 +1,30 @@
+# Compiled Object files
+*.slo
+*.lo
+*.o
+*.obj
+
+# Compiled Dynamic libraries
+*.so
+*.dylib
+*.dll
+
+# Compiled Static libraries
+*.lai
+*.la
+*.a
+*.lib
+
+# Executables
+*.exe
+*.out
+*.app
+
+# ctags
+*.tags
+*.tags_sorted_by_file
+
+# Other library
+
+# Sublime Text file
+sftp-config.json

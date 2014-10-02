@@ -262,8 +262,6 @@ static void ReadContigsAndBuildHash(IterateGlobalData &globals, bool is_addi_con
     pthread_create(&input_thread, NULL, ReadContigsThread, &input_thread_data);
     omp_set_num_threads(globals.num_cpu_threads - 1);
 
-    globals.iterative_edges.reserve(1 << 30);
-
     while (true) {
         pthread_join(input_thread, NULL);
         if (fastx_reader.eof() && packages[input_thread_index].size() == 0) {

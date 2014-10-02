@@ -16,6 +16,7 @@
  *  along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+
 #include <pthread.h>
 #include <zlib.h> // reading gzip
 #include <assert.h> // debug
@@ -178,7 +179,7 @@ void ReadInputFile(struct global_data_t &globals) {
     while ((1 << bits_read_length) - 1 < globals.max_read_length) {
         ++bits_read_length;
     }
-    int words_per_read = DivCeiling(globals.max_read_length + bits_read_length, kCharsPerEdgeWord);
+    int words_per_read = DivCeiling(globals.max_read_length * kBitsPerEdgeChar + bits_read_length, kBitsPerEdgeWord);
     globals.words_per_read = words_per_read;
     globals.read_length_mask = (1 << bits_read_length) - 1;
 
@@ -1961,7 +1962,10 @@ void* Lv2ExtractSubstringsThread(void* _data) {
                 int strand = (full_offset >> globals.k_num_bits) & 1;
                 edge_word_t *edge_p = globals.packed_edges + read_id * globals.words_per_edge;
                 int num_chars_to_copy = globals.kmer_k - (offset >= 2);
-                int counting = *(edge_p + globals.words_per_edge - 1) & kMaxMulti_t;
+                int counting = 0;
+                if (offset == 1) {
+                    counting = *(edge_p + globals.words_per_edge - 1) & kMaxMulti_t;
+                }
                 if (strand == 0) {
                     CopySubstring(substrings_p, edge_p, offset, num_chars_to_copy, counting, globals);
                 } else {

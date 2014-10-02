@@ -20,17 +20,17 @@
 #define UNITIG_GRAPH_H_
 
 #include <vector>
-#include <string>
 #include <map>
 #include <limits>
 #include <assert.h>
-#include "succinct_dbg.h"
-#include "atomic_bit_vector.h"
-#include "hash_map.h"
 
+#include "hash_map.h"
+#include "compact_sequence.h"
+
+class SuccinctDBG;
 struct UnitigGraphVertex {
     UnitigGraphVertex(int64_t start_node, int64_t end_node, 
-        int64_t rev_start_node, int64_t rev_end_node, int64_t depth, const std::string &label): 
+        int64_t rev_start_node, int64_t rev_end_node, int64_t depth, const CompactSequence &label): 
             start_node(start_node), end_node(end_node), rev_start_node(rev_start_node), rev_end_node(rev_end_node), depth(depth), label(label) {
 
         is_deleted = false;
@@ -46,7 +46,7 @@ struct UnitigGraphVertex {
     bool is_changed: 1;
     bool is_dead: 1;
     bool is_loop: 1;
-    std::string label;
+    CompactSequence label;
 };
 
 class UnitigGraph {

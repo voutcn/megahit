@@ -21,7 +21,7 @@
 #
 # Makefile usage
 #
-# make <target> [use_gpu=<0|1>] [sm=<XXX,...>] [abi=<0|1>] [open64=<0|1>] [verbose=<0|1>] [keep=<0|1>]
+# make <target>[use_gpu=<0|1>] [disablempopcnt=<0|1>] [sm=<XXX,...>] [abi=<0|1>] [open64=<0|1>] [verbose=<0|1>] [keep=<0|1>]
 #
 #-------------------------------------------------------------------------------
 
@@ -147,7 +147,10 @@ DEPS =   ./Makefile \
 # CC = /nas1/dhli/gcc/4.8.3/rtf/bin/g++
 CC = g++
 CUDALIBFLAG = -L/usr/local/cuda/lib64/ -lcuda -lcudart
-CFLAGS = -O3 -Wall -funroll-loops -march=native -fomit-frame-pointer -maccumulate-outgoing-args -fprefetch-loop-arrays -lm -static-libgcc -mpopcnt -fopenmp -g -std=c++0x
+CFLAGS = -O3 -Wall -funroll-loops -march=core2 -fomit-frame-pointer -maccumulate-outgoing-args -fprefetch-loop-arrays -lm -static-libgcc -fopenmp -g -std=c++0x
+ifneq ($(disablempopcnt), 1)
+	CFLAGS += -mpopcnt
+endif
 DEPS = Makefile
 BIN_DIR = ./bin/
 
@@ -176,8 +179,8 @@ endif
 $(BIN_DIR)sdbg_builder_cpu: sdbg_builder.cpp .cx1_functions_cpu.o lv2_cpu_sort.h $(DEPS)
 	$(CC) $(CFLAGS) sdbg_builder.cpp .cx1_functions_cpu.o options_description.o -o $(BIN_DIR)sdbg_builder_cpu -D DISABLE_GPU -lz
 
-$(BIN_DIR)assembler: assembler.cpp succinct_dbg.o rank_and_select.o assembly_algorithms.o branch_group.o options_description.o unitig_graph.o $(DEPS)
-	$(CC) $(CFLAGS) assembler.cpp rank_and_select.o succinct_dbg.o assembly_algorithms.o branch_group.o options_description.o unitig_graph.o -o $(BIN_DIR)assembler
+$(BIN_DIR)assembler: assembler.cpp succinct_dbg.o rank_and_select.o assembly_algorithms.o branch_group.o options_description.o unitig_graph.o compact_sequence.o $(DEPS)
+	$(CC) $(CFLAGS) assembler.cpp rank_and_select.o succinct_dbg.o assembly_algorithms.o branch_group.o options_description.o unitig_graph.o compact_sequence.o -o $(BIN_DIR)assembler
 
 iterate_edges_all: $(BIN_DIR)iterate_edges_k61 $(BIN_DIR)iterate_edges_k92 $(BIN_DIR)iterate_edges_k124
 
@@ -190,8 +193,8 @@ $(BIN_DIR)iterate_edges_k92: iterate_edges.cpp iterate_edges.h options_descripti
 $(BIN_DIR)iterate_edges_k124: iterate_edges.cpp iterate_edges.h options_description.o $(DEPS)
 	$(CC) $(CFLAGS) -lz iterate_edges.cpp options_description.o -o $(BIN_DIR)iterate_edges_k124 -D KMER_NUM_UINT64=4
 
-$(BIN_DIR)query_sdbg: query_sdbg.cpp succinct_dbg.o rank_and_select.o assembly_algorithms.o branch_group.o unitig_graph.o $(DEPS)
-	$(CC) $(CFLAGS) query_sdbg.cpp rank_and_select.o succinct_dbg.o assembly_algorithms.o branch_group.o unitig_graph.o -o $(BIN_DIR)query_sdbg
+$(BIN_DIR)query_sdbg: query_sdbg.cpp succinct_dbg.o rank_and_select.o assembly_algorithms.o branch_group.o unitig_graph.o compact_sequence.o $(DEPS)
+	$(CC) $(CFLAGS) query_sdbg.cpp rank_and_select.o succinct_dbg.o assembly_algorithms.o branch_group.o unitig_graph.o compact_sequence.o -o $(BIN_DIR)query_sdbg
 
 $(BIN_DIR)rank_and_select_sample: rank_and_select_sample.cpp rank_and_select.o $(DEPS)
 	$(CC) $(CFLAGS) rank_and_select.o rank_and_select_sample.cpp -o $(BIN_DIR)rank_and_select_sample

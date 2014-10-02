@@ -1,4 +1,5 @@
 #!/usr/bin/python -u
+
 #-------------------------------------------------------------------------
 # MEGAHIT
 # Copyright (C) 2014 The University of Hong Kong
@@ -32,9 +33,8 @@ import multiprocessing
 from datetime import datetime, date, time
 
 usage_message = '''
-megahit version: 0.1 beta
-Copyright (c) HKU-BGI Bioinformatics Algorithms and Core Technology Research Laboratory 
-              & Department of Computer Science, University of Hong Kong
+megahit version: 0.1.1 beta
+Copyright (c) The University of Hong Kong
 
 Usage:
     ./megahit [options] -m <memory_to_use> -l <max_read_len> {-r <reads.fa> | --input_cmd <command>}
@@ -59,7 +59,7 @@ Optional Arguments:
   Output options:
     -o/--out-dir                   <string>     output directory, default: ./megahit_out
     --min-contig-len               <int>        minimum length of contigs to output, default: 200
-    --keep-tmp-files                            keep all temporay files
+    --keep-tmp-files                            keep all temporary files
 
   Hardware options:
     --cpu-only                                  do not use GPU. Use CPU only.
@@ -69,7 +69,7 @@ Optional Arguments:
   Basic assembly options:
     --k-min                        <int>        minimum kmer size (<= 123), must be odd number, default: 21
     --k-max                        <int>        maximum kmer size (<= 123), must be odd number, default: 99
-    --k-step                       <int>        increment of k-mer of each iteration (<= 28), must be even number, default: 10
+    --k-step                       <int>        increment of kmer size of each iteration (<= 28), must be even number, default: 10
     --min-count                    <int>        minimum multiplicity for filtering (k+1)-mer when building the graph for k=k_min,
                                                 default: 2. 
                                                 Change the default value with cautions:
@@ -160,6 +160,9 @@ def check_opt():
     if read_file != "" and input_cmd != "":
         print >> sys.stderr, "Both read_file and input_cmd are specified. Please use only one of them."
         exit(1)
+    if k_max >= max_read_len:
+        k_max = int(max_read_len) / 2 * 2 - 1 
+        print >> sys.stderr, "Constrain maximum read length, k_max is set to be " + str(k_max)
     if k_min <= 1:
         print >> sys.stderr, "k_min should be at least 2."
         exit(1)

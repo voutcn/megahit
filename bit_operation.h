@@ -22,6 +22,8 @@
  * @author Yu Peng (ypeng@cs.hku.hk)
  * @version 1.0.0
  * @date 2011-08-02
+ * @modified by Dinghua Li
+ * @date 2014-10-02
  */
 
 #ifndef __BASIC_BIT_OPERATION_H_
@@ -55,11 +57,31 @@ inline void ReverseComplement(uint64_t &value)
     value = ~value;
 }
 
-inline void ReverseComplement(uint8_t &value)
+// inline void ReverseComplement(uint8_t &value)
+// {
+//     value = ((value & kSwap8Mask4) << 4) | ((value & ~kSwap8Mask4) >> 4);
+//     value = ((value & kSwap8Mask2) << 2) | ((value & ~kSwap8Mask2) >> 2);
+//     value = ~value;
+// }
+
+// inline void Reverse(uint8_t &value)
+// {
+//     value = ((value & kSwap8Mask4) << 4) | ((value & ~kSwap8Mask4) >> 4);
+//     value = ((value & kSwap8Mask2) << 2) | ((value & ~kSwap8Mask2) >> 2);
+// }
+
+inline uint8_t ReverseComplement(uint8_t value)
 {
     value = ((value & kSwap8Mask4) << 4) | ((value & ~kSwap8Mask4) >> 4);
     value = ((value & kSwap8Mask2) << 2) | ((value & ~kSwap8Mask2) >> 2);
-    value = ~value;
+    return ~value;
+}
+
+inline uint8_t Reverse(uint8_t value)
+{
+    value = ((value & kSwap8Mask4) << 4) | ((value & ~kSwap8Mask4) >> 4);
+    value = ((value & kSwap8Mask2) << 2) | ((value & ~kSwap8Mask2) >> 2);
+    return value;
 }
 
 inline int BitCount(uint8_t x)
