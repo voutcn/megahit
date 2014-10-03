@@ -1,4 +1,4 @@
-#!/usr/bin/python -u
+#!/usr/bin/env python
 
 #-------------------------------------------------------------------------
 # MEGAHIT
@@ -513,7 +513,7 @@ def main(argv = None):
             elif option == "--input-cmd":
                 input_cmd = value
             elif option in ("-m", "--memory"):
-                host_mem = long(value)
+                host_mem = long(float(value))
             elif option == "--gpu-mem":
                 gpu_mem = long(value)
             elif option in ("-l", "--max-read-len"):
@@ -585,3 +585,4 @@ def main(argv = None):
 
 if __name__ == "__main__":
     sys.exit(main())
+
