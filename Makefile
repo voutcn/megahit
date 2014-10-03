@@ -147,7 +147,7 @@ DEPS =   ./Makefile \
 # CC = /nas1/dhli/gcc/4.8.3/rtf/bin/g++
 CC = g++
 CUDALIBFLAG = -L/usr/local/cuda/lib64/ -lcuda -lcudart
-CFLAGS = -O3 -Wall -funroll-loops -march=core2 -fomit-frame-pointer -maccumulate-outgoing-args -fprefetch-loop-arrays -lm -static-libgcc -fopenmp -g -std=c++0x
+CFLAGS = -O3 -Wall -funroll-loops -march=core2 -fomit-frame-pointer -maccumulate-outgoing-args -fprefetch-loop-arrays -lm -static-libgcc -fopenmp -g -std=c++0x -lz
 ifneq ($(disablempopcnt), 1)
 	CFLAGS += -mpopcnt
 endif
@@ -185,13 +185,13 @@ $(BIN_DIR)assembler: assembler.cpp succinct_dbg.o rank_and_select.o assembly_alg
 iterate_edges_all: $(BIN_DIR)iterate_edges_k61 $(BIN_DIR)iterate_edges_k92 $(BIN_DIR)iterate_edges_k124
 
 $(BIN_DIR)iterate_edges_k61: iterate_edges.cpp iterate_edges.h options_description.o $(DEPS)
-	$(CC) $(CFLAGS) -lz iterate_edges.cpp options_description.o -o $(BIN_DIR)iterate_edges_k61 -D KMER_NUM_UINT64=2
+	$(CC) $(CFLAGS) iterate_edges.cpp options_description.o -o $(BIN_DIR)iterate_edges_k61 -D KMER_NUM_UINT64=2 -lz
 
 $(BIN_DIR)iterate_edges_k92: iterate_edges.cpp iterate_edges.h options_description.o $(DEPS)
-	$(CC) $(CFLAGS) -lz iterate_edges.cpp options_description.o -o $(BIN_DIR)iterate_edges_k92 -D KMER_NUM_UINT64=3
+	$(CC) $(CFLAGS) iterate_edges.cpp options_description.o -o $(BIN_DIR)iterate_edges_k92 -D KMER_NUM_UINT64=3 -lz
 
 $(BIN_DIR)iterate_edges_k124: iterate_edges.cpp iterate_edges.h options_description.o $(DEPS)
-	$(CC) $(CFLAGS) -lz iterate_edges.cpp options_description.o -o $(BIN_DIR)iterate_edges_k124 -D KMER_NUM_UINT64=4
+	$(CC) $(CFLAGS) iterate_edges.cpp options_description.o -o $(BIN_DIR)iterate_edges_k124 -D KMER_NUM_UINT64=4 -lz
 
 $(BIN_DIR)query_sdbg: query_sdbg.cpp succinct_dbg.o rank_and_select.o assembly_algorithms.o branch_group.o unitig_graph.o compact_sequence.o $(DEPS)
 	$(CC) $(CFLAGS) query_sdbg.cpp rank_and_select.o succinct_dbg.o assembly_algorithms.o branch_group.o unitig_graph.o compact_sequence.o -o $(BIN_DIR)query_sdbg
