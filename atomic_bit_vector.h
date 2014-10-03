@@ -1,5 +1,7 @@
 /*
- *  MEGAHIT
+ *  atomic_bit_vector.h
+ *  This file is a part of MEGAHIT
+ *  
  *  Copyright (C) 2014 The University of Hong Kong
  *
  *  This program is free software: you can redistribute it and/or modify
@@ -22,6 +24,7 @@
 #include <assert.h>
 #include <stdlib.h>
 #include <memory.h>
+#include "mem_file_checker-inl.h"
 
 class AtomicBitVector {
 public:
@@ -31,7 +34,7 @@ public:
         num_words_ = ((size + kBitsPerWord - 1) / kBitsPerWord);
         capacity_ = num_words_;
         if (num_words_ != 0) {
-            data_ = (word_t*) malloc(sizeof(word_t) * num_words_);
+            data_ = (word_t*) MallocAndCheck(sizeof(word_t) * num_words_, __FILE__, __LINE__);
             assert(data_ != NULL);
             memset(data_, 0, sizeof(word_t) * num_words_);
         } else {
@@ -71,7 +74,7 @@ public:
         size_ = size;
         num_words_ = (size + kBitsPerWord - 1) / kBitsPerWord;
         if (capacity_ < num_words_) {
-            word_t *new_data = (word_t*) malloc(sizeof(word_t) * num_words_);
+            word_t *new_data = (word_t*) MallocAndCheck(sizeof(word_t) * num_words_, __FILE__, __LINE__);
             assert(new_data != NULL);
             if (data_ != NULL) {
                 free(data_);

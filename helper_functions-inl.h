@@ -16,8 +16,8 @@
  *  along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef SDBG_BUIDER_HELPER_FUNCTIONS_INL_H_
-#define SDBG_BUIDER_HELPER_FUNCTIONS_INL_H_
+#ifndef HELPER_FUNCTIONS_INL_H_
+#define HELPER_FUNCTIONS_INL_H_
 
 #include <stdarg.h>
 #include <stdio.h>
@@ -69,4 +69,4 @@ inline unsigned int mirror(unsigned int v) {
 }
 
 
-#endif // SDBG_BUIDER_HELPER_FUNCTIONS_INL_H_
+#endif // HELPER_FUNCTIONS_INL_H_

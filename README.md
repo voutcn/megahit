@@ -12,7 +12,7 @@ Use CPU-only version of MEGAHIT
 % python ./megahit [options] --cpu-only -m <memory_to_use> -l <max_read_len> {-r <reads.fa> | --input_cmd <command>}
 ```
 
-Use GPU-accelerated version of MEGAHIT, with an CUDA-enabled GPU and NVCC version 5.5 or higher.
+Use GPU-accelerated version of MEGAHIT, with a CUDA-enabled GPU and NVCC version 5.5 or higher.
 
 ```
 % make use_gpu=1

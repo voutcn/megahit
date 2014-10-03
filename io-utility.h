@@ -1,5 +1,7 @@
 /*
- *  MEGAHIT
+ *  io-utility.h
+ *  This file is a part of MEGAHIT
+ *  
  *  Copyright (C) 2014 The University of Hong Kong
  *
  *  This program is free software: you can redistribute it and/or modify
@@ -25,6 +27,7 @@
 #include <zlib.h>
 #include "definitions.h"
 #include "fastx_reader.h"
+#include "mem_file_checker-inl.h"
 
 struct ContigPackage {
     const static unsigned kMaxNumChars = (1 << 30); // tunable
@@ -73,6 +76,10 @@ struct ContigPackage {
     char CharAt(int i, int j) {
         return seqs[start_pos[i] + j];
     }
+
+    std::string GetString(int i) {
+        return seqs.substr(start_pos[i], seq_lengths[i]);
+    }
 };
 
 struct ReadPackage {
@@ -96,10 +103,9 @@ struct ReadPackage {
         }
         words_per_read = (max_read_len * 2 + offset_bits + 31) / 32;
         printf("words per read: %d\n", words_per_read);
-        packed_reads = (edge_word_t*) malloc(sizeof(edge_word_t) * words_per_read * kMaxNumReads);
+        packed_reads = (edge_word_t*) MallocAndCheck(sizeof(edge_word_t) * words_per_read * kMaxNumReads, __FILE__, __LINE__);
         assert(packed_reads != NULL);
     }
-
 
     ~ReadPackage() {
         if (packed_reads != NULL) {
@@ -245,7 +251,7 @@ struct EdgeReader {
 
         words_per_true_edge = ((kmer_k + 1) * 2 + 31) / 32;
 
-        buffer = (edge_word_t*) malloc(sizeof(edge_word_t) * kBufferSize * words_per_edge * num_files);
+        buffer = (edge_word_t*) MallocAndCheck(sizeof(edge_word_t) * kBufferSize * words_per_edge * num_files, __FILE__, __LINE__);
         assert(buffer != NULL);
 
         for (int i = 0; i < (int)edges_files.size(); ++i) {
@@ -273,7 +279,7 @@ struct EdgeReader {
         
         words_per_true_edge = ((kmer_k + 1) * 2 + 31) / 32;
 
-        buffer = (edge_word_t*) malloc(sizeof(edge_word_t) * kBufferSize * words_per_edge * num_files);
+        buffer = (edge_word_t*) MallocAndCheck(sizeof(edge_word_t) * kBufferSize * words_per_edge * num_files, __FILE__, __LINE__);
         assert(buffer != NULL);
 
         for (int i = 0; i < (int)edges_files.size(); ++i) {

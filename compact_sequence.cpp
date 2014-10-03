@@ -47,8 +47,14 @@ const CompactSequence &CompactSequence::Append(const std::string &seq, int offse
 
 const CompactSequence &CompactSequence::Append(uint8_t ch)
 {
-    resize(size() + 1);
-    set_base(size()-1, ch);
+    if (data_[data_.size()-1] > 0) {
+        data_[data_.size()-2] &= (1 << ((4 - data_[data_.size()-1]) << 1)) - 1;
+        data_[data_.size()-2] |= (ch&3) << ((4 - data_[data_.size()-1]) << 1);
+        --data_[data_.size()-1];
+    } else {
+        data_[data_.size()-1] = ch & 3;
+        data_.push_back(3);
+    }
     return *this;
 }
 

@@ -1,5 +1,7 @@
 /*
- *  MEGAHIT
+ *  succinct_dbg.cpp
+ *  This file is a part of MEGAHIT
+ *  
  *  Copyright (C) 2014 The University of Hong Kong
  *
  *  This program is free software: you can redistribute it and/or modify
@@ -23,6 +25,8 @@
 #include <string.h>
 #include <string>
 #include <algorithm>
+
+#include "mem_file_checker-inl.h"
 
 int SuccinctDBG::NodeMultiplicity(int64_t x) {
     int outgoing_multi = 0;
@@ -317,19 +321,19 @@ int64_t SuccinctDBG::ReverseComplement(int64_t x) {
 }
 
 void SuccinctDBG::LoadFromFile(const char *dbg_name) {
-    FILE *w_file = fopen64((std::string(dbg_name) + ".w").c_str(), "rb");
-    FILE *last_file = fopen64((std::string(dbg_name) + ".last").c_str(), "rb");
-    FILE *f_file = fopen64((std::string(dbg_name) + ".f").c_str(), "r");
-    FILE *is_dollar_file = fopen64((std::string(dbg_name) + ".isd").c_str(), "rb");
-    FILE *dollar_node_seq_file = fopen64((std::string(dbg_name) + ".dn").c_str(), "rb");
-    FILE *edge_multiplicity_file = fopen64((std::string(dbg_name) + ".mul").c_str(), "rb");
+    FILE *w_file = OpenFileAndCheck64((std::string(dbg_name) + ".w").c_str(), "rb");
+    FILE *last_file = OpenFileAndCheck64((std::string(dbg_name) + ".last").c_str(), "rb");
+    FILE *f_file = OpenFileAndCheck64((std::string(dbg_name) + ".f").c_str(), "r");
+    FILE *is_dollar_file = OpenFileAndCheck64((std::string(dbg_name) + ".isd").c_str(), "rb");
+    FILE *dollar_node_seq_file = OpenFileAndCheck64((std::string(dbg_name) + ".dn").c_str(), "rb");
+    FILE *edge_multiplicity_file = OpenFileAndCheck64((std::string(dbg_name) + ".mul").c_str(), "rb");
     assert(w_file != NULL);
     assert(last_file != NULL);
     assert(f_file != NULL);
     assert(dollar_node_seq_file != NULL);
 
     for (int i = 0; i < kAlphabetSize + 2; ++i) {
-        fscanf(f_file, "%lld", &f_[i]);
+        assert(fscanf(f_file, "%lld", &f_[i]) == 1);
     }
     fscanf(f_file, "%d", &kmer_k);
     fscanf(f_file, "%u", &num_dollar_nodes_);
@@ -337,11 +341,11 @@ void SuccinctDBG::LoadFromFile(const char *dbg_name) {
 
     size_t word_needed_w = (size + kWCharsPerWord - 1) / kWCharsPerWord;
     size_t word_needed_last = (size + kBitsPerULL - 1) / kBitsPerULL;
-    w_ = (unsigned long long*) malloc(sizeof(unsigned long long) * word_needed_w);
-    last_ = (unsigned long long*) malloc(sizeof(unsigned long long) * word_needed_last);
-    is_dollar_ = (unsigned long long*) malloc(sizeof(unsigned long long) * word_needed_last);
-    invalid_ = (unsigned long long*) malloc(sizeof(unsigned long long) * word_needed_last);
-    edge_multiplicities_ = (multi_t*) malloc(sizeof(multi_t) * size);
+    w_ = (unsigned long long*) MallocAndCheck(sizeof(unsigned long long) * word_needed_w, __FILE__, __LINE__);
+    last_ = (unsigned long long*) MallocAndCheck(sizeof(unsigned long long) * word_needed_last, __FILE__, __LINE__);
+    is_dollar_ = (unsigned long long*) MallocAndCheck(sizeof(unsigned long long) * word_needed_last, __FILE__, __LINE__);
+    invalid_ = (unsigned long long*) MallocAndCheck(sizeof(unsigned long long) * word_needed_last, __FILE__, __LINE__);
+    edge_multiplicities_ = (multi_t*) MallocAndCheck(sizeof(multi_t) * size, __FILE__, __LINE__);
 
     assert(w_ != NULL);
     assert(last_ != NULL);
@@ -364,7 +368,7 @@ void SuccinctDBG::LoadFromFile(const char *dbg_name) {
 
     // read dollar nodes sequences
     assert(fread(&uint32_per_dollar_nodes_, sizeof(uint32_t), 1, dollar_node_seq_file) == 1);
-    dollar_node_seq_ = (uint32_t*) malloc(sizeof(uint32_t) * num_dollar_nodes_ * uint32_per_dollar_nodes_);
+    dollar_node_seq_ = (uint32_t*) MallocAndCheck(sizeof(uint32_t) * num_dollar_nodes_ * uint32_per_dollar_nodes_, __FILE__, __LINE__);
     assert(dollar_node_seq_ != NULL);
 
     word_read = fread(dollar_node_seq_, sizeof(uint32_t), (size_t)num_dollar_nodes_ * uint32_per_dollar_nodes_, dollar_node_seq_file);
