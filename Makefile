@@ -147,7 +147,8 @@ DEPS =   ./Makefile \
 # CC = /nas1/dhli/gcc/4.8.3/rtf/bin/g++
 CC = g++
 CUDALIBFLAG = -L/usr/local/cuda/lib64/ -lcuda -lcudart
-CFLAGS = -O3 -Wall -funroll-loops -march=core2 -fomit-frame-pointer -maccumulate-outgoing-args -fprefetch-loop-arrays -lm -static-libgcc -fopenmp -g -std=c++0x -lz
+CFLAGS = -O3 -Wall -funroll-loops -march=core2 -fomit-frame-pointer -maccumulate-outgoing-args -fprefetch-loop-arrays -static-libgcc -fopenmp -g -std=c++0x -lm
+ZLIB = -lz
 ifneq ($(disablempopcnt), 1)
 	CFLAGS += -mpopcnt
 endif
@@ -171,28 +172,31 @@ endif
 	$(CC) $(CFLAGS) -c $< -o $@
 
 .cx1_functions_cpu.o: cx1_functions.cpp $(DEPS)
-	$(CC) $(CFLAGS) -c cx1_functions.cpp -o .cx1_functions_cpu.o -D DISABLE_GPU
+	$(CC) $(CFLAGS) -D DISABLE_GPU -c cx1_functions.cpp -o .cx1_functions_cpu.o
 
 #-------------------------------------------------------------------------------
 # CPU Applications
 #-------------------------------------------------------------------------------
 $(BIN_DIR)sdbg_builder_cpu: sdbg_builder.cpp .cx1_functions_cpu.o lv2_cpu_sort.h $(DEPS)
-	$(CC) $(CFLAGS) sdbg_builder.cpp .cx1_functions_cpu.o options_description.o -o $(BIN_DIR)sdbg_builder_cpu -D DISABLE_GPU -lz
+	$(CC) $(CFLAGS) -D DISABLE_GPU sdbg_builder.cpp .cx1_functions_cpu.o options_description.o $(ZLIB) -o $(BIN_DIR)sdbg_builder_cpu
 
 $(BIN_DIR)assembler: assembler.cpp succinct_dbg.o rank_and_select.o assembly_algorithms.o branch_group.o options_description.o unitig_graph.o compact_sequence.o $(DEPS)
-	$(CC) $(CFLAGS) assembler.cpp rank_and_select.o succinct_dbg.o assembly_algorithms.o branch_group.o options_description.o unitig_graph.o compact_sequence.o -o $(BIN_DIR)assembler
+	$(CC) $(CFLAGS) assembler.cpp rank_and_select.o succinct_dbg.o assembly_algorithms.o branch_group.o options_description.o unitig_graph.o compact_sequence.o $(ZLIB) -o $(BIN_DIR)assembler
 
 iterate_edges_all: $(BIN_DIR)iterate_edges_k61 $(BIN_DIR)iterate_edges_k92 $(BIN_DIR)iterate_edges_k124
 
 $(BIN_DIR)iterate_edges_k61: iterate_edges.cpp iterate_edges.h options_description.o $(DEPS)
-	$(CC) $(CFLAGS) iterate_edges.cpp options_description.o -o $(BIN_DIR)iterate_edges_k61 -D KMER_NUM_UINT64=2 -lz
+	$(CC) $(CFLAGS) -D KMER_NUM_UINT64=2 iterate_edges.cpp options_description.o $(ZLIB) -o $(BIN_DIR)iterate_edges_k61
 
 $(BIN_DIR)iterate_edges_k92: iterate_edges.cpp iterate_edges.h options_description.o $(DEPS)
-	$(CC) $(CFLAGS) iterate_edges.cpp options_description.o -o $(BIN_DIR)iterate_edges_k92 -D KMER_NUM_UINT64=3 -lz
+	$(CC) $(CFLAGS) -D KMER_NUM_UINT64=3 iterate_edges.cpp options_description.o $(ZLIB) -o $(BIN_DIR)iterate_edges_k92
 
 $(BIN_DIR)iterate_edges_k124: iterate_edges.cpp iterate_edges.h options_description.o $(DEPS)
-	$(CC) $(CFLAGS) iterate_edges.cpp options_description.o -o $(BIN_DIR)iterate_edges_k124 -D KMER_NUM_UINT64=4 -lz
+	$(CC) $(CFLAGS) -D KMER_NUM_UINT64=4 iterate_edges.cpp options_description.o $(ZLIB) -o $(BIN_DIR)iterate_edges_k124
 
+#-------------------------------------------------------------------------------
+# Applications for debug usage
+#-------------------------------------------------------------------------------
 $(BIN_DIR)query_sdbg: query_sdbg.cpp succinct_dbg.o rank_and_select.o assembly_algorithms.o branch_group.o unitig_graph.o compact_sequence.o $(DEPS)
 	$(CC) $(CFLAGS) query_sdbg.cpp rank_and_select.o succinct_dbg.o assembly_algorithms.o branch_group.o unitig_graph.o compact_sequence.o -o $(BIN_DIR)query_sdbg
 
@@ -205,20 +209,20 @@ ifeq ($(use_gpu), 1)
 #-------------------------------------------------------------------------------
 # cu -> cpp
 .lv2_gpu_functions_$(SUFFIX).cpp: lv2_gpu_functions.cu lv2_gpu_functions.h $(DEPS)
-	$(NVCC) $(DEFINES) $(SM_TARGETS) -o .lv2_gpu_functions_$(SUFFIX).cpp lv2_gpu_functions.cu $(NVCCFLAGS) $(CPU_ARCH) $(INC) $(LIBS) -O3 -DTUNE_ARCH=$(SM_ARCH) -DTUNE_SIZE=$(TUNE_SIZE)
+	$(NVCC) $(DEFINES) $(SM_TARGETS) lv2_gpu_functions.cu $(NVCCFLAGS) $(CPU_ARCH) $(INC) $(LIBS) -O3 -DTUNE_ARCH=$(SM_ARCH) -DTUNE_SIZE=$(TUNE_SIZE) -o .lv2_gpu_functions_$(SUFFIX).cpp 
 
 # cpp -> o
 .lv2_gpu_functions_$(SUFFIX).o: .lv2_gpu_functions_$(SUFFIX).cpp $(DEPS)
 	$(CC) $(CFLAGS) -c .lv2_gpu_functions_$(SUFFIX).cpp -o .lv2_gpu_functions_$(SUFFIX).o
 
-.cx1_functions.o: cx1_functions.cpp lv2_cpu_sort.h $(DEPS)
+.cx1_functions.o: cx1_functions.cpp $(DEPS)
 	$(CC) $(CFLAGS) -c cx1_functions.cpp -o .cx1_functions.o
 
 #-------------------------------------------------------------------------------
 # GPU Applications
 #-------------------------------------------------------------------------------
 $(BIN_DIR)sdbg_builder_cuda_$(SUFFIX): sdbg_builder.cpp .cx1_functions.o .lv2_gpu_functions_$(SUFFIX).o $(DEPS)
-	$(CC) $(CFLAGS) $(CUDALIBFLAG) sdbg_builder.cpp .lv2_gpu_functions_$(SUFFIX).o .cx1_functions.o options_description.o -o $(BIN_DIR)sdbg_builder_cuda_$(SUFFIX) -lz
+	$(CC) $(CFLAGS) $(CUDALIBFLAG) sdbg_builder.cpp .lv2_gpu_functions_$(SUFFIX).o .cx1_functions.o options_description.o $(ZLIB) -o $(BIN_DIR)sdbg_builder_cuda_$(SUFFIX)
 	[[ ! -e $(BIN_DIR)sdbg_builder_gpu ]] || rm $(BIN_DIR)sdbg_builder_gpu
 	mv $(BIN_DIR)sdbg_builder_cuda_$(SUFFIX) $(BIN_DIR)sdbg_builder_gpu 
 endif

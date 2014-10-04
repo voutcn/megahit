@@ -40,7 +40,7 @@ Usage:
     ./megahit [options] -m <memory_to_use> -l <max_read_len> {-r <reads.fa> | --input_cmd <command>}
 
 Required Arguments:
-    -m/--memory                    <int64>      memory in byte to be used.
+    -m/--memory                    <float>      memory in byte to be used.
                                                 This argument is used to optimize graph building module,
                                                 but the program CANNOT guarantee how much memory will be used.
                                                 This value is recommended to be 90% of the machine's memory.
@@ -63,7 +63,7 @@ Optional Arguments:
 
   Hardware options:
     --cpu-only                                  do not use GPU. Use CPU only.
-    --gpu-mem                      <int64>      GPU memory in byte to be used. Default: auto detect to use up all free GPU memory. 
+    --gpu-mem                      <float>      GPU memory in byte to be used. Default: auto detect to use up all free GPU memory. 
     --t/--num-cpu-threads          <int>        Number of CPU threads, at least 2. Default: auto detect to use all CPU threads.
 
   Basic assembly options:
@@ -112,6 +112,7 @@ low_local_ratio = 0.2
 temp_dir = out_dir + "tmp/"
 keep_tmp_files = 0
 builder = "sdbg_builder_gpu"
+cpu_only = 0
 
 def log_file_name():
     global out_dir
@@ -147,10 +148,13 @@ def check_opt():
     global no_bubble
     global num_cpu_threads
     global low_local_ratio
+    global cpu_only
 
     if host_mem <= 0:
         print >> sys.stderr, "Memory must be greater than 0."
         exit(1)
+    if cpu_only == 1:
+        gpu_mem = 0
     if max_read_len <= 1:
         print >> sys.stderr, "max_read_len must be greater than 1."
         exit(1)
@@ -515,7 +519,7 @@ def main(argv = None):
             elif option in ("-m", "--memory"):
                 host_mem = long(float(value))
             elif option == "--gpu-mem":
-                gpu_mem = long(value)
+                host_mem = long(float(value))
             elif option in ("-l", "--max-read-len"):
                 max_read_len = int(value)
             elif option == "--min-contig-len":
@@ -541,6 +545,7 @@ def main(argv = None):
             elif option == "--keep-tmp-files":
                 keep_tmp_files = 1
             elif option == "--cpu-only":
+                cpu_only = 1
                 builder = "sdbg_builder_cpu"
             else:
                 print >> sys.stderr, "Invalid option %s", option
@@ -585,4 +590,3 @@ def main(argv = None):
 
 if __name__ == "__main__":
     sys.exit(main())
-
