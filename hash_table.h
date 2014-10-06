@@ -22,6 +22,8 @@
  * @author Yu Peng (ypeng@cs.hku.hk)
  * @version 1.0.0
  * @date 2011-08-03
+ * @last modified by Dinghua LI
+ * @date 2014-10-06
  */
 
 #ifndef __CONTAINER_HASH_TABLE_H_
@@ -36,6 +38,7 @@
 #include <istream>
 #include <ostream>
 #include <stdexcept>
+#include <iostream>
 
 #include "pool.h"
 #include "hash.h"
@@ -408,6 +411,32 @@ public:
         return p->value;
     }
 
+    reference find_or_insert_with_lock(const value_type &value)
+    {
+        // rehash_if_needed(size_);
+
+        uint64_t hash_value = hash(value);
+        lock_bucket(hash_value);
+        uint64_t index = bucket_index(hash_value);
+
+        for (node_type *node = buckets_[index]; node; node = node->next)
+        {
+            if (key_equal_(get_key_(node->value), get_key_(value)))
+            {
+                return node->value;
+            }
+        }
+
+        node_type *p= pool_.construct();
+        p->value = value;
+        p->next = buckets_[index];
+        buckets_[index] = p;
+#pragma omp atomic
+        ++size_;
+
+        return p->value;
+    }
+
     size_type remove(const key_type &key)
     {
         uint64_t num_removed_nodes = 0;
@@ -575,6 +604,9 @@ public:
         pool_.clear();
     }
 
+    void unlock(const value_type &value)
+    { unlock_bucket(hash(value)); }
+
 private:
     void lock_bucket(uint64_t hash_value)
     { omp_set_lock(&bucket_locks_[hash_value & (kNumBucketLocks-1)]); }
@@ -586,10 +618,13 @@ private:
         if (capacity > buckets_.size() * 2)
         {
             omp_set_lock(&rehash_lock_);
-            size_type new_num_buckets = buckets_.size();
-            while (capacity > new_num_buckets * 2)
-                new_num_buckets *= 2;
-            rehash(new_num_buckets);
+            if (capacity > buckets_.size() * 2) 
+            {
+                size_type new_num_buckets = buckets_.size();
+                while (capacity > new_num_buckets * 2)
+                    new_num_buckets *= 2;
+                rehash(new_num_buckets);
+            }
             omp_unset_lock(&rehash_lock_);
         }
     }

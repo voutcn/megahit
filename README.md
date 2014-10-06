@@ -28,19 +28,19 @@ To show the usage message, type the command
 
 Memory control
 ----------------
-We recommend to set `-m` as large as possible. But remember to leave some space for your server. For example, for a server with 64GB free memory, you may try `-m 60000000000`, which is about 56GB. Typically, 56GB memory is quite enough for human guts samples containing 15-30G base-pairs.
+We recommend to set `-m` as large as possible, but you should also leave some space for your server. For example, for a server with 64GB free memory, you may try `-m 60e9`, which is about 56GB. Typically, 56GB memory is quite enough for human guts samples containing 15-30G base-pairs.
 
 Input files
 --------------
 
-MEGAHIT accepts **one** fasta or fastq file as input. The input file can be gzip'ed. Alternatively, you can use the option `--input-cmd` to input reads. Following the `--input-cmd` should be a command that output all reads to `STDOUT` in fasta or fastq format. A mixed of fasta and fastq is NOT supported. Some correct/wrong examples below.
+MEGAHIT accepts **one** fasta or fastq file as input. The input file can be gzip'ed. Alternatively, you can use the option `--input-cmd` to input reads. Following the `--input-cmd` should be a command that output all reads to `STDOUT` in fasta or fastq format. A mix of fasta and fastq is NOT supported. Some correct/wrong examples below.
 
 ###Correct examples
 * Input from one fastq file named *reads.fastq*:
 ```
--r read.fastq
+-r reads.fastq
 ```
-* Input from two fasta files with prefix *sample_1.fa* and  *sample_2.fa*:
+* Input from two fasta files *sample_1.fa* and  *sample_2.fa*:
 ```
 --input-cmd "cat sample_[12].fa"
 ```

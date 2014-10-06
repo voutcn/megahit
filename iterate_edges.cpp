@@ -28,6 +28,7 @@
 #include <sstream>
 #include <algorithm>
 #include <stdexcept>
+#include "definitions.h"
 #include "fastx_reader.h"
 #include "io-utility.h"
 #include "options_description.h"
@@ -242,9 +243,7 @@ static void ReadContigsAndBuildHash(IterateGlobalData &globals, bool is_addi_con
     }
     int input_thread_index = 0;
     bool is_first_round = !is_addi_contigs;
-    // static const uint32_t kMaxEdgeMulti = 65535;
-    static const uint32_t kEdgeMultiBits = 16;
-    static const int kWordsPerEdge = ((globals.kmer_k + globals.step + 1) * kBitsPerEdgeChar + kEdgeMultiBits + 31) / 32;
+    static const int kWordsPerEdge = ((globals.kmer_k + globals.step + 1) * kBitsPerEdgeChar + kBitsPerMulti_t + 31) / 32;
     uint32_t packed_edge[kWordsPerEdge];
 
     pthread_t input_thread;
@@ -274,9 +273,7 @@ static void ReadContigsAndBuildHash(IterateGlobalData &globals, bool is_addi_con
         ContigPackage &cur_package = packages[input_thread_index ^ 1];
 
         if (!is_addi_contigs) {
-            printf("Adding to hash...\n");
-
-    #pragma omp parallel for
+#pragma omp parallel for
             for (unsigned i = 0; i < cur_package.size(); ++i) {
                 if (cur_package.seq_lengths[i] < globals.kmer_k) {
                     continue;
@@ -308,8 +305,6 @@ static void ReadContigsAndBuildHash(IterateGlobalData &globals, bool is_addi_con
                     globals.crusial_kmers[kmer] = s_seq;
                 }
             }
-
-            printf("Done!\n");
         }
 
         if (is_first_round) {
@@ -319,16 +314,32 @@ static void ReadContigsAndBuildHash(IterateGlobalData &globals, bool is_addi_con
             is_first_round = false;
         }
 
-        printf("Writing internal edges...");
         int next_k = globals.kmer_k + globals.step;
         int last_shift = (next_k + 1) % 16;
         last_shift = (last_shift == 0 ? 0 : 16 - last_shift) * 2;
         for (unsigned i = 0; i < cur_package.size(); ++i) {
-            uint16_t multiplicity = cur_package.multiplicity[i];
-            memset(packed_edge, 0, sizeof(uint32_t) * kWordsPerEdge);
             if (cur_package.seq_lengths[i] < next_k + 1) {
                 continue;
             }
+
+            double multiplicity_prev = cur_package.multiplicity[i];
+            uint16_t multiplicity;
+            // convert the multiplicity from k to k+s+1
+            {
+                int num_kmer = cur_package.seq_lengths[i] - globals.kmer_k + 1;
+                int num_nextk1 = cur_package.seq_lengths[i] - (next_k + 1) + 1;
+                int internal_max = std::min(next_k + 1 - globals.kmer_k + 1, num_nextk1);
+                int num_external = internal_max - 1;
+                int num_internal = num_kmer - num_external * 2;
+
+                double exp_num_kmer = (double)num_external * (num_external + 1) / (next_k + 1 - globals.kmer_k + 1)
+                                      + (double)internal_max / (next_k + 1 - globals.kmer_k + 1) * num_internal;
+                exp_num_kmer *= multiplicity_prev;
+                multiplicity = std::min(int(exp_num_kmer * globals.kmer_k / (next_k + 1) / num_nextk1 + 0.5), kMaxMulti_t);
+            }
+
+            memset(packed_edge, 0, sizeof(uint32_t) * kWordsPerEdge);
+
             int w = 0;
             int end_word = 0;
             for (int j = 0; j < next_k + 1; ) {
@@ -354,12 +365,11 @@ static void ReadContigsAndBuildHash(IterateGlobalData &globals, bool is_addi_con
                 }
                 packed_edge[0] >>= 2;
                 packed_edge[0] |= cur_package.CharAt(i, j) << 30;
-                assert((packed_edge[kWordsPerEdge - 1] & 65535) == 0);
+                assert((packed_edge[kWordsPerEdge - 1] & kMaxMulti_t) == 0);
                 packed_edge[kWordsPerEdge - 1] |= multiplicity;
                 fwrite(packed_edge, sizeof(uint32_t), kWordsPerEdge, globals.output_edge_file);
             }
         }
-        printf("Done!\n");
     }
     printf("Number of crusial kmers: %lu\n", globals.crusial_kmers.size());
 }
@@ -396,9 +406,7 @@ static void ReadReadsAndProcess(IterateGlobalData &globals) {
         fastx_reader.init(globals.read_file);
     }
     int input_thread_index = 0;
-    static const uint32_t kMaxEdgeMulti = 65535;
-    static const uint32_t kEdgeMultiBits = 16;
-    static const int kWordsPerEdge = ((globals.kmer_k + globals.step + 1) * 2 + kEdgeMultiBits + 31) / 32;
+    static const int kWordsPerEdge = ((globals.kmer_k + globals.step + 1) * 2 + kBitsPerMulti_t + 31) / 32;
     uint32_t packed_edge[kWordsPerEdge];
 
     int64_t num_aligned_reads = 0;
@@ -520,19 +528,13 @@ static void ReadReadsAndProcess(IterateGlobalData &globals) {
                     }
 
                     if (kmer < rev_kmer) {
-                        auto iter = globals.iterative_edges.find(kmer);
-                        if (iter == globals.iterative_edges.end()) {
-                            globals.iterative_edges[kmer] = 1;
-                        } else if (iter->second < kMaxEdgeMulti) {
-                            ++iter->second;
-                        }
+                        multi_t &multi = globals.iterative_edges.get_ref_with_lock(kmer);
+                        if (multi < kMaxMulti_t) { ++multi; }
+                        globals.iterative_edges.unlock(kmer);
                     } else {
-                        auto iter = globals.iterative_edges.find(rev_kmer);
-                        if (iter == globals.iterative_edges.end()) {
-                            globals.iterative_edges[rev_kmer] = 1;
-                        } else if (iter->second < kMaxEdgeMulti) {
-                            ++iter->second;
-                        }
+                        multi_t &multi = globals.iterative_edges.get_ref_with_lock(rev_kmer);
+                        if (multi < kMaxMulti_t) { ++multi; }
+                        globals.iterative_edges.unlock(rev_kmer);
                     }
                     last_j = j;
                     aligned = true;
@@ -578,9 +580,8 @@ static void ReadReadsAndProcess(IterateGlobalData &globals) {
             }
         }
         packed_edge[end_word] = (w << last_shift);
-        assert((packed_edge[kWordsPerEdge - 1] & 65535) == 0);
+        assert((packed_edge[kWordsPerEdge - 1] & kMaxMulti_t) == 0);
         packed_edge[kWordsPerEdge - 1] |= iter->second;
         fwrite(packed_edge, sizeof(uint32_t), kWordsPerEdge, globals.output_edge_file);
     }
-    printf("Done!\n");
 }

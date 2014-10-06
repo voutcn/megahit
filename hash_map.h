@@ -22,6 +22,8 @@
  * @author Yu Peng (ypeng@cs.hku.hk)
  * @version 1.0.0
  * @date 2011-08-24
+ * @last modified by Dinghua LI
+ * @date 2014-10-06
  */
 
 #ifndef __CONTAINER_HASH_MAP_H_
@@ -99,6 +101,11 @@ public:
 
     data_type &operator [](const key_type &key)
     { return hash_table_.find_or_insert(value_type(key, data_type())).second; }
+
+    data_type &get_ref_with_lock(const key_type &key)
+    { return hash_table_.find_or_insert_with_lock(value_type(key, data_type())).second; }
+
+    void unlock(const key_type &key) { hash_table_.unlock(value_type(key, data_type())); }
 
     size_type remove(const key_type &key)
     { return hash_table_.remove(key); }
