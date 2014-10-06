@@ -1,5 +1,7 @@
 /*
- *  MEGAHIT
+ *  succinct_dbg.h
+ *  This file is a part of MEGAHIT
+ *  
  *  Copyright (C) 2014 The University of Hong Kong
  *
  *  This program is free software: you can redistribute it and/or modify
@@ -16,8 +18,8 @@
  *  along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef DBG_SUCCINCT_DBG_H_
-#define DBG_SUCCINCT_DBG_H_
+#ifndef SUCCINCT_DBG_H_
+#define SUCCINCT_DBG_H_
 #include <assert.h>
 #include <vector>
 #include "rank_and_select.h"
@@ -49,6 +51,10 @@ class SuccinctDBG {
             free(invalid_);
             free(is_dollar_);
             free(dollar_node_seq_);
+        }
+
+        if (need_to_free_mul_) {
+            free(edge_multiplicities_);
         }
     }
     
@@ -154,6 +160,15 @@ class SuccinctDBG {
     int Label(int64_t x, uint8_t *seq);
     int64_t ReverseComplement(int64_t x);
 
+    // WARNING: use this with cautions
+    // After that NodeMultiplicity() and EdgeMultiplicty() are invalid
+    void FreeMul() {
+        if (need_to_free_mul_) {
+            free(edge_multiplicities_);
+        }
+        need_to_free_mul_ = false;
+    }
+
   private:
     // main memory
     unsigned long long *w_;
@@ -172,8 +187,9 @@ class SuccinctDBG {
     RankAndSelect1Bit rs_last_;
     RankAndSelect1Bit rs_is_dollar_;
     bool need_to_free_;
+    bool need_to_free_mul_;
 
     void PrefixRangeSearch_(uint8_t c, int64_t &l, int64_t &r);
 };
 
-#endif // DBG_SUCCINCT_DBG_H_
+#endif // SUCCINCT_DBG_H_

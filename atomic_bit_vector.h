@@ -24,6 +24,7 @@
 #include <assert.h>
 #include <stdlib.h>
 #include <memory.h>
+#include <algorithm>
 #include "mem_file_checker-inl.h"
 
 class AtomicBitVector {
@@ -85,6 +86,15 @@ public:
 
         if (num_words_ != 0) {
             memset(data_, 0, sizeof(word_t) * num_words_);
+        }
+    }
+
+    void swap(AtomicBitVector &rhs) {
+        if (data_ != rhs.data_) {
+            std::swap(data_, rhs.data_);
+            std::swap(size_, rhs.size_);
+            std::swap(num_words_, rhs.num_words_);
+            std::swap(capacity_, rhs.capacity_);
         }
     }
     

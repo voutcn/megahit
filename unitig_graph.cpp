@@ -1,5 +1,7 @@
 /*
- *  MEGAHIT
+ *  unitig_graph.cpp
+ *  This is a part of MEGAHIT
+ *  
  *  Copyright (C) 2014 The University of Hong Kong
  *
  *  This program is free software: you can redistribute it and/or modify
@@ -15,7 +17,6 @@
  *  You should have received a copy of the GNU General Public License
  *  along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
-
 
 #include "unitig_graph.h"
 
@@ -209,6 +210,20 @@ void UnitigGraph::InitFromSdBG() {
         exit(1);
     }
 
+    int64_t total_depth = 0;
+    for (uint32_t i = 0; i < vertices_.size(); ++i) {
+        if (!vertices_[i].is_deleted)
+            total_depth += vertices_[i].depth;
+    }
+    printf("total_depth: %ld, total num: %u\n", total_depth, (unsigned)vertices_.size());
+
+    // free memory for hash table construction
+    sdbg_->FreeMul();
+    {
+        AtomicBitVector empty_abv;
+        marked.swap(empty_abv);
+    }
+
     start_node_map_.reserve(vertices_.size() * 2);
 
 #pragma omp parallel for
@@ -218,13 +233,6 @@ void UnitigGraph::InitFromSdBG() {
             start_node_map_[vertices_[i].rev_start_node] = i;        
         }
     }
-
-    int64_t total_depth = 0;
-    for (uint32_t i = 0; i < vertices_.size(); ++i) {
-        if (!vertices_[i].is_deleted)
-            total_depth += vertices_[i].depth;
-    }
-    printf("total_depth: %ld\n", total_depth);
 
     omp_destroy_lock(&path_lock);
 }
@@ -531,6 +539,9 @@ void UnitigGraph::OutputInitUnitigs(FILE *contig_file, FILE *multi_file, std::ma
         } else {
             int indegree = sdbg_->Indegree(vertices_[i].start_node);
             int outdegree = sdbg_->Outdegree(vertices_[i].end_node);
+            if (indegree == 0 && outdegree == 0) {
+                vertices_[i].is_deleted = true;
+            }
             omp_set_lock(&output_lock);
             fprintf(contig_file, ">contig%d_length_%ld_multi_%d_in_%d_out_%d\n%s\n", 
                                  output_id, 
@@ -543,6 +554,11 @@ void UnitigGraph::OutputInitUnitigs(FILE *contig_file, FILE *multi_file, std::ma
             ++output_id;
             ++histo[vertices_[i].label.length()];
             omp_unset_lock(&output_lock);
+        }
+
+        if (vertices_[i].is_deleted) {
+            CompactSequence empty_str;
+            vertices_[i].label.swap(empty_str);
         }
     }
 
@@ -580,6 +596,21 @@ void UnitigGraph::OutputChangedUnitigs(FILE *add_contig_file, FILE *addi_multi_f
         std::string label = vertices_[i].label.ToDNAString();
 
         if (vertices_[i].is_loop) {
+            if (label.length() >= (unsigned)sdbg_->kmer_k && 
+                label.substr(label.length() - sdbg_->kmer_k + 1) == label.substr(0, sdbg_->kmer_k - 1)) {
+                int num_vertex = label.length() - sdbg_->kmer_k + 1;
+                if (num_vertex < sdbg_->kmer_k + 1) {
+                    continue;
+                }
+                // WARN: hard code 28: the maximum step
+                unsigned max_next_k = 28 + sdbg_->kmer_k;
+                int j = sdbg_->kmer_k - 1;
+                while (label.length() <= max_next_k + 1 ||
+                       label.substr(0, max_next_k + 1) != label.substr(label.length() - max_next_k - 1)) {
+                    label.push_back(label[j]);
+                    ++j;
+                }
+            }
             omp_set_lock(&output_lock);
             fprintf(add_contig_file, ">addi%d_length_%ld_multi_%d_loop\n%s\n", 
                                  output_id, 
@@ -683,6 +714,11 @@ void UnitigGraph::OutputInitUnitigs(FILE *contig_file,
             ++output_id;
             ++histo[label.length()];
             omp_unset_lock(&output_lock);
+        }
+
+        if (vertices_[i].is_deleted) {
+            CompactSequence empty_str;
+            vertices_[i].label.swap(empty_str);
         }
     }
 
