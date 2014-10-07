@@ -564,7 +564,7 @@ here:
         if (bits_to_clear < kBitsPerEdgeWord) {
             *p >>= bits_to_clear;
             *p <<= bits_to_clear;
-        } else {
+        } else if (which_word < globals.words_per_substring) {
             *p = 0;
         }
         which_word++;
@@ -614,7 +614,7 @@ void CopySubstringRC(edge_word_t* dest, edge_word_t* src_read, int offset, int n
         if (bits_to_clear < kBitsPerEdgeWord) {
             *p >>= bits_to_clear;
             *p <<= bits_to_clear;
-        } else {
+        } else if (which_word < globals.words_per_substring) {
             *p = 0;
         }
         which_word++;
@@ -1844,7 +1844,7 @@ here2:
         if (bits_to_clear < kBitsPerEdgeWord) {
             *p >>= bits_to_clear;
             *p <<= bits_to_clear;
-        } else {
+        } else if (which_word < globals.words_per_substring) {
             *p = 0;
         }
         ++which_word;
@@ -1906,7 +1906,7 @@ void CopySubstringRC(edge_word_t* dest, edge_word_t* src_read, int offset, int n
         if (bits_to_clear < kBitsPerEdgeWord) {
             *p >>= bits_to_clear;
             *p <<= bits_to_clear;
-        } else {
+        } else if (which_word < globals.words_per_substring) {
             *p = 0;
         }
         ++which_word;

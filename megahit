@@ -167,10 +167,10 @@ def check_opt():
     if k_max >= max_read_len:
         k_max = int(max_read_len) / 2 * 2 - 1 
         print >> sys.stderr, "Constrain maximum read length, k_max is set to be " + str(k_max)
-    if k_min <= 1:
-        print >> sys.stderr, "k_min should be at least 2."
+    if k_min < 9:
+        print >> sys.stderr, "k_min should be at least 9."
         exit(1)
-    if k_max >= 123:
+    if k_max > 123:
         print >> sys.stderr, "k_max cannot exceed 123."
         exit(1)
     if k_max < k_min:
