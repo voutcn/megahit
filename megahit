@@ -274,12 +274,13 @@ def build_first_graph():
             ret_code = subprocess.call(count_cmd, stdout = log_file)
         if ret_code != 0:
             print >> sys.stderr, "Error occurs when running \"builder count\""
-            exit(1)
+            print >> sys.stderr, "[Exit code %d] " % ret_code
+            exit(ret_code)
         log_file.close()
 
     except OSError, o:
         if o.errno == errno.ENOTDIR or o.errno == errno.ENOENT:
-            print >> sys.stderr, "Error: sub-program builder not found"
+            print >> sys.stderr, "Error: sub-program builder not found, please recompile MEGAHIT"
         exit(1) 
 
 
@@ -316,11 +317,12 @@ def build_graph(kmer_k, num_edge_files):
         ret_code = subprocess.call(build_cmd, stdout = log_file)
         if ret_code != 0:
             print >> sys.stderr, "Error occurs when running \"builder build\" for k = %d" % kmer_k
-            exit(1)
+            print >> sys.stderr, "[Exit code %d]" % ret_code
+            exit(ret_code)
         log_file.close()
     except OSError, o:
         if o.errno == errno.ENOTDIR or o.errno == errno.ENOENT:
-            print >> sys.stderr, "Error: sub-program builder not found"
+            print >> sys.stderr, "Error: sub-program builder not found, please recompile MEGAHIT"
         exit(1)
 
 def iterate(cur_k, step):
@@ -390,13 +392,14 @@ def iterate(cur_k, step):
             ret_code = subprocess.call(iterate_cmd, stdout = log_file)
         if ret_code != 0:
             print >> sys.stderr, "Error occurs when running iterator for k = %d to k = %d " % (cur_k, next_k)
-            exit(1)
+            print >> sys.stderr, "[Exit code %d]" % ret_code
+            exit(ret_code)
 
         log_file.close()
 
     except OSError, o:
         if o.errno == errno.ENOTDIR or o.errno == errno.ENOENT:
-            print >> sys.stderr, "Error: sub-program iterater_edge not found"
+            print >> sys.stderr, "Error: sub-program iterater_edge not found, please recompile MEGAHIT"
         exit(1)
 
 def assemble(cur_k):
@@ -435,13 +438,14 @@ def assemble(cur_k):
         ret_code = subprocess.call(assembly_cmd, stdout = log_file)
         if ret_code != 0:
             print >> sys.stderr, "Error occurs when assembling contigs for k = %d" % cur_k
-            exit(1)
+            print >> sys.stderr, "[Exit code %d]" % ret_code
+            exit(ret_code)
 
         log_file.close()
         
     except OSError, o:
         if o.errno == errno.ENOTDIR or o.errno == errno.ENOENT:
-            print >> sys.stderr, "Error: sub-program assembler not found"
+            print >> sys.stderr, "Error: sub-program assembler not found, please recompile MEGAHIT"
         exit(1)
 
 def merge_final():

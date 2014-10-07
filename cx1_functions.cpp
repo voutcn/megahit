@@ -204,7 +204,7 @@ void ReadInputFile(struct global_data_t &globals) {
     // main reading loop
     while (!reader.eof()) {
         if (num_reads >= max_num_reads) {
-            err("[WARNING] the number of reads is too large, only keep the first %llu ones.\n", max_num_reads);
+            err("[WARNING] the number of reads is too large, only keep the first %llu ones. The assembly will be incomplete.\n", max_num_reads);
             break;
         }
 
@@ -379,7 +379,6 @@ void* PreprocessScanToFillBucketSizesThread(void *_data) {
         int read_length = GetReadLength(read_p, globals.words_per_read, globals.read_length_mask);
         if (read_length < globals.kmer_k + 1) { continue; }
         edge.init(read_p, globals.kmer_k + 1);
-        assert(edge.data_[0] == *read_p);
         rev_edge.clean();
         for (int i = 0; i <= globals.kmer_k; ++i) {
             rev_edge.Append(3 - ExtractNthChar(read_p, globals.kmer_k - i));
@@ -1135,7 +1134,8 @@ int64_t ReadEdges(global_data_t &globals) {
         ++num_edges;
         edge_p += globals.words_per_edge;
         if (num_edges >= max_num_edges) {
-            fprintf(stderr, "WARNING: reach max_num_edges: %ld. Skip the remaining..\n", max_num_edges);
+            err("[ERROR] reach max_num_edges: %ld... No enough memory to build the graph\n", max_num_edges);
+            exit(1);
             break;
         }
     }
@@ -1162,7 +1162,7 @@ int64_t ReadMercyEdges(global_data_t &globals) {
         ++num_edges;
         edge_p += globals.words_per_edge;
         if (num_edges >= max_num_edges) {
-            fprintf(stderr, "ERROR: reach max_num_edges: %ld. Skip the remaining..\n", max_num_edges);
+            fprintf(stderr, "[WARNING] reach max_num_edges: %ld. Skip the remaining mercy edges. The assembly will be incomplete...\n", max_num_edges);
             break;
         }
     }
