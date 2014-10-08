@@ -231,7 +231,7 @@ endif
 # Build binary directory
 #-------------------------------------------------------------------------------
 make_bin_dir:
-	[[ -d $(BIN_DIR) ]] || mkdir $(BIN_DIR)
+	mkdir -p $(BIN_DIR)
 
 clean:
 	rm -f *.i* *.cubin *.cu.c *.cudafe* *.fatbin.c *.ptx *.hash *.cu.cpp *.o .*.cpp
