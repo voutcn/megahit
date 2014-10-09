@@ -413,7 +413,7 @@ public:
 
     reference find_or_insert_with_lock(const value_type &value)
     {
-        // rehash_if_needed(size_);
+        rehash_if_needed(size_);
 
         uint64_t hash_value = hash(value);
         lock_bucket(hash_value);
