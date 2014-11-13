@@ -23,6 +23,8 @@
 #include <string.h>
 #include <zlib.h>
 
+#include "mem_file_checker-inl.h"
+
 struct DBG_BinaryWriter {
     static const int kBufferSize = 4096;
     static const int kCharsPerWWord = 16;
@@ -57,19 +59,19 @@ struct DBG_BinaryWriter {
     }
 
     void init(const char *w_file_name, const char *last_file_name, const char *is_dollar_file_name) {
-        _w_file = fopen64(w_file_name, "wb");
+        _w_file = OpenFileAndCheck(w_file_name, "wb");
         if (_w_file == NULL) {
             fprintf(stderr, "Open %s failed\n", w_file_name);
             exit(1);
         }
 
-        _last_file = fopen64(last_file_name, "wb");
+        _last_file = OpenFileAndCheck(last_file_name, "wb");
         if (_last_file == NULL) {
             fprintf(stderr, "Open %s failed\n", last_file_name);
             exit(1);
         }
 
-        _is_dollar_file = fopen64(is_dollar_file_name, "wb");
+        _is_dollar_file = OpenFileAndCheck(is_dollar_file_name, "wb");
         if (_is_dollar_file == NULL) {
             fprintf(stderr, "Open %s failed\n", is_dollar_file_name);
             exit(1);
@@ -187,7 +189,7 @@ struct WordWriter {
     }
 
     void init(const char *file_name) {
-        file = fopen64(file_name, "wb");
+        file = OpenFileAndCheck(file_name, "wb");
         buffer_index = 0;
         assert(file != NULL);
     }

@@ -27,6 +27,7 @@
 #include "assembly_algorithms.h"
 #include "timer.h"
 #include "options_description.h"
+#include "mem_file_checker-inl.h"
 
 using std::string;
 
@@ -157,9 +158,9 @@ int main(int argc, char **argv) {
     }
 
 
-    FILE *out_contig_file = fopen(options.contig_file().c_str(), "w");
-    FILE *out_multi_file = fopen(options.multi_file().c_str(), "wb");
-    FILE *out_final_contig_file = fopen(options.final_contig_file().c_str(), "w");
+    FILE *out_contig_file = OpenFileAndCheck(options.contig_file().c_str(), "w");
+    FILE *out_multi_file = OpenFileAndCheck(options.multi_file().c_str(), "wb");
+    FILE *out_final_contig_file = OpenFileAndCheck(options.final_contig_file().c_str(), "w");
     assert(out_contig_file != NULL);
     assert(out_multi_file != NULL);
     assert(out_final_contig_file != NULL);
@@ -170,8 +171,8 @@ int main(int argc, char **argv) {
 
         printf("Removing low local coverage...\n");
         if (!options.is_final_round) {
-            FILE *out_addi_contig_file = fopen(options.addi_contig_file().c_str(), "w");
-            FILE *out_addi_multi_file = fopen(options.addi_multi_file().c_str(), "w");
+            FILE *out_addi_contig_file = OpenFileAndCheck(options.addi_contig_file().c_str(), "w");
+            FILE *out_addi_multi_file = OpenFileAndCheck(options.addi_multi_file().c_str(), "w");
             assert(out_addi_multi_file != NULL);
             assert(out_addi_contig_file != NULL);
 

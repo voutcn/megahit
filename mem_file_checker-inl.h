@@ -26,16 +26,6 @@
 #include <stdio.h>
 #include "helper_functions-inl.h"
 
-inline FILE *OpenFileAndCheck64(const char *filename, const char * mode) {
-    FILE *fp;
-    if ((fp = fopen64(filename, mode)) == NULL){
-        err("[ERROR] Cannot open %s. Now exit to system...\n", filename);
-        exit ( -1 );
-    }
-
-    return fp;
-}
-
 inline FILE *OpenFileAndCheck(const char *filename, const char * mode) {
     FILE *fp;
     if ((fp = fopen(filename, mode)) == NULL){

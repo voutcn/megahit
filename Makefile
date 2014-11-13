@@ -147,7 +147,7 @@ DEPS =   ./Makefile \
 # CC = /nas1/dhli/gcc/4.8.3/rtf/bin/g++
 CC = g++
 CUDALIBFLAG = -L/usr/local/cuda/lib64/ -lcuda -lcudart
-CFLAGS = -O3 -Wall -funroll-loops -march=core2 -fomit-frame-pointer -maccumulate-outgoing-args -fprefetch-loop-arrays -static-libgcc -fopenmp -g -std=c++0x -lm
+CFLAGS = -O3 -Wall -static-libgcc -fopenmp -g -std=c++0x -lm
 ZLIB = -lz
 ifneq ($(disablempopcnt), 1)
 	CFLAGS += -mpopcnt

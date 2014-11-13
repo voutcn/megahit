@@ -321,12 +321,12 @@ int64_t SuccinctDBG::ReverseComplement(int64_t x) {
 }
 
 void SuccinctDBG::LoadFromFile(const char *dbg_name) {
-    FILE *w_file = OpenFileAndCheck64((std::string(dbg_name) + ".w").c_str(), "rb");
-    FILE *last_file = OpenFileAndCheck64((std::string(dbg_name) + ".last").c_str(), "rb");
-    FILE *f_file = OpenFileAndCheck64((std::string(dbg_name) + ".f").c_str(), "r");
-    FILE *is_dollar_file = OpenFileAndCheck64((std::string(dbg_name) + ".isd").c_str(), "rb");
-    FILE *dollar_node_seq_file = OpenFileAndCheck64((std::string(dbg_name) + ".dn").c_str(), "rb");
-    FILE *edge_multiplicity_file = OpenFileAndCheck64((std::string(dbg_name) + ".mul").c_str(), "rb");
+    FILE *w_file = OpenFileAndCheck((std::string(dbg_name) + ".w").c_str(), "rb");
+    FILE *last_file = OpenFileAndCheck((std::string(dbg_name) + ".last").c_str(), "rb");
+    FILE *f_file = OpenFileAndCheck((std::string(dbg_name) + ".f").c_str(), "r");
+    FILE *is_dollar_file = OpenFileAndCheck((std::string(dbg_name) + ".isd").c_str(), "rb");
+    FILE *dollar_node_seq_file = OpenFileAndCheck((std::string(dbg_name) + ".dn").c_str(), "rb");
+    FILE *edge_multiplicity_file = OpenFileAndCheck((std::string(dbg_name) + ".mul").c_str(), "rb");
     assert(w_file != NULL);
     assert(last_file != NULL);
     assert(f_file != NULL);

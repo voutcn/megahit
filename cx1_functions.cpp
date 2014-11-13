@@ -1065,7 +1065,7 @@ void Phase1Entry(struct global_data_t &globals) {
     // output reads
     int64_t num_candidate_reads = 0;
     int64_t num_has_tips = 0;
-    FILE *candidate_file = OpenFileAndCheck64((string(globals.output_prefix) + ".cand").c_str(), "wb");
+    FILE *candidate_file = OpenFileAndCheck((string(globals.output_prefix) + ".cand").c_str(), "wb");
     for (int64_t i = 0; i < globals.num_reads; ++i) {
         unsigned char first = globals.first_0_out[i];
         unsigned char last = globals.last_0_in[i];
@@ -1090,7 +1090,7 @@ void Phase1Entry(struct global_data_t &globals) {
     log("Total number of $v edges: %llu\n", globals.num_incoming_zero_nodes);
     log("Total number of solid edges: %llu\n", num_solid_edges);
 
-    FILE *counting_file = OpenFileAndCheck64((string(globals.output_prefix)+".counting").c_str(), "w");
+    FILE *counting_file = OpenFileAndCheck((string(globals.output_prefix)+".counting").c_str(), "w");
     fprintf(counting_file, "Total number of v$ edges: %llu\n", (unsigned long long)globals.num_outgoing_zero_nodes);
     fprintf(counting_file, "Total number of $v edges: %llu\n", (unsigned long long)globals.num_incoming_zero_nodes);
     for (int64_t i = 1, acc = 0; i <= kMaxMulti_t; ++i) {
@@ -1121,19 +1121,43 @@ int64_t ReadEdges(global_data_t &globals) {
     EdgeReader edge_reader;
     edge_reader.init((string(globals.phase2_input_prefix) + ".edges").c_str(), globals.phase1_num_output_threads);
     globals.kmer_k = edge_reader.kmer_k;
-    globals.words_per_edge = edge_reader.words_per_edge;
+    globals.words_per_edge = DivCeiling(globals.kmer_k + 1, kCharsPerEdgeWord);
+    int free_bits_in_edge = globals.words_per_edge * kBitsPerEdgeWord - (globals.kmer_k + 1) * kBitsPerEdgeChar;
+    if (free_bits_in_edge >= kBitsPerMulti_t) {
+        globals.mult_mem_type = 0;
+    } else if (free_bits_in_edge >= 8) {
+        globals.mult_mem_type = 1;
+    } else {
+        globals.mult_mem_type = 2;
+    }
+
     log("kmer_k: %d, words_per_edge: %d\n", globals.kmer_k, globals.words_per_edge);
-    int64_t max_num_edges = globals.host_mem * 0.95 / (globals.words_per_edge * sizeof(edge_word_t));
+    int64_t max_num_edges = globals.host_mem * 0.95 / (globals.words_per_edge * sizeof(edge_word_t) + globals.mult_mem_type);
     log("Max host mem: %ld, max edges can be loaded: %ld\n", globals.host_mem, max_num_edges);
 
-    globals.packed_edges = (edge_word_t *) MallocAndCheck(sizeof(edge_word_t) * edge_reader.words_per_edge * max_num_edges, __FILE__, __LINE__);
+    globals.packed_edges = (edge_word_t *) MallocAndCheck(sizeof(edge_word_t) * globals.words_per_edge * max_num_edges, __FILE__, __LINE__);
+    if (globals.mult_mem_type == 1) {
+        globals.multiplicity8 = (uint8_t*) MallocAndCheck(sizeof(uint8_t) * max_num_edges, __FILE__, __LINE__);
+    } else if (globals.mult_mem_type == 2) {
+        globals.multiplicity16 = (uint16_t*) MallocAndCheck(sizeof(uint16_t) * max_num_edges, __FILE__, __LINE__);
+    }
+
     assert(globals.packed_edges != NULL);
     edge_word_t *edge_p = globals.packed_edges;
     int64_t num_edges = 0;
     while (edge_reader.NextEdge(edge_p)) {
         ++num_edges;
+        if (globals.mult_mem_type == 1) {
+            edge_p[globals.words_per_edge - 1] &= 0xFFFFFF00U;
+            edge_p[globals.words_per_edge - 1] |= (edge_p[globals.words_per_edge] >> 8) & 0xFFU;
+            globals.multiplicity8[num_edges - 1] = edge_p[globals.words_per_edge] & 0xFFU;
+        } else if (globals.mult_mem_type == 2) {
+            globals.multiplicity16[num_edges - 1] = edge_p[globals.words_per_edge] & kMaxMulti_t;
+        }
+
         edge_p += globals.words_per_edge;
-        if (num_edges >= max_num_edges) {
+
+        if (num_edges >= max_num_edges - 1) {
             err("[ERROR] reach max_num_edges: %ld... No enough memory to build the graph\n", max_num_edges);
             exit(1);
             break;
@@ -1141,7 +1165,12 @@ int64_t ReadEdges(global_data_t &globals) {
     }
     edge_reader.destroy();
     if (!globals.need_mercy) {
-        globals.packed_edges = (edge_word_t *) ReAllocAndCheck(globals.packed_edges, sizeof(edge_word_t) * globals.words_per_edge * num_edges, __FILE__, __LINE__);   
+        globals.packed_edges = (edge_word_t *) ReAllocAndCheck(globals.packed_edges, sizeof(edge_word_t) * globals.words_per_edge * num_edges, __FILE__, __LINE__);
+        if (globals.mult_mem_type == 1) {
+            globals.multiplicity8 = (uint8_t*) ReAllocAndCheck(globals.multiplicity8, sizeof(uint8_t) * num_edges, __FILE__, __LINE__);
+        } else if (globals.mult_mem_type == 2) {
+            globals.multiplicity16 = (uint16_t*) ReAllocAndCheck(globals.multiplicity16, sizeof(uint16_t) * num_edges, __FILE__, __LINE__);
+        }
     }
     globals.num_edges = num_edges;
     log("Number of edges: %lld\n", num_edges);
@@ -1153,21 +1182,36 @@ int64_t ReadMercyEdges(global_data_t &globals) {
     edge_reader.InitUnsorted((string(globals.phase2_input_prefix) + ".mercy").c_str(),
                              globals.num_cpu_threads - 1,
                              globals.kmer_k,
-                             globals.words_per_edge);
-    int64_t max_num_edges = globals.host_mem * 0.95 / (globals.words_per_edge * sizeof(edge_word_t));
+                             globals.words_per_edge + (globals.mult_mem_type > 0));
+    int64_t max_num_edges = globals.host_mem * 0.95 / (globals.words_per_edge * (sizeof(edge_word_t) + globals.mult_mem_type));
 
     edge_word_t *edge_p = globals.packed_edges + globals.num_edges * globals.words_per_edge;
     int64_t num_edges = globals.num_edges;
     while (edge_reader.NextEdgeUnsorted(edge_p)) {
         ++num_edges;
+
+        if (globals.mult_mem_type == 1) {
+            edge_p[globals.words_per_edge - 1] &= 0xFFFFFF00U;
+            edge_p[globals.words_per_edge - 1] |= (edge_p[globals.words_per_edge] >> 8) & 0xFFU;
+            globals.multiplicity8[num_edges - 1] = edge_p[globals.words_per_edge] & 0xFFU;
+        } else if (globals.mult_mem_type == 2) {
+            globals.multiplicity16[num_edges - 1] = edge_p[globals.words_per_edge] & kMaxMulti_t;
+        }
+
         edge_p += globals.words_per_edge;
-        if (num_edges >= max_num_edges) {
-            fprintf(stderr, "[WARNING] reach max_num_edges: %ld. Skip the remaining mercy edges. The assembly will be incomplete...\n", max_num_edges);
+        if (num_edges >= max_num_edges - 1) {
+            err("[WARNING] reach max_num_edges: %ld. Skip the remaining mercy edges. The assembly will be incomplete...\n", max_num_edges);
             break;
         }
     }
     edge_reader.destroy();
     globals.packed_edges = (edge_word_t *) ReAllocAndCheck(globals.packed_edges, sizeof(edge_word_t) * globals.words_per_edge * num_edges, __FILE__, __LINE__);
+    if (globals.mult_mem_type == 1) {
+        globals.multiplicity8 = (uint8_t*) ReAllocAndCheck(globals.multiplicity8, sizeof(uint8_t) * num_edges, __FILE__, __LINE__);
+    } else if (globals.mult_mem_type == 2) {
+        globals.multiplicity16 = (uint16_t*) ReAllocAndCheck(globals.multiplicity16, sizeof(uint16_t) * num_edges, __FILE__, __LINE__);
+    }
+
     log("Number of mercy edges: %lld\n", num_edges - globals.num_edges);
     globals.num_edges = num_edges;
     return num_edges;
@@ -1242,14 +1286,14 @@ void InitGlobalData(global_data_t &globals) {
 #ifdef DISABLE_GPU
         mem_lv2 += globals.max_lv2_items * sizeof(uint64_t) * 2; // as CPU memory is used to simulate GPU
 #endif
-        globals.mem_packed_edges = globals.words_per_edge * sizeof(edge_word_t) * globals.num_edges;
+        globals.mem_packed_edges = (globals.words_per_edge * sizeof(edge_word_t) + globals.mult_mem_type) * globals.num_edges;
         int64_t avail_host_mem_for_lv1 = globals.host_mem - globals.mem_packed_edges - mem_lv2 - phase2::kNumBuckets * sizeof(int64_t) * (globals.num_cpu_threads + 1) * 3;
         globals.max_lv1_items = avail_host_mem_for_lv1 / LV1_BYTES_PER_ITEM;
         max_lv2_items = std::max(globals.max_lv1_items, int64_t(max_lv2_items * 0.9));
     } while (globals.max_lv1_items < globals.max_lv2_items && max_lv2_items > 0);
 
     if (max_lv2_items <= 0) {
-        err("Not enough memory to process...");
+        err("No enough memory to process...\n");
         exit(1);
     }
 
@@ -1284,8 +1328,8 @@ void InitGlobalData(global_data_t &globals) {
                             (string(globals.output_prefix)+".last").c_str(),
                             (string(globals.output_prefix)+".isd").c_str());
     globals.dummy_nodes_writer.init((string(globals.output_prefix)+".dn").c_str());
-    globals.output_f_file = OpenFileAndCheck64((string(globals.output_prefix)+".f").c_str(), "w");
-    globals.output_multiplicity_file = OpenFileAndCheck64((string(globals.output_prefix)+".mul").c_str(), "wb");
+    globals.output_f_file = OpenFileAndCheck((string(globals.output_prefix)+".f").c_str(), "w");
+    globals.output_multiplicity_file = OpenFileAndCheck((string(globals.output_prefix)+".mul").c_str(), "wb");
     assert(globals.output_f_file != NULL);
     assert(globals.output_multiplicity_file != NULL);
     fprintf(globals.output_f_file, "-1\n");
@@ -1414,7 +1458,7 @@ void ReadReadsAndGetMercyEdges(global_data_t &globals) {
     for (int i = 0; i < num_threads; ++i) {
         static char file_name[10240];
         sprintf(file_name, "%s.mercy.%d", edge_file_prefix, i);
-        out_files.push_back(OpenFileAndCheck64(file_name, "wb"));
+        out_files.push_back(OpenFileAndCheck(file_name, "wb"));
         assert(out_files.back() != NULL);
     }
 
@@ -1429,7 +1473,7 @@ void ReadReadsAndGetMercyEdges(global_data_t &globals) {
     if (last_shift_k_plus_one > 0) {
         last_shift_k_plus_one = kBitsPerEdgeWord - last_shift_k_plus_one;
     }
-    log("%d %d %d %d\n", words_per_kmer, words_per_k_plus_one, last_shift_k, last_shift_k_plus_one);
+    // log("%d %d %d %d\n", words_per_kmer, words_per_k_plus_one, last_shift_k, last_shift_k_plus_one);
     uint32_t *kmers = (uint32_t *) MallocAndCheck(sizeof(uint32_t) * (omp_get_max_threads()) * words_per_edge, __FILE__, __LINE__);
     uint32_t *rev_kmers = (uint32_t *) MallocAndCheck(sizeof(uint32_t) * (omp_get_max_threads()) * words_per_edge, __FILE__, __LINE__);
     bool *has_ins = (bool*) MallocAndCheck(sizeof(uint32_t) * (omp_get_max_threads()) * read_package[0].max_read_len, __FILE__, __LINE__);
@@ -1618,8 +1662,14 @@ void ReadReadsAndGetMercyEdges(global_data_t &globals) {
                     for (int j = words_per_k_plus_one; j < words_per_edge; ++j) {
                         kmer[j] = 0;
                     }
-                    kmer[words_per_edge - 1] |= 1; // WARNING: only work when m=2
+                    if (globals.mult_mem_type == 0) {
+                        kmer[words_per_edge - 1] |= 1; // WARNING: only accurate when m=2, but I think doesn't matter a lot
+                    }
                     fwrite(kmer, sizeof(uint32_t), words_per_edge, out_files[omp_get_thread_num()]);
+                    if (globals.mult_mem_type > 0) {
+                        uint32_t kMercyMult = 1;
+                        fwrite(&kMercyMult, sizeof(uint32_t), 1, out_files[omp_get_thread_num()]);
+                    }
                     kmer[words_per_k_plus_one - 1] = last_word;
                 }
 
@@ -1966,7 +2016,18 @@ void* Lv2ExtractSubstringsThread(void* _data) {
                 int num_chars_to_copy = globals.kmer_k - (offset >= 2);
                 int counting = 0;
                 if (offset == 1) {
-                    counting = *(edge_p + globals.words_per_edge - 1) & kMaxMulti_t;
+                    switch (globals.mult_mem_type) {
+                      case 0:
+                        counting = *(edge_p + globals.words_per_edge - 1) & kMaxMulti_t;
+                        break;
+                      case 1:
+                        counting = ((*(edge_p + globals.words_per_edge - 1) & 0xFF) << 8) | globals.multiplicity8[read_id];
+                        break;
+                      case 2:
+                        counting = globals.multiplicity16[read_id];
+                        break;
+                      default: assert(false);
+                    }
                 }
                 if (strand == 0) {
                     CopySubstring(substrings_p, edge_p, offset, num_chars_to_copy, counting, globals);
@@ -2254,6 +2315,11 @@ void Phase2Clean(struct global_data_t &globals) {
     free(globals.lv2_aux);
     fclose(globals.output_f_file);
     fclose(globals.output_multiplicity_file);
+    if (globals.mult_mem_type == 1) {
+        free(globals.multiplicity8);
+    } else if (globals.mult_mem_type == 2) {
+        free(globals.multiplicity16);
+    }
     globals.dummy_nodes_writer.destroy();
     for (int t = 0; t < globals.num_cpu_threads; ++t) {
         free(globals.readpartitions[t].rp_bucket_sizes);
@@ -2321,7 +2387,7 @@ void Phase2Entry(struct global_data_t &globals) {
         }
     }
 
-    // FILE *bucket_out = OpenFileAndCheck64("debug.bucket-out.phase2", "w");
+    // FILE *bucket_out = OpenFileAndCheck("debug.bucket-out.phase2", "w");
     // for (int i=0; i < phase2::kNumBuckets; ++i)
     //     fprintf(bucket_out, "%d %lld\n", i, globals.bucket_sizes[i]);
     // fclose(bucket_out);

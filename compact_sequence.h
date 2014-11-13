@@ -20,8 +20,6 @@
 
 class Sequence;
 class ShortSequence;
-class Kmer;
-
 
 /**
  * @brief It is a compact format of DNA sequence. It has the same 

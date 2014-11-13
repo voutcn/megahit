@@ -192,8 +192,8 @@ static void InitGlobalData(IterateGlobalData &globals) {
         globals.addi_multi_file = NULL;
     }
 
-    globals.output_edge_file = OpenFileAndCheck64((string(options.output_prefix) + ".edges.0").c_str(), "wb");
-    globals.output_read_file = OpenFileAndCheck64((string(options.output_prefix) + ".rr.pb").c_str(), "wb"); // remaining reads packed binary
+    globals.output_edge_file = OpenFileAndCheck((string(options.output_prefix) + ".edges.0").c_str(), "wb");
+    globals.output_read_file = OpenFileAndCheck((string(options.output_prefix) + ".rr.pb").c_str(), "wb"); // remaining reads packed binary
     assert(globals.output_edge_file != NULL);
     assert(globals.output_read_file != NULL);
 }

@@ -142,10 +142,13 @@ struct global_data_t {
 
     //--------------phase2---------------------------
     int words_per_dummy_node;
+    int mult_mem_type; // 0: compact with (k+1)-mer; 1: use extra 8 bits; 2: use extra 16 bits
     int64_t num_edges;
 
     // large array
     edge_word_t *packed_edges;
+    uint8_t *multiplicity8;    // store multiplicity if 8 additional bits are needed
+    uint16_t *multiplicity16;   // store multiplicity if 16 additional bits are needed
 
     // memory usage
     int64_t mem_packed_edges;
