@@ -557,10 +557,10 @@ static void ReadReadsAndProcess(IterateGlobalData &globals) {
         }
 
         if (num_total_reads % (16 * cur_package.kMaxNumReads) == 0) {
-            printf("Total: %ld, aligned: %ld. Iterative edges: %lu\n", num_total_reads, num_aligned_reads, globals.iterative_edges.size());
+            printf("Total: %lld, aligned: %lld. Iterative edges: %llu\n", (long long)num_total_reads, (long long)num_aligned_reads, (unsigned long long)globals.iterative_edges.size());
         }
     }
-    printf("Total: %ld, aligned: %ld. Iterative edges: %lu\n", num_total_reads, num_aligned_reads, globals.iterative_edges.size());
+    printf("Total: %lld, aligned: %lld. Iterative edges: %llu\n", (long long)num_total_reads, (long long)num_aligned_reads, (unsigned long long)globals.iterative_edges.size());
 
     printf("Writing iterative edges...\n");
     int next_k = globals.step + globals.kmer_k;

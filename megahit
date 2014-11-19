@@ -33,7 +33,7 @@ import multiprocessing
 from datetime import datetime, date, time
 
 usage_message = '''
-megahit version: 0.1.2
+megahit version: 0.1.2-r20
 Copyright (c) The University of Hong Kong
 
 Usage:
@@ -41,7 +41,7 @@ Usage:
 
 Required Arguments:
     -m/--memory                    <float>      memory in byte to be used.
-                                                This argument is used to optimize graph building module,
+                                                This argument is used to optimize the graph building module,
                                                 but the program CANNOT guarantee how much memory will be used.
                                                 This value is recommended to be 90% of the machine's memory.
     -l/--max-read-len              <int>        maximum read length
@@ -181,6 +181,7 @@ def check_opt():
         exit(1)
     if k_step > 28:
         print >> sys.stderr, "step must be less than 29."
+        exit(1)
     if k_step % 2 != 0:
         print >> sys.stderr, "step must be an even number."
         exit(1)

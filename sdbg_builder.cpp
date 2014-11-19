@@ -18,7 +18,7 @@
 
 #include <assert.h>
 #include <omp.h>
-#include <sys/sysinfo.h>
+// #include <sys/sysinfo.h>
 #include <algorithm>
 #include <iostream>
 #include <stdexcept>
@@ -106,9 +106,10 @@ void ParsePhase1Option(int argc, char *argv[]) {
         }
 
         if (phase1_options.host_mem == 0) {
-            struct sysinfo s_info;
-            sysinfo(&s_info);
-            phase1_options.host_mem = (s_info.freeram + s_info.bufferram) * 0.95;
+            throw std::logic_error("Please specify the host memory!");
+            // struct sysinfo s_info;
+            // sysinfo(&s_info);
+            // phase1_options.host_mem = (s_info.freeram + s_info.bufferram) * 0.95;
         }
 
         if (phase1_options.gpu_mem == 0) {
@@ -168,9 +169,10 @@ void ParsePhase2Option(int argc, char *argv[]) {
         }
 
         if (phase2_options.host_mem == 0) {
-            struct sysinfo s_info;
-            sysinfo(&s_info);
-            phase2_options.host_mem = (s_info.freeram + s_info.bufferram) * 0.95;
+            throw std::logic_error("Please specify the host memory!");
+            // struct sysinfo s_info;
+            // sysinfo(&s_info);
+            // phase2_options.host_mem = (s_info.freeram + s_info.bufferram) * 0.95;
         }
 
         if (phase2_options.gpu_mem == 0) {

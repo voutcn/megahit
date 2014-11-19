@@ -144,14 +144,14 @@ int64_t RemoveTips(SuccinctDBG &dbg, int max_tip_len, int min_final_contig_len) 
         timer.start();
         number_tips += Trim(dbg, len, min_final_contig_len);
         timer.stop();
-        printf("Accumulated tips removed: %ld; time elapsed: %.4f\n", number_tips, timer.elapsed());
+        printf("Accumulated tips removed: %lld; time elapsed: %.4f\n", (long long)number_tips, timer.elapsed());
     }
     printf("Removing tips with length less than %d\n", max_tip_len);
     timer.reset();
     timer.start();
     number_tips += Trim(dbg, max_tip_len, min_final_contig_len);
     timer.stop();
-    printf("Accumulated tips removed: %ld; time elapsed: %.4f\n", number_tips, timer.elapsed());
+    printf("Accumulated tips removed: %lld; time elapsed: %.4f\n", (long long)number_tips, timer.elapsed());
     return number_tips;
 }
 
@@ -268,7 +268,7 @@ void RemoveLowLocalAndOutputChanged(SuccinctDBG &dbg, FILE *contigs_file, FILE *
         // printf("depth: %lf, num: %ld, time: %lf\n", min_depth, num_removed, local_timer.elapsed());
     }
     timer.stop();
-    printf("Number of unitigs removed: %ld, time: %lf\n", num_removed, timer.elapsed());
+    printf("Number of unitigs removed: %lld, time: %lf\n", (long long)num_removed, timer.elapsed());
 
     histogram.clear();
     unitig_graph.OutputChangedUnitigs(addi_contig_file, addi_multi_file, histogram);
@@ -289,7 +289,7 @@ void RemoveLowLocalAndOutputFinal(SuccinctDBG &dbg, FILE *final_contig_file,
            unitig_graph.RemoveLocalLowDepth(min_depth, min_len, kLocalWidth, local_ratio, num_removed)) {
         min_depth *= 1.1;
     }
-    printf("Number of unitigs removed: %ld\n", num_removed);
+    printf("Number of unitigs removed: %lld\n", (long long)num_removed);
 
     histogram.clear();
     unitig_graph.OutputFinalUnitigs(final_contig_file, histogram, min_final_contig_len);
@@ -322,8 +322,8 @@ void PrintStat(long long genome_size) {
         }
     }
 
-    printf("Total length: %ld, N50: %ld, Mean: %ld, number of contigs: %ld\n", total_length, n50, average_length, total_contigs);
-    printf("Maximum length: %ld\n", histogram.size() > 0 ? histogram.rbegin()->first : 0);
+    printf("Total length: %lld, N50: %lld, Mean: %lld, number of contigs: %lld\n", (long long)total_length, (long long)n50, (long long)average_length, (long long)total_contigs);
+    printf("Maximum length: %llu\n", (unsigned long long)(histogram.size() > 0 ? histogram.rbegin()->first : 0));
 }
 
 static inline void MarkNode(SuccinctDBG &dbg, int64_t node_idx) {

@@ -125,7 +125,7 @@ int main(int argc, char **argv) {
         dbg.LoadFromFile(options.sdbg_name.c_str());
         timer.stop();
         printf("Done. Time elapsed: %lf\n", timer.elapsed());
-        printf("Number of Edges: %ld\n", dbg.size);;
+        printf("Number of Edges: %lld\n", (long long)dbg.size);;
         printf("K value: %d\n", dbg.kmer_k);
     }
 
@@ -154,7 +154,7 @@ int main(int argc, char **argv) {
         timer.start();
         int64_t num_bubbles = assembly_algorithms::PopBubbles(dbg, dbg.kmer_k + 2, options.bubble_remove_ratio);
         timer.stop();
-        printf("Number of bubbles: %ld. Time elapsed: %lf\n", num_bubbles, timer.elapsed());
+        printf("Number of bubbles: %lld. Time elapsed: %lf\n", (long long)num_bubbles, timer.elapsed());
     }
 
 

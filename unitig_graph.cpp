@@ -100,7 +100,7 @@ void UnitigGraph::InitFromSdBG() {
 
             int64_t rc_start = sdbg_->ReverseComplement(node_idx);
             if (rc_start == -1) {
-                fprintf(stderr, "Node: %ld\n", node_idx); 
+                fprintf(stderr, "Node: %lld\n", (long long)node_idx); 
                 fprintf(stderr, "Graph is incorrect!\n");
                 exit(1);
             }
@@ -210,12 +210,12 @@ void UnitigGraph::InitFromSdBG() {
         exit(1);
     }
 
-    int64_t total_depth = 0;
-    for (uint32_t i = 0; i < vertices_.size(); ++i) {
-        if (!vertices_[i].is_deleted)
-            total_depth += vertices_[i].depth;
-    }
-    printf("total_depth: %ld, total num: %u\n", total_depth, (unsigned)vertices_.size());
+    // int64_t total_depth = 0;
+    // for (uint32_t i = 0; i < vertices_.size(); ++i) {
+    //     if (!vertices_[i].is_deleted)
+    //         total_depth += vertices_[i].depth;
+    // }
+    // printf("total_depth: %ld, total num: %u\n", total_depth, (unsigned)vertices_.size());
 
     // free memory for hash table construction
     sdbg_->FreeMul();

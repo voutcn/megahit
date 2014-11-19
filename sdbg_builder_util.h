@@ -21,6 +21,7 @@
 
 #include <vector>
 
+#include "MAC_pthread_barrier.h"
 #include "definitions.h"
 #include "timer.h"
 #include "sdbg_builder_writers.h"
@@ -98,7 +99,7 @@ struct global_data_t {
     // Lv.1 variables
     int lv1_start_bucket, lv1_end_bucket; // end is exclusive
     int64_t lv1_num_items;
-    pthread_spinlock_t lv1_items_scanning_lock;  
+    pthread_mutex_t lv1_items_scanning_lock;  
 
     // Lv.2 variables
     int lv2_start_bucket, lv2_end_bucket; // end is exclusive

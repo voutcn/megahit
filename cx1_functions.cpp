@@ -35,6 +35,7 @@
 #include "sdbg_builder_writers.h"
 #include "kmer_uint32.h"
 #include "lv2_cpu_sort.h"
+#include "MAC_pthread_barrier.h"
 
 #ifndef DISABLE_GPU
 #include "lv2_gpu_functions.h"
@@ -321,7 +322,7 @@ void InitGlobalData(struct global_data_t &globals) {
     } while (globals.max_lv1_items < globals.max_lv2_items && max_lv2_items > 0);
 
     if (max_lv2_items <= 0) {
-        err("Not enough memory to process...");
+        err("No enough memory to process...");
         exit(1);
     }
 
@@ -365,7 +366,7 @@ void InitGlobalData(struct global_data_t &globals) {
     globals.num_outgoing_zero_nodes = 0;
 
     // init lock
-    pthread_spin_init(&globals.lv1_items_scanning_lock, 0);
+    pthread_mutex_init(&globals.lv1_items_scanning_lock, NULL);
 }
 
 void* PreprocessScanToFillBucketSizesThread(void *_data) {
@@ -454,10 +455,10 @@ void* Lv1ScanToFillOffsetsThread(void *_data) {
         int64_t full_offset = EncodeOffset(read_id, offset, strand, globals.offset_num_bits); \
         int64_t differential = full_offset - prev_full_offsets[key];      \
         if (differential > kDifferentialLimit) {                      \
-          pthread_spin_lock(&globals.lv1_items_scanning_lock); \
+          pthread_mutex_lock(&globals.lv1_items_scanning_lock); \
           globals.lv1_items[ rp.rp_bucket_offsets[key]++ ] = -globals.lv1_items_special.size() - 1; \
           globals.lv1_items_special.push_back(full_offset);                  \
-          pthread_spin_unlock(&globals.lv1_items_scanning_lock); \
+          pthread_mutex_unlock(&globals.lv1_items_scanning_lock); \
           if (globals.lv1_items_special.size() % 268435456 == 0) { \
             err("Number of large differentials: %llu\n", globals.lv1_items_special.size()); \
           } \
@@ -896,7 +897,7 @@ void Lv2CountingJoin(struct global_data_t &globals) {
 }
 
 void Phase1Clean(struct global_data_t &globals) {
-    pthread_spin_destroy(&globals.lv1_items_scanning_lock);
+    pthread_mutex_destroy(&globals.lv1_items_scanning_lock);
     free(globals.packed_reads);
     free(globals.bucket_sizes);
     free(globals.lv1_items);
@@ -1336,7 +1337,7 @@ void InitGlobalData(global_data_t &globals) {
     globals.dummy_nodes_writer.output(globals.words_per_dummy_node);
 
     // init lock
-    pthread_spin_init(&globals.lv1_items_scanning_lock, 0);
+    pthread_mutex_init(&globals.lv1_items_scanning_lock, NULL);
 }
 
 struct ReadReadsThreadData {
@@ -1778,10 +1779,10 @@ void* Lv1ScanToFillOffsetsThread(void *_data) {
         int64_t full_offset = EncodeEdgeOffset(read_id, offset, strand, globals.k_num_bits); \
         int64_t differential = full_offset - prev_full_offsets[key];      \
         if (differential > kDifferentialLimit) {                      \
-          pthread_spin_lock(&globals.lv1_items_scanning_lock); \
+          pthread_mutex_lock(&globals.lv1_items_scanning_lock); \
           globals.lv1_items[ rp.rp_bucket_offsets[key]++ ] = -globals.lv1_items_special.size() - 1; \
           globals.lv1_items_special.push_back(full_offset);                  \
-          pthread_spin_unlock(&globals.lv1_items_scanning_lock); \
+          pthread_mutex_unlock(&globals.lv1_items_scanning_lock); \
           if (globals.lv1_items_special.size() % 268435456 == 0) { \
             err("Number of large differentials: %llu\n", globals.lv1_items_special.size()); \
           } \
@@ -2304,7 +2305,7 @@ void Lv2OutputJoin(global_data_t &globals) {
 }
 
 void Phase2Clean(struct global_data_t &globals) {
-    pthread_spin_destroy(&globals.lv1_items_scanning_lock);
+    pthread_mutex_destroy(&globals.lv1_items_scanning_lock);
     free(globals.packed_edges);
     free(globals.bucket_sizes);
     free(globals.lv1_items);
