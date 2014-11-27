@@ -203,31 +203,35 @@ def graph_prefix(kmer_k):
     global temp_dir
     return temp_dir + "k" + str(kmer_k)
 
-def delete_temp_files(kmer_k):
-    os.remove(graph_prefix(kmer_k) + ".w")
-    os.remove(graph_prefix(kmer_k) + ".last")
-    os.remove(graph_prefix(kmer_k) + ".isd")
-    os.remove(graph_prefix(kmer_k) + ".dn")
-    os.remove(graph_prefix(kmer_k) + ".f")
-    os.remove(graph_prefix(kmer_k) + ".mul")
+def delect_file_if_exist(file_name):
+    if os.path.exists(file_name):
+        os.remove(file_name)
 
-    os.remove(graph_prefix(kmer_k) + ".contigs.fa")
-    os.remove(graph_prefix(kmer_k) + ".multi")
+def delete_temp_files(kmer_k):
+    delect_file_if_exist(graph_prefix(kmer_k) + ".w")
+    delect_file_if_exist(graph_prefix(kmer_k) + ".last")
+    delect_file_if_exist(graph_prefix(kmer_k) + ".isd")
+    delect_file_if_exist(graph_prefix(kmer_k) + ".dn")
+    delect_file_if_exist(graph_prefix(kmer_k) + ".f")
+    delect_file_if_exist(graph_prefix(kmer_k) + ".mul")
+
+    delect_file_if_exist(graph_prefix(kmer_k) + ".contigs.fa")
+    delect_file_if_exist(graph_prefix(kmer_k) + ".multi")
 
     if kmer_k != k_max and no_low_local == 0:
-        os.remove(graph_prefix(kmer_k) + ".addi.fa")
-        os.remove(graph_prefix(kmer_k) + ".addi.multi")
+        delect_file_if_exist(graph_prefix(kmer_k) + ".addi.fa")
+        delect_file_if_exist(graph_prefix(kmer_k) + ".addi.multi")
 
     if kmer_k != k_min:
-        os.remove(graph_prefix(kmer_k) + ".rr.pb")
-        os.remove(graph_prefix(kmer_k) + ".edges.0")
+        delect_file_if_exist(graph_prefix(kmer_k) + ".rr.pb")
+        delect_file_if_exist(graph_prefix(kmer_k) + ".edges.0")
     else:
         for i in range(0, max(1, num_cpu_threads / 3)):
-            os.remove(graph_prefix(kmer_k) + ".edges." + str(i))
+            delect_file_if_exist(graph_prefix(kmer_k) + ".edges." + str(i))
         if no_mercy == 0:
             for i in range(0, num_cpu_threads - 1):
-                os.remove(graph_prefix(kmer_k) + ".mercy." + str(i))
-        os.remove(graph_prefix(kmer_k) + ".cand")
+                delect_file_if_exist(graph_prefix(kmer_k) + ".mercy." + str(i))
+        delect_file_if_exist(graph_prefix(kmer_k) + ".cand")
 
 def build_first_graph():
     global host_mem
@@ -569,6 +573,10 @@ def main(argv = None):
                 next_k = k_max
 
             iterate(cur_k, next_k - cur_k)
+            if os.path.getsize(graph_prefix(next_k) + ".edges.0") == 0:
+                cur_k = next_k
+                break
+
             build_graph(next_k, 1)
             assemble(next_k)
 
@@ -576,8 +584,9 @@ def main(argv = None):
                 delete_temp_files(cur_k)
             cur_k = next_k
         # end while
+
         if keep_tmp_files == 0:
-            delete_temp_files(k_max)
+            delete_temp_files(cur_k)
 
         merge_final()
 

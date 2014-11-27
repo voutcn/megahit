@@ -178,7 +178,7 @@ endif
 #-------------------------------------------------------------------------------
 # CPU Applications
 #-------------------------------------------------------------------------------
-$(BIN_DIR)sdbg_builder_cpu: sdbg_builder.cpp .cx1_functions_cpu.o lv2_cpu_sort.h $(DEPS)
+$(BIN_DIR)sdbg_builder_cpu: sdbg_builder.cpp .cx1_functions_cpu.o lv2_cpu_sort.h options_description.o $(DEPS)
 	$(CXX) $(CFLAGS) -D DISABLE_GPU sdbg_builder.cpp .cx1_functions_cpu.o options_description.o $(ZLIB) -o $(BIN_DIR)sdbg_builder_cpu
 
 $(BIN_DIR)assembler: assembler.cpp succinct_dbg.o rank_and_select.o assembly_algorithms.o branch_group.o options_description.o unitig_graph.o compact_sequence.o $(DEPS)
@@ -222,7 +222,7 @@ ifeq ($(use_gpu), 1)
 #-------------------------------------------------------------------------------
 # GPU Applications
 #-------------------------------------------------------------------------------
-$(BIN_DIR)sdbg_builder_cuda_$(SUFFIX): sdbg_builder.cpp .cx1_functions.o .lv2_gpu_functions_$(SUFFIX).o $(DEPS)
+$(BIN_DIR)sdbg_builder_cuda_$(SUFFIX): sdbg_builder.cpp .cx1_functions.o .lv2_gpu_functions_$(SUFFIX).o options_description.o $(DEPS)
 	$(CXX) $(CFLAGS) $(CUDALIBFLAG) sdbg_builder.cpp .lv2_gpu_functions_$(SUFFIX).o .cx1_functions.o options_description.o $(ZLIB) -o $(BIN_DIR)sdbg_builder_cuda_$(SUFFIX)
 	rm -f $(BIN_DIR)sdbg_builder_gpu
 	mv $(BIN_DIR)sdbg_builder_cuda_$(SUFFIX) $(BIN_DIR)sdbg_builder_gpu 
