@@ -36,6 +36,7 @@
 #include "kmer_uint32.h"
 #include "lv2_cpu_sort.h"
 #include "MAC_pthread_barrier.h"
+#include "kseq.h"
 
 #ifndef DISABLE_GPU
 #include "lv2_gpu_functions.h"
@@ -186,8 +187,6 @@ void ReadInputFile(struct global_data_t &globals) {
     globals.words_per_read = words_per_read;
     globals.read_length_mask = (1 << bits_read_length) - 1;
 
-    gzFile input_fastx_file = strcmp(globals.input_file, "-") ? gzopen(globals.input_file, "r") : gzdopen(fileno(stdin), "r");
-    BufferReader reader(input_fastx_file);
     edge_word_t *packed_reads;
     edge_word_t *packed_reads_p; // current pointer
 
@@ -197,39 +196,18 @@ void ReadInputFile(struct global_data_t &globals) {
     log("Max Read length is %d\n", globals.max_read_length);
     log("Estimate max number of reads can be loaded: %lld\n", max_num_reads);
 
-    int is_FASTQ = (reader.NextChar() == '@'); // FASTQ? or FASTA?
-    char read_terminator = is_FASTQ ? '+' : '>';
-    char *temp_read = (char*)MallocAndCheck(sizeof(char) * globals.max_read_length * 2, __FILE__, __LINE__);
-    assert(temp_read != NULL);
-
+    gzFile fp = strcmp(globals.input_file, "-") ? gzopen(globals.input_file, "r") : gzdopen(fileno(stdin), "r");
+    kseq_t *seq = kseq_init(fp);
+    int read_length;
     // main reading loop
-    while (!reader.eof()) {
+    while ((read_length = kseq_read(seq)) >= 0) {
         if (num_reads >= max_num_reads) {
             err("[WARNING] the number of reads is too large, only keep the first %llu ones. The assembly will be incomplete.\n", max_num_reads);
             break;
         }
 
-        int read_length = 0;
-        // consumes read name @xxxxxxxxxx (fastq) or >xxxxxxxxxx (fasta)
-        reader.SkipLine();
-        if (reader.eof()) break;
-
-        // stores the read sequence ([ACGT]+)
-        char c;
-        while ((c = reader.NextChar()) != read_terminator && !reader.eof()) {
-            if (c >= 'A' && read_length <= globals.max_read_length) { // a quick check if it's a letter
-                temp_read[read_length++] = c;
-            }
-        }
-
-        // consumes FASTQ-only stuff (two extra lines)
-        if (is_FASTQ) {
-            reader.SkipLine();
-            reader.SkipLine();
-        }
-
-        std::reverse(temp_read, temp_read + read_length);
-        char *next_p = temp_read;
+        std::reverse(seq->seq.s, seq->seq.s + read_length);
+        char *next_p = seq->seq.s;
         while (read_length > globals.kmer_k) {
             int scan_len = 0;
             while (scan_len < read_length && next_p[scan_len] != 'N') {
@@ -253,7 +231,8 @@ void ReadInputFile(struct global_data_t &globals) {
         }
     }
 
-    free(temp_read);
+    kseq_destroy(seq);
+    gzclose(fp);
 
     globals.num_reads = num_reads;
     globals.mem_packed_reads = globals.num_reads * globals.words_per_read * sizeof(edge_word_t);
@@ -1342,7 +1321,6 @@ void InitGlobalData(global_data_t &globals) {
 
 struct ReadReadsThreadData {
     ReadPackage *read_package;
-    // FastxReader *fastx_reader;
     gzFile *read_file;
     string *seq_buffer;
     char *dna_map;
@@ -1350,10 +1328,8 @@ struct ReadReadsThreadData {
 
 static void* ReadReadsThread(void* data) {
     ReadPackage &package = *(((ReadReadsThreadData*)data)->read_package);
-    // FastxReader &fastx_reader = *(((ReadReadsThreadData*)data)->fastx_reader);
     gzFile &read_file = *(((ReadReadsThreadData*)data)->read_file);
      
-    // package.ReadFastxReadsAndReverse(fastx_reader, seq_buffer, dna_map);
     package.ReadBinaryReads(read_file);
     return NULL;
 }

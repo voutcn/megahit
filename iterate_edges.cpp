@@ -29,7 +29,6 @@
 #include <algorithm>
 #include <stdexcept>
 #include "definitions.h"
-#include "fastx_reader.h"
 #include "io-utility.h"
 #include "options_description.h"
 #include "atomic_bit_vector.h"
@@ -211,22 +210,20 @@ static void ClearGlobalData(IterateGlobalData &globals) {
 
 struct ReadContigsThreadData {
     ContigPackage *contig_package;
-    FastxReader *fastx_reader;
-    string *seq_buffer;
+    kseq_t *seq;
     IterateGlobalData *globals;
     gzFile *multi_file;
 };
 
 static void* ReadContigsThread(void* data) {
     ContigPackage &package = *(((ReadContigsThreadData*)data)->contig_package);
-    FastxReader &fastx_reader = *(((ReadContigsThreadData*)data)->fastx_reader);
-    string &seq_buffer = *(((ReadContigsThreadData*)data)->seq_buffer);
+    kseq_t *seq = ((ReadContigsThreadData*)data)->seq;
     IterateGlobalData &globals = *(((ReadContigsThreadData*)data)->globals);
     gzFile &multi_file = *(((ReadContigsThreadData*)data)->multi_file);
     char *dna_map = globals.dna_map;
 
     printf("Reading contigs...\n");
-    package.ReadContigs(fastx_reader, seq_buffer, dna_map);
+    package.ReadContigs(seq, dna_map);
     package.ReadMultiplicity(multi_file);
     printf("Read %lu contigs, total length: %lu\n", package.size(), package.seqs.length());
     return NULL;
@@ -234,12 +231,11 @@ static void* ReadContigsThread(void* data) {
 
 static void ReadContigsAndBuildHash(IterateGlobalData &globals, bool is_addi_contigs) {
     ContigPackage packages[2];
-    string seq_buffer;
-    FastxReader fastx_reader;
+    kseq_t *seq;
     if (is_addi_contigs) {
-        fastx_reader.init(globals.addi_contig_file);
+        seq = kseq_init(globals.addi_contig_file);
     } else {
-        fastx_reader.init(globals.contigs_file);
+        seq = kseq_init(globals.contigs_file);
     }
     int input_thread_index = 0;
     bool is_first_round = !is_addi_contigs;
@@ -249,8 +245,7 @@ static void ReadContigsAndBuildHash(IterateGlobalData &globals, bool is_addi_con
     pthread_t input_thread;
     ReadContigsThreadData input_thread_data;
     input_thread_data.contig_package = &packages[input_thread_index];
-    input_thread_data.fastx_reader = &fastx_reader;
-    input_thread_data.seq_buffer = &seq_buffer;
+    input_thread_data.seq = seq;
     input_thread_data.globals = &globals;
     if (!is_addi_contigs) {
         input_thread_data.multi_file = &globals.contigs_multi_file;
@@ -263,7 +258,7 @@ static void ReadContigsAndBuildHash(IterateGlobalData &globals, bool is_addi_con
 
     while (true) {
         pthread_join(input_thread, NULL);
-        if (fastx_reader.eof() && packages[input_thread_index].size() == 0) {
+        if (packages[input_thread_index].size() == 0) {
             break;
         }
 
@@ -295,7 +290,6 @@ static void ReadContigsAndBuildHash(IterateGlobalData &globals, bool is_addi_con
                     for (int j = 0; j < globals.kmer_k; ++j) {
                         kmer.ShiftAppend(3 - cur_package.CharAt(i, cur_package.seq_lengths[i] - 1 - j));
                     }
-                    // assert(globals.crusial_kmers.find(kmer) == globals.crusial_kmers.end());
 
                     s_seq = 0;
                     for (int j = 0; j < globals.step && j < s_length; ++j) {
@@ -372,24 +366,24 @@ static void ReadContigsAndBuildHash(IterateGlobalData &globals, bool is_addi_con
         }
     }
     printf("Number of crusial kmers: %lu\n", globals.crusial_kmers.size());
+
+    kseq_destroy(seq);
 }
 
 struct ReadReadsThreadData {
     ReadPackage *read_package;
-    FastxReader *fastx_reader;
-    string *seq_buffer;
+    kseq_t *seq;
     IterateGlobalData *globals;
 };
 
 static void* ReadReadsThread(void* data) {
     ReadPackage &package = *(((ReadReadsThreadData*)data)->read_package);
-    string &seq_buffer = *(((ReadReadsThreadData*)data)->seq_buffer);
     IterateGlobalData &globals = *(((ReadReadsThreadData*)data)->globals);
-    FastxReader &fastx_reader = *(((ReadReadsThreadData*)data)->fastx_reader);
+    kseq_t *seq = ((ReadReadsThreadData*)data)->seq;
     package.clear();
 
     if (globals.read_format == IterateGlobalData::kFastq || globals.read_format == IterateGlobalData::kFasta) {
-        package.ReadFastxReads(fastx_reader, seq_buffer, globals.dna_map);
+        package.ReadFastxReads(seq, globals.dna_map);
     } else {
         package.ReadBinaryReads(globals.read_file);
     }
@@ -400,10 +394,9 @@ static void ReadReadsAndProcess(IterateGlobalData &globals) {
     ReadPackage packages[2];
     packages[0].init(globals.max_read_len);
     packages[1].init(globals.max_read_len);
-    string seq_buffer;
-    FastxReader fastx_reader;
+    kseq_t *seq = NULL;
     if (globals.read_format != IterateGlobalData::kBinary) {
-        fastx_reader.init(globals.read_file);
+        seq = kseq_init(globals.read_file);
     }
     int input_thread_index = 0;
     static const int kWordsPerEdge = ((globals.kmer_k + globals.step + 1) * 2 + kBitsPerMulti_t + 31) / 32;
@@ -415,8 +408,7 @@ static void ReadReadsAndProcess(IterateGlobalData &globals) {
     pthread_t input_thread;
     ReadReadsThreadData input_thread_data;
     input_thread_data.read_package = &packages[input_thread_index];
-    input_thread_data.fastx_reader = &fastx_reader;
-    input_thread_data.seq_buffer = &seq_buffer;
+    input_thread_data.seq = seq;
     input_thread_data.globals = &globals;
 
     pthread_create(&input_thread, NULL, ReadReadsThread, &input_thread_data);
@@ -561,6 +553,8 @@ static void ReadReadsAndProcess(IterateGlobalData &globals) {
         }
     }
     printf("Total: %lld, aligned: %lld. Iterative edges: %llu\n", (long long)num_total_reads, (long long)num_aligned_reads, (unsigned long long)globals.iterative_edges.size());
+
+    kseq_destroy(seq);
 
     printf("Writing iterative edges...\n");
     int next_k = globals.step + globals.kmer_k;
