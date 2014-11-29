@@ -75,6 +75,7 @@ struct global_data_t {
     int words_per_edge; // number of (32-bit) words needed to represent a (k+1)-mer
     int64_t words_per_substring; // substrings to be sorted by GPU
     int offset_num_bits; // the number of bits needed to store the offset of a base in the read/(k+1)-mer (i.e. log(read_length))
+    size_t capacity;
 
     struct readpartition_data_t readpartitions[kMaxNumCPUThreads];
     struct bucketpartition_data_t bucketpartitions[kMaxNumCPUThreads];

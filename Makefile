@@ -151,18 +151,18 @@ ZLIB = -lz
 ifneq ($(disablempopcnt), 1)
 	CFLAGS += -mpopcnt
 endif
+BIN_DIR = ./bin
 DEPS = Makefile
-BIN_DIR = ./bin/
 
 #-------------------------------------------------------------------------------
 # CPU & GPU version
 #-------------------------------------------------------------------------------
 
 ifeq ($(use_gpu), 1)
-all: make_bin_dir $(BIN_DIR)assembler iterate_edges_all $(BIN_DIR)sdbg_builder_cuda_$(SUFFIX) $(BIN_DIR)sdbg_builder_cpu
+all: $(BIN_DIR)/assembler iterate_edges_all $(BIN_DIR)/sdbg_builder_cuda_$(SUFFIX) $(BIN_DIR)/sdbg_builder_cpu
 	chmod +x ./megahit
 else
-all: make_bin_dir $(BIN_DIR)assembler iterate_edges_all $(BIN_DIR)sdbg_builder_cpu
+all: $(BIN_DIR)/assembler iterate_edges_all $(BIN_DIR)/sdbg_builder_cpu
 	chmod +x ./megahit
 endif
 
@@ -178,31 +178,28 @@ endif
 #-------------------------------------------------------------------------------
 # CPU Applications
 #-------------------------------------------------------------------------------
-$(BIN_DIR)sdbg_builder_cpu: sdbg_builder.cpp .cx1_functions_cpu.o lv2_cpu_sort.h options_description.o $(DEPS)
-	$(CXX) $(CFLAGS) -D DISABLE_GPU sdbg_builder.cpp .cx1_functions_cpu.o options_description.o $(ZLIB) -o $(BIN_DIR)sdbg_builder_cpu
+$(BIN_DIR)/sdbg_builder_cpu: sdbg_builder.cpp .cx1_functions_cpu.o lv2_cpu_sort.h options_description.o $(BIN_DIR) $(DEPS)
+	$(CXX) $(CFLAGS) -D DISABLE_GPU sdbg_builder.cpp .cx1_functions_cpu.o options_description.o $(ZLIB) -o $(BIN_DIR)/sdbg_builder_cpu
 
-$(BIN_DIR)assembler: assembler.cpp succinct_dbg.o rank_and_select.o assembly_algorithms.o branch_group.o options_description.o unitig_graph.o compact_sequence.o $(DEPS)
-	$(CXX) $(CFLAGS) assembler.cpp rank_and_select.o succinct_dbg.o assembly_algorithms.o branch_group.o options_description.o unitig_graph.o compact_sequence.o $(ZLIB) -o $(BIN_DIR)assembler
+$(BIN_DIR)/assembler: assembler.cpp succinct_dbg.o rank_and_select.o assembly_algorithms.o branch_group.o options_description.o unitig_graph.o compact_sequence.o $(BIN_DIR) $(DEPS)
+	$(CXX) $(CFLAGS) assembler.cpp rank_and_select.o succinct_dbg.o assembly_algorithms.o branch_group.o options_description.o unitig_graph.o compact_sequence.o $(ZLIB) -o $(BIN_DIR)/assembler
 
-iterate_edges_all: $(BIN_DIR)iterate_edges_k61 $(BIN_DIR)iterate_edges_k92 $(BIN_DIR)iterate_edges_k124
+iterate_edges_all: $(BIN_DIR)/iterate_edges_k61 $(BIN_DIR)/iterate_edges_k92 $(BIN_DIR)/iterate_edges_k124
 
-$(BIN_DIR)iterate_edges_k61: iterate_edges.cpp iterate_edges.h options_description.o $(DEPS)
-	$(CXX) $(CFLAGS) -D KMER_NUM_UINT64=2 iterate_edges.cpp options_description.o $(ZLIB) -o $(BIN_DIR)iterate_edges_k61
+$(BIN_DIR)/iterate_edges_k61: iterate_edges.cpp iterate_edges.h options_description.o $(BIN_DIR) $(DEPS)
+	$(CXX) $(CFLAGS) -D KMER_NUM_UINT64=2 iterate_edges.cpp options_description.o $(ZLIB) -o $(BIN_DIR)/iterate_edges_k61
 
-$(BIN_DIR)iterate_edges_k92: iterate_edges.cpp iterate_edges.h options_description.o $(DEPS)
-	$(CXX) $(CFLAGS) -D KMER_NUM_UINT64=3 iterate_edges.cpp options_description.o $(ZLIB) -o $(BIN_DIR)iterate_edges_k92
+$(BIN_DIR)/iterate_edges_k92: iterate_edges.cpp iterate_edges.h options_description.o $(BIN_DIR) $(DEPS)
+	$(CXX) $(CFLAGS) -D KMER_NUM_UINT64=3 iterate_edges.cpp options_description.o $(ZLIB) -o $(BIN_DIR)/iterate_edges_k92
 
-$(BIN_DIR)iterate_edges_k124: iterate_edges.cpp iterate_edges.h options_description.o $(DEPS)
-	$(CXX) $(CFLAGS) -D KMER_NUM_UINT64=4 iterate_edges.cpp options_description.o $(ZLIB) -o $(BIN_DIR)iterate_edges_k124
+$(BIN_DIR)/iterate_edges_k124: iterate_edges.cpp iterate_edges.h options_description.o $(BIN_DIR) $(DEPS)
+	$(CXX) $(CFLAGS) -D KMER_NUM_UINT64=4 iterate_edges.cpp options_description.o $(ZLIB) -o $(BIN_DIR)/iterate_edges_k124
 
 #-------------------------------------------------------------------------------
 # Applications for debug usage
 #-------------------------------------------------------------------------------
-$(BIN_DIR)query_sdbg: query_sdbg.cpp succinct_dbg.o rank_and_select.o assembly_algorithms.o branch_group.o unitig_graph.o compact_sequence.o $(DEPS)
-	$(CXX) $(CFLAGS) query_sdbg.cpp rank_and_select.o succinct_dbg.o assembly_algorithms.o branch_group.o unitig_graph.o compact_sequence.o -o $(BIN_DIR)query_sdbg
-
-$(BIN_DIR)rank_and_select_sample: rank_and_select_sample.cpp rank_and_select.o $(DEPS)
-	$(CXX) $(CFLAGS) rank_and_select.o rank_and_select_sample.cpp -o $(BIN_DIR)rank_and_select_sample
+$(BIN_DIR)/query_sdbg: query_sdbg.cpp succinct_dbg.o rank_and_select.o assembly_algorithms.o branch_group.o unitig_graph.o compact_sequence.o $(DEPS)
+	$(CXX) $(CFLAGS) query_sdbg.cpp rank_and_select.o succinct_dbg.o assembly_algorithms.o branch_group.o unitig_graph.o compact_sequence.o -o $(BIN_DIR)/query_sdbg
 
 ifeq ($(use_gpu), 1)
 #-------------------------------------------------------------------------------
@@ -222,18 +219,17 @@ ifeq ($(use_gpu), 1)
 #-------------------------------------------------------------------------------
 # GPU Applications
 #-------------------------------------------------------------------------------
-$(BIN_DIR)sdbg_builder_cuda_$(SUFFIX): sdbg_builder.cpp .cx1_functions.o .lv2_gpu_functions_$(SUFFIX).o options_description.o $(DEPS)
-	$(CXX) $(CFLAGS) $(CUDALIBFLAG) sdbg_builder.cpp .lv2_gpu_functions_$(SUFFIX).o .cx1_functions.o options_description.o $(ZLIB) -o $(BIN_DIR)sdbg_builder_cuda_$(SUFFIX)
-	rm -f $(BIN_DIR)sdbg_builder_gpu
-	mv $(BIN_DIR)sdbg_builder_cuda_$(SUFFIX) $(BIN_DIR)sdbg_builder_gpu 
+$(BIN_DIR)/sdbg_builder_cuda_$(SUFFIX): sdbg_builder.cpp .cx1_functions.o .lv2_gpu_functions_$(SUFFIX).o options_description.o $(BIN_DIR) $(DEPS)
+	$(CXX) $(CFLAGS) $(CUDALIBFLAG) sdbg_builder.cpp .lv2_gpu_functions_$(SUFFIX).o .cx1_functions.o options_description.o $(ZLIB) -o $(BIN_DIR)/sdbg_builder_cuda_$(SUFFIX)
+	rm -f $(BIN_DIR)/sdbg_builder_gpu
+	mv $(BIN_DIR)/sdbg_builder_cuda_$(SUFFIX) $(BIN_DIR)/sdbg_builder_gpu 
 endif
 
 #-------------------------------------------------------------------------------
 # Build binary directory
 #-------------------------------------------------------------------------------
-.PHONY:
-make_bin_dir:
-	mkdir -p $(BIN_DIR)
+$(BIN_DIR):
+	mkdir -p $(BIN_DIR)/
 
 .PHONY:
 clean:

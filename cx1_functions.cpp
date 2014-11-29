@@ -27,7 +27,6 @@
 
 #include "timer.h"
 #include "definitions.h"
-#include "fastx_reader.h"
 #include "io-utility.h"
 #include "helper_functions-inl.h"
 #include "mem_file_checker-inl.h"
@@ -178,7 +177,7 @@ inline int GetReadLengthByID(int64_t id, global_data_t &globals) {
  * last_word_shift: the number of empty bits in the last word. we need to shift the bits up by this amount. solely determined by read_length.
  */
 void ReadInputFile(struct global_data_t &globals) {
-    int64_t num_reads = 0;
+    size_t num_reads = 0;
     int bits_read_length = 1;
     while ((1 << bits_read_length) - 1 < globals.max_read_length) {
         ++bits_read_length;
@@ -186,26 +185,19 @@ void ReadInputFile(struct global_data_t &globals) {
     int words_per_read = DivCeiling(globals.max_read_length * kBitsPerEdgeChar + bits_read_length, kBitsPerEdgeWord);
     globals.words_per_read = words_per_read;
     globals.read_length_mask = (1 << bits_read_length) - 1;
+    globals.capacity = 1048576; // 1M
 
     edge_word_t *packed_reads;
     edge_word_t *packed_reads_p; // current pointer
 
-    int64_t max_num_reads = globals.host_mem / (sizeof(edge_word_t) * globals.words_per_read) * 3 / 4;
-    packed_reads_p = packed_reads = (edge_word_t*) MallocAndCheck(max_num_reads * globals.words_per_read * sizeof(edge_word_t), __FILE__, __LINE__);
-    assert(packed_reads != NULL);
-    log("Max Read length is %d\n", globals.max_read_length);
-    log("Estimate max number of reads can be loaded: %lld\n", max_num_reads);
+    log("[C::%s] Max read length is %d; words per read: %d\n", __func__, globals.max_read_length, globals.words_per_read);
+    packed_reads_p = packed_reads = (edge_word_t*) MallocAndCheck(globals.capacity * globals.words_per_read * sizeof(edge_word_t), __FILE__, __LINE__);
 
     gzFile fp = strcmp(globals.input_file, "-") ? gzopen(globals.input_file, "r") : gzdopen(fileno(stdin), "r");
     kseq_t *seq = kseq_init(fp);
     int read_length;
     // main reading loop
     while ((read_length = kseq_read(seq)) >= 0) {
-        if (num_reads >= max_num_reads) {
-            err("[WARNING] the number of reads is too large, only keep the first %llu ones. The assembly will be incomplete.\n", max_num_reads);
-            break;
-        }
-
         std::reverse(seq->seq.s, seq->seq.s + read_length);
         char *next_p = seq->seq.s;
         while (read_length > globals.kmer_k) {
@@ -215,12 +207,32 @@ void ReadInputFile(struct global_data_t &globals) {
             }
 
             if (scan_len > globals.kmer_k && scan_len <= globals.max_read_length) {
+                if (num_reads >= globals.capacity) {
+                    size_t new_capa = globals.capacity * 2;
+                    do {
+                        edge_word_t *new_ptr = (edge_word_t*) realloc(packed_reads, new_capa * globals.words_per_read * sizeof(edge_word_t));
+                        if (new_ptr != NULL) {
+                            packed_reads = new_ptr;
+                            packed_reads_p = packed_reads + globals.words_per_read * num_reads;
+                            break;
+                        } else {
+                            new_capa *= 0.9;
+                        }
+                    } while (new_capa > globals.capacity);
+
+                    if (globals.capacity >= new_capa) {
+                        err("[C::%s WRANING] No enough memory to hold all the reads. The assembly will move on with the first %llu reads.\n", __func__, num_reads);
+                        break;
+                    } else {
+                        globals.capacity = new_capa;
+                    }
+                }
                 // read length is ok! compress and store the packed read
                 PackReadFromAscii(next_p, packed_reads_p, scan_len, words_per_read);
                 packed_reads_p += globals.words_per_read;
                 ++num_reads;
             } else if (scan_len > globals.max_read_length) { // this read length is wrong
-                err("[ERROR] Found a read of length %d > max read length = %d\n", scan_len, globals.max_read_length);
+                err("[C::%s WARNING] Found a read of length %d > max read length = %d\n", __func__, scan_len, globals.max_read_length);
             }
 
             while (scan_len < read_length && next_p[scan_len] == 'N') {
@@ -237,18 +249,44 @@ void ReadInputFile(struct global_data_t &globals) {
     globals.num_reads = num_reads;
     globals.mem_packed_reads = globals.num_reads * globals.words_per_read * sizeof(edge_word_t);
     globals.packed_reads = (edge_word_t*) ReAllocAndCheck(packed_reads, globals.mem_packed_reads, __FILE__, __LINE__);
-    if (! globals.packed_reads) {
-        err("[ERROR] Cannot allocate memory for packed reads!\n");
+    if (!globals.packed_reads) {
+        err("[C::%s ERROR] Cannot re allocate memory for packed reads!\n", __func__);
         exit(1);
     }
 } // end ReadInputFile
 
-void InitGlobalData(struct global_data_t &globals) {
+void PrepareBucketScan(struct global_data_t &globals) {
     if (!globals.num_reads) {
-        err("[ERROR] Input must be read before calling InitGlobalData.");
+        err("[ERROR] %s must be called after input sequences.\n");
         exit(1);
     }
 
+    // init read partitions
+    for (int t = 0; t < globals.num_cpu_threads; ++t) {
+        struct readpartition_data_t &rp = globals.readpartitions[t];
+        rp.rp_id = t;
+        rp.globals = &globals;
+        rp.rp_bucket_sizes = (int64_t *) MallocAndCheck(phase1::kNumBuckets * sizeof(int64_t), __FILE__, __LINE__);
+        rp.rp_bucket_offsets = (int64_t *) MallocAndCheck(phase1::kNumBuckets * sizeof(int64_t), __FILE__, __LINE__);
+        // distribute reads to partitions
+        int64_t average = globals.num_reads / globals.num_cpu_threads;
+        rp.rp_start_id = t * average;
+        rp.rp_end_id = t < globals.num_cpu_threads - 1 ? (t + 1) * average : globals.num_reads;
+        rp.rp_lv1_differential_base = EncodeOffset(rp.rp_start_id, 0, 0, globals.offset_num_bits);
+    }
+
+    // init bucket partitions
+    for (int t = 0; t < globals.num_cpu_threads - globals.phase1_num_output_threads; ++t) {
+        struct bucketpartition_data_t &bp = globals.bucketpartitions[t];
+        bp.bp_id = t;
+        bp.globals = &globals;
+    }
+
+    globals.bucket_sizes = (int64_t *) MallocAndCheck(phase1::kNumBuckets * sizeof(int64_t), __FILE__, __LINE__);
+}
+
+void InitGlobalData(struct global_data_t &globals) {
+    PrepareBucketScan(globals);
     // compute log
     {
         globals.offset_num_bits = 0;
@@ -261,27 +299,6 @@ void InitGlobalData(struct global_data_t &globals) {
     globals.words_per_substring = DivCeiling((globals.kmer_k + 1) * kBitsPerEdgeChar, kBitsPerEdgeWord);
     globals.words_per_edge = DivCeiling((globals.kmer_k + 1) * kBitsPerEdgeChar + kBitsPerMulti_t, kBitsPerEdgeWord);
 
-    // init read partitions
-    for (int t = 0; t < globals.num_cpu_threads; ++t) {
-        struct readpartition_data_t &rp = globals.readpartitions[t];
-        rp.rp_id = t;
-        rp.globals = &globals;
-        rp.rp_bucket_sizes = (int64_t *) MallocAndCheck(phase1::kNumBuckets * sizeof(int64_t), __FILE__, __LINE__);
-        assert(rp.rp_bucket_sizes != NULL);
-        rp.rp_bucket_offsets = (int64_t *) MallocAndCheck(phase1::kNumBuckets * sizeof(int64_t), __FILE__, __LINE__);
-        assert(rp.rp_bucket_offsets != NULL);
-        // distribute reads to partitions
-        int64_t average = globals.num_reads / globals.num_cpu_threads;
-        rp.rp_start_id = t * average;
-        rp.rp_end_id = t < globals.num_cpu_threads - 1 ? (t + 1) * average : globals.num_reads;
-        rp.rp_lv1_differential_base = EncodeOffset(rp.rp_start_id, 0, 0, globals.offset_num_bits);
-    }
-    // init bucket partitions
-    for (int t = 0; t < globals.num_cpu_threads - globals.phase1_num_output_threads; ++t) {
-        struct bucketpartition_data_t &bp = globals.bucketpartitions[t];
-        bp.bp_id = t;
-        bp.globals = &globals;
-    }
     log("%d words per read, %d words per substring, %d words per edge\n", globals.words_per_read, globals.words_per_substring, globals.words_per_edge);
     // calculate memory stuff
     int64_t lv2_mem = globals.gpu_mem - 1024 * 1024 * 1024; // should reserver ~1G for b40c, do not know why
@@ -318,28 +335,27 @@ void InitGlobalData(struct global_data_t &globals) {
     globals.word_writer[0].output(globals.words_per_edge);
 
     // init arrays
-    assert((globals.bucket_sizes = (int64_t *) MallocAndCheck(phase1::kNumBuckets * sizeof(int64_t), __FILE__, __LINE__)) != NULL);
-    assert((globals.lv1_items = (int*) MallocAndCheck(globals.max_lv1_items * sizeof(int), __FILE__, __LINE__)) != NULL);
-    assert((globals.lv2_substrings = (edge_word_t*) MallocAndCheck(globals.max_lv2_items * globals.words_per_substring * sizeof(edge_word_t), __FILE__, __LINE__)) != NULL);
-    assert((globals.permutation = (uint32_t *) MallocAndCheck(globals.max_lv2_items * sizeof(uint32_t), __FILE__, __LINE__)) != NULL);
-    assert((globals.lv2_substrings_to_output = (edge_word_t*) MallocAndCheck(globals.max_lv2_items * globals.words_per_substring * sizeof(edge_word_t), __FILE__, __LINE__)) != NULL);
-    assert((globals.permutation_to_output = (uint32_t *) MallocAndCheck(globals.max_lv2_items * sizeof(uint32_t), __FILE__, __LINE__)) != NULL);
-    assert((globals.lv2_read_info = (int64_t *) MallocAndCheck(globals.max_lv2_items * sizeof(int64_t), __FILE__, __LINE__)) != NULL);
-    assert((globals.lv2_read_info_to_output = (int64_t *) MallocAndCheck(globals.max_lv2_items * sizeof(int64_t), __FILE__, __LINE__)) != NULL);
-    assert((globals.first_0_out = (unsigned char*) MallocAndCheck(globals.num_reads * sizeof(unsigned char), __FILE__, __LINE__)) != NULL);
+    globals.lv1_items = (int*) MallocAndCheck(globals.max_lv1_items * sizeof(int), __FILE__, __LINE__);
+    globals.lv2_substrings = (edge_word_t*) MallocAndCheck(globals.max_lv2_items * globals.words_per_substring * sizeof(edge_word_t), __FILE__, __LINE__);
+    globals.permutation = (uint32_t *) MallocAndCheck(globals.max_lv2_items * sizeof(uint32_t), __FILE__, __LINE__);
+    globals.lv2_substrings_to_output = (edge_word_t*) MallocAndCheck(globals.max_lv2_items * globals.words_per_substring * sizeof(edge_word_t), __FILE__, __LINE__);
+    globals.permutation_to_output = (uint32_t *) MallocAndCheck(globals.max_lv2_items * sizeof(uint32_t), __FILE__, __LINE__);
+    globals.lv2_read_info = (int64_t *) MallocAndCheck(globals.max_lv2_items * sizeof(int64_t), __FILE__, __LINE__);
+    globals.lv2_read_info_to_output = (int64_t *) MallocAndCheck(globals.max_lv2_items * sizeof(int64_t), __FILE__, __LINE__);
+    globals.first_0_out = (unsigned char*) MallocAndCheck(globals.num_reads * sizeof(unsigned char), __FILE__, __LINE__);
     memset(globals.first_0_out, 0xFF, globals.num_reads * sizeof(unsigned char));
-    assert((globals.last_0_in = (unsigned char*) MallocAndCheck(globals.num_reads * sizeof(unsigned char), __FILE__, __LINE__)) != NULL);
+    globals.last_0_in = (unsigned char*) MallocAndCheck(globals.num_reads * sizeof(unsigned char), __FILE__, __LINE__);
     memset(globals.last_0_in, 0xFF, globals.num_reads * sizeof(unsigned char));
 
 #ifdef DISABLE_GPU
-    globals.cpu_sort_space = (uint64_t*) MallocAndCheck(sizeof(uint64_t) * globals.max_lv2_items, __FILE__, __LINE__); // as CPU memory is used to simulate GPU
-    assert(globals.cpu_sort_space != NULL);
+    // CPU memory is used to simulate GPU
+    globals.cpu_sort_space = (uint64_t*) MallocAndCheck(sizeof(uint64_t) * globals.max_lv2_items, __FILE__, __LINE__);
 #endif
 
     // stat
-    assert((globals.edge_counting = (int64_t *) MallocAndCheck((kMaxMulti_t + 1) * sizeof(int64_t), __FILE__, __LINE__)) != NULL);
+    globals.edge_counting = (int64_t *) MallocAndCheck((kMaxMulti_t + 1) * sizeof(int64_t), __FILE__, __LINE__);
     memset(globals.edge_counting, 0, sizeof((kMaxMulti_t + 1) * sizeof(int64_t)));
-    assert((globals.thread_edge_counting = (int64_t *) MallocAndCheck((kMaxMulti_t + 1) * globals.phase1_num_output_threads * sizeof(int64_t), __FILE__, __LINE__)) != NULL);
+    globals.thread_edge_counting = (int64_t *) MallocAndCheck((kMaxMulti_t + 1) * globals.phase1_num_output_threads * sizeof(int64_t), __FILE__, __LINE__);
     globals.num_dummy_edges = 0;
     globals.num_incoming_zero_nodes = 0;
     globals.num_outgoing_zero_nodes = 0;
