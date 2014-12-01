@@ -144,7 +144,6 @@ DEPS =   ./Makefile \
 #-------------------------------------------------------------------------------
 # g++ and its options
 #-------------------------------------------------------------------------------
-CXX = g++
 CUDALIBFLAG = -L/usr/local/cuda/lib64/ -lcuda -lcudart
 CFLAGS = -O3 -Wall -funroll-loops -fprefetch-loop-arrays -fopenmp -std=c++0x -lm
 ZLIB = -lz
