@@ -1,8 +1,19 @@
+### 0.1.3 / 2014-12-01
+
+Enhancements:
+
+* MAC OS X support (Thank [Laurent Gautier](https://github.com/lgautier))
+* Minor improvement to reduce memory usage of the SdBG builder
+
+Bug Fixes:
+
+* Fixed crashes in some edge cases
+
 ### 0.1.2 / 2014-10-10
 
 Enhancements:
 
-* Update Makefile and python wrapper to improve compatibility (Thanks [C. Titus Brown](https://github.com/ctb) and [Ben J Woodcroft](https://github.com/wwood))
+* Update Makefile and python wrapper to improve compatibility (Thank [C. Titus Brown](https://github.com/ctb) and [Ben J Woodcroft](https://github.com/wwood))
 * Output exit code when subprogram exit abnormally
 * Improve memory usage of the subprogram `assembler`
 * Fix the issue of minor stat differences caused by loops

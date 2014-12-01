@@ -33,7 +33,7 @@ import multiprocessing
 from datetime import datetime, date, time
 
 usage_message = '''
-megahit version: 0.1.2-r20
+megahit version: 0.1.3
 Copyright (c) The University of Hong Kong
 
 Usage:
@@ -102,7 +102,7 @@ k_min = 21
 k_max = 99
 k_step = 10
 min_count = 2
-bin_dir = sys.path[0] + "/bin/"
+bin_dir = sys.path[0] + "/"
 max_tip_len = -1
 no_mercy = 0
 no_low_local = 0
@@ -197,7 +197,22 @@ def check_opt():
         print >> sys.stderr, "num_cpu_threads should be at least 2."
         exit(1)
 
-    print "Number of CPU threads %d" % num_cpu_threads
+def check_bin():
+    if not os.path.exists(bin_dir + "megahit_assemble"):
+        print >> sys.stderr, "Cannot find sub-program \"megahit_assemble\", please recompile."
+        exit(1)
+    if not os.path.exists(bin_dir + builder):
+        print >> sys.stderr, "Cannot find sub-program \"%s\", please recompile." % builder
+        exit(1)
+    if not os.path.exists(bin_dir + "megahit_iter_k61"):
+        print >> sys.stderr, "Cannot find sub-program \"megahit_iter_k61\", please recompile."
+        exit(1)
+    if not os.path.exists(bin_dir + "megahit_iter_k92"):
+        print >> sys.stderr, "Cannot find sub-program \"megahit_iter_k92\", please recompile."
+        exit(1)
+    if not os.path.exists(bin_dir + "megahit_iter_k124"):
+        print >> sys.stderr, "Cannot find sub-program \"megahit_iter_k124\", please recompile."
+        exit(1)
 
 def graph_prefix(kmer_k):
     global temp_dir
@@ -267,8 +282,8 @@ def build_first_graph():
         log_file = open(log_file_name(), "a")
         start_time = datetime.now()
         print >> log_file, "%s" % (" ").join(count_cmd)
-        print >> sys.stderr, "[%s]: Extracting solid (k+1)-mers for k = %d" % (start_time.strftime("%c"), k_min)
-        print >> log_file, "[%s]: Extracting solid (k+1)-mers for k = %d" % (start_time.strftime("%c"), k_min)
+        print >> sys.stderr, "[%s] Extracting solid (k+1)-mers for k = %d" % (start_time.strftime("%c"), k_min)
+        print >> log_file, "[%s] Extracting solid (k+1)-mers for k = %d" % (start_time.strftime("%c"), k_min)
         log_file.flush()
         if read_file == "":
             input_thread = subprocess.Popen(input_cmd, shell = True, stdout = subprocess.PIPE)
@@ -316,8 +331,8 @@ def build_graph(kmer_k, num_edge_files):
         log_file = open(log_file_name(), "a")
         start_time = datetime.now()
         print >> log_file, "%s" % (" ").join(build_cmd)
-        print >> sys.stderr, "[%s]: Building graph for k = %d" % (start_time.strftime("%c"), kmer_k)
-        print >> log_file, "[%s]: Building graph for k = %d" % (start_time.strftime("%c"), kmer_k)
+        print >> sys.stderr, "[%s] Building graph for k = %d" % (start_time.strftime("%c"), kmer_k)
+        print >> log_file, "[%s] Building graph for k = %d" % (start_time.strftime("%c"), kmer_k)
         log_file.flush()
         ret_code = subprocess.call(build_cmd, stdout = log_file)
         if ret_code != 0:
@@ -341,11 +356,11 @@ def iterate(cur_k, step):
     next_k = cur_k + step
     iterator = ""
     if next_k < 61:
-        iterator = bin_dir + "iterate_edges_k61"
+        iterator = bin_dir + "megahit_iter_k61"
     elif next_k < 92:
-        iterator = bin_dir + "iterate_edges_k92"
+        iterator = bin_dir + "megahit_iter_k92"
     else:
-        iterator = bin_dir + "iterate_edges_k124"
+        iterator = bin_dir + "megahit_iter_k124"
 
     iterate_cmd = [iterator,
                    "-c", graph_prefix(cur_k) + ".contigs.fa",
@@ -383,8 +398,8 @@ def iterate(cur_k, step):
         log_file = open(log_file_name(), "a")
         start_time = datetime.now()
         print >> log_file, "%s" % (" ").join(iterate_cmd)
-        print >> sys.stderr, "[%s]: Extracting iterative edges from k = %d to %d" % (start_time.strftime("%c"), cur_k, next_k)
-        print >> log_file, "[%s]: Extracting iterative edges from k = %d to %d" % (start_time.strftime("%c"), cur_k, next_k)
+        print >> sys.stderr, "[%s] Extracting iterative edges from k = %d to %d" % (start_time.strftime("%c"), cur_k, next_k)
+        print >> log_file, "[%s] Extracting iterative edges from k = %d to %d" % (start_time.strftime("%c"), cur_k, next_k)
         log_file.flush()
 
         ret_code = 0
@@ -417,7 +432,7 @@ def assemble(cur_k):
     global low_local_ratio
     global min_contig_len
 
-    assembly_cmd = [bin_dir + "assembler",
+    assembly_cmd = [bin_dir + "megahit_assemble",
                     "-s", graph_prefix(cur_k),
                     "-o", graph_prefix(cur_k),
                     "-t", str(num_cpu_threads),
@@ -437,8 +452,8 @@ def assemble(cur_k):
         log_file = open(log_file_name(), "a")
         start_time = datetime.now()
         print >> log_file, "%s" % (" ").join(assembly_cmd)
-        print >> sys.stderr, "[%s]: Assembling contigs from SdBG for k = %d" % (start_time.strftime("%c"), cur_k)
-        print >> log_file, "[%s]: Assembling contigs from SdBG for k = %d" % (start_time.strftime("%c"), cur_k)
+        print >> sys.stderr, "[%s] Assembling contigs from SdBG for k = %d" % (start_time.strftime("%c"), cur_k)
+        print >> log_file, "[%s] Assembling contigs from SdBG for k = %d" % (start_time.strftime("%c"), cur_k)
         log_file.flush()
         ret_code = subprocess.call(assembly_cmd, stdout = log_file)
         if ret_code != 0:
@@ -456,8 +471,8 @@ def assemble(cur_k):
 def merge_final():
     log_file = open(log_file_name(), "a")
     start_time = datetime.now()
-    print >> sys.stderr, "[%s]: Merging to output final contigs." % (start_time.strftime("%c"))
-    print >> log_file, "[%s]: Merging to output final contigs.." % (start_time.strftime("%c"))
+    print >> sys.stderr, "[%s] Merging to output final contigs." % (start_time.strftime("%c"))
+    print >> log_file, "[%s] Merging to output final contigs.." % (start_time.strftime("%c"))
     os.system("cat " + temp_dir + "*.final.contigs.fa > " + out_dir + "final.contigs.fa")
     log_file.flush()
     log_file.close()
@@ -561,6 +576,12 @@ def main(argv = None):
                 exit(1)
 
         check_opt()
+        check_bin()
+
+        start_time = datetime.now()  
+        print >> sys.stderr, "MEGAHIT version 0.1.3"
+        print >> sys.stderr, "[%s] Start assembly. Number of CPU threads %d." % (start_time.strftime("%c"), num_cpu_threads)
+
         make_out_dir()
         build_first_graph()
         assemble(k_min)
@@ -593,8 +614,8 @@ def main(argv = None):
         log_file = open(log_file_name(), "a")
 
         start_time = datetime.now()        
-        print >> sys.stderr, "[%s]: ALL DONE." % (start_time.strftime("%c"))
-        print >> log_file, "[%s]: ALL DONE." % (start_time.strftime("%c"))
+        print >> sys.stderr, "[%s] ALL DONE." % (start_time.strftime("%c"))
+        print >> log_file, "[%s] ALL DONE." % (start_time.strftime("%c"))
         log_file.flush()
         log_file.close()
 
