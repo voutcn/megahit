@@ -28,3 +28,22 @@
 
 # Sublime Text file
 sftp-config.json
+megahit_assemble
+megahit_iter_k124
+megahit_iter_k61
+megahit_iter_k92
+sdbg_builder_cpu
+test/ecoli_ref-500k.fastq.gz
+test/ecoliMG1655.fa
+test/megahit_out/final.contigs.fa
+test/megahit_out/log
+test/megahit_out/tmp/k21.counting
+test/megahit_out/tmp/k21.final.contigs.fa
+test/megahit_out/tmp/k31.final.contigs.fa
+test/megahit_out/tmp/k41.final.contigs.fa
+test/megahit_out/tmp/k51.final.contigs.fa
+test/megahit_out/tmp/k61.final.contigs.fa
+test/megahit_out/tmp/k71.final.contigs.fa
+test/megahit_out/tmp/k81.final.contigs.fa
+test/megahit_out/tmp/k91.final.contigs.fa
+test/megahit_out/tmp/k99.final.contigs.fa
