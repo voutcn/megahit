@@ -157,6 +157,12 @@ static void InitGlobalData(IterateGlobalData &globals) {
     globals.kmer_k = options.kmer_k;
     globals.step = options.step;
     globals.max_read_len = options.max_read_len;
+
+    if (options.num_cpu_threads > omp_get_max_threads()) {
+        fprintf(stderr, "[WARNING I::%s] Number of threads reset to omp_get_max_threads()=%d\n", __func__, omp_get_max_threads());
+        options.num_cpu_threads = omp_get_max_threads();
+    }
+
     globals.num_cpu_threads = options.num_cpu_threads;
 
     if (string(options.read_format) == "fastq") {
@@ -259,10 +265,18 @@ static void ReadContigsAndBuildHash(IterateGlobalData &globals, bool is_addi_con
     }
 
     pthread_create(&input_thread, NULL, ReadContigsThread, &input_thread_data);
-    omp_set_num_threads(globals.num_cpu_threads - 1);
+    if (globals.num_cpu_threads > 1) {
+        omp_set_num_threads(globals.num_cpu_threads - 1);
+    } else {
+        omp_set_num_threads(globals.num_cpu_threads);
+        pthread_join(input_thread, NULL);
+    }
 
     while (true) {
-        pthread_join(input_thread, NULL);
+        if (globals.num_cpu_threads > 1) {
+            pthread_join(input_thread, NULL);
+        }
+
         if (fastx_reader.eof() && packages[input_thread_index].size() == 0) {
             break;
         }
@@ -271,6 +285,10 @@ static void ReadContigsAndBuildHash(IterateGlobalData &globals, bool is_addi_con
         input_thread_data.contig_package = &packages[input_thread_index];
         pthread_create(&input_thread, NULL, ReadContigsThread, &input_thread_data);
         ContigPackage &cur_package = packages[input_thread_index ^ 1];
+
+        if (globals.num_cpu_threads == 1) {
+            pthread_join(input_thread, NULL);
+        }
 
         if (!is_addi_contigs) {
 #pragma omp parallel for
@@ -422,10 +440,19 @@ static void ReadReadsAndProcess(IterateGlobalData &globals) {
     pthread_create(&input_thread, NULL, ReadReadsThread, &input_thread_data);
     globals.iterative_edges.reserve(globals.crusial_kmers.size() * 10);
     AtomicBitVector is_aligned;
-    omp_set_num_threads(globals.num_cpu_threads - 1);
+
+    if (globals.num_cpu_threads > 1) {
+        omp_set_num_threads(globals.num_cpu_threads - 1);
+    } else {
+        omp_set_num_threads(globals.num_cpu_threads);
+        pthread_join(input_thread, NULL);
+    }
 
     while (true) {
-        pthread_join(input_thread, NULL);
+        if (globals.num_cpu_threads > 1) {
+            pthread_join(input_thread, NULL);
+        }
+
         if (packages[input_thread_index].num_of_reads == 0) {
             break;
         }
@@ -435,6 +462,10 @@ static void ReadReadsAndProcess(IterateGlobalData &globals) {
         pthread_create(&input_thread, NULL, ReadReadsThread, &input_thread_data);
         ReadPackage &cur_package = packages[input_thread_index ^ 1];
         is_aligned.reset(cur_package.num_of_reads);
+
+        if (globals.num_cpu_threads == 1) {
+            pthread_join(input_thread, NULL);
+        }
 
 #pragma omp parallel for
         for (unsigned i = 0; i < (unsigned)cur_package.num_of_reads; ++i) {

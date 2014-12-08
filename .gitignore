@@ -28,3 +28,9 @@
 
 # Sublime Text file
 sftp-config.json
+megahit_assemble
+megahit_iter_k124
+megahit_iter_k61
+megahit_iter_k92
+sdbg_builder_cpu
+test/*
