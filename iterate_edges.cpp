@@ -114,6 +114,12 @@ static void ParseOptions(int argc, char *argv[]) {
         if (options.num_cpu_threads == 0) {
             options.num_cpu_threads = omp_get_max_threads();
         }
+        // must set the number of threads before the parallel hash_map declared
+        if (options.num_cpu_threads > 1) {
+            omp_set_num_threads(options.num_cpu_threads - 1);
+        } else {
+            omp_set_num_threads(1);
+        }
     } catch (std::exception &e) {
         std::cerr << e.what() << std::endl;
         std::cerr << "Usage: " << argv[0] << " [options]" << std::endl;
@@ -157,12 +163,6 @@ static void InitGlobalData(IterateGlobalData &globals) {
     globals.kmer_k = options.kmer_k;
     globals.step = options.step;
     globals.max_read_len = options.max_read_len;
-
-    if (options.num_cpu_threads > omp_get_max_threads()) {
-        fprintf(stderr, "[WARNING I::%s] Number of threads reset to omp_get_max_threads()=%d\n", __func__, omp_get_max_threads());
-        options.num_cpu_threads = omp_get_max_threads();
-    }
-
     globals.num_cpu_threads = options.num_cpu_threads;
 
     if (string(options.read_format) == "fastq") {
@@ -265,10 +265,7 @@ static void ReadContigsAndBuildHash(IterateGlobalData &globals, bool is_addi_con
     }
 
     pthread_create(&input_thread, NULL, ReadContigsThread, &input_thread_data);
-    if (globals.num_cpu_threads > 1) {
-        omp_set_num_threads(globals.num_cpu_threads - 1);
-    } else {
-        omp_set_num_threads(globals.num_cpu_threads);
+    if (globals.num_cpu_threads == 1) {
         pthread_join(input_thread, NULL);
     }
 
@@ -441,10 +438,7 @@ static void ReadReadsAndProcess(IterateGlobalData &globals) {
     globals.iterative_edges.reserve(globals.crusial_kmers.size() * 10);
     AtomicBitVector is_aligned;
 
-    if (globals.num_cpu_threads > 1) {
-        omp_set_num_threads(globals.num_cpu_threads - 1);
-    } else {
-        omp_set_num_threads(globals.num_cpu_threads);
+    if (globals.num_cpu_threads == 1) {
         pthread_join(input_thread, NULL);
     }
 
