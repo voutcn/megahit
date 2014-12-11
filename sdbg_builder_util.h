@@ -66,6 +66,7 @@ struct global_data_t {
     int num_cpu_threads;
     int64_t host_mem;
     int64_t gpu_mem;
+    int mem_opt;
 
     const char *input_file;
     const char *phase2_input_prefix;

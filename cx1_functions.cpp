@@ -67,7 +67,7 @@ void InitDNAMap() {
 
 // returns end_bucket such that bucket_sizes[start_bucket..end_bucket-1] sums up to at most item_limit.
 // end_limit is the max allowed value for end_bucket. total num of items written to num_items by reference.
-int FindEndBucket(int64_t * bucket_sizes, int start_bucket, int end_limit, int64_t item_limit, int64_t &num_items) {
+int FindEndBucket(int64_t * bucket_sizes, int start_bucket, int end_limit, int64_t item_limit, int64_t &num_items) {    
     num_items = 0;
     int end_bucket = start_bucket;
     while (end_bucket < end_limit) { // simple linear scan
@@ -190,7 +190,7 @@ void ReadInputFile(struct global_data_t &globals) {
     edge_word_t *packed_reads;
     edge_word_t *packed_reads_p; // current pointer
 
-    log("[C::%s] Max read length is %d; words per read: %d\n", __func__, globals.max_read_length, globals.words_per_read);
+    log("[B::%s] Max read length is %d; words per read: %d\n", __func__, globals.max_read_length, globals.words_per_read);
     packed_reads_p = packed_reads = (edge_word_t*) MallocAndCheck(globals.capacity * globals.words_per_read * sizeof(edge_word_t), __FILE__, __LINE__);
 
     gzFile fp = strcmp(globals.input_file, "-") ? gzopen(globals.input_file, "r") : gzdopen(fileno(stdin), "r");
@@ -221,7 +221,7 @@ void ReadInputFile(struct global_data_t &globals) {
                     } while (new_capa > globals.capacity);
 
                     if (globals.capacity >= new_capa) {
-                        err("[C::%s WRANING] No enough memory to hold all the reads. The assembly will move on with the first %llu reads.\n", __func__, num_reads);
+                        err("[B::%s WRANING] No enough memory to hold all the reads. The assembly will move on with the first %llu reads.\n", __func__, num_reads);
                         break;
                     } else {
                         globals.capacity = new_capa;
@@ -232,7 +232,7 @@ void ReadInputFile(struct global_data_t &globals) {
                 packed_reads_p += globals.words_per_read;
                 ++num_reads;
             } else if (scan_len > globals.max_read_length) { // this read length is wrong
-                err("[C::%s WARNING] Found a read of length %d > max read length = %d\n", __func__, scan_len, globals.max_read_length);
+                err("[B::%s WARNING] Found a read of length %d > max read length = %d\n", __func__, scan_len, globals.max_read_length);
             }
 
             while (scan_len < read_length && next_p[scan_len] == 'N') {
@@ -250,17 +250,13 @@ void ReadInputFile(struct global_data_t &globals) {
     globals.mem_packed_reads = globals.num_reads * globals.words_per_read * sizeof(edge_word_t);
     globals.packed_reads = (edge_word_t*) ReAllocAndCheck(packed_reads, globals.mem_packed_reads, __FILE__, __LINE__);
     if (!globals.packed_reads) {
-        err("[C::%s ERROR] Cannot re allocate memory for packed reads!\n", __func__);
+        err("[B::%s ERROR] Cannot re allocate memory for packed reads!\n", __func__);
         exit(1);
     }
 } // end ReadInputFile
 
+// prepare the scan of buckets
 void PrepareBucketScan(struct global_data_t &globals) {
-    if (!globals.num_reads) {
-        err("[ERROR] %s must be called after input sequences.\n");
-        exit(1);
-    }
-
     // init read partitions
     for (int t = 0; t < globals.num_cpu_threads; ++t) {
         struct readpartition_data_t &rp = globals.readpartitions[t];
@@ -283,85 +279,6 @@ void PrepareBucketScan(struct global_data_t &globals) {
     }
 
     globals.bucket_sizes = (int64_t *) MallocAndCheck(phase1::kNumBuckets * sizeof(int64_t), __FILE__, __LINE__);
-}
-
-void InitGlobalData(struct global_data_t &globals) {
-    PrepareBucketScan(globals);
-    // compute log
-    {
-        globals.offset_num_bits = 0;
-        int len = 1;
-        while (len - 1 < globals.max_read_length) {
-            globals.offset_num_bits++;
-            len *= 2;
-        }
-    }
-    globals.words_per_substring = DivCeiling((globals.kmer_k + 1) * kBitsPerEdgeChar, kBitsPerEdgeWord);
-    globals.words_per_edge = DivCeiling((globals.kmer_k + 1) * kBitsPerEdgeChar + kBitsPerMulti_t, kBitsPerEdgeWord);
-
-    log("%d words per read, %d words per substring, %d words per edge\n", globals.words_per_read, globals.words_per_substring, globals.words_per_edge);
-    // calculate memory stuff
-    int64_t lv2_mem = globals.gpu_mem - 1024 * 1024 * 1024; // should reserver ~1G for b40c, do not know why
-    int64_t max_lv2_items = lv2_mem / GPU_BYTES_PER_ITEM;
-
-    do {
-        globals.max_lv2_items = max_lv2_items;
-        int64_t lv2_bytes_per_item = (globals.words_per_substring) * sizeof(edge_word_t) + sizeof(uint32_t) + sizeof(int64_t); // +2 for read_info
-        int64_t mem_lv2 = lv2_bytes_per_item * globals.max_lv2_items * 2; // *2 for double buffering
-#ifdef DISABLE_GPU
-        mem_lv2 += globals.max_lv2_items * sizeof(uint64_t) * 2; // as CPU memory is used to simulate GPU
-#endif
-        int64_t avail_host_mem_for_lv1 = globals.host_mem - globals.mem_packed_reads - mem_lv2 - phase1::kNumBuckets * sizeof(int64_t) * (globals.num_cpu_threads + 1) * 3;
-        avail_host_mem_for_lv1 -= globals.num_reads * sizeof(unsigned char) * 2; // first_0_in & last_0_out
-        globals.max_lv1_items = avail_host_mem_for_lv1 / LV1_BYTES_PER_ITEM;
-        max_lv2_items = std::max(globals.max_lv1_items, int64_t(max_lv2_items * 0.9));
-    } while (globals.max_lv1_items < globals.max_lv2_items && max_lv2_items > 0);
-
-    if (max_lv2_items <= 0) {
-        err("No enough memory to process...");
-        exit(1);
-    }
-
-    log("lv.1 Available Memory: %lld, memory for reads: %lld: \n", globals.max_lv1_items * LV1_BYTES_PER_ITEM, globals.mem_packed_reads);
-    log("max # lv.1 items = %lld\n", globals.max_lv1_items);
-    log("max # lv.2 items = %lld\n", globals.max_lv2_items);
-
-    for (int t = 0; t < globals.phase1_num_output_threads; ++t) {
-        static char edges_file_name[10240];
-        sprintf(edges_file_name, "%s.edges.%d", globals.output_prefix, t);
-        globals.word_writer[t].init(edges_file_name);
-    }
-    globals.word_writer[0].output(globals.kmer_k);
-    globals.word_writer[0].output(globals.words_per_edge);
-
-    // init arrays
-    globals.lv1_items = (int*) MallocAndCheck(globals.max_lv1_items * sizeof(int), __FILE__, __LINE__);
-    globals.lv2_substrings = (edge_word_t*) MallocAndCheck(globals.max_lv2_items * globals.words_per_substring * sizeof(edge_word_t), __FILE__, __LINE__);
-    globals.permutation = (uint32_t *) MallocAndCheck(globals.max_lv2_items * sizeof(uint32_t), __FILE__, __LINE__);
-    globals.lv2_substrings_to_output = (edge_word_t*) MallocAndCheck(globals.max_lv2_items * globals.words_per_substring * sizeof(edge_word_t), __FILE__, __LINE__);
-    globals.permutation_to_output = (uint32_t *) MallocAndCheck(globals.max_lv2_items * sizeof(uint32_t), __FILE__, __LINE__);
-    globals.lv2_read_info = (int64_t *) MallocAndCheck(globals.max_lv2_items * sizeof(int64_t), __FILE__, __LINE__);
-    globals.lv2_read_info_to_output = (int64_t *) MallocAndCheck(globals.max_lv2_items * sizeof(int64_t), __FILE__, __LINE__);
-    globals.first_0_out = (unsigned char*) MallocAndCheck(globals.num_reads * sizeof(unsigned char), __FILE__, __LINE__);
-    memset(globals.first_0_out, 0xFF, globals.num_reads * sizeof(unsigned char));
-    globals.last_0_in = (unsigned char*) MallocAndCheck(globals.num_reads * sizeof(unsigned char), __FILE__, __LINE__);
-    memset(globals.last_0_in, 0xFF, globals.num_reads * sizeof(unsigned char));
-
-#ifdef DISABLE_GPU
-    // CPU memory is used to simulate GPU
-    globals.cpu_sort_space = (uint64_t*) MallocAndCheck(sizeof(uint64_t) * globals.max_lv2_items, __FILE__, __LINE__);
-#endif
-
-    // stat
-    globals.edge_counting = (int64_t *) MallocAndCheck((kMaxMulti_t + 1) * sizeof(int64_t), __FILE__, __LINE__);
-    memset(globals.edge_counting, 0, sizeof((kMaxMulti_t + 1) * sizeof(int64_t)));
-    globals.thread_edge_counting = (int64_t *) MallocAndCheck((kMaxMulti_t + 1) * globals.phase1_num_output_threads * sizeof(int64_t), __FILE__, __LINE__);
-    globals.num_dummy_edges = 0;
-    globals.num_incoming_zero_nodes = 0;
-    globals.num_outgoing_zero_nodes = 0;
-
-    // init lock
-    pthread_mutex_init(&globals.lv1_items_scanning_lock, NULL);
 }
 
 void* PreprocessScanToFillBucketSizesThread(void *_data) {
@@ -419,6 +336,184 @@ void PreprocessScanToFillBucketSizes(struct global_data_t &globals) {
             bucket_sizes[b] += globals.readpartitions[t].rp_bucket_sizes[b];
         }
     }
+}
+
+template<class Ptr_t>
+inline bool TryAllocAndCheck(std::vector<void*> &malloced_ptrs, Ptr_t* &ptr, size_t bytes) {
+    ptr = (Ptr_t*) malloc(bytes);
+    if (ptr == NULL) {
+        for (unsigned i = 0; i < malloced_ptrs.size(); ++i) { free(malloced_ptrs[i]); }
+        return false;
+    } else {
+        malloced_ptrs.push_back((void*)ptr);
+        return true;
+    }
+}
+
+bool TryAlloc(struct global_data_t &globals) {
+    std::vector<void*> malloced_ptrs;
+    if (!TryAllocAndCheck(malloced_ptrs, globals.lv1_items, globals.max_lv1_items * sizeof(int))) { return false; }
+    if (!TryAllocAndCheck(malloced_ptrs, globals.lv2_substrings, globals.max_lv2_items * globals.words_per_substring * sizeof(edge_word_t))) { return false; }
+    if (!TryAllocAndCheck(malloced_ptrs, globals.permutation, globals.max_lv2_items * sizeof(uint32_t))) { return false; }
+    if (!TryAllocAndCheck(malloced_ptrs, globals.lv2_substrings_to_output, globals.max_lv2_items * globals.words_per_substring * sizeof(edge_word_t))) { return false; }
+    if (!TryAllocAndCheck(malloced_ptrs, globals.permutation_to_output, globals.max_lv2_items * sizeof(uint32_t))) { return false; }
+    if (!TryAllocAndCheck(malloced_ptrs, globals.lv2_read_info, globals.max_lv2_items * sizeof(int64_t))) { return false; }
+    if (!TryAllocAndCheck(malloced_ptrs, globals.lv2_read_info_to_output, globals.max_lv2_items * sizeof(int64_t))) { return false; }
+    if (!TryAllocAndCheck(malloced_ptrs, globals.first_0_out, globals.num_reads * sizeof(unsigned char))) { return false; }
+    if (!TryAllocAndCheck(malloced_ptrs, globals.last_0_in, globals.num_reads * sizeof(unsigned char))) { return false; }
+#ifdef DISABLE_GPU
+        // CPU memory is used to simulate GPU
+    if (!TryAllocAndCheck(malloced_ptrs, globals.cpu_sort_space, sizeof(uint64_t) * globals.max_lv2_items)) { return false; }
+#endif
+    memset(globals.first_0_out, 0xFF, globals.num_reads * sizeof(unsigned char));
+    memset(globals.last_0_in, 0xFF, globals.num_reads * sizeof(unsigned char));
+    return true;
+}
+
+bool PrepairMinMemory(struct global_data_t &globals, int64_t max_bucket_size) {
+    globals.max_lv1_items = max_bucket_size;
+    globals.max_lv2_items = max_bucket_size;
+    return TryAlloc(globals);
+}
+
+bool AutoPrepairMemory(struct global_data_t &globals, int64_t max_bucket_size) {
+    int64_t sum_bucket_size = 0;
+    for (int i = 0; i < phase1::kNumBuckets; ++i) {
+        sum_bucket_size += globals.bucket_sizes[i];
+    }
+
+    // auto set to scan ~8 times
+    int64_t item_per_lv1 = sum_bucket_size / 7.5;
+    int64_t lv1_tried_max_item = 0x3FFFFFFFFFFFFFFFLL;
+
+    while (lv1_tried_max_item > max_bucket_size) {
+        if (item_per_lv1 < max_bucket_size) {
+            return PrepairMinMemory(globals, max_bucket_size);
+        }
+        lv1_tried_max_item = item_per_lv1;
+        globals.max_lv1_items = item_per_lv1;
+        globals.max_lv2_items = std::min(globals.max_lv2_items, item_per_lv1);
+        if (TryAlloc(globals)) { return true; }
+    }
+
+    return false;
+}
+
+void InitGlobalData(struct global_data_t &globals) {
+    xtimer_t timer;
+    timer.reset();
+    timer.start();
+    log("[B::%s] Filling read partition buckets...\n", __func__);
+    // init lock
+    pthread_mutex_init(&globals.lv1_items_scanning_lock, NULL);
+    PrepareBucketScan(globals);
+    PreprocessScanToFillBucketSizes(globals); // Multithread: fill the read partition buckets, then sum up into the global buckets
+    timer.stop();
+    log("[B::%s] Done. Time elapsed: %.4lfs\n", __func__, timer.elapsed());
+
+    int64_t max_bucket_size = *std::max_element(globals.bucket_sizes, globals.bucket_sizes + phase1::kNumBuckets);
+#ifdef DISABLE_GPU
+    globals.max_lv2_items = max_bucket_size;
+#else
+    int64_t lv2_mem = globals.gpu_mem - 1024 * 1024 * 1024; // should reserver ~1G for GPU sorting
+    globals.max_lv2_items = lv2_mem / GPU_BYTES_PER_ITEM;
+    if (max_bucket_size > globals.max_lv2_items) {
+        err("[ERROR B::%s] Bucket too large for GPU: contains %lld items. Please try CPU version.\n", __func__, max_bucket_size);
+        // TODO: auto select CPU
+        exit(1);
+    }
+#endif
+
+    // initialize writer
+    globals.word_writer[0].output(globals.kmer_k);
+    globals.word_writer[0].output(globals.words_per_edge);    
+    for (int t = 0; t < globals.phase1_num_output_threads; ++t) {
+        static char edges_file_name[10240];
+        sprintf(edges_file_name, "%s.edges.%d", globals.output_prefix, t);
+        globals.word_writer[t].init(edges_file_name);
+    }
+
+    // initialize stat
+    globals.edge_counting = (int64_t *) MallocAndCheck((kMaxMulti_t + 1) * sizeof(int64_t), __FILE__, __LINE__);
+    memset(globals.edge_counting, 0, sizeof((kMaxMulti_t + 1) * sizeof(int64_t)));
+    globals.thread_edge_counting = (int64_t *) MallocAndCheck((kMaxMulti_t + 1) * globals.phase1_num_output_threads * sizeof(int64_t), __FILE__, __LINE__);
+    globals.num_dummy_edges = 0;
+    globals.num_incoming_zero_nodes = 0;
+    globals.num_outgoing_zero_nodes = 0;
+
+    // compute log & mem
+    {
+        globals.offset_num_bits = 0;
+        int len = 1;
+        while (len - 1 < globals.max_read_length) {
+            globals.offset_num_bits++;
+            len *= 2;
+        }
+    }
+
+    globals.words_per_substring = DivCeiling((globals.kmer_k + 1) * kBitsPerEdgeChar, kBitsPerEdgeWord);
+    globals.words_per_edge = DivCeiling((globals.kmer_k + 1) * kBitsPerEdgeChar + kBitsPerMulti_t, kBitsPerEdgeWord);
+    int64_t lv2_bytes_per_item = (globals.words_per_substring) * sizeof(edge_word_t) + sizeof(uint32_t) + sizeof(int64_t); // +2 for read_info
+    lv2_bytes_per_item = lv2_bytes_per_item * 2; // double buffering
+#ifdef DISABLE_GPU
+    lv2_bytes_per_item += sizeof(uint64_t) * 2; // as CPU memory is used to simulate GPU
+#endif
+
+    log("[B::%s] %d words per read, %d words per substring, %d words per edge\n", __func__, globals.words_per_read, globals.words_per_substring, globals.words_per_edge);
+    
+    //memory stuff
+
+    globals.mem_opt = 1; // FIXME: testing only
+    if (globals.mem_opt == 1) {
+        // auto
+        if (!AutoPrepairMemory(globals, max_bucket_size)) {
+            err("[ERROR B::%s] No enough memory to process.\n", __func__);
+        }
+    } else if (globals.mem_opt == 2) {
+        if (!PrepairMinMemory(globals, max_bucket_size)) {
+            err("[ERROR B::%s] No enough memory to process.\n", __func__);
+        }
+    } else {
+        // otherwise user-specific
+        int64_t max_lv2_items = globals.max_lv2_items;
+        do {
+            globals.max_lv2_items = max_lv2_items;
+            int64_t mem_lv2 = lv2_bytes_per_item * globals.max_lv2_items;
+
+            int64_t avail_host_mem_for_lv1 = globals.host_mem - globals.mem_packed_reads - mem_lv2 - phase1::kNumBuckets * sizeof(int64_t) * (globals.num_cpu_threads + 1) * 3;
+            avail_host_mem_for_lv1 -= globals.num_reads * sizeof(unsigned char) * 2; // first_0_in & last_0_out
+            globals.max_lv1_items = avail_host_mem_for_lv1 / LV1_BYTES_PER_ITEM;
+            max_lv2_items = std::max(globals.max_lv1_items, int64_t(max_lv2_items * 0.9));
+        } while (globals.max_lv1_items < globals.max_lv2_items && max_lv2_items >= max_bucket_size);
+
+        if (max_lv2_items <= 0) {
+            err("[ERROR B::%s] No enough memory to process. Please try auto memory option.\n", __func__);
+            exit(1);
+        }
+
+        // init arrays
+        globals.lv1_items = (int*) MallocAndCheck(globals.max_lv1_items * sizeof(int), __FILE__, __LINE__);
+        globals.lv2_substrings = (edge_word_t*) MallocAndCheck(globals.max_lv2_items * globals.words_per_substring * sizeof(edge_word_t), __FILE__, __LINE__);
+        globals.permutation = (uint32_t *) MallocAndCheck(globals.max_lv2_items * sizeof(uint32_t), __FILE__, __LINE__);
+        globals.lv2_substrings_to_output = (edge_word_t*) MallocAndCheck(globals.max_lv2_items * globals.words_per_substring * sizeof(edge_word_t), __FILE__, __LINE__);
+        globals.permutation_to_output = (uint32_t *) MallocAndCheck(globals.max_lv2_items * sizeof(uint32_t), __FILE__, __LINE__);
+        globals.lv2_read_info = (int64_t *) MallocAndCheck(globals.max_lv2_items * sizeof(int64_t), __FILE__, __LINE__);
+        globals.lv2_read_info_to_output = (int64_t *) MallocAndCheck(globals.max_lv2_items * sizeof(int64_t), __FILE__, __LINE__);
+        globals.first_0_out = (unsigned char*) MallocAndCheck(globals.num_reads * sizeof(unsigned char), __FILE__, __LINE__);
+        memset(globals.first_0_out, 0xFF, globals.num_reads * sizeof(unsigned char));
+        globals.last_0_in = (unsigned char*) MallocAndCheck(globals.num_reads * sizeof(unsigned char), __FILE__, __LINE__);
+        memset(globals.last_0_in, 0xFF, globals.num_reads * sizeof(unsigned char));
+
+#ifdef DISABLE_GPU
+        // CPU memory is used to simulate GPU
+        globals.cpu_sort_space = (uint64_t*) MallocAndCheck(sizeof(uint64_t) * globals.max_lv2_items, __FILE__, __LINE__);
+#endif
+    }
+
+
+    log("[B::%s] Memory for reads: %lld\n", __func__, globals.mem_packed_reads);
+    log("[B::%s] max # lv.1 items = %lld\n", __func__, globals.max_lv1_items);
+    log("[B::%s] max # lv.2 items = %lld\n", __func__, globals.max_lv2_items);
 }
 
 // worker thread for Lv1ScanToFillOffests
@@ -923,12 +1018,12 @@ void Phase1Entry(struct global_data_t &globals) {
     xtimer_t timer;
     timer.reset();
     timer.start();
-    log("Reading input...\n");
+    log("[B::%s] Reading input...\n", __func__);
     InitDNAMap();
     ReadInputFile(globals);
-    log("Done reading input, %lld reads in total\n", globals.num_reads);
+    log("[B::%s] Done reading input, %lld reads in total.\n", __func__, globals.num_reads);
     timer.stop();
-    log("Time elapsed: %.4lfs\n", timer.elapsed());
+    log("[B::%s] Time elapsed: %.4lfs\n", __func__, timer.elapsed());
 
 #ifdef DBJ_DEBUG
     debug("The 5th read is [[");
@@ -942,20 +1037,6 @@ void Phase1Entry(struct global_data_t &globals) {
     InitGlobalData(globals); // must be called AFTER reading input
 
     ////////////////////////////////// Start processing... ////////////////////////////
-    timer.reset();
-    timer.start();
-    log("Filling read partition buckets...\n");
-    PreprocessScanToFillBucketSizes(globals); // Multithread: fill the read partition buckets, then sum up into the global buckets
-    timer.stop();
-    log("Done!\n");
-    log("Time elapsed: %.4lfs\n", timer.elapsed());
-
-    for (int i = 0; i < phase1::kNumBuckets; ++i) {
-        if (globals.bucket_sizes[i] > globals.max_lv2_items) {
-            err("[ERROR] Bucket %d too large for lv.2: contains %lld items\n", i, globals.bucket_sizes[i]);
-            exit(1);
-        }
-    }
 
     int lv1_iteration = 0;
     //======================================== LEVEL 1 loop ============================================//
@@ -1002,7 +1083,11 @@ void Phase1Entry(struct global_data_t &globals) {
             // finds the bucket range for this iteration
             local_timer.reset();
             local_timer.start();
+#ifdef DISABLE_GPU
+            globals.lv2_end_bucket++;
+#else
             globals.lv2_end_bucket = FindEndBucket(globals.bucket_sizes, globals.lv2_start_bucket, globals.lv1_end_bucket, globals.max_lv2_items, globals.lv2_num_items);
+#endif
 
             //===== ERROR
             if (globals.lv2_num_items == 0) { // i.e. can't even hold a single bucket
