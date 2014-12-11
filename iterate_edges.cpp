@@ -113,6 +113,12 @@ static void ParseOptions(int argc, char *argv[]) {
         if (options.num_cpu_threads == 0) {
             options.num_cpu_threads = omp_get_max_threads();
         }
+        // must set the number of threads before the parallel hash_map declared
+        if (options.num_cpu_threads > 1) {
+            omp_set_num_threads(options.num_cpu_threads - 1);
+        } else {
+            omp_set_num_threads(1);
+        }
     } catch (std::exception &e) {
         std::cerr << e.what() << std::endl;
         std::cerr << "Usage: " << argv[0] << " [options]" << std::endl;
@@ -254,10 +260,15 @@ static void ReadContigsAndBuildHash(IterateGlobalData &globals, bool is_addi_con
     }
 
     pthread_create(&input_thread, NULL, ReadContigsThread, &input_thread_data);
-    omp_set_num_threads(globals.num_cpu_threads - 1);
+    if (globals.num_cpu_threads == 1) {
+        pthread_join(input_thread, NULL);
+    }
 
     while (true) {
-        pthread_join(input_thread, NULL);
+        if (globals.num_cpu_threads > 1) {
+            pthread_join(input_thread, NULL);
+        }
+
         if (packages[input_thread_index].size() == 0) {
             break;
         }
@@ -266,6 +277,10 @@ static void ReadContigsAndBuildHash(IterateGlobalData &globals, bool is_addi_con
         input_thread_data.contig_package = &packages[input_thread_index];
         pthread_create(&input_thread, NULL, ReadContigsThread, &input_thread_data);
         ContigPackage &cur_package = packages[input_thread_index ^ 1];
+
+        if (globals.num_cpu_threads == 1) {
+            pthread_join(input_thread, NULL);
+        }
 
         if (!is_addi_contigs) {
 #pragma omp parallel for
@@ -414,10 +429,16 @@ static void ReadReadsAndProcess(IterateGlobalData &globals) {
     pthread_create(&input_thread, NULL, ReadReadsThread, &input_thread_data);
     globals.iterative_edges.reserve(globals.crusial_kmers.size() * 10);
     AtomicBitVector is_aligned;
-    omp_set_num_threads(globals.num_cpu_threads - 1);
+
+    if (globals.num_cpu_threads == 1) {
+        pthread_join(input_thread, NULL);
+    }
 
     while (true) {
-        pthread_join(input_thread, NULL);
+        if (globals.num_cpu_threads > 1) {
+            pthread_join(input_thread, NULL);
+        }
+
         if (packages[input_thread_index].num_of_reads == 0) {
             break;
         }
@@ -427,6 +448,10 @@ static void ReadReadsAndProcess(IterateGlobalData &globals) {
         pthread_create(&input_thread, NULL, ReadReadsThread, &input_thread_data);
         ReadPackage &cur_package = packages[input_thread_index ^ 1];
         is_aligned.reset(cur_package.num_of_reads);
+
+        if (globals.num_cpu_threads == 1) {
+            pthread_join(input_thread, NULL);
+        }
 
 #pragma omp parallel for
         for (unsigned i = 0; i < (unsigned)cur_package.num_of_reads; ++i) {
