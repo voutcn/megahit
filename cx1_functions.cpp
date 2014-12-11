@@ -394,6 +394,8 @@ bool AutoPrepairMemory(struct global_data_t &globals, int64_t max_bucket_size) {
         globals.max_lv1_items = item_per_lv1;
         globals.max_lv2_items = std::min(globals.max_lv2_items, item_per_lv1);
         if (TryAlloc(globals)) { return true; }
+
+        item_per_lv1 /= 1.618;
     }
 
     return false;
@@ -424,23 +426,6 @@ void InitGlobalData(struct global_data_t &globals) {
     }
 #endif
 
-    // initialize writer
-    globals.word_writer[0].output(globals.kmer_k);
-    globals.word_writer[0].output(globals.words_per_edge);    
-    for (int t = 0; t < globals.phase1_num_output_threads; ++t) {
-        static char edges_file_name[10240];
-        sprintf(edges_file_name, "%s.edges.%d", globals.output_prefix, t);
-        globals.word_writer[t].init(edges_file_name);
-    }
-
-    // initialize stat
-    globals.edge_counting = (int64_t *) MallocAndCheck((kMaxMulti_t + 1) * sizeof(int64_t), __FILE__, __LINE__);
-    memset(globals.edge_counting, 0, sizeof((kMaxMulti_t + 1) * sizeof(int64_t)));
-    globals.thread_edge_counting = (int64_t *) MallocAndCheck((kMaxMulti_t + 1) * globals.phase1_num_output_threads * sizeof(int64_t), __FILE__, __LINE__);
-    globals.num_dummy_edges = 0;
-    globals.num_incoming_zero_nodes = 0;
-    globals.num_outgoing_zero_nodes = 0;
-
     // compute log & mem
     {
         globals.offset_num_bits = 0;
@@ -461,8 +446,24 @@ void InitGlobalData(struct global_data_t &globals) {
 
     log("[B::%s] %d words per read, %d words per substring, %d words per edge\n", __func__, globals.words_per_read, globals.words_per_substring, globals.words_per_edge);
     
-    //memory stuff
+    // initialize writer 
+    for (int t = 0; t < globals.phase1_num_output_threads; ++t) {
+        static char edges_file_name[10240];
+        sprintf(edges_file_name, "%s.edges.%d", globals.output_prefix, t);
+        globals.word_writer[t].init(edges_file_name);
+    }
+    globals.word_writer[0].output(globals.kmer_k);
+    globals.word_writer[0].output(globals.words_per_edge);   
 
+    // initialize stat
+    globals.edge_counting = (int64_t *) MallocAndCheck((kMaxMulti_t + 1) * sizeof(int64_t), __FILE__, __LINE__);
+    memset(globals.edge_counting, 0, sizeof((kMaxMulti_t + 1) * sizeof(int64_t)));
+    globals.thread_edge_counting = (int64_t *) MallocAndCheck((kMaxMulti_t + 1) * globals.phase1_num_output_threads * sizeof(int64_t), __FILE__, __LINE__);
+    globals.num_dummy_edges = 0;
+    globals.num_incoming_zero_nodes = 0;
+    globals.num_outgoing_zero_nodes = 0;
+
+    // memory
     globals.mem_opt = 1; // FIXME: testing only
     if (globals.mem_opt == 1) {
         // auto
