@@ -178,24 +178,24 @@ inline int GetReadLengthByID(int64_t id, global_data_t &globals) {
  */
 void ReadInputFile(struct global_data_t &globals) {
     size_t num_reads = 0;
-    int bits_read_length = 1;
+    int64_t max_num_reads = globals.host_mem / (sizeof(edge_word_t) * globals.words_per_read) * 3 / 4; //TODO: more accurate
+    int bits_read_length = 1; // bit needed to store read_length
+    int words_per_read = DivCeiling(globals.max_read_length * kBitsPerEdgeChar + bits_read_length, kBitsPerEdgeWord);
+    int read_length;
+    edge_word_t *packed_reads;
+    edge_word_t *packed_reads_p; // current pointer
+    gzFile fp = strcmp(globals.input_file, "-") ? gzopen(globals.input_file, "r") : gzdopen(fileno(stdin), "r");
+    kseq_t *seq = kseq_init(fp); // kseq to read files
+
     while ((1 << bits_read_length) - 1 < globals.max_read_length) {
         ++bits_read_length;
     }
-    int words_per_read = DivCeiling(globals.max_read_length * kBitsPerEdgeChar + bits_read_length, kBitsPerEdgeWord);
     globals.words_per_read = words_per_read;
     globals.read_length_mask = (1 << bits_read_length) - 1;
-    globals.capacity = 1048576; // 1M
-
-    edge_word_t *packed_reads;
-    edge_word_t *packed_reads_p; // current pointer
-
+    globals.capacity = 1048576; // initial capacity 1M
     log("[B::%s] Max read length is %d; words per read: %d\n", __func__, globals.max_read_length, globals.words_per_read);
     packed_reads_p = packed_reads = (edge_word_t*) MallocAndCheck(globals.capacity * globals.words_per_read * sizeof(edge_word_t), __FILE__, __LINE__);
 
-    gzFile fp = strcmp(globals.input_file, "-") ? gzopen(globals.input_file, "r") : gzdopen(fileno(stdin), "r");
-    kseq_t *seq = kseq_init(fp);
-    int read_length;
     // main reading loop
     while ((read_length = kseq_read(seq)) >= 0) {
         std::reverse(seq->seq.s, seq->seq.s + read_length);
@@ -208,23 +208,19 @@ void ReadInputFile(struct global_data_t &globals) {
 
             if (scan_len > globals.kmer_k && scan_len <= globals.max_read_length) {
                 if (num_reads >= globals.capacity) {
-                    size_t new_capa = globals.capacity * 2;
-                    do {
-                        edge_word_t *new_ptr = (edge_word_t*) realloc(packed_reads, new_capa * globals.words_per_read * sizeof(edge_word_t));
-                        if (new_ptr != NULL) {
-                            packed_reads = new_ptr;
-                            packed_reads_p = packed_reads + globals.words_per_read * num_reads;
-                            break;
-                        } else {
-                            new_capa *= 0.9;
-                        }
-                    } while (new_capa > globals.capacity);
-
-                    if (globals.capacity >= new_capa) {
-                        err("[B::%s WRANING] No enough memory to hold all the reads. The assembly will move on with the first %llu reads.\n", __func__, num_reads);
+                    if (globals.capacity == max_num_reads) {
+                        err("[B::%s WRANING] No enough memory to hold all the reads. Only the first %llu reads are kept.\n", __func__, num_reads);
                         break;
-                    } else {
+                    } 
+                    size_t new_capa = std::min(globals.capacity * 2, max_num_reads);
+                    edge_word_t *new_ptr = (edge_word_t*) realloc(packed_reads, new_capa * globals.words_per_read * sizeof(edge_word_t));
+                    if (new_ptr != NULL) {
+                        packed_reads = new_ptr;
+                        packed_reads_p = packed_reads + globals.words_per_read * num_reads;
                         globals.capacity = new_capa;
+                    } else {
+                        err("[B::%s WRANING] No enough memory to hold all the reads. Only the first %llu reads are kept.\n", __func__, num_reads);
+                        break;
                     }
                 }
                 // read length is ok! compress and store the packed read
@@ -243,9 +239,6 @@ void ReadInputFile(struct global_data_t &globals) {
         }
     }
 
-    kseq_destroy(seq);
-    gzclose(fp);
-
     globals.num_reads = num_reads;
     globals.mem_packed_reads = globals.num_reads * globals.words_per_read * sizeof(edge_word_t);
     globals.packed_reads = (edge_word_t*) ReAllocAndCheck(packed_reads, globals.mem_packed_reads, __FILE__, __LINE__);
@@ -253,6 +246,9 @@ void ReadInputFile(struct global_data_t &globals) {
         err("[B::%s ERROR] Cannot re allocate memory for packed reads!\n", __func__);
         exit(1);
     }
+
+    kseq_destroy(seq);
+    gzclose(fp);
 } // end ReadInputFile
 
 // prepare the scan of buckets
@@ -383,7 +379,7 @@ bool AutoPrepairMemory(struct global_data_t &globals, int64_t max_bucket_size) {
     }
 
     // auto set to scan ~8 times
-    int64_t item_per_lv1 = sum_bucket_size / 7.5;
+    int64_t item_per_lv1 = sum_bucket_size / (kDefaultLv1ScanTime - 0.5);
     int64_t lv1_tried_max_item = 0x3FFFFFFFFFFFFFFFLL;
 
     while (lv1_tried_max_item > max_bucket_size) {
@@ -403,25 +399,27 @@ bool AutoPrepairMemory(struct global_data_t &globals, int64_t max_bucket_size) {
 
 void InitGlobalData(struct global_data_t &globals) {
     xtimer_t timer;
+
+    // --- Fill bucket size ---
+    // init lock
+    pthread_mutex_init(&globals.lv1_items_scanning_lock, NULL);
     timer.reset();
     timer.start();
     log("[B::%s] Filling read partition buckets...\n", __func__);
-    // init lock
-    pthread_mutex_init(&globals.lv1_items_scanning_lock, NULL);
     PrepareBucketScan(globals);
     PreprocessScanToFillBucketSizes(globals); // Multithread: fill the read partition buckets, then sum up into the global buckets
     timer.stop();
     log("[B::%s] Done. Time elapsed: %.4lfs\n", __func__, timer.elapsed());
 
-    int64_t max_bucket_size = *std::max_element(globals.bucket_sizes, globals.bucket_sizes + phase1::kNumBuckets);
+    globals.max_bucket_size = *std::max_element(globals.bucket_sizes, globals.bucket_sizes + phase1::kNumBuckets);
 #ifdef DISABLE_GPU
     globals.max_lv2_items = max_bucket_size;
 #else
-    int64_t lv2_mem = globals.gpu_mem - 1024 * 1024 * 1024; // should reserver ~1G for GPU sorting
+    int64_t lv2_mem = globals.gpu_mem - 1073741824; // should reserver ~1G for GPU sorting
     globals.max_lv2_items = lv2_mem / GPU_BYTES_PER_ITEM;
     if (max_bucket_size > globals.max_lv2_items) {
         err("[ERROR B::%s] Bucket too large for GPU: contains %lld items. Please try CPU version.\n", __func__, max_bucket_size);
-        // TODO: auto select CPU
+        // TODO: auto switch to CPU version
         exit(1);
     }
 #endif
@@ -448,7 +446,7 @@ void InitGlobalData(struct global_data_t &globals) {
     
     // initialize writer 
     for (int t = 0; t < globals.phase1_num_output_threads; ++t) {
-        static char edges_file_name[10240];
+        char edges_file_name[10240];
         sprintf(edges_file_name, "%s.edges.%d", globals.output_prefix, t);
         globals.word_writer[t].init(edges_file_name);
     }
@@ -459,12 +457,8 @@ void InitGlobalData(struct global_data_t &globals) {
     globals.edge_counting = (int64_t *) MallocAndCheck((kMaxMulti_t + 1) * sizeof(int64_t), __FILE__, __LINE__);
     memset(globals.edge_counting, 0, sizeof((kMaxMulti_t + 1) * sizeof(int64_t)));
     globals.thread_edge_counting = (int64_t *) MallocAndCheck((kMaxMulti_t + 1) * globals.phase1_num_output_threads * sizeof(int64_t), __FILE__, __LINE__);
-    globals.num_dummy_edges = 0;
-    globals.num_incoming_zero_nodes = 0;
-    globals.num_outgoing_zero_nodes = 0;
 
     // memory
-    globals.mem_opt = 1; // FIXME: testing only
     if (globals.mem_opt == 1) {
         // auto
         if (!AutoPrepairMemory(globals, max_bucket_size)) {
@@ -511,7 +505,6 @@ void InitGlobalData(struct global_data_t &globals) {
 #endif
     }
 
-
     log("[B::%s] Memory for reads: %lld\n", __func__, globals.mem_packed_reads);
     log("[B::%s] max # lv.1 items = %lld\n", __func__, globals.max_lv1_items);
     log("[B::%s] max # lv.2 items = %lld\n", __func__, globals.max_lv2_items);
@@ -550,9 +543,6 @@ void* Lv1ScanToFillOffsetsThread(void *_data) {
           globals.lv1_items[ rp.rp_bucket_offsets[key]++ ] = -globals.lv1_items_special.size() - 1; \
           globals.lv1_items_special.push_back(full_offset);                  \
           pthread_mutex_unlock(&globals.lv1_items_scanning_lock); \
-          if (globals.lv1_items_special.size() % 268435456 == 0) { \
-            err("Number of large differentials: %llu\n", globals.lv1_items_special.size()); \
-          } \
         } else {                                                              \
           assert((int) differential >= 0); \
           globals.lv1_items[ rp.rp_bucket_offsets[key]++ ] = (int) differential; \
@@ -938,7 +928,7 @@ void* Lv2CountingThread(void *_op) {
         }
     }
     local_timer.stop();
-    log("Counting time elapsed: %.4lfs\n", local_timer.elapsed());
+    log("[B::%s] Counting time elapsed: %.4lfs\n", __func__, local_timer.elapsed());
 
     return NULL;
 }
@@ -1058,20 +1048,20 @@ void Phase1Entry(struct global_data_t &globals) {
 
         //===== ERROR
         if (globals.lv1_num_items == 0) { // i.e. can't even hold a single bucket (very unlikely though)
-            err("[ERROR] Bucket %d too large for lv.1: contains %lld items\n", globals.lv1_end_bucket, globals.bucket_sizes[globals.lv1_end_bucket]);
+            err("[ERROR B::%s] Bucket %d too large for lv.1: contains %lld items.\n", __func__, globals.lv1_end_bucket, globals.bucket_sizes[globals.lv1_end_bucket]);
             exit(1);
         }
         //===========
-        log("Iteration %d, from bucket %d to %d\n", lv1_iteration, globals.lv1_start_bucket, globals.lv1_end_bucket-1);
+        log("[B::%s] Iteration %d, from bucket %d to %d\n", __func__, lv1_iteration, globals.lv1_start_bucket, globals.lv1_end_bucket-1);
 
-        log("Scanning and filling offsets... ");
+        log("[B::%s] Scanning and filling offsets... ", __func__);
         Lv1ScanToFillOffests(globals);
         local_timer.stop();
         log(" done.\n");
-        log("Number of large differentials: %llu\n", globals.lv1_items_special.size());
+        log("[B::%s] Number of large differentials: %llu\n", __func__, globals.lv1_items_special.size());
         log("[LV1] time elapsed: %.4lfs\n", local_timer.elapsed());
         if (globals.lv1_items_special.size() > kDifferentialLimit) {
-            err("Too many large differentials!");
+            err("[ERROR B::%s] Too many large differentials!\n", __func__);
             exit(1);
         }
 
@@ -1084,39 +1074,33 @@ void Phase1Entry(struct global_data_t &globals) {
             // finds the bucket range for this iteration
             local_timer.reset();
             local_timer.start();
-#ifdef DISABLE_GPU
-            globals.lv2_end_bucket++;
-#else
+
             globals.lv2_end_bucket = FindEndBucket(globals.bucket_sizes, globals.lv2_start_bucket, globals.lv1_end_bucket, globals.max_lv2_items, globals.lv2_num_items);
-#endif
 
             //===== ERROR
             if (globals.lv2_num_items == 0) { // i.e. can't even hold a single bucket
-                err("[ERROR] Bucket %d too large for lv.2: contains %lld items\n", globals.lv2_end_bucket, globals.bucket_sizes[globals.lv2_end_bucket]);
+                err("[ERROR B::%s] Bucket %d too large for lv.2: contains %lld items\n", __func__, globals.lv2_end_bucket, globals.bucket_sizes[globals.lv2_end_bucket]);
                 exit(1);
             }
             //===========
-            log("> Iteration [%d,%d], from bucket %d to %d\n", lv1_iteration, lv2_iteration, globals.lv2_start_bucket, globals.lv2_end_bucket-1);
-            log(" Extracting substrings... ");
+            log("[B::%s] > Iteration [%d,%d], from bucket %d to %d\n", __func__, lv1_iteration, lv2_iteration, globals.lv2_start_bucket, globals.lv2_end_bucket-1);
             Lv2ExtractSubstrings(globals);
             local_timer.stop();
-            log("done. Time elapsed: %.4lfs\n", local_timer.elapsed());
+            log("[B::%s] Extracting substrings...done. Time elapsed: %.4lfs\n", __func__, local_timer.elapsed());
 #ifdef DISABLE_GPU
-            log("Sorting substrings with CPU... \n");
             omp_set_num_threads(globals.num_cpu_threads - globals.phase1_num_output_threads);
             local_timer.reset();
             local_timer.start();
             lv2_cpu_sort(globals.lv2_substrings, globals.permutation, globals.cpu_sort_space, globals.words_per_substring, globals.lv2_num_items);
             omp_set_num_threads(globals.num_cpu_threads);
             local_timer.stop();
-            log("Sorting time elapsed: %.4lfs\n", local_timer.elapsed());
+            log("[B::%s] Sorting substrings with CPU...done. Time elapsed: %.4lfs\n", __func__, local_timer.elapsed());
 #else
-            log("Sorting substrings with GPU... \n");
             local_timer.reset();
             local_timer.start();
             lv2_gpu_sort(globals.lv2_substrings, globals.permutation, globals.words_per_substring, globals.lv2_num_items);
             local_timer.stop();
-            log("GPU time elapsed: %.4lfs\n", local_timer.elapsed());
+            log("[B::%s] Sorting substrings with GPU...done. Time elapsed: %.4lfs\n", __func__, local_timer.elapsed());
 #endif
 
             if (output_thread_created) {
@@ -1140,9 +1124,8 @@ void Phase1Entry(struct global_data_t &globals) {
         Lv2CountingJoin(globals);
     }
 
-    log("Done all counting!\n");
     timer.stop();
-    log("Time elapsed: %.4lf\n", timer.elapsed());
+    log("[B::%s] Done all counting. Time elapsed: %.4lf\n", __func__, timer.elapsed());
 
     // output reads
     int64_t num_candidate_reads = 0;
@@ -1160,7 +1143,7 @@ void Phase1Entry(struct global_data_t &globals) {
         }
     }
     fclose(candidate_file);
-    log("Total number of candidate reads: %lld(%lld)\n", num_candidate_reads, num_has_tips);
+    log("[B::%s] Total number of candidate reads: %lld(%lld)\n", __func__, num_candidate_reads, num_has_tips);
 
     //====stat
     int64_t num_solid_edges = 0;
@@ -1168,13 +1151,9 @@ void Phase1Entry(struct global_data_t &globals) {
         num_solid_edges += globals.edge_counting[i];
     }
     globals.num_edges = globals.num_outgoing_zero_nodes + globals.num_incoming_zero_nodes + num_solid_edges;
-    log("Total number of v$ edges: %llu\n", globals.num_outgoing_zero_nodes);
-    log("Total number of $v edges: %llu\n", globals.num_incoming_zero_nodes);
-    log("Total number of solid edges: %llu\n", num_solid_edges);
+    log("[B::%s] Total number of solid edges: %llu\n", __func__, num_solid_edges);
 
     FILE *counting_file = OpenFileAndCheck((string(globals.output_prefix)+".counting").c_str(), "w");
-    fprintf(counting_file, "Total number of v$ edges: %llu\n", (unsigned long long)globals.num_outgoing_zero_nodes);
-    fprintf(counting_file, "Total number of $v edges: %llu\n", (unsigned long long)globals.num_incoming_zero_nodes);
     for (int64_t i = 1, acc = 0; i <= kMaxMulti_t; ++i) {
         acc += globals.edge_counting[i];
         fprintf(counting_file, "%lld %lld\n", (long long)i, (long long)acc);
@@ -1191,14 +1170,6 @@ inline int64_t EncodeEdgeOffset(int64_t read_id, int offset, int strand, int k_n
     return (read_id << (k_num_bits + 1)) | (strand << k_num_bits) | offset;
 }
 
-inline int Extract_a(edge_word_t *edge, int words_per_edge) {
-    return (edge[words_per_edge - 1] >> (kBWTCharNumBits + kBitsPerMulti_t)) & ((1 << kBWTCharNumBits) - 1);
-}
-
-inline int Extract_b(edge_word_t *edge, int words_per_edge) {
-    return (edge[words_per_edge - 1] >> kBitsPerMulti_t) & ((1 << kBWTCharNumBits) - 1);
-}
-
 int64_t ReadEdges(global_data_t &globals) {
     EdgeReader edge_reader;
     edge_reader.init((string(globals.phase2_input_prefix) + ".edges").c_str(), globals.phase1_num_output_threads);
@@ -1213,9 +1184,9 @@ int64_t ReadEdges(global_data_t &globals) {
         globals.mult_mem_type = 2;
     }
 
-    log("kmer_k: %d, words_per_edge: %d\n", globals.kmer_k, globals.words_per_edge);
+    log("[B::%s] kmer_k: %d, words_per_edge: %d\n", __func__, globals.kmer_k, globals.words_per_edge);
     int64_t max_num_edges = globals.host_mem * 0.95 / (globals.words_per_edge * sizeof(edge_word_t) + globals.mult_mem_type);
-    log("Max host mem: %ld, max edges can be loaded: %ld\n", globals.host_mem, max_num_edges);
+    log("[B::%s] Max host mem: %ld, max edges can be loaded: %ld\n", globals.host_mem, max_num_edges);
 
     globals.packed_edges = (edge_word_t *) MallocAndCheck(sizeof(edge_word_t) * globals.words_per_edge * max_num_edges, __FILE__, __LINE__);
     if (globals.mult_mem_type == 1) {
@@ -1762,11 +1733,11 @@ void ReadReadsAndGetMercyEdges(global_data_t &globals) {
             }
         }
         if (num_reads % (16 * package.kMaxNumReads) == 0) {
-            log("Number of reads: %ld, Number of mercy edges: %ld\n", num_reads, num_mercy_edges);   
+            log("[B::%s] Number of reads: %ld, Number of mercy edges: %ld\n", __func__, num_reads, num_mercy_edges);   
         }
     }
 
-    log("Number of reads: %ld, Number of mercy edges: %ld\n", num_reads, num_mercy_edges);
+    log("[B::%s] Number of reads: %ld, Number of mercy edges: %ld\n", __func__, num_reads, num_mercy_edges);
 
     free(kmers);
     free(rev_kmers);
@@ -1861,9 +1832,6 @@ void* Lv1ScanToFillOffsetsThread(void *_data) {
           globals.lv1_items[ rp.rp_bucket_offsets[key]++ ] = -globals.lv1_items_special.size() - 1; \
           globals.lv1_items_special.push_back(full_offset);                  \
           pthread_mutex_unlock(&globals.lv1_items_scanning_lock); \
-          if (globals.lv1_items_special.size() % 268435456 == 0) { \
-            err("Number of large differentials: %llu\n", globals.lv1_items_special.size()); \
-          } \
         } else {                                                              \
           assert(differential >= 0); \
           globals.lv1_items[ rp.rp_bucket_offsets[key]++ ] = (int) differential; \
@@ -2211,8 +2179,6 @@ void *Lv2OutputThread(void *_op) {
     int has_solid_b = 0; // has solid aSb
     int last_a[4], outputed_b;
 
-    // log("%d %d\n", op_start_index, op_end_index);
-
     for (start_idx = op_start_index; start_idx < op_end_index; start_idx = end_idx) {
         end_idx = start_idx + 1;
         edge_word_t *item = globals.lv2_substrings_to_output + globals.permutation_to_output[start_idx];
@@ -2314,7 +2280,7 @@ void *Lv2OutputThread(void *_op) {
                 if ((globals.lv2_aux[i] >> 5) & 1) {
                     globals.num_dollar_nodes++;
                     if (globals.num_dollar_nodes >= phase2::kMaxDummyEdges) {
-                        err("Too many dummy nodes!\n");
+                        err("[ERROR B::%s] Too many dummy nodes (>= %lld)! The graph contains too many tips!\n", __func__, (long long)phase2::kMaxDummyEdges);
                         exit(1);
                     }
                     for (int64_t i = 0; i < globals.words_per_dummy_node; ++i) {
@@ -2327,7 +2293,7 @@ void *Lv2OutputThread(void *_op) {
             }
         }
         local_timer.stop();
-        log("Linear part: %lf\n", local_timer.elapsed());
+        log("[B::%s] Linear part: %lf\n", __func__, local_timer.elapsed());
     }
 
     return NULL;
