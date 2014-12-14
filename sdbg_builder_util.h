@@ -194,7 +194,7 @@ static const int kSignBitMask = 0x80000000; // the MSB of 32-bit
 // can be modified, efficiency related
 static const int64_t kMinLv2BatchSize = 2097152;
 static const int kDefaultLv1ScanTime = 8;
-static const int kMaxLv1ScanTime = 1024;
+static const int kMaxLv1ScanTime = 256;
 
 namespace phase1 {
 // definitions
