@@ -66,7 +66,7 @@ struct global_data_t {
     int num_cpu_threads;
     int64_t host_mem;
     int64_t gpu_mem;
-    int mem_opt;
+    int mem_flag;
 
     const char *input_file;
     const char *phase2_input_prefix;
@@ -76,8 +76,9 @@ struct global_data_t {
     int words_per_edge; // number of (32-bit) words needed to represent a (k+1)-mer
     int64_t words_per_substring; // substrings to be sorted by GPU
     int offset_num_bits; // the number of bits needed to store the offset of a base in the read/(k+1)-mer (i.e. log(read_length))
-    size_t capacity;
+    int64_t capacity;
     int64_t max_bucket_size;
+    int64_t tot_bucket_size;
 
     struct readpartition_data_t readpartitions[kMaxNumCPUThreads];
     struct bucketpartition_data_t bucketpartitions[kMaxNumCPUThreads];
@@ -191,7 +192,7 @@ static const uint32_t kDifferentialLimit = 2147483647; // 32-bit signed max int
 static const int kSignBitMask = 0x80000000; // the MSB of 32-bit
 
 // can be modified, efficiency related
-static const int64_t kLv2BatchSize = 2097152;
+static const int64_t kMinLv2BatchSize = 2097152;
 static const int kDefaultLv1ScanTime = 8;
 static const int kMaxLv1ScanTime = 1024;
 

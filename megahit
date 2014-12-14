@@ -33,17 +33,18 @@ import multiprocessing
 from datetime import datetime, date, time
 
 usage_message = '''
-megahit version: 0.1.3-bugfix2
+megahit version: 0.1.4-dev1214
 Copyright (c) The University of Hong Kong
 
 Usage:
-    ./megahit [options] -m <memory_to_use> -l <max_read_len> {-r <reads.fa> | --input_cmd <command>}
+    ./megahit [options] -m <max_memory_to_use> -l <max_read_len> {-r <reads.fa> | --input_cmd <command>}
 
 Required Arguments:
-    -m/--memory                    <float>      memory in byte to be used.
+    -m/--memory                    <float>      max memory in byte to be used.
                                                 This argument is used to optimize the graph building module,
-                                                but the program CANNOT guarantee how much memory will be used.
-                                                This value is recommended to be 90% of the machine's memory.
+                                                to prevent the SdBG builder from allocating memory large than this value.
+                                                This value is recommended to be 90% of machine's (free) memory.
+                                                The SdBG builder is unnecessary using all memory. Please refer to --mem-flag.
     -l/--max-read-len              <int>        maximum read length
     
   one of the two below arguments must be specified:       
@@ -56,15 +57,18 @@ Required Arguments:
                                                 fasta file, then use the "-r" option.
 
 Optional Arguments:
+  Hardware options:
+    --mem-flag                     <int>        How the SdBG build utilize memory. 
+                                                0: minimum; 1: moderate; others: use all memory specified by '-m/--memory'.
+                                                Default: 1.
+    --cpu-only                                  do not use GPU. Use CPU only.
+    --gpu-mem                      <float>      GPU memory in byte to be used. Default: auto detect to use up all free GPU memory. 
+    --t/--num-cpu-threads          <int>        Number of CPU threads, at least 2. Default: auto detect to use all CPU threads.
+
   Output options:
     -o/--out-dir                   <string>     output directory, default: ./megahit_out
     --min-contig-len               <int>        minimum length of contigs to output, default: 200
     --keep-tmp-files                            keep all temporary files
-
-  Hardware options:
-    --cpu-only                                  do not use GPU. Use CPU only.
-    --gpu-mem                      <float>      GPU memory in byte to be used. Default: auto detect to use up all free GPU memory. 
-    --t/--num-cpu-threads          <int>        Number of CPU threads, at least 2. Default: auto detect to use all CPU threads.
 
   Basic assembly options:
     --k-min                        <int>        minimum kmer size (<= 123), must be odd number, default: 21
@@ -113,6 +117,7 @@ temp_dir = out_dir + "tmp/"
 keep_tmp_files = 0
 builder = "sdbg_builder_gpu"
 cpu_only = 0
+mem_flag = 1
 
 def log_file_name():
     global out_dir
@@ -270,6 +275,7 @@ def build_first_graph():
                    "-k", str(k_min),
                    "-m", str(min_count),
                    "--host_mem", str(host_mem),
+                   "--mem_flag", str(mem_flag),
                    "--gpu_mem", str(gpu_mem),
                    "--max_read_len", str(max_read_len),
                    "--output_prefix", graph_prefix(k_min),
@@ -306,8 +312,6 @@ def build_first_graph():
         if o.errno == errno.ENOTDIR or o.errno == errno.ENOENT:
             print >> sys.stderr, "Error: sub-program builder not found, please recompile MEGAHIT"
         exit(1) 
-
-
     build_graph(k_min, phase1_out_threads)
 
 def build_graph(kmer_k, num_edge_files):
@@ -322,6 +326,7 @@ def build_graph(kmer_k, num_edge_files):
 
     build_cmd = [bin_dir + builder, "build",
                    "--host_mem", str(host_mem),
+                   "--mem_flag", str(mem_flag),
                    "--gpu_mem", str(gpu_mem),
                    "--input_prefix", graph_prefix(kmer_k),
                    "--output_prefix", graph_prefix(kmer_k),
@@ -506,7 +511,8 @@ def main(argv = None):
                                          "max-tip-len=",
                                          "no-bubble",
                                          "low-local-ratio=",
-                                         "keep-tmp-files"])
+                                         "keep-tmp-files",
+                                         "mem-flag="])
         except getopt.error, msg:
             raise Usage(msg)    
         if len(opts) == 0:
@@ -530,6 +536,8 @@ def main(argv = None):
         global no_bubble
         global num_cpu_threads
         global low_local_ratio
+        global cpu_only
+        global mem_flag
         global temp_dir
         global keep_tmp_files
         global builder
@@ -575,6 +583,8 @@ def main(argv = None):
             elif option == "--cpu-only":
                 cpu_only = 1
                 builder = "sdbg_builder_cpu"
+            elif option == "--mem-flag":
+                mem_flag = int(value)
             else:
                 print >> sys.stderr, "Invalid option %s", option
                 exit(1)
@@ -583,7 +593,7 @@ def main(argv = None):
         check_bin()
 
         start_time = datetime.now()  
-        print >> sys.stderr, "MEAGHIT v0.1.3-bugfix2"
+        print >> sys.stderr, "MEAGHIT v0.1.4-dev1214"
         print >> sys.stderr, "[%s] Start assembly. Number of CPU threads %d." % (start_time.strftime("%c"), num_cpu_threads)
 
         make_out_dir()
@@ -617,7 +627,7 @@ def main(argv = None):
 
         log_file = open(log_file_name(), "a")
 
-        start_time = datetime.now()        
+        start_time = datetime.now()
         print >> sys.stderr, "[%s] ALL DONE." % (start_time.strftime("%c"))
         print >> log_file, "[%s] ALL DONE." % (start_time.strftime("%c"))
         log_file.flush()

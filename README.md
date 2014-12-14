@@ -1,7 +1,7 @@
 MEGAHIT
 =========
 
-MEGAHIT is a single node assembler for large and complex metagenomics NGS reads, such as soil. It makes use of succinct *de Bruijn* graph to achieve low memory usage, whereas its goal is not to make memory usage as low as possible. It leverages all available memory (specified by `-m` option) to build succinct *de Bruijn* graphs. Both CPU-only and GPU-accelerated version of MEGAHIT are provided. The GPU-accelerated version of MEGAHIT has been tested on NVIDIA GTX680 (4G memory) and Tesla K40c (12G memory).
+MEGAHIT is a single node assembler for large and complex metagenomics NGS reads, such as soil. It makes use of succinct *de Bruijn* graph to achieve low memory usage, whereas its goal is not to make memory usage as low as possible. It automatically adjusts itself to use all/moderate available memory (specified by `-m` and `--mem-flag`) to build succinct *de Bruijn* graphs. Both CPU-only and GPU-accelerated version of MEGAHIT are provided. The GPU-accelerated version of MEGAHIT has been tested on NVIDIA GTX680 (4G memory) and Tesla K40c (12G memory).
 
 [![Build Status](https://travis-ci.org/voutcn/megahit.svg)](https://travis-ci.org/voutcn/megahit)
 [![Build Status](https://drone.io/github.com/voutcn/megahit/status.png)](https://drone.io/github.com/voutcn/megahit/latest)
@@ -10,7 +10,7 @@ Getting Started
 ----------------
 
 ### Dependency
-MEGAHIT is suitable for Linux and MAC OS X. It requires [zlib](http://www.zlib.net/), python 2.6 or greater and GCC 4.4 or greater (with `-std=c++0x` and [OpenMP](http://openmp.org) support). The GPU version of MEGAHIT further requires [CUDA](https://developer.nvidia.com/cuda-toolkit) 5.5 or greater.
+MEGAHIT is suitable for 64-bit Linux and MAC OS X. It requires [zlib](http://www.zlib.net/), python 2.6 or greater and GCC 4.4 or greater (with `-std=c++0x` and [OpenMP](http://openmp.org) support). The GPU version of MEGAHIT further requires [CUDA](https://developer.nvidia.com/cuda-toolkit) 5.5 or greater.
 
 ### Compiling from Source Codes
 ```
@@ -36,19 +36,18 @@ To use the GPU version, run `make use_gpu=1` to compile MEGAHIT, and run MEGAHIT
 
 Memory Control
 ----------------
-We recommend to set `-m` as large as possible. For example, for a server with 64GB free memory, you may try `-m 60e9`, which is about 56GB. Typically, 56GB memory is quite enough for a human guts dataset of 15 to 30Gbp.
-
-We will provide a list of recommended memory settings for different kinds of assembly in the near future.
+We recommend to set `-m` as large as possible. For example, for a server with 64GB free memory, you may try `-m 60e9`, which is about 56GB.
+Since v0.1.4, the `-m` is used to set the maximum memory. It is not necessary for the SdBG builder to use up all the memories. The option `--mem-flag` specifies the ways to utilize memory. `--mem-flag 0` to use minimum memory, `--mem-flag 1` to use moderate memory and `--mem-flag 2` to use all memory.
 
 Input Files
 --------------
 
-MEGAHIT accepts one fasta or fastq file as input. The input file can be gzip'ed. Alternatively, you can use the option `--input-cmd` to input reads from multiple files. Following the `--input-cmd` should be a command that output all reads to `STDOUT` in fasta or fastq format. A mix of fasta and fastq is NOT supported. Pair-end information is not used by MEGAHIT of current version. Therefore pair-end files can be input to MEGAHIT as multiple single-end files. Some correct/wrong examples are shown below.
+MEGAHIT accepts one fasta or fastq file as input. The input file can be gzip'ed. Alternatively, you can use the option `--input-cmd` to input reads from multiple files. Following the `--input-cmd` should be a command that output all reads to `STDOUT` in fasta or fastq format. A mix of fasta and fastq is also supported. Pair-end information is not used by MEGAHIT of current version. Therefore pair-end files can be input to MEGAHIT as multiple single-end files. Some examples are shown below.
 
 ###Correct Examples
-* Input from one fastq file named *reads.fastq*:
+* Input from one gzip'ed fastq file named *reads.fastq.gz*:
 ```
--r reads.fastq
+-r reads.fastq.gz
 ```
 * Input from two fasta files *sample_1.fa* and *sample_2.fa*:
 ```
@@ -62,11 +61,9 @@ MEGAHIT accepts one fasta or fastq file as input. The input file can be gzip'ed.
 ```
 --input-cmd "fastq-dump -Z --fasta xxx.sra"
 ```
-
-###Wrong Examples
-* Mixed fastq and fasta files to the input:
+* Mixed fastq and fasta:
 ```
---input-cmd "cat *.fa *.fq"
+--input-cmd "cat 1.fa 2.fq"
 ```
 
 Options
