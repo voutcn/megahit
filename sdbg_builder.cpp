@@ -112,9 +112,6 @@ void ParsePhase1Option(int argc, char *argv[]) {
 
         if (phase1_options.host_mem == 0) {
             throw std::logic_error("Please specify the host memory!");
-            // struct sysinfo s_info;
-            // sysinfo(&s_info);
-            // phase1_options.host_mem = (s_info.freeram + s_info.bufferram) * 0.95;
         }
 
         if (phase1_options.gpu_mem == 0) {
@@ -155,7 +152,7 @@ void ParsePhase2Option(int argc, char *argv[]) {
     desc.AddOption("output_prefix", "o", phase2_options.output_prefix, "output prefix");
     desc.AddOption("need_mercy", "", phase2_options.need_mercy, "to add mercy edges. The file input_prefix.cand output by count module should exist.");
     desc.AddOption("max_read_length", "", phase2_options.max_read_length, "max read length");
-    desc.AddOption("mem_flag", "", phase1_options.mem_flag, "memory options. 0: minimize memory usage; 1: automatically use moderate memory; other: use all available mem specified by '--host_mem'");
+    desc.AddOption("mem_flag", "", phase2_options.mem_flag, "memory options. 0: minimize memory usage; 1: automatically use moderate memory; other: use all available mem specified by '--host_mem'");
 
     try {
         desc.Parse(argc, argv);
