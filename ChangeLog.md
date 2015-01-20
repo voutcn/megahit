@@ -1,3 +1,8 @@
+### 0.1.4 / 2015-01-20
+Bug Fixes:
+
+* Fixed crashes related to OpenMP
+
 ### 0.1.3 / 2014-12-01
 
 Enhancements:
