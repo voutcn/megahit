@@ -36,7 +36,8 @@ To use the GPU version, run `make use_gpu=1` to compile MEGAHIT, and run MEGAHIT
 
 Memory Control
 ----------------
-We recommend to set `-m` as large as possible. In general, 90% of the free memory is recommended. This option is required to control the maximum memory that can be used for the SdBG construction. It is required to prevent the program from using swap space.
+We recommend to set `-m` as large as possible. In general, 90% of the free memory is recommended. This parameter is used to control the maximum memory that can be used for the SdBG construction. It is required to prevent the program from using swap space.
+
 Since v0.2.0, it is not necessary for the SdBG builder to use up all the memory specificed by `-m`. The option `--mem-flag` specifies the ways to utilize memory: `--mem-flag 0` to use minimum memory, `--mem-flag 1` moderate memory and `--mem-flag 2` all memory.
 
 Input Files
@@ -77,7 +78,7 @@ For ultra complex metagenomics data such as soil, a larger *k<sub>min</sub>*, sa
 (*k<sub>min</sub>*+1)-mer with multiplicity lower than *d* (default 2, specified by `--min-count` option) will be discarded. You should be cautious to set *d* less than 2, which will lead to a much larger and noisy graph. We recommend using the default value 2.
 
 ###Mercy *k*-mer
-This is specially designed for metagenomics assembly to recover low coverage sequence. You can disable it by adding `--no-mercy` option.
+This is specially designed for metagenomics assembly to recover low coverage sequence. You can disable it with `--no-mercy` option.
 
 License
 -----------------------
