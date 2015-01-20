@@ -39,6 +39,7 @@ struct Phase1Options {
     int num_output_threads;
     std::string input_file;
     std::string output_prefix;
+    int mem_flag;
 
     Phase1Options() {
         kmer_k = 21;
@@ -50,6 +51,7 @@ struct Phase1Options {
         num_output_threads = 0;
         input_file = "";
         output_prefix = "out";
+        mem_flag = 1;
     }
 } phase1_options;
 
@@ -63,6 +65,7 @@ struct Phase2Options {
     int max_read_length;
     std::string input_prefix;
     std::string output_prefix;
+    int mem_flag;
 
     Phase2Options() {
         need_mercy = false;
@@ -72,6 +75,7 @@ struct Phase2Options {
         num_cpu_threads = 0;
         num_output_threads = 0;
         max_read_length = 120;
+        mem_flag = 1;
 
         input_prefix = "";
         output_prefix = "out";
@@ -83,13 +87,14 @@ void ParsePhase1Option(int argc, char *argv[]) {
 
     desc.AddOption("kmer_k", "k", phase1_options.kmer_k, "kmer size");
     desc.AddOption("min_kmer_frequency", "m", phase1_options.min_edge_freq, "min frequency to output an edge");
-    desc.AddOption("host_mem", "", phase1_options.host_mem, "memory to be used. No more than 95% of the free memory is recommended. 0 for auto detect.");
+    desc.AddOption("host_mem", "", phase1_options.host_mem, "Max memory to be used. 90% of the free memory is recommended.");
     desc.AddOption("gpu_mem", "", phase1_options.gpu_mem, "gpu memory to be used. 0 for auto detect.");
     desc.AddOption("max_read_length", "", phase1_options.max_read_length, "max read length");
     desc.AddOption("num_cpu_threads", "", phase1_options.num_cpu_threads, "number of CPU threads. At least 2.");
     desc.AddOption("num_output_threads", "", phase1_options.num_output_threads, "number of threads for output. Must be less than num_cpu_threads");
     desc.AddOption("input_file", "", phase1_options.input_file, "input fastx file, can be gzip'ed. \"-\" for stdin.");
     desc.AddOption("output_prefix", "", phase1_options.output_prefix, "output prefix");
+    desc.AddOption("mem_flag", "", phase1_options.mem_flag, "memory options. 0: minimize memory usage; 1: automatically use moderate memory; other: use all available mem specified by '--host_mem'");
 
     try {
         desc.Parse(argc, argv);
@@ -107,9 +112,6 @@ void ParsePhase1Option(int argc, char *argv[]) {
 
         if (phase1_options.host_mem == 0) {
             throw std::logic_error("Please specify the host memory!");
-            // struct sysinfo s_info;
-            // sysinfo(&s_info);
-            // phase1_options.host_mem = (s_info.freeram + s_info.bufferram) * 0.95;
         }
 
         if (phase1_options.gpu_mem == 0) {
@@ -150,6 +152,7 @@ void ParsePhase2Option(int argc, char *argv[]) {
     desc.AddOption("output_prefix", "o", phase2_options.output_prefix, "output prefix");
     desc.AddOption("need_mercy", "", phase2_options.need_mercy, "to add mercy edges. The file input_prefix.cand output by count module should exist.");
     desc.AddOption("max_read_length", "", phase2_options.max_read_length, "max read length");
+    desc.AddOption("mem_flag", "", phase2_options.mem_flag, "memory options. 0: minimize memory usage; 1: automatically use moderate memory; other: use all available mem specified by '--host_mem'");
 
     try {
         desc.Parse(argc, argv);
@@ -170,9 +173,6 @@ void ParsePhase2Option(int argc, char *argv[]) {
 
         if (phase2_options.host_mem == 0) {
             throw std::logic_error("Please specify the host memory!");
-            // struct sysinfo s_info;
-            // sysinfo(&s_info);
-            // phase2_options.host_mem = (s_info.freeram + s_info.bufferram) * 0.95;
         }
 
         if (phase2_options.gpu_mem == 0) {
@@ -230,6 +230,7 @@ int main(int argc, char** argv) {
         globals.phase1_num_output_threads = phase1_options.num_output_threads;
         globals.input_file = phase1_options.input_file.c_str();
         globals.output_prefix = phase1_options.output_prefix.c_str();
+        globals.mem_flag = phase1_options.mem_flag;
 
         log ("Host memory to be used: %ld\n", globals.host_mem);
         log ("Number CPU threads: %d\n", globals.num_cpu_threads);
@@ -254,6 +255,7 @@ int main(int argc, char** argv) {
         globals.phase2_input_prefix = phase2_options.input_prefix.c_str();
         globals.output_prefix = phase2_options.output_prefix.c_str();
         globals.max_read_length = phase2_options.max_read_length;
+        globals.mem_flag = phase2_options.mem_flag;
 
         log ("Host memory to be used: %ld\n", globals.host_mem);
         log ("Number CPU threads: %d\n", globals.num_cpu_threads);

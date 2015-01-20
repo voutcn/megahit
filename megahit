@@ -33,17 +33,18 @@ import multiprocessing
 from datetime import datetime, date, time
 
 usage_message = '''
-megahit version: 0.1.4
+megahit version: 0.2.0-alpha
 Copyright (c) The University of Hong Kong
 
 Usage:
-    ./megahit [options] -m <memory_to_use> -l <max_read_len> {-r <reads.fa> | --input_cmd <command>}
+    ./megahit [options] -m <max_memory_to_use> -l <max_read_len> {-r <reads.fa> | --input_cmd <command>}
 
 Required Arguments:
-    -m/--memory                    <float>      memory in byte to be used.
+    -m/--memory                    <float>      max memory in byte to be used.
                                                 This argument is used to optimize the graph building module,
-                                                but the program CANNOT guarantee how much memory will be used.
-                                                This value is recommended to be 90% of the machine's memory.
+                                                to prevent the SdBG builder from allocating memory large than this value.
+                                                This value is recommended to be 90% of machine's (free) memory.
+                                                The SdBG builder is unnecessary using all memory. Please refer to --mem-flag.
     -l/--max-read-len              <int>        maximum read length
     
   one of the two below arguments must be specified:       
@@ -56,15 +57,18 @@ Required Arguments:
                                                 fasta file, then use the "-r" option.
 
 Optional Arguments:
+  Hardware options:
+    --mem-flag                     <int>        How the SdBG build utilize memory. 
+                                                0: minimum; 1: moderate; others: use all memory specified by '-m/--memory'.
+                                                Default: 1.
+    --cpu-only                                  do not use GPU. Use CPU only.
+    --gpu-mem                      <float>      GPU memory in byte to be used. Default: auto detect to use up all free GPU memory. 
+    --t/--num-cpu-threads          <int>        Number of CPU threads, at least 2. Default: auto detect to use all CPU threads.
+
   Output options:
     -o/--out-dir                   <string>     output directory, default: ./megahit_out
     --min-contig-len               <int>        minimum length of contigs to output, default: 200
     --keep-tmp-files                            keep all temporary files
-
-  Hardware options:
-    --cpu-only                                  do not use GPU. Use CPU only.
-    --gpu-mem                      <float>      GPU memory in byte to be used. Default: auto detect to use up all free GPU memory. 
-    --t/--num-cpu-threads          <int>        Number of CPU threads, at least 2. Default: auto detect to use all CPU threads.
 
   Basic assembly options:
     --k-min                        <int>        minimum kmer size (<= 123), must be odd number, default: 21
@@ -113,14 +117,12 @@ temp_dir = out_dir + "tmp/"
 keep_tmp_files = 0
 builder = "sdbg_builder_gpu"
 cpu_only = 0
+mem_flag = 1
 
 def log_file_name():
-    global out_dir
     return out_dir + "log"
 
 def make_out_dir():
-    global out_dir
-    global temp_dir
     if os.path.exists(out_dir):
         pass
     else:
@@ -131,7 +133,34 @@ def make_out_dir():
     else:
         os.mkdir(temp_dir)
 
-def check_opt():
+def parse_opt(argv):
+    try:
+        opts, args = getopt.getopt(argv, "hm:l:o:r:t:", 
+                                    ["help",  
+                                     "memory=",
+                                     "max-read-len=",
+                                     "read-file=",
+                                     "input-cmd=",
+                                     "out-dir=",
+                                     "min-contig-len=",
+                                     "cpu-only",
+                                     "gpu-mem=",
+                                     "k-min=",
+                                     "k-max=",
+                                     "k-step=",
+                                     "min-count=",
+                                     "no-mercy",
+                                     "no-low-local",
+                                     "max-tip-len=",
+                                     "no-bubble",
+                                     "low-local-ratio=",
+                                     "keep-tmp-files",
+                                     "mem-flag="])
+    except getopt.error, msg:
+        raise Usage(msg)
+    if len(opts) == 0:
+        raise Usage(usage_message)
+
     global host_mem
     global gpu_mem
     global max_read_len
@@ -139,16 +168,75 @@ def check_opt():
     global input_cmd
     global out_dir
     global min_contig_len
+    global max_tip_len
     global k_min
     global k_max
     global k_step
     global min_count
+    global bin_dir
     global no_mercy
     global no_low_local
     global no_bubble
     global num_cpu_threads
     global low_local_ratio
     global cpu_only
+    global mem_flag
+    global temp_dir
+    global keep_tmp_files
+    global builder
+    global continue_mod
+
+    for option, value in opts:
+        if option in ("-h", "--help"):
+            raise Usage(usage_message)
+        elif option in ("-o", "--out-dir"):
+            out_dir = value + "/"
+            temp_dir = out_dir + "tmp/"
+        elif option in ("-r", "--readfile"):
+            read_file = value
+        elif option == "--input-cmd":
+            input_cmd = value
+        elif option in ("-m", "--memory"):
+            host_mem = long(float(value))
+        elif option == "--gpu-mem":
+            host_mem = long(float(value))
+        elif option in ("-l", "--max-read-len"):
+            max_read_len = int(value)
+        elif option == "--min-contig-len":
+            min_contig_len = int(value)
+        elif option in ("-t", "--num-cpu-threads"):
+            num_cpu_threads = int(value)
+        elif option == "--k-min":
+            k_min = int(value)
+        elif option == "--k-max":
+            k_max = int(value)
+        elif option == "--k-step":
+            k_step = int(value)
+        elif option == "--min-count":
+            min_count = int(value)
+        elif option == "--max-tip-len":
+            max_tip_len = int(value)
+        elif option == "--no-bubble":
+            no_bubble = 1
+        elif option == "--no-mercy":
+            no_mercy = 1
+        elif option == "--no-low-local":
+            no_low_local = 1
+        elif option == "--keep-tmp-files":
+            keep_tmp_files = 1
+        elif option == "--cpu-only":
+            cpu_only = 1
+            builder = "sdbg_builder_cpu"
+        elif option == "--mem-flag":
+            mem_flag = int(value)
+        else:
+            print >> sys.stderr, "Invalid option %s", option
+            exit(1)
+
+def check_opt():
+    global gpu_mem
+    global k_max
+    global num_cpu_threads
 
     if host_mem <= 0:
         print >> sys.stderr, "Memory must be greater than 0."
@@ -162,7 +250,7 @@ def check_opt():
         print >> sys.stderr, "No read_file or input_cmd."
         exit(1)
     if read_file != "" and input_cmd != "":
-        print >> sys.stderr, "Both read_file and input_cmd are specified. Please use only one of them."
+        print >> sys.stderr, "Both read_file and input_cmd are set. Please use only one of them."
         exit(1)
     if k_max >= max_read_len:
         k_max = int(max_read_len) / 2 * 2 - 1 
@@ -219,7 +307,6 @@ def check_bin():
         exit(1)
 
 def graph_prefix(kmer_k):
-    global temp_dir
     return temp_dir + "k" + str(kmer_k)
 
 def delect_file_if_exist(file_name):
@@ -252,24 +339,21 @@ def delete_temp_files(kmer_k):
                 delect_file_if_exist(graph_prefix(kmer_k) + ".mercy." + str(i))
         delect_file_if_exist(graph_prefix(kmer_k) + ".cand")
 
-def build_first_graph():
-    global host_mem
-    global gpu_mem
-    global max_read_len
-    global num_cpu_threads
-    global k_min
-    global min_count
-    global bin_dir
-    global temp_dir
-    global read_file
-    global input_cmd
+def write_check_point(cp):
+    cp = open(temp_dir + "cp_" + str(cp), "w")
+    cp.close()
 
+def write_opt():
+    fopen()
+
+def build_first_graph():
     phase1_out_threads = max(1, int(num_cpu_threads / 3))
 
     count_cmd = [bin_dir + builder, "count",
                    "-k", str(k_min),
                    "-m", str(min_count),
                    "--host_mem", str(host_mem),
+                   "--mem_flag", str(mem_flag),
                    "--gpu_mem", str(gpu_mem),
                    "--max_read_len", str(max_read_len),
                    "--output_prefix", graph_prefix(k_min),
@@ -306,22 +390,12 @@ def build_first_graph():
         if o.errno == errno.ENOTDIR or o.errno == errno.ENOENT:
             print >> sys.stderr, "Error: sub-program builder not found, please recompile MEGAHIT"
         exit(1) 
-
-
     build_graph(k_min, phase1_out_threads)
 
 def build_graph(kmer_k, num_edge_files):
-    global host_mem
-    global gpu_mem
-    global num_cpu_threads
-    global max_read_len
-    global bin_dir
-    global temp_dir
-    global no_mercy
-    global k_min
-
     build_cmd = [bin_dir + builder, "build",
                    "--host_mem", str(host_mem),
+                   "--mem_flag", str(mem_flag),
                    "--gpu_mem", str(gpu_mem),
                    "--input_prefix", graph_prefix(kmer_k),
                    "--output_prefix", graph_prefix(kmer_k),
@@ -350,13 +424,6 @@ def build_graph(kmer_k, num_edge_files):
         exit(1)
 
 def iterate(cur_k, step):
-    global bin_dir
-    global num_cpu_threads
-    global max_read_len
-    global k_min
-    global read_file
-    global input_cmd
-
     next_k = cur_k + step
     iterator = ""
     if next_k < 61:
@@ -427,15 +494,6 @@ def iterate(cur_k, step):
         exit(1)
 
 def assemble(cur_k):
-    global bin_dir
-    global k_max
-    global num_cpu_threads
-    global max_tip_len
-    global no_bubble
-    global no_low_local
-    global low_local_ratio
-    global min_contig_len
-
     assembly_cmd = [bin_dir + "megahit_assemble",
                     "-s", graph_prefix(cur_k),
                     "-o", graph_prefix(cur_k),
@@ -486,110 +544,19 @@ def main(argv = None):
         argv = sys.argv
 
     try:
-        try:
-            opts, args = getopt.getopt(argv[1:], "hm:l:o:r:t:", 
-                                        ["help",  
-                                         "memory=",
-                                         "max-read-len=",
-                                         "read-file=",
-                                         "input-cmd=",
-                                         "out-dir=",
-                                         "min-contig-len=",
-                                         "cpu-only",
-                                         "gpu-mem=",
-                                         "k-min=",
-                                         "k-max=",
-                                         "k-step=",
-                                         "min-count=",
-                                         "no-mercy",
-                                         "no-low-local",
-                                         "max-tip-len=",
-                                         "no-bubble",
-                                         "low-local-ratio=",
-                                         "keep-tmp-files"])
-        except getopt.error, msg:
-            raise Usage(msg)    
-        if len(opts) == 0:
-            raise Usage(usage_message)
-
-        global host_mem
-        global gpu_mem
-        global max_read_len
-        global read_file
-        global input_cmd
-        global out_dir
-        global min_contig_len
-        global max_tip_len
-        global k_min
-        global k_max
-        global k_step
-        global min_count
-        global bin_dir
-        global no_mercy
-        global no_low_local
-        global no_bubble
-        global num_cpu_threads
-        global low_local_ratio
-        global temp_dir
-        global keep_tmp_files
-        global builder
-
-        for option, value in opts:
-            if option in ("-h", "--help"):
-                raise Usage(usage_message)
-            elif option in ("-o", "--out-dir"):
-                out_dir = value + "/"
-                temp_dir = out_dir + "tmp/"
-            elif option in ("-r", "--readfile"):
-                read_file = value
-            elif option == "--input-cmd":
-                input_cmd = value
-            elif option in ("-m", "--memory"):
-                host_mem = long(float(value))
-            elif option == "--gpu-mem":
-                host_mem = long(float(value))
-            elif option in ("-l", "--max-read-len"):
-                max_read_len = int(value)
-            elif option == "--min-contig-len":
-                min_contig_len = int(value)
-            elif option in ("-t", "--num-cpu-threads"):
-                num_cpu_threads = int(value)
-            elif option == "--k-min":
-                k_min = int(value)
-            elif option == "--k-max":
-                k_max = int(value)
-            elif option == "--k-step":
-                k_step = int(value)
-            elif option == "--min-count":
-                min_count = int(value)
-            elif option == "--max-tip-len":
-                max_tip_len = int(value)
-            elif option == "--no-bubble":
-                no_bubble = 1
-            elif option == "--no-mercy":
-                no_mercy = 1
-            elif option == "--no-low-local":
-                no_low_local = 1
-            elif option == "--keep-tmp-files":
-                keep_tmp_files = 1
-            elif option == "--cpu-only":
-                cpu_only = 1
-                builder = "sdbg_builder_cpu"
-            else:
-                print >> sys.stderr, "Invalid option %s", option
-                exit(1)
-
-        check_opt()
         check_bin()
+        parse_opt(argv[1:])
+        check_opt()
 
         start_time = datetime.now()  
-        print >> sys.stderr, "MEAGHIT v0.1.4"
+        print >> sys.stderr, "MEAGHIT v0.2.0-alpha"
         print >> sys.stderr, "[%s] Start assembly. Number of CPU threads %d." % (start_time.strftime("%c"), num_cpu_threads)
 
         make_out_dir()
         build_first_graph()
         assemble(k_min)
 
+        global k_step
         cur_k = k_min
         while cur_k < k_max:
             next_k = min(cur_k + k_step, k_max)
@@ -617,7 +584,7 @@ def main(argv = None):
 
         log_file = open(log_file_name(), "a")
 
-        start_time = datetime.now()        
+        start_time = datetime.now()
         print >> sys.stderr, "[%s] ALL DONE." % (start_time.strftime("%c"))
         print >> log_file, "[%s] ALL DONE." % (start_time.strftime("%c"))
         log_file.flush()

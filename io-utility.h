@@ -26,8 +26,10 @@
 #include <vector>
 #include <zlib.h>
 #include "definitions.h"
-#include "fastx_reader.h"
+#include "kseq.h"
 #include "mem_file_checker-inl.h"
+
+KSEQ_INIT(gzFile, gzread)
 
 struct ContigPackage {
     const static unsigned kMaxNumChars = (1 << 30); // tunable
@@ -38,19 +40,20 @@ struct ContigPackage {
     std::vector<multi_t> multiplicity;
     int cur_pos;
 
-    void ReadContigs(FastxReader &fastx_reader, std::string &seq_buffer, char *dna_map) {
+    void ReadContigs(kseq_t *seq, char *dna_map) {
         clear();
-        while (!fastx_reader.eof()) {
-            fastx_reader.NextSeq(seq_buffer);
-            if (seq_buffer.length() == 0) {
+        while (kseq_read(seq) >= 0) {
+            if (seq->seq.l == 0) {
                 continue;
             }
-            for (unsigned i = 0; i < seq_buffer.size(); ++i) {
-                seq_buffer[i] = dna_map[(uint8_t)seq_buffer[i]];
-            }
+
             start_pos.push_back(seqs.size());
-            seqs.append(seq_buffer);
-            seq_lengths.push_back(seq_buffer.length());
+            
+            for (unsigned i = 0; i < seq->seq.l; ++i) {
+                seqs.push_back(dna_map[uint8_t(seq->seq.s[i])]);
+            }
+
+            seq_lengths.push_back(seq->seq.l);
             if (seqs.length() >= kMaxNumChars) {
                 break;
             }
@@ -113,12 +116,11 @@ struct ReadPackage {
         }
     }
 
-    void ReadFastxReads(FastxReader &fastx_reader, std::string &seq_buffer, char *dna_map) {
+    void ReadFastxReads(kseq_t *seq, char *dna_map) {
         clear();
         edge_word_t *cur_p = packed_reads;
-        while (!fastx_reader.eof()) {
-            fastx_reader.NextSeq(seq_buffer);
-            if ((int)seq_buffer.length() > max_read_len) {
+        while (kseq_read(seq) >= 0) {
+            if (int(seq->seq.l) > max_read_len) {
                 fprintf(stderr, "Warning, a read longer the max_read_len: %d\n", max_read_len);
                 continue;
             }
@@ -126,8 +128,8 @@ struct ReadPackage {
             edge_word_t w = 0;
             int index = 0;
             int cur_word = 0;
-            for (unsigned i = 0; i < seq_buffer.length(); ++i) {
-                w = (w << 2) | dna_map[(uint8_t)seq_buffer[i]];
+            for (unsigned i = 0; i < seq->seq.l; ++i) {
+                w = (w << 2) | dna_map[uint8_t(seq->seq.s[i])];
                 ++index;
                 if (index % 16 == 0) {
                     *(cur_p + cur_word) = w;
@@ -144,7 +146,7 @@ struct ReadPackage {
                 *(cur_p + cur_word) = 0;
                 ++cur_word;
             }
-            *(cur_p + words_per_read - 1) |= seq_buffer.length();
+            *(cur_p + words_per_read - 1) |= seq->seq.l;
 
             num_of_reads++;
             cur_p += words_per_read;
@@ -154,12 +156,11 @@ struct ReadPackage {
         }
     }
 
-    void ReadFastxReadsAndReverse(FastxReader &fastx_reader, std::string &seq_buffer, char *dna_map) {
+    void ReadFastxReadsAndReverse(kseq_t *seq, char *dna_map) {
         clear();
         edge_word_t *cur_p = packed_reads;
-        while (!fastx_reader.eof()) {
-            fastx_reader.NextSeq(seq_buffer);
-            if ((int)seq_buffer.length() > max_read_len) {
+        while (kseq_read(seq) >= 0) {
+            if ((int)(seq->seq.l) > max_read_len) {
                 fprintf(stderr, "Warning, a read longer the max_read_len: %d\n", max_read_len);
                 continue;
             }
@@ -167,8 +168,8 @@ struct ReadPackage {
             edge_word_t w = 0;
             int index = 0;
             int cur_word = 0;
-            for (int i = seq_buffer.length() - 1; i >= 0; --i) {
-                w = (w << 2) | dna_map[(uint8_t)seq_buffer[i]];
+            for (int i = seq->seq.l - 1; i >= 0; --i) {
+                w = (w << 2) | dna_map[uint8_t(seq->seq.s[i])];
                 ++index;
                 if (index % 16 == 0) {
                     *(cur_p + cur_word) = w;
@@ -185,7 +186,7 @@ struct ReadPackage {
                 *(cur_p + cur_word) = 0;
                 ++cur_word;
             }
-            *(cur_p + words_per_read - 1) |= seq_buffer.length();
+            *(cur_p + words_per_read - 1) |= seq->seq.l;
 
             num_of_reads++;
             cur_p += words_per_read;

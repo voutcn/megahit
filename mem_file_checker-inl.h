@@ -67,6 +67,7 @@ inline void* ReAllocAndCheck(void *ptr,
         err("1) Not enough memory.\n");
         err("2) The ARRAY may be overrode.\n");
         err("3) The wild pointers.\n");
+        free(ptr);
         exit(-1);
     }
 }

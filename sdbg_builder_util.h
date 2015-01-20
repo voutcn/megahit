@@ -66,6 +66,7 @@ struct global_data_t {
     int num_cpu_threads;
     int64_t host_mem;
     int64_t gpu_mem;
+    int mem_flag;
 
     const char *input_file;
     const char *phase2_input_prefix;
@@ -75,6 +76,9 @@ struct global_data_t {
     int words_per_edge; // number of (32-bit) words needed to represent a (k+1)-mer
     int64_t words_per_substring; // substrings to be sorted by GPU
     int offset_num_bits; // the number of bits needed to store the offset of a base in the read/(k+1)-mer (i.e. log(read_length))
+    int64_t capacity;
+    int64_t max_bucket_size;
+    int64_t tot_bucket_size;
 
     struct readpartition_data_t readpartitions[kMaxNumCPUThreads];
     struct bucketpartition_data_t bucketpartitions[kMaxNumCPUThreads];
@@ -187,11 +191,16 @@ static const int kTopCharShift = kBitsPerEdgeWord - kBitsPerEdgeChar; // bits >>
 static const uint32_t kDifferentialLimit = 2147483647; // 32-bit signed max int
 static const int kSignBitMask = 0x80000000; // the MSB of 32-bit
 
+// can be modified, efficiency related
+static const int64_t kMinLv2BatchSize = 2097152;
+static const int kDefaultLv1ScanTime = 8;
+static const int kMaxLv1ScanTime = 64;
+
 namespace phase1 {
 // definitions
 static const int kBucketPrefixLength = 8;
 static const int kBucketBase = 4;
-static const int kNumBuckets = 65536;
+static const int kNumBuckets = 65536; // pow(4, 8)
 
 void Phase1Entry(struct global_data_t &globals);
 
@@ -201,7 +210,7 @@ namespace phase2 {
 // definitions
 static const int kBucketPrefixLength = 8; // less than 16 (chars per word)
 static const int kBucketBase = 5;
-static const int kNumBuckets = 390625;
+static const int kNumBuckets = 390625; // pow(5, 8)
 // binary search look up table
 static const int kLookUpPrefixLength = 12;
 static const int kLookUpShift = 32 - kLookUpPrefixLength * 2;
