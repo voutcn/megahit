@@ -277,7 +277,7 @@ void ReadInputFile(struct global_data_t &globals) {
                 packed_reads_p += globals.words_per_read;
                 ++num_reads;
             } else if (scan_len > globals.max_read_length) { // this read length is wrong
-                err("[B::%s WARNING] Found a read of length %d > max read length = %d\n", __func__, scan_len, globals.max_read_length);
+                err("[B::%s WARNING] Found a read of length %d > max read length = %d\n, it will be discarded.", __func__, scan_len, globals.max_read_length);
             }
 
             while (scan_len < read_length && next_p[scan_len] == 'N') {
@@ -292,7 +292,7 @@ void ReadInputFile(struct global_data_t &globals) {
     globals.mem_packed_reads = globals.num_reads * globals.words_per_read * sizeof(edge_word_t);
     globals.packed_reads = (edge_word_t*) ReAllocAndCheck(packed_reads, globals.mem_packed_reads, __FILE__, __LINE__);
     if (!globals.packed_reads) {
-        err("[B::%s ERROR] Cannot re allocate memory for packed reads!\n", __func__);
+        err("[B::%s ERROR] Cannot reallocate memory for packed reads!\n", __func__);
         exit(1);
     }
 
