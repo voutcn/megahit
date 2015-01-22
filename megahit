@@ -293,9 +293,6 @@ def check_bin():
     if not os.path.exists(bin_dir + "megahit_assemble"):
         print >> sys.stderr, "Cannot find sub-program \"megahit_assemble\", please recompile."
         exit(1)
-    if not os.path.exists(bin_dir + builder):
-        print >> sys.stderr, "Cannot find sub-program \"%s\", please recompile." % builder
-        exit(1)
     if not os.path.exists(bin_dir + "megahit_iter_k61"):
         print >> sys.stderr, "Cannot find sub-program \"megahit_iter_k61\", please recompile."
         exit(1)
@@ -304,6 +301,13 @@ def check_bin():
         exit(1)
     if not os.path.exists(bin_dir + "megahit_iter_k124"):
         print >> sys.stderr, "Cannot find sub-program \"megahit_iter_k124\", please recompile."
+        exit(1)
+
+def check_builder():
+    if not os.path.exists(bin_dir + builder):
+        print >> sys.stderr, "Cannot find sub-program \"%s\", please recompile." % builder
+        if cpu_only == 0:
+            print >> sys.stderr, "Or if you want to use the CPU-only version, please run MEGAHIT with \"--cpu-only\""
         exit(1)
 
 def graph_prefix(kmer_k):
@@ -547,6 +551,7 @@ def main(argv = None):
         check_bin()
         parse_opt(argv[1:])
         check_opt()
+        check_builder()
 
         start_time = datetime.now()  
         print >> sys.stderr, "MEAGHIT v0.2.0-alpha"
