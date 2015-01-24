@@ -87,7 +87,8 @@ Optional Arguments:
                                                 Default: 2*k for iteration of kmer_size=k
     --no-bubble                                 Do not remove bubbles, default: off
 
-Other Arguments:    
+Other Arguments:
+    --continue                                  continue from the last available check point
     -h/--help                                   print the usage message      
 '''
 
@@ -120,8 +121,11 @@ class Options():
         self.builder = "sdbg_builder_gpu"
         self.cpu_only = 0
         self.mem_flag = 1
+        self.continue_mode = 0;
+        self.last_cp = -1;
 
 opt = Options()
+cp = 0
 
 def log_file_name():
     return opt.out_dir + "log"
@@ -159,20 +163,22 @@ def parse_opt(argv):
                                      "no-bubble",
                                      "low-local-ratio=",
                                      "keep-tmp-files",
-                                     "mem-flag="])
+                                     "mem-flag=",
+                                     "continue"])
     except getopt.error, msg:
         raise Usage(megahit_version_str + '\n' + str(msg))
     if len(opts) == 0:
         raise Usage(megahit_version_str + '\n' + usage_message)
 
     global opt
+    need_continue = False
 
     for option, value in opts:
         if option in ("-h", "--help"):
             raise Usage(megahit_version_str + '\n' + usage_message)
         elif option in ("-o", "--out-dir"):
             opt.out_dir = value + "/"
-            opt.temp_dir = out_dir + "tmp/"
+            opt.temp_dir = opt.out_dir + "tmp/"
         elif option in ("-r", "--readfile"):
             opt.read_file = value
         elif option == "--input-cmd":
@@ -210,13 +216,17 @@ def parse_opt(argv):
             opt.builder = "sdbg_builder_cpu"
         elif option == "--mem-flag":
             opt.mem_flag = int(value)
+        elif option == "--continue":
+            need_continue = True
         else:
             print >> sys.stderr, "Invalid option %s", option
             exit(1)
 
+        if need_continue:
+            prepare_continue()
+
 def check_opt():
     global opt
-
     if opt.host_mem <= 0:
         print >> sys.stderr, "Memory must be greater than 0."
         exit(1)
@@ -267,6 +277,40 @@ def check_opt():
     if opt.num_cpu_threads <= 1:
         print >> sys.stderr, "num_cpu_threads should be at least 2."
         exit(1)
+
+def write_opt(argv):
+    with open(opt.out_dir + "opts.txt", "w") as f:
+        print >> f, " ".join(argv)
+
+def prepare_continue():
+    global opt # out_dir is already set
+    print >> sys.stderr, "Continue mode activated. Ignore all options other than -o/--out-dir."
+
+    if not os.path.exists(opt.out_dir + "opts.txt"):
+        print >> sys.stderr, "Cannot find" + opt.out_dir + "opts.txt"
+        print >> sys.stderr, "Please check whether the output directory is correctly set by \"-o\""
+        exit(1)
+
+    with open(opt.out_dir + "opts.txt", "r") as f:
+        line = f.readline()
+        argv = line.strip().split()
+        print >> sys.stderr, "Continue with options: " + line.strip()
+        opt = Options()
+        parse_opt(argv)
+        opt.continue_mode = 1
+    f.close()
+
+    opt.last_cp = -1
+    if os.path.exists(opt.temp_dir + "cp.txt"):
+        with open(opt.temp_dir + "cp.txt", "r") as cpf:
+            for line in cpf:
+                a = line.strip().split()
+                if len(a) == 2 and a[1] == "done":
+                    opt.last_cp = int(a[0])
+        cpf.close()
+    print >> sys.stderr, "Continue from check point " + str(opt.last_cp) 
+
+
 
 def check_bin():
     if not os.path.exists(opt.bin_dir + "megahit_assemble"):
@@ -322,193 +366,216 @@ def delete_temp_files(kmer_k):
                 delect_file_if_exist(graph_prefix(kmer_k) + ".mercy." + str(i))
         delect_file_if_exist(graph_prefix(kmer_k) + ".cand")
 
-def write_check_point(cp):
-    cp = open(opt.temp_dir + "cp_" + str(cp), "w")
-    cp.close()
+def write_cp(cp):
+    cpf = open(opt.temp_dir + "cp.txt", "a")
+    print >> cpf, "\n" + str(cp) + "\t" + "done";
+    cpf.flush()
+    cpf.close()
 
 def build_first_graph():
+    global cp
     phase1_out_threads = max(1, int(opt.num_cpu_threads / 3))
-
-    count_cmd = [opt.bin_dir + opt.builder, "count",
-                   "-k", str(opt.k_min),
-                   "-m", str(opt.min_count),
-                   "--host_mem", str(opt.host_mem),
-                   "--mem_flag", str(opt.mem_flag),
-                   "--gpu_mem", str(opt.gpu_mem),
-                   "--max_read_len", str(opt.max_read_len),
-                   "--output_prefix", graph_prefix(opt.k_min),
-                   "--num_cpu_threads", str(opt.num_cpu_threads),
-                   "--num_output_threads", str(phase1_out_threads)]
-    if opt.read_file != "":
-        count_cmd.append("--input_file")
-        count_cmd.append(opt.read_file)
-    else:
-        count_cmd.append("--input_file")
-        count_cmd.append("-")
-
-    try:
-        log_file = open(log_file_name(), "a")
-        start_time = datetime.now()
-        print >> log_file, "%s" % (" ").join(count_cmd)
-        print >> sys.stderr, "[%s] Extracting solid (k+1)-mers for k = %d" % (start_time.strftime("%c"), opt.k_min)
-        print >> log_file, "[%s] Extracting solid (k+1)-mers for k = %d" % (start_time.strftime("%c"), opt.k_min)
-        log_file.flush()
-        if opt.read_file == "":
-            input_thread = subprocess.Popen(opt.input_cmd, shell = True, stdout = subprocess.PIPE)
-            cmd_thread = subprocess.Popen(count_cmd, stdin = input_thread.stdout, stdout = log_file)
-            cmd_thread.wait()
-            ret_code = cmd_thread.returncode
+    if (not opt.continue_mode) or (cp > opt.last_cp):
+        count_cmd = [opt.bin_dir + opt.builder, "count",
+                       "-k", str(opt.k_min),
+                       "-m", str(opt.min_count),
+                       "--host_mem", str(opt.host_mem),
+                       "--mem_flag", str(opt.mem_flag),
+                       "--gpu_mem", str(opt.gpu_mem),
+                       "--max_read_len", str(opt.max_read_len),
+                       "--output_prefix", graph_prefix(opt.k_min),
+                       "--num_cpu_threads", str(opt.num_cpu_threads),
+                       "--num_output_threads", str(phase1_out_threads)]
+        if opt.read_file != "":
+            count_cmd.append("--input_file")
+            count_cmd.append(opt.read_file)
         else:
-            ret_code = subprocess.call(count_cmd, stdout = log_file)
-        if ret_code != 0:
-            print >> sys.stderr, "Error occurs when running \"builder count\""
-            print >> sys.stderr, "[Exit code %d] " % ret_code
-            exit(ret_code)
-        log_file.close()
+            count_cmd.append("--input_file")
+            count_cmd.append("-")
 
-    except OSError, o:
-        if o.errno == errno.ENOTDIR or o.errno == errno.ENOENT:
-            print >> sys.stderr, "Error: sub-program builder not found, please recompile MEGAHIT"
-        exit(1) 
+        try:
+            log_file = open(log_file_name(), "a")
+            start_time = datetime.now()
+            print >> log_file, "%s" % (" ").join(count_cmd)
+            print >> sys.stderr, "[%s] Extracting solid (k+1)-mers for k = %d" % (start_time.strftime("%c"), opt.k_min)
+            print >> log_file, "[%s] Extracting solid (k+1)-mers for k = %d" % (start_time.strftime("%c"), opt.k_min)
+            log_file.flush()
+            if opt.read_file == "":
+                input_thread = subprocess.Popen(opt.input_cmd, shell = True, stdout = subprocess.PIPE)
+                cmd_thread = subprocess.Popen(count_cmd, stdin = input_thread.stdout, stdout = log_file)
+                cmd_thread.wait()
+                ret_code = cmd_thread.returncode
+            else:
+                ret_code = subprocess.call(count_cmd, stdout = log_file)
+            if ret_code != 0:
+                print >> sys.stderr, "Error occurs when running \"builder count\""
+                print >> sys.stderr, "[Exit code %d] " % ret_code
+                exit(ret_code)
+            log_file.close()
+
+        except OSError, o:
+            if o.errno == errno.ENOTDIR or o.errno == errno.ENOENT:
+                print >> sys.stderr, "Error: sub-program builder not found, please recompile MEGAHIT"
+            exit(1)
+
+    write_cp(cp)
+    cp = cp + 1
+
     build_graph(opt.k_min, phase1_out_threads)
 
 def build_graph(kmer_k, num_edge_files):
-    build_cmd = [opt.bin_dir + opt.builder, "build",
-                   "--host_mem", str(opt.host_mem),
-                   "--mem_flag", str(opt.mem_flag),
-                   "--gpu_mem", str(opt.gpu_mem),
-                   "--input_prefix", graph_prefix(kmer_k),
-                   "--output_prefix", graph_prefix(kmer_k),
-                   "--max_read_len", str(opt.max_read_len),
-                   "--num_cpu_threads", str(opt.num_cpu_threads),
-                   "--num_edge_files", str(num_edge_files)]
-    if opt.no_mercy == 0 and kmer_k == opt.k_min:
-        build_cmd.append("--need_mercy")
+    global cp
+    if (not opt.continue_mode) or (cp > opt.last_cp):
+        if os.path.getsize(graph_prefix(kmer_k) + ".edges.0") == 0:
+            return False # not build
+        build_cmd = [opt.bin_dir + opt.builder, "build",
+                       "--host_mem", str(opt.host_mem),
+                       "--mem_flag", str(opt.mem_flag),
+                       "--gpu_mem", str(opt.gpu_mem),
+                       "--input_prefix", graph_prefix(kmer_k),
+                       "--output_prefix", graph_prefix(kmer_k),
+                       "--max_read_len", str(opt.max_read_len),
+                       "--num_cpu_threads", str(opt.num_cpu_threads),
+                       "--num_edge_files", str(num_edge_files)]
+        if opt.no_mercy == 0 and kmer_k == opt.k_min:
+            build_cmd.append("--need_mercy")
 
-    try:
-        log_file = open(log_file_name(), "a")
-        start_time = datetime.now()
-        print >> log_file, "%s" % (" ").join(build_cmd)
-        print >> sys.stderr, "[%s] Building graph for k = %d" % (start_time.strftime("%c"), kmer_k)
-        print >> log_file, "[%s] Building graph for k = %d" % (start_time.strftime("%c"), kmer_k)
-        log_file.flush()
-        ret_code = subprocess.call(build_cmd, stdout = log_file)
-        if ret_code != 0:
-            print >> sys.stderr, "Error occurs when running \"builder build\" for k = %d" % kmer_k
-            print >> sys.stderr, "[Exit code %d]" % ret_code
-            exit(ret_code)
-        log_file.close()
-    except OSError, o:
-        if o.errno == errno.ENOTDIR or o.errno == errno.ENOENT:
-            print >> sys.stderr, "Error: sub-program builder not found, please recompile MEGAHIT"
-        exit(1)
+        try:
+            log_file = open(log_file_name(), "a")
+            start_time = datetime.now()
+            print >> log_file, "%s" % (" ").join(build_cmd)
+            print >> sys.stderr, "[%s] Building graph for k = %d" % (start_time.strftime("%c"), kmer_k)
+            print >> log_file, "[%s] Building graph for k = %d" % (start_time.strftime("%c"), kmer_k)
+            log_file.flush()
+            ret_code = subprocess.call(build_cmd, stdout = log_file)
+            if ret_code != 0:
+                print >> sys.stderr, "Error occurs when running \"builder build\" for k = %d" % kmer_k
+                print >> sys.stderr, "[Exit code %d]" % ret_code
+                exit(ret_code)
+            log_file.close()
+        except OSError, o:
+            if o.errno == errno.ENOTDIR or o.errno == errno.ENOENT:
+                print >> sys.stderr, "Error: sub-program builder not found, please recompile MEGAHIT"
+            exit(1) 
+
+    write_cp(cp)
+    cp = cp + 1
+    return True
 
 def iterate(cur_k, step):
-    next_k = cur_k + step
-    iterator = ""
-    if next_k < 61:
-        iterator = opt.bin_dir + "megahit_iter_k61"
-    elif next_k < 92:
-        iterator = opt.bin_dir + "megahit_iter_k92"
-    else:
-        iterator = opt.bin_dir + "megahit_iter_k124"
+    global cp
+    if (not opt.continue_mode) or (cp > opt.last_cp):
+        next_k = cur_k + step
+        iterator = ""
+        if next_k < 61:
+            iterator = opt.bin_dir + "megahit_iter_k61"
+        elif next_k < 92:
+            iterator = opt.bin_dir + "megahit_iter_k92"
+        else:
+            iterator = opt.bin_dir + "megahit_iter_k124"
 
-    iterate_cmd = [iterator,
-                   "-c", graph_prefix(cur_k) + ".contigs.fa",
-                   "-m", graph_prefix(cur_k) + ".multi",
-                   "-t", str(opt.num_cpu_threads),
-                   "-k", str(cur_k),
-                   "-s", str(step),
-                   "-o", graph_prefix(next_k),
-                   "-l", str(opt.max_read_len)]
+        iterate_cmd = [iterator,
+                       "-c", graph_prefix(cur_k) + ".contigs.fa",
+                       "-m", graph_prefix(cur_k) + ".multi",
+                       "-t", str(opt.num_cpu_threads),
+                       "-k", str(cur_k),
+                       "-s", str(step),
+                       "-o", graph_prefix(next_k),
+                       "-l", str(opt.max_read_len)]
 
-    if opt.no_low_local == 0:
-        iterate_cmd.append("--addi_contig_file")
-        iterate_cmd.append(graph_prefix(cur_k) + ".addi.fa")
-        iterate_cmd.append("--addi_multi_file")
-        iterate_cmd.append(graph_prefix(cur_k) + ".addi.multi")
+        if opt.no_low_local == 0:
+            iterate_cmd.append("--addi_contig_file")
+            iterate_cmd.append(graph_prefix(cur_k) + ".addi.fa")
+            iterate_cmd.append("--addi_multi_file")
+            iterate_cmd.append(graph_prefix(cur_k) + ".addi.multi")
 
-    if cur_k == opt.k_min:
-        if opt.read_file == "":
-            iterate_cmd.append("-r")
-            iterate_cmd.append("-")
+        if cur_k == opt.k_min:
+            if opt.read_file == "":
+                iterate_cmd.append("-r")
+                iterate_cmd.append("-")
+            else:
+                iterate_cmd.append("-r")
+                iterate_cmd.append(opt.read_file)
+
+            iterate_cmd.append("-f")
+            iterate_cmd.append("fasta")
+
         else:
             iterate_cmd.append("-r")
-            iterate_cmd.append(opt.read_file)
+            iterate_cmd.append(graph_prefix(cur_k) + ".rr.pb")
+            iterate_cmd.append("-f")
+            iterate_cmd.append("binary")
 
-        iterate_cmd.append("-f")
-        iterate_cmd.append("fasta")
+        try:
+            log_file = open(log_file_name(), "a")
+            start_time = datetime.now()
+            print >> log_file, "%s" % (" ").join(iterate_cmd)
+            print >> sys.stderr, "[%s] Extracting iterative edges from k = %d to %d" % (start_time.strftime("%c"), cur_k, next_k)
+            print >> log_file, "[%s] Extracting iterative edges from k = %d to %d" % (start_time.strftime("%c"), cur_k, next_k)
+            log_file.flush()
 
-    else:
-        iterate_cmd.append("-r")
-        iterate_cmd.append(graph_prefix(cur_k) + ".rr.pb")
-        iterate_cmd.append("-f")
-        iterate_cmd.append("binary")
+            ret_code = 0
+            if cur_k == opt.k_min and opt.read_file == "":
+                input_thread = subprocess.Popen(opt.input_cmd, shell = True, stdout = subprocess.PIPE)
+                cmd_thread = subprocess.Popen(iterate_cmd, stdin = input_thread.stdout, stdout = log_file)
+                cmd_thread.wait()
+                ret_code = cmd_thread.returncode
+            else:
+                ret_code = subprocess.call(iterate_cmd, stdout = log_file)
+            if ret_code != 0:
+                print >> sys.stderr, "Error occurs when running iterator for k = %d to k = %d " % (cur_k, next_k)
+                print >> sys.stderr, "[Exit code %d]" % ret_code
+                exit(ret_code)
 
-    try:
-        log_file = open(log_file_name(), "a")
-        start_time = datetime.now()
-        print >> log_file, "%s" % (" ").join(iterate_cmd)
-        print >> sys.stderr, "[%s] Extracting iterative edges from k = %d to %d" % (start_time.strftime("%c"), cur_k, next_k)
-        print >> log_file, "[%s] Extracting iterative edges from k = %d to %d" % (start_time.strftime("%c"), cur_k, next_k)
-        log_file.flush()
+            log_file.close()
 
-        ret_code = 0
-        if cur_k == opt.k_min and opt.read_file == "":
-            input_thread = subprocess.Popen(opt.input_cmd, shell = True, stdout = subprocess.PIPE)
-            cmd_thread = subprocess.Popen(iterate_cmd, stdin = input_thread.stdout, stdout = log_file)
-            cmd_thread.wait()
-            ret_code = cmd_thread.returncode
-        else:
-            ret_code = subprocess.call(iterate_cmd, stdout = log_file)
-        if ret_code != 0:
-            print >> sys.stderr, "Error occurs when running iterator for k = %d to k = %d " % (cur_k, next_k)
-            print >> sys.stderr, "[Exit code %d]" % ret_code
-            exit(ret_code)
-
-        log_file.close()
-
-    except OSError, o:
-        if o.errno == errno.ENOTDIR or o.errno == errno.ENOENT:
-            print >> sys.stderr, "Error: sub-program iterater_edge not found, please recompile MEGAHIT"
-        exit(1)
+        except OSError, o:
+            if o.errno == errno.ENOTDIR or o.errno == errno.ENOENT:
+                print >> sys.stderr, "Error: sub-program iterater_edge not found, please recompile MEGAHIT"
+            exit(1)
+    write_cp(cp)
+    cp = cp + 1
 
 def assemble(cur_k):
-    assembly_cmd = [opt.bin_dir + "megahit_assemble",
-                    "-s", graph_prefix(cur_k),
-                    "-o", graph_prefix(cur_k),
-                    "-t", str(opt.num_cpu_threads),
-                    "--max_tip_len", str(opt.max_tip_len),
-                    "--min_final_contig_len", str(opt.min_contig_len)]
+    global cp
+    if (not opt.continue_mode) or (cp > opt.last_cp):
+        assembly_cmd = [opt.bin_dir + "megahit_assemble",
+                        "-s", graph_prefix(cur_k),
+                        "-o", graph_prefix(cur_k),
+                        "-t", str(opt.num_cpu_threads),
+                        "--max_tip_len", str(opt.max_tip_len),
+                        "--min_final_contig_len", str(opt.min_contig_len)]
 
-    if opt.no_bubble == 1:
-        assembly_cmd.append("--no_bubble")
-    if opt.no_low_local == 0:
-        assembly_cmd.append("--remove_low_local")
-        assembly_cmd.append("--low_local_ratio")
-        assembly_cmd.append(str(opt.low_local_ratio))
-    if cur_k == opt.k_max:
-        assembly_cmd.append("--is_final_round")
+        if opt.no_bubble == 1:
+            assembly_cmd.append("--no_bubble")
+        if opt.no_low_local == 0:
+            assembly_cmd.append("--remove_low_local")
+            assembly_cmd.append("--low_local_ratio")
+            assembly_cmd.append(str(opt.low_local_ratio))
+        if cur_k == opt.k_max:
+            assembly_cmd.append("--is_final_round")
 
-    try:
-        log_file = open(log_file_name(), "a")
-        start_time = datetime.now()
-        print >> log_file, "%s" % (" ").join(assembly_cmd)
-        print >> sys.stderr, "[%s] Assembling contigs from SdBG for k = %d" % (start_time.strftime("%c"), cur_k)
-        print >> log_file, "[%s] Assembling contigs from SdBG for k = %d" % (start_time.strftime("%c"), cur_k)
-        log_file.flush()
-        ret_code = subprocess.call(assembly_cmd, stdout = log_file)
-        if ret_code != 0:
-            print >> sys.stderr, "Error occurs when assembling contigs for k = %d" % cur_k
-            print >> sys.stderr, "[Exit code %d]" % ret_code
-            exit(ret_code)
+        try:
+            log_file = open(log_file_name(), "a")
+            start_time = datetime.now()
+            print >> log_file, "%s" % (" ").join(assembly_cmd)
+            print >> sys.stderr, "[%s] Assembling contigs from SdBG for k = %d" % (start_time.strftime("%c"), cur_k)
+            print >> log_file, "[%s] Assembling contigs from SdBG for k = %d" % (start_time.strftime("%c"), cur_k)
+            log_file.flush()
+            ret_code = subprocess.call(assembly_cmd, stdout = log_file)
+            if ret_code != 0:
+                print >> sys.stderr, "Error occurs when assembling contigs for k = %d" % cur_k
+                print >> sys.stderr, "[Exit code %d]" % ret_code
+                exit(ret_code)
 
-        log_file.close()
-        
-    except OSError, o:
-        if o.errno == errno.ENOTDIR or o.errno == errno.ENOENT:
-            print >> sys.stderr, "Error: sub-program assembler not found, please recompile MEGAHIT"
-        exit(1)
+            log_file.close()
+            
+        except OSError, o:
+            if o.errno == errno.ENOTDIR or o.errno == errno.ENOENT:
+                print >> sys.stderr, "Error: sub-program assembler not found, please recompile MEGAHIT"
+            exit(1)
+    write_cp(cp)
+    cp = cp + 1
 
 def merge_final():
     log_file = open(log_file_name(), "a")
@@ -534,6 +601,8 @@ def main(argv = None):
         print >> sys.stderr, "[%s] Start assembly. Number of CPU threads %d." % (start_time.strftime("%c"), opt.num_cpu_threads)
 
         make_out_dir()
+        if opt.continue_mode != True:
+            write_opt(argv[1:]) # for --continue
         build_first_graph()
         assemble(opt.k_min)
 
@@ -546,11 +615,10 @@ def main(argv = None):
                 next_k = opt.k_max
 
             iterate(cur_k, next_k - cur_k)
-            if os.path.getsize(graph_prefix(next_k) + ".edges.0") == 0:
+
+            if not build_graph(next_k, 1):
                 cur_k = next_k
                 break
-
-            build_graph(next_k, 1)
             assemble(next_k)
 
             if opt.keep_tmp_files == 0:
@@ -562,14 +630,15 @@ def main(argv = None):
             delete_temp_files(cur_k)
 
         merge_final()
+        delect_file_if_exist(opt.temp_dir + "cp.txt")
 
         log_file = open(log_file_name(), "a")
-
         start_time = datetime.now()
         print >> sys.stderr, "[%s] ALL DONE." % (start_time.strftime("%c"))
         print >> log_file, "[%s] ALL DONE." % (start_time.strftime("%c"))
         log_file.flush()
         log_file.close()
+        open(opt.out_dir + "done", "w").close()
 
     except Usage, err:
         print >> sys.stderr, sys.argv[0].split("/")[-1] + ": " + str(err.msg)
