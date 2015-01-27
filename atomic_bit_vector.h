@@ -24,12 +24,13 @@
 #include <assert.h>
 #include <stdlib.h>
 #include <memory.h>
+#include <stdint.h>
 #include <algorithm>
 #include "mem_file_checker-inl.h"
 
 class AtomicBitVector {
 public:
-    typedef unsigned long long word_t;
+    typedef uint8_t word_t;
 
     AtomicBitVector(size_t size = 0): size_(size) {
         num_words_ = ((size + kBitsPerWord - 1) / kBitsPerWord);
