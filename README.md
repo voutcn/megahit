@@ -36,14 +36,14 @@ To use the GPU version, run `make use_gpu=1` to compile MEGAHIT, and run MEGAHIT
 
 Memory Control
 ----------------
-We recommend to set `-m` as large as possible. In general, 90% of the free memory is recommended. This parameter is used to control the maximum memory that can be used for the SdBG construction. It is required to prevent the program from using swap space.
+We recommend to set `-m` as large as possible. In general, 90-95% of the free memory is recommended. For example if the node have 64G available memory, a proper setting could be `-m 60e9`. This parameter is used to control the maximum memory that can be used for the SdBG construction. It is required to prevent the program from using swap space.
 
-Since v0.2.0, it is not necessary for the SdBG builder to use up all the memory specificed by `-m`. The option `--mem-flag` specifies the ways to utilize memory: `--mem-flag 0` to use minimum memory, `--mem-flag 1` moderate memory and `--mem-flag 2` all memory.
+Since v0.2.0, it is not necessary for the SdBG builder to use up all the memory specificed by `-m`. The option `--mem-flag` specifies the ways to utilize memory: `--mem-flag 0` to use minimum memory, `--mem-flag 1` (default) moderate memory and `--mem-flag 2` all memory.
 
 Input Files
 --------------
 
-MEGAHIT accepts one fasta or fastq file as input. The input file can be gzip'ed. Alternatively, you can use the option `--input-cmd` to input reads from multiple files. Following the `--input-cmd` should be a command that outputs all reads to `STDOUT` in fasta or fastq format. A mix of fasta and fastq is also supported. Pair-end information is not used by MEGAHIT currently. Therefore pair-end files can be input to MEGAHIT as multiple single-end files. Some examples are shown below.
+MEGAHIT accepts one fasta or fastq file as input. The input file can be gzip'ed. Alternatively, you can use the option `--input-cmd` to input reads from multiple files. Following the `--input-cmd` should be a command that outputs all reads to `STDOUT` in fasta or fastq format. A mix of fasta and fastq is also supported from version 0.2.0. Pair-end information is not used by MEGAHIT currently. Therefore pair-end files can be input to MEGAHIT as multiple single-end files. Some examples are shown below.
 
 ###Correct Examples
 * Input from one gzip'ed fastq file named *reads.fastq.gz*:
@@ -62,7 +62,7 @@ MEGAHIT accepts one fasta or fastq file as input. The input file can be gzip'ed.
 ```
 --input-cmd "fastq-dump -Z --fasta xxx.sra"
 ```
-* Mixed fastq and fasta:
+* Mixed fastq and fasta (supported since v0.2.0):
 ```
 --input-cmd "cat 1.fa 2.fq"
 ```

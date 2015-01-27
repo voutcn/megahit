@@ -43,7 +43,7 @@ Required Arguments:
     -m/--memory                    <float>      max memory in byte to be used.
                                                 This argument is used to optimize the graph building module,
                                                 to prevent the SdBG builder from allocating memory larger than this value.
-                                                This value is recommended to be 90% of machine's (free) memory.
+                                                This value is recommended to be 90-95% of the machine's (free) memory.
                                                 The SdBG builder is unnecessary using all memory. Please refer to --mem-flag.
     -l/--max-read-len              <int>        maximum read length
     
@@ -80,16 +80,17 @@ Optional Arguments:
                                                  this value less than 2 will lead to much more larger memory usage.
 
   More detail assembly options:
-    --no-mercy                                  Do not add mercy (k+1)-mer for k=k_min, default: off
-    --no-low-local                              Do not progressively remove low local coverage contigs, default: off
-    --low-local-ratio              <float>      Ratio threshold to define low local coverage contigs. Default: 0.2
-    --max-tip-len                  <int>        Tips with length less than this value will be removed.
+    --no-mercy                                  do not add mercy (k+1)-mer for k=k_min, default: off
+    --no-low-local                              do not progressively remove low local coverage contigs, default: off
+    --low-local-ratio              <float>      ratio threshold to define low local coverage contigs. Default: 0.2
+    --max-tip-len                  <int>        tips with length less than this value will be removed.
                                                 Default: 2*k for iteration of kmer_size=k
-    --no-bubble                                 Do not remove bubbles, default: off
+    --no-bubble                                 do not remove bubbles, default: off
 
 Other Arguments:
-    --continue                                  continue from the last available check point
-    -h/--help                                   print the usage message      
+    --continue                                  continue a MEGAHIT run from its last available check point.
+                                                please set output directory correctly if you use this option.
+    -h/--help                                   print the usage message
 '''
 
 class Usage(Exception):
@@ -217,7 +218,8 @@ def parse_opt(argv):
         elif option == "--mem-flag":
             opt.mem_flag = int(value)
         elif option == "--continue":
-            need_continue = True
+            if opt.continue_mode == 0: # avoid check again again again...
+                need_continue = True
         else:
             print >> sys.stderr, "Invalid option %s", option
             exit(1)
@@ -242,8 +244,8 @@ def check_opt():
         print >> sys.stderr, "Both read_file and input_cmd are set. Please use only one of them."
         exit(1)
     if opt.k_max >= opt.max_read_len:
-        opt.k_max = int(max_read_len) / 2 * 2 - 1 
-        print >> sys.stderr, "Constrain maximum read length, k_max is set to be " + str(k_max)
+        opt.k_max = int(opt.max_read_len) / 2 * 2 - 1 
+        print >> sys.stderr, "Constrain maximum read length, k_max is set to be " + str(opt.k_max)
     if opt.k_min < 9:
         print >> sys.stderr, "k_min should be at least 9."
         exit(1)
@@ -284,20 +286,22 @@ def write_opt(argv):
 
 def prepare_continue():
     global opt # out_dir is already set
-    print >> sys.stderr, "Continue mode activated. Ignore all options other than -o/--out-dir."
 
     if not os.path.exists(opt.out_dir + "opts.txt"):
-        print >> sys.stderr, "Cannot find" + opt.out_dir + "opts.txt"
+        print >> sys.stderr, "Cannot find " + opt.out_dir + "opts.txt"
         print >> sys.stderr, "Please check whether the output directory is correctly set by \"-o\""
-        exit(1)
+        print >> sys.stderr, "Now switching to normal mode."
+        return
+
+    print >> sys.stderr, "Continue mode activated. Ignore all options other than -o/--out-dir."
 
     with open(opt.out_dir + "opts.txt", "r") as f:
         line = f.readline()
         argv = line.strip().split()
         print >> sys.stderr, "Continue with options: " + line.strip()
         opt = Options()
+        opt.continue_mode = 1 # avoid dead loop
         parse_opt(argv)
-        opt.continue_mode = 1
     f.close()
 
     opt.last_cp = -1
@@ -309,8 +313,6 @@ def prepare_continue():
                     opt.last_cp = int(a[0])
         cpf.close()
     print >> sys.stderr, "Continue from check point " + str(opt.last_cp) 
-
-
 
 def check_bin():
     if not os.path.exists(opt.bin_dir + "megahit_assemble"):
