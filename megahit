@@ -63,7 +63,7 @@ Optional Arguments:
                                                 Default: 1.
     --cpu-only                                  do not use GPU. Use CPU only.
     --gpu-mem                      <float>      GPU memory in byte to be used. Default: auto detect to use up all free GPU memory. 
-    --t/--num-cpu-threads          <int>        Number of CPU threads, at least 2. Default: auto detect to use all CPU threads.
+    -t/--num-cpu-threads          <int>        Number of CPU threads, at least 2. Default: auto detect to use all CPU threads.
 
   Output options:
     -o/--out-dir                   <string>     output directory, default: ./megahit_out
@@ -224,8 +224,8 @@ def parse_opt(argv):
             print >> sys.stderr, "Invalid option %s", option
             exit(1)
 
-        if need_continue:
-            prepare_continue()
+    if need_continue:
+        prepare_continue()
 
 def check_opt():
     global opt
