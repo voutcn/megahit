@@ -148,6 +148,7 @@ def parse_opt(argv):
                                      "k-min=",
                                      "k-max=",
                                      "k-step=",
+                                     "num-cpu-threads=",
                                      "min-count=",
                                      "no-mercy",
                                      "no-low-local",
