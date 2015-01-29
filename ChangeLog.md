@@ -1,4 +1,4 @@
-### 0.2.0
+### 0.2.0 / 2015-01-30
 Bug Fixes:
 
 * Fixed "option --num-cpu-threads not recognized"
@@ -7,6 +7,7 @@ Enhancements:
 
 * `--mem-flag` option for memory control
 * `--continue` option to resume an interrupted run
+* support mixed fasta/fastq input via `kseq.h`
 
 ### 0.1.4 / 2015-01-20
 Bug Fixes:

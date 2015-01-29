@@ -283,7 +283,7 @@ def check_opt():
 
 def write_opt(argv):
     with open(opt.out_dir + "opts.txt", "w") as f:
-        print >> f, " ".join(argv)
+        print >> f, "\n".join(argv)
 
 def prepare_continue():
     global opt # out_dir is already set
@@ -297,9 +297,10 @@ def prepare_continue():
     print >> sys.stderr, "Continue mode activated. Ignore all options other than -o/--out-dir."
 
     with open(opt.out_dir + "opts.txt", "r") as f:
-        line = f.readline()
-        argv = line.strip().split()
-        print >> sys.stderr, "Continue with options: " + line.strip()
+        argv = []
+        for line in f:
+            argv.append(line.strip())
+        print >> sys.stderr, "Continue with options: " + " ".join(argv)
         opt = Options()
         opt.continue_mode = 1 # avoid dead loop
         parse_opt(argv)
