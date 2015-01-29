@@ -1,3 +1,14 @@
+### 0.2.0 / 2015-01-30
+Bug Fixes:
+
+* Fixed "option --num-cpu-threads not recognized"
+
+Enhancements:
+
+* `--mem-flag` option for memory control
+* `--continue` option to resume an interrupted run
+* support mixed fasta/fastq input via `kseq.h`
+
 ### 0.1.4 / 2015-01-20
 Bug Fixes:
 
@@ -7,7 +18,7 @@ Bug Fixes:
 
 Enhancements:
 
-* MAC OS X support (Thank [Laurent Gautier](https://github.com/lgautier))
+* MAC OS X support
 * Minor improvement to reduce memory usage of the SdBG builder
 
 Bug Fixes:
@@ -18,7 +29,7 @@ Bug Fixes:
 
 Enhancements:
 
-* Update Makefile and python wrapper to improve compatibility (Thank [C. Titus Brown](https://github.com/ctb) and [Ben J Woodcroft](https://github.com/wwood))
+* Update Makefile and python wrapper to improve compatibility
 * Output exit code when subprogram exit abnormally
 * Improve memory usage of the subprogram `assembler`
 * Fix the issue of minor stat differences caused by loops
