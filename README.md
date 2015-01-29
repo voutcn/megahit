@@ -1,7 +1,7 @@
 MEGAHIT
 =========
 
-MEGAHIT is a single node assembler for large and complex metagenomics NGS reads, such as soil. It makes use of succinct *de Bruijn* graph to achieve low memory usage, whereas its goal is not to make memory usage as low as possible. It automatically adjusts itself to use all/moderate available memory (specified by `-m` and `--mem-flag`) to build succinct *de Bruijn* graphs. Both CPU-only and GPU-accelerated version of MEGAHIT are provided. The GPU-accelerated version of MEGAHIT has been tested on NVIDIA GTX680 (4G memory) and Tesla K40c (12G memory).
+MEGAHIT is a single node assembler for large and complex metagenomics NGS reads, such as soil. It makes use of succinct *de Bruijn* graph (SdBG) to achieve low memory assembly. The graph construction algorithm can self-adjust to use all available or moderate memory, and can be accelerated if a CUDA-enable GPU is provided. The GPU-accelerated version of MEGAHIT has been tested on NVIDIA GTX680 (4G memory) and Tesla K40c (12G memory).
 
 [![Build Status](https://travis-ci.org/voutcn/megahit.svg)](https://travis-ci.org/voutcn/megahit)
 [![Build Status](https://drone.io/github.com/voutcn/megahit/status.png)](https://drone.io/github.com/voutcn/megahit/latest)
@@ -10,7 +10,7 @@ Getting Started
 ----------------
 
 ### Dependency
-MEGAHIT is suitable for 64-bit Linux and MAC OS X. It requires [zlib](http://www.zlib.net/), python 2.6 or greater and G++ 4.4 or greater (with `-std=c++0x` and [OpenMP](http://openmp.org) support). The GPU version of MEGAHIT further requires [CUDA](https://developer.nvidia.com/cuda-toolkit) 5.5 or greater.
+MEGAHIT is suitable for 64-bit Linux and MAC OS X. It requires [zlib](http://www.zlib.net/), python 2.6 or greater and G++ 4.4 or greater (with `-std=c++0x` and [OpenMP](http://openmp.org) support). The GPU version further requires [CUDA](https://developer.nvidia.com/cuda-toolkit) 5.5 or greater.
 
 ### Compiling from Source Codes
 ```
@@ -31,41 +31,24 @@ If MEGAHIT is successfully compiled, it can be run by the following command:
 User can also run `./megahit -h` for the usage message.
 
 ### Using GPU Version
-To use the GPU version, run `make use_gpu=1` to compile MEGAHIT, and run MEGAHIT without `--cpu-only` option. At this stage, the GPU version only supports Linux.
+To use the GPU version, run `make use_gpu=1` to compile MEGAHIT, and run MEGAHIT without `--cpu-only` option. GPU version has only been tested in Linux.
 
 
-Memory Control
+Memory Setting
 ----------------
-We recommend to set `-m` as large as possible. In general, 90-95% of the free memory is recommended. For example if the node have 64G available memory, a proper setting could be `-m 60e9`. This parameter is used to control the maximum memory that can be used for the SdBG construction. It is required to prevent the program from using swap space.
+Users are requried to set a memory parameter `-m` for MEGAHIT. This parameter specifies the maximum memory that can be used by the SdBG constrution conponent of MEGAHIT. `--mem-flag` is another option for memory control.
 
-Since v0.2.0, it is not necessary for the SdBG builder to use up all the memory specificed by `-m`. The option `--mem-flag` specifies the ways to utilize memory: `--mem-flag 0` to use minimum memory, `--mem-flag 1` (default) moderate memory and `--mem-flag 2` all memory.
+### Quick recommendation
+Set the `-m` parameter to be 90-95% of the available memory and leave the `--mem-flag` default. For example if your machine have 64G available memory, a proper setting is `-m 60e9`.
+
+### Detail explanation 
+Please refer to [this wiki page](https://github.com/voutcn/megahit/wiki/MEGAHIT-Memory-setting).
+
 
 Input Files
 --------------
 
-MEGAHIT accepts one fasta or fastq file as input. The input file can be gzip'ed. Alternatively, you can use the option `--input-cmd` to input reads from multiple files. Following the `--input-cmd` should be a command that outputs all reads to `STDOUT` in fasta or fastq format. A mix of fasta and fastq is also supported from version 0.2.0. Pair-end information is not used by MEGAHIT currently. Therefore pair-end files can be input to MEGAHIT as multiple single-end files. Some examples are shown below.
-
-###Correct Examples
-* Input from one gzip'ed fastq file named *reads.fastq.gz*:
-```
--r reads.fastq.gz
-```
-* Input from two fasta files *sample_1.fa* and *sample_2.fa*:
-```
---input-cmd "cat sample_[12].fa"
-```
-* Input from all gzip'ed fastq files in current directory:
-```
---input-cmd "zcat *.fastq.gz"
-```
-* Assume that fastq-dump is installed, input from a sra file *xxx.sra*:
-```
---input-cmd "fastq-dump -Z --fasta xxx.sra"
-```
-* Mixed fastq and fasta (supported since v0.2.0):
-```
---input-cmd "cat 1.fa 2.fq"
-```
+MEGAHIT accepts one fasta or fastq file as input. The input file can be gzip'ed. Alternatively, you can use the option `--input-cmd` to input reads from multiple files. Following the `--input-cmd` should be a command that outputs all reads to `STDOUT` in fasta or fastq format. A mix of fasta and fastq is also supported from version 0.2.0. Currently pair-end information is not used by MEGAHIT. Therefore pair-end files can be input to MEGAHIT as multiple single-end files. Some examples are shown on [this wiki page](https://github.com/voutcn/megahit/wiki/Input-examples).
 
 Options
 ------------------------
@@ -75,10 +58,18 @@ MEGAHIT uses multiple *k*-mer strategy. Minimum *k*, maximum *k* and the step fo
 For ultra complex metagenomics data such as soil, a larger *k<sub>min</sub>*, say 27, is recommended to reduce the complexity of the *de Bruijn* graph. Quality trimming is also recommended.
 
 ###Filtering (*k<sub>min</sub>*+1)-mer
-(*k<sub>min</sub>*+1)-mer with multiplicity lower than *d* (default 2, specified by `--min-count` option) will be discarded. You should be cautious to set *d* less than 2, which will lead to a much larger and noisy graph. We recommend using the default value 2.
+(*k<sub>min</sub>*+1)-mer with multiplicity lower than *d* (default 2, specified by `--min-count` option) will be discarded. You should be cautious to set *d* less than 2, which will lead to a much larger and noisy graph. We recommend using the default value 2 for metagenomics assembly. If you want to use MEGAHIT to do generic assembly, please change this value according to the sequencing depth.
 
 ###Mercy *k*-mer
 This is specially designed for metagenomics assembly to recover low coverage sequence. You can disable it with `--no-mercy` option.
+
+Issue Report
+-----------------------
+If you have any questions or suggestions, please [report an issus](https://github.com/voutcn/megahit/issues) on Github.
+
+Cite MEGAHIT
+-----------------------
+* Li, D., *et al*. (2015) MEGAHIT: An ultra-fast single-node solution for large and complex metagenomics assembly via succinct de Bruijn graph. *Bioinformatics*, doi: 10.1093/bioinformatics/btv033 [PMID: [25609793](http://www.ncbi.nlm.nih.gov/pubmed/25609793)].
 
 License
 -----------------------
