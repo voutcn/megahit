@@ -40,7 +40,7 @@ Usage:
     ./megahit [options] -m <max_memory_to_use> -l <max_read_len> {-r <reads.fa> | --input_cmd <command>}
 
 Required Arguments:
-    -m/--memory                    <float>      max memory in byte to be used.
+    -m/--memory                    <float>      max memory in byte to be used.(or if set between 0-1, fraction of detected free memory).
                                                 This argument is used to optimize the graph building module,
                                                 to prevent the SdBG builder from allocating memory larger than this value.
                                                 This value is recommended to be 90-95% of the machine's (free) memory.
@@ -186,9 +186,9 @@ def parse_opt(argv):
         elif option == "--input-cmd":
             opt.input_cmd = value
         elif option in ("-m", "--memory"):
-            opt.host_mem = long(float(value))
+            opt.host_mem = float(value)
         elif option == "--gpu-mem":
-            opt.host_mem = long(float(value))
+            opt.gpu_mem = long(float(value))
         elif option in ("-l", "--max-read-len"):
             opt.max_read_len = int(value)
         elif option == "--min-contig-len":
@@ -230,9 +230,15 @@ def parse_opt(argv):
 
 def check_opt():
     global opt
-    if opt.host_mem <= 0:
-        print >> sys.stderr, "Memory must be greater than 0."
-        exit(1)
+    if opt.host_mem < 1:
+        opt.host_mem = long(detect_available_mem() * opt.host_mem)
+        if opt.host_mem <= 0:
+            print >> sys.stderr, "Failed to detect free memory. Please Specify value in bytes using -m flag."
+            exit(1)
+        else:
+            print >> sys.stderr, "Using: " + str(round(float(opt.host_mem)/(1024**3),3)) + "Gb detected free memory."
+    else:
+        opt.host_mem = long(opt.host_mem)
     if opt.cpu_only == 1:
         opt.gpu_mem = 0
     if opt.max_read_len <= 1:
@@ -243,6 +249,9 @@ def check_opt():
         exit(1)
     if opt.read_file != "" and opt.input_cmd != "":
         print >> sys.stderr, "Both read_file and input_cmd are set. Please use only one of them."
+        exit(1)
+    if opt.read_file != "" and not os.path.exists(opt.read_file):
+        print >> sys.stderr, "Can't find file:\n" + opt.read_file + "\nPlease try a valid file with -r option."
         exit(1)
     if opt.k_max >= opt.max_read_len:
         opt.k_max = int(opt.max_read_len) / 2 * 2 - 1 
@@ -280,6 +289,22 @@ def check_opt():
     if opt.num_cpu_threads <= 1:
         print >> sys.stderr, "num_cpu_threads should be at least 2."
         exit(1)
+
+def detect_available_mem():
+    mem = long()
+    if sys.platform.find("linux") != -1:
+        try:
+            mem = long(float(os.popen("free").readlines()[1].split()[1]) * 1024 )
+        except IndexError:
+            mem = 0
+    elif sys.platform.find("darwin") != -1:
+        try:
+            mem = long(float(os.popen("vm_stat").readlines()[1].split()[2]) * 4096 )
+        except IndexError:
+            mem = 0
+    else:
+        mem = 0
+    return mem
 
 def write_opt(argv):
     with open(opt.out_dir + "opts.txt", "w") as f:
