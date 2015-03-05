@@ -26,6 +26,9 @@
 #include "timer.h"
 #include "sdbg_builder_writers.h"
 
+// uncomment the following line if read lenght > 254 bp; comment it if read length <= 254 and want to save memory
+#define LONG_READS
+
 struct global_data_t;
 struct readpartition_data_t;
 struct bucketpartition_data_t;
@@ -124,8 +127,13 @@ struct global_data_t {
 
     // big arrays
     edge_word_t* packed_reads;
+#ifndef LONG_READS
     unsigned char *first_0_out;
     unsigned char *last_0_in; // first potential 0-out-degree k-mer and last potential 0-in-degree k-mer
+#else
+    uint16_t *first_0_out;
+    uint16_t *last_0_in; 
+#endif
     int64_t *lv2_read_info; // to store where this lv2_item (k+1)-mer come from
     int64_t *lv2_read_info_to_output;
 
@@ -190,6 +198,12 @@ static const int kBWTCharNumBits = 3; // need 3 bits to represent ACGT$
 static const int kTopCharShift = kBitsPerEdgeWord - kBitsPerEdgeChar; // bits >> to get the most significant char
 static const uint32_t kDifferentialLimit = 2147483647; // 32-bit signed max int
 static const int kSignBitMask = 0x80000000; // the MSB of 32-bit
+
+#ifndef LONG_READS
+static const int kSentinelOffset = 255;
+#else
+static const int kSentinelOffset = 65535;
+#endif
 
 // can be modified, efficiency related
 static const int64_t kMinLv2BatchSize = 2097152;

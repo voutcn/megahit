@@ -32,7 +32,7 @@ import multiprocessing
 
 from datetime import datetime, date, time
 
-megahit_version_str = "MEGAHIT v0.2.0"
+megahit_version_str = "MEGAHIT v0.2.0-a"
 usage_message = '''
 Copyright (c) The University of Hong Kong
 
@@ -158,6 +158,7 @@ def parse_opt(argv):
                                      "k-min=",
                                      "k-max=",
                                      "k-step=",
+                                     "num-cpu-threads=",
                                      "min-count=",
                                      "no-mercy",
                                      "no-low-local",

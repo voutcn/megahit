@@ -484,13 +484,18 @@ void InitGlobalData(struct global_data_t &globals) {
     globals.permutation_to_output = (uint32_t *) MallocAndCheck(globals.max_lv2_items * sizeof(uint32_t), __FILE__, __LINE__);
     globals.lv2_read_info = (int64_t *) MallocAndCheck(globals.max_lv2_items * sizeof(int64_t), __FILE__, __LINE__);
     globals.lv2_read_info_to_output = (int64_t *) MallocAndCheck(globals.max_lv2_items * sizeof(int64_t), __FILE__, __LINE__);
+#ifdef LONG_READS
+    globals.first_0_out = (uint16_t*) MallocAndCheck(globals.num_reads * sizeof(uint16_t), __FILE__, __LINE__);
+    globals.last_0_in = (uint16_t*) MallocAndCheck(globals.num_reads * sizeof(uint16_t), __FILE__, __LINE__);
+#else
     globals.first_0_out = (unsigned char*) MallocAndCheck(globals.num_reads * sizeof(unsigned char), __FILE__, __LINE__);
     globals.last_0_in = (unsigned char*) MallocAndCheck(globals.num_reads * sizeof(unsigned char), __FILE__, __LINE__);
+#endif
 #ifdef DISABLE_GPU
     globals.cpu_sort_space = (uint64_t*) MallocAndCheck(sizeof(uint64_t) * globals.max_lv2_items, __FILE__, __LINE__);
 #endif
-    memset(globals.first_0_out, 0xFF, globals.num_reads * sizeof(unsigned char));
-    memset(globals.last_0_in, 0xFF, globals.num_reads * sizeof(unsigned char));
+    memset(globals.first_0_out, 0xFF, globals.num_reads * sizeof(globals.first_0_out[0]));
+    memset(globals.last_0_in, 0xFF, globals.num_reads * sizeof(globals.last_0_in[0]));
 
     // --- write the edge file header ---
     globals.word_writer[0].output(globals.kmer_k);
@@ -867,8 +872,8 @@ void* Lv2CountingThread(void *_op) {
                 if (strand == 0) {
                     // update last
                     while (true) {
-                        unsigned char old_value = globals.last_0_in[read_id];
-                        if (old_value != 255 && old_value >= offset) { break; }
+                        auto old_value = globals.last_0_in[read_id];
+                        if (old_value != kSentinelOffset && old_value >= offset) { break; }
                         if (__sync_bool_compare_and_swap(globals.last_0_in + read_id, old_value, offset)) {
                             break;
                         }
@@ -877,7 +882,7 @@ void* Lv2CountingThread(void *_op) {
                     // update first
                     offset++;
                     while (true) {
-                        unsigned char old_value = globals.first_0_out[read_id];
+                        auto old_value = globals.first_0_out[read_id];
                         if (old_value <= offset) { break; }
                         if (__sync_bool_compare_and_swap(globals.first_0_out + read_id, old_value, offset)) {
                             break;
@@ -898,7 +903,7 @@ void* Lv2CountingThread(void *_op) {
                     // update first
                     offset++;
                     while (true) {
-                        unsigned char old_value = globals.first_0_out[read_id];
+                        auto old_value = globals.first_0_out[read_id];
                         if (old_value <= offset) { break; }
                         if (__sync_bool_compare_and_swap(globals.first_0_out + read_id, old_value, offset)) {
                             break;
@@ -907,8 +912,8 @@ void* Lv2CountingThread(void *_op) {
                 } else {
                     // update last
                     while (true) {
-                        unsigned char old_value = globals.last_0_in[read_id];
-                        if (old_value != 255 && old_value >= offset) { break; }
+                        auto old_value = globals.last_0_in[read_id];
+                        if (old_value != kSentinelOffset && old_value >= offset) { break; }
                         if (__sync_bool_compare_and_swap(globals.last_0_in + read_id, old_value, offset)) {
                             break;
                         }
@@ -1128,9 +1133,9 @@ void Phase1Entry(struct global_data_t &globals) {
     int64_t num_has_tips = 0;
     FILE *candidate_file = OpenFileAndCheck((std::string(globals.output_prefix) + ".cand").c_str(), "wb");
     for (int64_t i = 0; i < globals.num_reads; ++i) {
-        unsigned char first = globals.first_0_out[i];
-        unsigned char last = globals.last_0_in[i];
-        if (first != 255 && last != 255) {
+        auto first = globals.first_0_out[i];
+        auto last = globals.last_0_in[i];
+        if (first != kSentinelOffset && last != kSentinelOffset) {
             ++num_has_tips;
             if (last > first) {
                 ++num_candidate_reads;

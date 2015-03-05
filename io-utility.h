@@ -87,6 +87,8 @@ struct ContigPackage {
 
 struct ReadPackage {
     const static int kMaxNumReads = (1 << 22); // tunable
+    const static int kMaxBytePerBatch = (1 << 28); // 256M, tunable
+    int reads_per_batch;
 
     ReadPackage(int max_read_len) {
         init(max_read_len);
@@ -106,7 +108,9 @@ struct ReadPackage {
         }
         words_per_read = (max_read_len * 2 + offset_bits + 31) / 32;
         printf("words per read: %d\n", words_per_read);
-        packed_reads = (edge_word_t*) MallocAndCheck(sizeof(edge_word_t) * words_per_read * kMaxNumReads, __FILE__, __LINE__);
+        reads_per_batch = kMaxBytePerBatch / (words_per_read * 4);
+        reads_per_batch = reads_per_batch > kMaxNumReads ? kMaxNumReads : reads_per_batch;
+        packed_reads = (edge_word_t*) MallocAndCheck(sizeof(edge_word_t) * words_per_read * reads_per_batch, __FILE__, __LINE__);
         assert(packed_reads != NULL);
     }
 
@@ -121,7 +125,7 @@ struct ReadPackage {
         edge_word_t *cur_p = packed_reads;
         while (kseq_read(seq) >= 0) {
             if (int(seq->seq.l) > max_read_len) {
-                fprintf(stderr, "Warning, a read longer the max_read_len: %d\n", max_read_len);
+                fprintf(stderr, "Warning, a read longer than max_read_len: %d > %d\n", (int)(seq->seq.l), max_read_len);
                 continue;
             }
 
@@ -150,7 +154,7 @@ struct ReadPackage {
 
             num_of_reads++;
             cur_p += words_per_read;
-            if (num_of_reads >= kMaxNumReads) {
+            if (num_of_reads >= reads_per_batch) {
                 break;
             }
         }
@@ -161,7 +165,7 @@ struct ReadPackage {
         edge_word_t *cur_p = packed_reads;
         while (kseq_read(seq) >= 0) {
             if ((int)(seq->seq.l) > max_read_len) {
-                fprintf(stderr, "Warning, a read longer the max_read_len: %d\n", max_read_len);
+                fprintf(stderr, "Warning, a read longer than max_read_len: %d > %d\n", (int)(seq->seq.l), max_read_len);
                 continue;
             }
 
@@ -190,7 +194,7 @@ struct ReadPackage {
 
             num_of_reads++;
             cur_p += words_per_read;
-            if (num_of_reads >= kMaxNumReads) {
+            if (num_of_reads >= reads_per_batch) {
                 break;
             }
         }
@@ -198,7 +202,7 @@ struct ReadPackage {
 
     void ReadBinaryReads(gzFile read_file) { 
         int num_bytes = gzread(read_file, packed_reads, 
-                                  sizeof(edge_word_t) * words_per_read * kMaxNumReads);
+                                  sizeof(edge_word_t) * words_per_read * reads_per_batch);
         assert(num_bytes % (words_per_read * sizeof(edge_word_t)) == 0); 
         num_of_reads = num_bytes / (words_per_read * sizeof(edge_word_t));
     }
