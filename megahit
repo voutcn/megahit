@@ -32,7 +32,7 @@ import multiprocessing
 
 from datetime import datetime, date, time
 
-megahit_version_str = "MEGAHIT v0.2.0-a"
+megahit_version_str = "MEGAHIT v0.2.1-dev"
 usage_message = '''
 Copyright (c) The University of Hong Kong
 
@@ -40,7 +40,8 @@ Usage:
     ./megahit [options] -m <max_memory_to_use> -l <max_read_len> {-r <reads.fa> | --input_cmd <command>}
 
 Required Arguments:
-    -m/--memory                    <float>      max memory in byte to be used.(or if set between 0-1, fraction of detected free memory).
+    -m/--memory                    <float>      max memory in byte to be used. 
+                                                (if set between 0-1, fraction of the machine's total memory)
                                                 This argument is used to optimize the graph building module,
                                                 to prevent the SdBG builder from allocating memory larger than this value.
                                                 This value is recommended to be 90-95% of the machine's (free) memory.
@@ -231,13 +232,18 @@ def parse_opt(argv):
 
 def check_opt():
     global opt
-    if opt.host_mem < 1:
-        opt.host_mem = long(detect_available_mem() * opt.host_mem)
-        if opt.host_mem <= 0:
-            print >> sys.stderr, "Failed to detect free memory. Please Specify value in bytes using -m flag."
+    if opt.host_mem <= 0:
+        print >> sys.stderr, "Please specify a positive number for -m flag."
+        exit(1)
+    elif opt.host_mem < 1:
+        total_mem = detect_available_mem()
+        opt.host_mem = long(total_mem * opt.host_mem)
+        if total_mem <= 0:
+            print >> sys.stderr, "Failed to detect available memory. Please specify the value in bytes using -m flag."
             exit(1)
         else:
-            print >> sys.stderr, "Using: " + str(round(float(opt.host_mem)/(1024**3),3)) + "Gb detected free memory."
+            print >> sys.stderr, str(round(total_mem/(1024**3),3)) + "Gb memory in total."
+            print >> sys.stderr, "Using: " + str(round(float(opt.host_mem)/(1024**3),3)) + "Gb."
     else:
         opt.host_mem = long(opt.host_mem)
     if opt.cpu_only == 1:
@@ -295,12 +301,12 @@ def detect_available_mem():
     mem = long()
     if sys.platform.find("linux") != -1:
         try:
-            mem = long(float(os.popen("free").readlines()[1].split()[1]) * 1024 )
+            mem = long(float(os.popen("free").readlines()[1].split()[1]) * 1024)
         except IndexError:
             mem = 0
     elif sys.platform.find("darwin") != -1:
         try:
-            mem = long(float(os.popen("vm_stat").readlines()[1].split()[2]) * 4096 )
+            mem = long(float(os.popen("sysctl hw.memsize").readlines()[0].split()[1]))
         except IndexError:
             mem = 0
     else:
