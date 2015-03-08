@@ -68,6 +68,7 @@ Optional Arguments:
 
   Output options:
     -o/--out-dir                   <string>     output directory, default: ./megahit_out
+    --out-prefix                   <string>     output prefix (the contig file will be OUT_DIR/OUT_PREFIX.contigs.fa)
     --min-contig-len               <int>        minimum length of contigs to output, default: 200
     --keep-tmp-files                            keep all temporary files
 
@@ -90,7 +91,7 @@ Optional Arguments:
 
 Other Arguments:
     --continue                                  continue a MEGAHIT run from its last available check point.
-                                                please set output directory correctly if you use this option.
+                                                please set the output directory correctly when using this option.
     -h/--help                                   print the usage message
 '''
 
@@ -125,12 +126,19 @@ class Options():
         self.mem_flag = 1
         self.continue_mode = 0;
         self.last_cp = -1;
+        self.out_prefix = ""
 
 opt = Options()
 cp = 0
 
 def log_file_name():
-    return opt.out_dir + "log"
+    if opt.out_prefix == "":
+        return opt.out_dir + "log"
+    else:
+        return opt.out_dir + opt.out_prefix + ".log"
+
+def opt_file_name():
+    return opt.out_dir + "opts.txt"
 
 def make_out_dir():
     if os.path.exists(opt.out_dir):
@@ -168,7 +176,8 @@ def parse_opt(argv):
                                      "low-local-ratio=",
                                      "keep-tmp-files",
                                      "mem-flag=",
-                                     "continue"])
+                                     "continue",
+                                     "out-prefix="])
     except getopt.error, msg:
         raise Usage(megahit_version_str + '\n' + str(msg))
     if len(opts) == 0:
@@ -182,7 +191,6 @@ def parse_opt(argv):
             raise Usage(megahit_version_str + '\n' + usage_message)
         elif option in ("-o", "--out-dir"):
             opt.out_dir = value + "/"
-            opt.temp_dir = opt.out_dir + "tmp/"
         elif option in ("-r", "--readfile"):
             opt.read_file = value
         elif option == "--input-cmd":
@@ -223,12 +231,19 @@ def parse_opt(argv):
         elif option == "--continue":
             if opt.continue_mode == 0: # avoid check again again again...
                 need_continue = True
+        elif option == "--out-prefix":
+            opt.out_prefix = value
         else:
             print >> sys.stderr, "Invalid option %s", option
             exit(1)
 
+    opt.temp_dir = opt.out_dir + "tmp/"
+
     if need_continue:
         prepare_continue()
+    elif opt.continue_mode == 0 and os.path.exists(opt.out_dir):
+        print >> sys.stderr, "Output directory " + opt.out_dir + " already exists, please change the parameter -o to another value to avoid overwriting."
+        exit(1)
 
 def check_opt():
     global opt
@@ -314,21 +329,22 @@ def detect_available_mem():
     return mem
 
 def write_opt(argv):
-    with open(opt.out_dir + "opts.txt", "w") as f:
+    with open(opt_file_name(), "w") as f:
         print >> f, "\n".join(argv)
+    f.close()
 
 def prepare_continue():
     global opt # out_dir is already set
 
-    if not os.path.exists(opt.out_dir + "opts.txt"):
-        print >> sys.stderr, "Cannot find " + opt.out_dir + "opts.txt"
-        print >> sys.stderr, "Please check whether the output directory is correctly set by \"-o\""
+    if not os.path.exists(opt_file_name()):
+        print >> sys.stderr, "Cannot find " + opt_file_name()
+        print >> sys.stderr, "Please check whether the output directory (and prefix) is correctly set by \"-o\" (and \"--out-prefix\")"
         print >> sys.stderr, "Now switching to normal mode."
         return
 
-    print >> sys.stderr, "Continue mode activated. Ignore all options other than -o/--out-dir."
+    print >> sys.stderr, "Continue mode activated. Ignore all options other than -o/--out-dir and --out-prefix."
 
-    with open(opt.out_dir + "opts.txt", "r") as f:
+    with open(opt_file_name(), "r") as f:
         argv = []
         for line in f:
             argv.append(line.strip())
@@ -618,7 +634,10 @@ def merge_final():
     start_time = datetime.now()
     print >> sys.stderr, "[%s] Merging to output final contigs." % (start_time.strftime("%c"))
     print >> log_file, "[%s] Merging to output final contigs.." % (start_time.strftime("%c"))
-    os.system("cat " + opt.temp_dir + "*.final.contigs.fa > " + opt.out_dir + "final.contigs.fa")
+    final_contig_name = opt.out_dir + "final.contigs.fa"
+    if opt.out_prefix != "":
+        final_contig_name = opt.out_dir + opt.out_prefix + ".contigs.fa"
+    os.system("cat " + opt.temp_dir + "*.final.contigs.fa > " + final_contig_name)
     log_file.flush()
     log_file.close()
 
@@ -666,7 +685,6 @@ def main(argv = None):
             delete_temp_files(cur_k)
 
         merge_final()
-        delect_file_if_exist(opt.temp_dir + "cp.txt")
 
         log_file = open(log_file_name(), "a")
         start_time = datetime.now()
