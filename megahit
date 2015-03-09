@@ -366,7 +366,7 @@ def delete_temp_files(kmer_k):
         delect_file_if_exist(graph_prefix(kmer_k) + ".rr.pb")
         delect_file_if_exist(graph_prefix(kmer_k) + ".edges.0")
     else:
-        for i in range(0, max(1, opt.num_cpu_threads / 3)):
+        for i in range(0, max(1, int(opt.num_cpu_threads / 3))):
             delect_file_if_exist(graph_prefix(kmer_k) + ".edges." + str(i))
         if opt.no_mercy == 0:
             for i in range(0, opt.num_cpu_threads - 1):
