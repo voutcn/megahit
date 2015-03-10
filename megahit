@@ -247,7 +247,7 @@ def parse_opt(argv):
     if need_continue:
         prepare_continue()
     elif opt.continue_mode == 0 and os.path.exists(opt.out_dir):
-        print >> sys.stderr, "Output directory " + opt.out_dir + " already exists, please change the parameter -o to another value to avoid overwriting."
+        print("Output directory " + opt.out_dir + " already exists, please change the parameter -o to another value to avoid overwriting.", file=sys.stderr)
         exit(1)
 
 def check_opt():
@@ -263,7 +263,7 @@ def check_opt():
             exit(1)
         else:
             print(str(round(total_mem/(1024**3),3)) + "Gb memory in total.", file=sys.stderr)
-            print(sys.stderr, "Using: " + str(round(float(opt.host_mem)/(1024**3),3)) + "Gb.", file=sys.stderr)
+            print("Using: " + str(round(float(opt.host_mem)/(1024**3),3)) + "Gb.", file=sys.stderr)
     else:
         opt.host_mem = long(opt.host_mem)
     if opt.cpu_only == 1:
