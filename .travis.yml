@@ -1,4 +1,10 @@
 language: cpp
+python:
+  - "2.6"
+  - "2.7"
+  - "3.2"
+  - "3.3"
+  - "3.4"
 compiler:
   - g++
-script: make
+script: make -j && make test
