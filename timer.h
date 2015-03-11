@@ -41,4 +41,27 @@ struct xtimer_t {
     double elapsed() { return time_elapsed / 1000000.0; }
 };
 
+struct AutoMaxRssRecorder() {
+    struct timeval tv1, tv2;
+
+    AutoMaxRssRecorder() {
+        gettimeofday(&tv1, NULL);
+    }
+
+    ~AutoMaxRssRecorder() {
+        gettimeofday(&tv2, NULL);
+        struct rusage usage;
+        if (getrusage(RUSAGE_SELF,&usage)) {
+            fprintf(stderr, "Fail to getrusage()\n");
+            return;
+        }
+        double utime = 1e-6 * usage.ru_utime.tv_usec + usage.ru_utime.tv_sec;
+        double stime = 1e-6 * usage.ru_stime.tv_usec + usage.ru_stime.tv_sec;
+
+        long long real_time = (long long)(tv2.tv_sec - tv1.tv_sec) * 1000000 + tv2.tv_usec - tv1.tv_usec;
+        fprintf(stderr, "Real: %.4lf", real_time / 1000000.0)
+        fprintf(stderr, "\tuser: %.4lf\tsys:%.4lf\tmaxrss:%ld\n", utime, stime, usage.ru_maxrss);
+    }
+}
+
 #endif

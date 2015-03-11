@@ -32,6 +32,7 @@
 #include "io-utility.h"
 #include "options_description.h"
 #include "atomic_bit_vector.h"
+#include "timer.h"
 
 using std::string;
 using std::vector;
@@ -128,6 +129,8 @@ static void ParseOptions(int argc, char *argv[]) {
         exit(1);
     }
 }
+
+static AutoMaxRssRecorder recorder;
 
 int main(int argc, char *argv[]) {
     // set stdout line buffered
