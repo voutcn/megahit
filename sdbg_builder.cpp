@@ -18,7 +18,6 @@
 
 #include <assert.h>
 #include <omp.h>
-// #include <sys/sysinfo.h>
 #include <algorithm>
 #include <iostream>
 #include <stdexcept>

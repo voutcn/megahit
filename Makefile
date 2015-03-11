@@ -230,11 +230,10 @@ endif
 test: megahit_assemble megahit_iter_all sdbg_builder_cpu
 	-rm -fr example/megahit_out
 	./megahit -m 0.9 -l 100 -r example/readsInterleaved.fa --cpu-only -o example/megahit_out
-ifeq ($(use_gpu), 1)
+
 test_gpu: megahit_assemble megahit_iter_all sdbg_builder_gpu sdbg_builder_cpu
 	-rm -fr example/megahit_gpu_out
 	./megahit -m 0.9 -l 100 -r example/readsInterleaved.fa -o example/megahit_gpu_out
-endif
 
 .PHONY:
 clean:

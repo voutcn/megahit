@@ -24,6 +24,7 @@
 #include <stdlib.h>
 #include <time.h>
 #include <sys/time.h>
+#include <sys/resource.h>
 #include <fcntl.h>
 #include <unistd.h>
 
@@ -41,7 +42,7 @@ struct xtimer_t {
     double elapsed() { return time_elapsed / 1000000.0; }
 };
 
-struct AutoMaxRssRecorder() {
+struct AutoMaxRssRecorder {
     struct timeval tv1, tv2;
 
     AutoMaxRssRecorder() {
@@ -59,9 +60,9 @@ struct AutoMaxRssRecorder() {
         double stime = 1e-6 * usage.ru_stime.tv_usec + usage.ru_stime.tv_sec;
 
         long long real_time = (long long)(tv2.tv_sec - tv1.tv_sec) * 1000000 + tv2.tv_usec - tv1.tv_usec;
-        fprintf(stderr, "Real: %.4lf", real_time / 1000000.0)
-        fprintf(stderr, "\tuser: %.4lf\tsys:%.4lf\tmaxrss:%ld\n", utime, stime, usage.ru_maxrss);
+        fprintf(stderr, "Real: %.4lf", real_time / 1000000.0);
+        fprintf(stderr, "\tuser: %.4lf\tsys: %.4lf\tmaxrss: %ld\n", utime, stime, usage.ru_maxrss);
     }
-}
+};
 
 #endif
