@@ -246,7 +246,8 @@ void ReadInputFile(struct global_data_t &globals) {
     log("[B::%s] Max read length is %d; words per read: %d\n", __func__, globals.max_read_length, globals.words_per_read);
 
     // --- main reading loop ---
-    while ((read_length = kseq_read(seq)) >= 0) {
+    bool stop_reading = false;
+    while ((read_length = kseq_read(seq)) >= 0 && !stop_reading) {
         std::reverse(seq->seq.s, seq->seq.s + read_length);
         char *next_p = seq->seq.s;
         while (read_length > globals.kmer_k) {
@@ -259,6 +260,7 @@ void ReadInputFile(struct global_data_t &globals) {
                 if (num_reads >= globals.capacity) {
                     if (globals.capacity == max_num_reads) {
                         err("[B::%s WRANING] No enough memory to hold all the reads. Only the first %llu reads are kept.\n", __func__, num_reads);
+                        stop_reading = true;
                         break;
                     } 
                     globals.capacity = std::min(globals.capacity * 2, max_num_reads);
@@ -269,6 +271,7 @@ void ReadInputFile(struct global_data_t &globals) {
                         globals.capacity = globals.capacity;
                     } else {
                         err("[B::%s WRANING] No enough memory to hold all the reads. Only the first %llu reads are kept.\n", __func__, num_reads);
+                        stop_reading = true;
                         break;
                     }
                 }
@@ -1291,9 +1294,9 @@ int64_t ReadMercyEdges(global_data_t &globals) {
     while (edge_reader.NextEdgeUnsorted(edge_p)) {
         if (num_edges >= globals.capacity) {
             if (num_edges >= max_num_edges) {
-                err("[B::%s ERROR] reach max_num_edges: %ld... Skip all mercy edges.\n", __func__, max_num_edges);
+                err("[B::%s ERROR] reach max_num_edges: %ld... No enough memory to build the graph.\n", __func__, max_num_edges);
                 num_edges = globals.num_edges; // reset
-                break;
+                exit(1);
             }
 
             globals.capacity = std::min(max_num_edges, globals.capacity * 2);
