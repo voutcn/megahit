@@ -103,6 +103,7 @@ void FoldPalindrome(std::string &s, int kmer_k, bool is_loop) {
                 break;
             }
         }
+        assert(false);
     } else {
         int num_kmer = s.length() - kmer_k + 1;
         assert(num_kmer % 2 == 0);
@@ -389,10 +390,7 @@ void UnitigGraph::Refresh_() {
 
         if (linear_path.empty()) { continue; }
 
-        bool is_palindrome = false;
-        if (i == linear_path.back().first) {
-            is_palindrome = true;
-        } else if (!marked.lock(linear_path.back().first)) {
+        if (!marked.lock(linear_path.back().first)) {
             if (linear_path.back().first > i) {
                 marked.unset(i);
                 continue;
@@ -434,7 +432,6 @@ void UnitigGraph::Refresh_() {
         vertices_[i].rev_start_node = new_rc_start;
         vertices_[i].rev_end_node = new_rc_end;
         vertices_[i].is_changed = true;
-        vertices_[i].is_palindrome = is_palindrome;
         if (i == linear_path.back().first) {
             vertices_[i].is_deleted = false;
         }
@@ -538,7 +535,6 @@ void UnitigGraph::OutputInitUnitigs(FILE *contig_file,
                                     FILE *final_contig_file, 
                                     std::map<int64_t, int> &histo,
                                     int min_final_contig_length) {
-
     uint32_t output_id = 0;
     omp_lock_t output_lock;
     omp_init_lock(&output_lock);
@@ -572,8 +568,7 @@ void UnitigGraph::OutputInitUnitigs(FILE *contig_file,
             FILE *out_file = contig_file;
             if (indegree == 0 && outdegree == 0) {
                 vertices_[i].is_deleted = true;
-                if (vertices_[i].is_palindrome) {
-                    assert(vertices_[i].start_node == vertices_[i].rev_start_node);
+                if (vertices_[i].start_node == vertices_[i].rev_start_node) {
                     FoldPalindrome(label, sdbg_->kmer_k, vertices_[i].is_loop);
                 }
 
@@ -712,10 +707,7 @@ void UnitigGraph::OutputFinalUnitigs(FILE *final_contig_file,
             omp_unset_lock(&output_lock);
         } else if (vertices_[i].start_node == vertices_[i].rev_start_node) {
             // it is a palindrome
-            if (vertices_[i].is_palindrome) {
-                assert(vertices_[i].start_node == vertices_[i].rev_start_node);
-                FoldPalindrome(label, sdbg_->kmer_k, vertices_[i].is_loop);
-            }
+            FoldPalindrome(label, sdbg_->kmer_k, vertices_[i].is_loop);
 
             if (label.length() < (unsigned)min_final_contig_length) {
                 continue;
