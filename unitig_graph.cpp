@@ -25,11 +25,13 @@
 #include <set>
 #include <vector>
 #include <algorithm>
+#include <string>
 #include "definitions.h"
 #include "succinct_dbg.h"
 #include "assembly_algorithms.h"
 #include "atomic_bit_vector.h"
 
+// -- helper functions --
 static inline char Complement(char c) {
     if (c >= 0 && c < 4) {
         return 3 - c;
@@ -64,6 +66,51 @@ static inline void ReverseComplement(std::string &s) {
     if (i == j) { s[i] = Complement(s[i]); }
 }
 
+std::string VertexToDNAString(SuccinctDBG *sdbg_, UnitigGraphVertex &v) {
+    static char acgt[] = "ACGT";
+    std::string label;
+    int64_t start_node = v.start_node;
+    int64_t end_node = v.end_node;
+
+    int64_t cur_node = end_node;
+    while (cur_node != start_node) {
+        int64_t prev_node =  assembly_algorithms::PrevSimplePathNode(*sdbg_, cur_node);
+        cur_node = sdbg_->GetLastIndex(prev_node);
+        int8_t cur_char = sdbg_->GetW(prev_node);
+        assert(1 <= cur_char && cur_char <= 8);
+        label.append(1, acgt[cur_char > 4 ? (cur_char - 5) : (cur_char - 1)]);
+    }
+
+    uint8_t seq[sdbg_->kMaxKmerK];
+    sdbg_->Label(start_node, seq);
+    for (int i = sdbg_->kmer_k - 1; i >= 0; --i) {
+        assert(seq[i] >= 1 && seq[i] <= 4);
+        label.append(1, acgt[seq[i] - 1]);
+    }
+
+    std::reverse(label.begin(), label.end());
+    return label;
+}
+
+void FoldPalindrome(std::string &s, int kmer_k, bool is_loop) {
+    if (is_loop) {
+        for (unsigned i = 1; i + kmer_k <= s.length(); ++i) {
+            std::string rc = s.substr(i, kmer_k);
+            ReverseComplement(rc);
+            if (rc == s.substr(i - 1, kmer_k)) {
+                assert(i <= s.length() / 2);
+                s = s.substr(i, s.length() / 2);
+                break;
+            }
+        }
+    } else {
+        int num_kmer = s.length() - kmer_k + 1;
+        assert(num_kmer % 2 == 0);
+        s.resize(num_kmer / 2 + (kmer_k - 1));
+    }
+}
+// -- end of helper functions --
+
 void UnitigGraph::InitFromSdBG() {
     start_node_map_.clear();
     vertices_.clear();
@@ -83,7 +130,7 @@ void UnitigGraph::InitFromSdBG() {
             bool will_be_added = true;
             int64_t cur_node = node_idx, prev_node;
             int64_t depth = sdbg_->NodeMultiplicity(cur_node);
-            CompactSequence unitig;
+            uint32_t length = 1;
             while ((prev_node = assembly_algorithms::PrevSimplePathNode(*sdbg_, cur_node)) != -1) {
                 cur_node = sdbg_->GetLastIndex(prev_node);
                 if (!marked.lock(cur_node)) {
@@ -92,8 +139,7 @@ void UnitigGraph::InitFromSdBG() {
                 }
 
                 depth += sdbg_->NodeMultiplicity(cur_node);
-                int8_t cur_char = sdbg_->GetW(prev_node);
-                unitig.Append(cur_char > 4 ? (cur_char - 5) : (cur_char - 1));
+                ++length;
             }
 
             if (!will_be_added) { continue; }
@@ -133,17 +179,8 @@ void UnitigGraph::InitFromSdBG() {
 
             if (!will_be_added) { continue; }
 
-            // append the whole kmer to unitig                
-            uint8_t seq[sdbg_->kMaxKmerK];
-            sdbg_->Label(cur_node, seq);
-            for (int i = sdbg_->kmer_k - 1; i >= 0; --i) {
-                assert(seq[i] >= 1 && seq[i] <= 4);
-                unitig.Append(seq[i] - 1);
-            }
-            unitig.Reverse();
-
             omp_set_lock(&path_lock);
-            vertices_.push_back(UnitigGraphVertex(cur_node, node_idx, rc_start, rc_end, depth, unitig));
+            vertices_.push_back(UnitigGraphVertex(cur_node, node_idx, rc_start, rc_end, depth, length));
             omp_unset_lock(&path_lock);
         } // end if
     } // end for
@@ -154,7 +191,6 @@ void UnitigGraph::InitFromSdBG() {
         if (!marked.get(node_idx) && sdbg_->IsValidNode(node_idx) && sdbg_->IsLast(node_idx)) {
             omp_set_lock(&path_lock);
             if (!marked.get(node_idx)) {
-                std::string unitig;
                 int64_t cur_node = node_idx;
                 int64_t depth = sdbg_->NodeMultiplicity(node_idx);
                 uint32_t length = 1;
@@ -167,37 +203,18 @@ void UnitigGraph::InitFromSdBG() {
                     assert(prev_node != -1);
                     cur_node = sdbg_->GetLastIndex(prev_node);
                     depth += sdbg_->NodeMultiplicity(cur_node);
-                    int8_t cur_char = sdbg_->GetW(prev_node);
-                    unitig.push_back(cur_char > 4 ? (cur_char - 5) : (cur_char - 1));
                     ++length;
                 }
 
                 if (!rc_marked) {
-                    uint8_t seq[sdbg_->kMaxKmerK];
-                    sdbg_->Label(cur_node, seq);
-                    for (int i = sdbg_->kmer_k - 1; i > 0; --i) {
-                        assert(seq[i] >= 1 && seq[i] <= 4);
-                        unitig.push_back(seq[i] - 1);
-                    }
-                    std::reverse(unitig.begin(), unitig.end());
-
-                    if (marked.get(sdbg_->ReverseComplement(node_idx))) {
-                        // this loop is palindrome
-                        assert(unitig.length() % 2 == 0);
-                        for (unsigned i = 1; i + sdbg_->kmer_k <= unitig.length(); ++i) {
-                            string rc = unitig.substr(i, sdbg_->kmer_k);
-                            ReverseComplement(rc);
-                            if (rc == unitig.substr(i - 1, sdbg_->kmer_k)) {
-                                assert(i <= unitig.length() / 2);
-                                unitig = unitig.substr(i, unitig.length() / 2);
-                                break;
-                            }
-                        }
-                    }
-
-                    vertices_.push_back(UnitigGraphVertex(cur_node, node_idx, 0, 0, int(depth * 1.0 / length + 0.5), CompactSequence(unitig)));
+                    vertices_.push_back(UnitigGraphVertex(cur_node, node_idx, 0, 0, depth, length));
                     vertices_.back().is_loop = true;
                     vertices_.back().is_deleted = true;
+                    if (marked.get(sdbg_->ReverseComplement(node_idx))) {
+                        // this loop is palindrome
+                        vertices_.back().is_palindrome = true;
+                        vertices_.back().length;
+                    }
                 }
             }
             omp_unset_lock(&path_lock);
@@ -209,13 +226,6 @@ void UnitigGraph::InitFromSdBG() {
                 (unsigned long long)vertices_.size(), (unsigned long long)kMaxNumVertices);
         exit(1);
     }
-
-    // int64_t total_depth = 0;
-    // for (uint32_t i = 0; i < vertices_.size(); ++i) {
-    //     if (!vertices_[i].is_deleted)
-    //         total_depth += vertices_[i].depth;
-    // }
-    // printf("total_depth: %ld, total num: %u\n", total_depth, (unsigned)vertices_.size());
 
     // free memory for hash table construction
     sdbg_->FreeMul();
@@ -243,9 +253,8 @@ bool UnitigGraph::RemoveLocalLowDepth(int min_depth, int min_len, int local_widt
 
 #pragma omp parallel for schedule(static, 1)
     for (uint32_t i = 0; i < vertices_.size(); ++i) {
-        int vertex_length = vertices_[i].label.length() - sdbg_->kmer_k + 1;
-        if (vertices_[i].is_deleted || vertex_length >= min_len) { continue; }
-        assert(vertex_length > 0);
+        if (vertices_[i].is_deleted || vertices_[i].length >= min_len) { continue; }
+        assert(vertices_[i].length > 0);
 
         int indegree = sdbg_->Indegree(vertices_[i].start_node);
         int outdegree = sdbg_->Outdegree(vertices_[i].end_node);
@@ -253,7 +262,7 @@ bool UnitigGraph::RemoveLocalLowDepth(int min_depth, int min_len, int local_widt
         if (indegree + outdegree == 0) { continue; }
 
         if ((indegree <= 1 && outdegree <= 1) || indegree == 0 || outdegree == 0) {
-            double depth = (double)vertices_[i].depth / vertex_length;
+            double depth = (double)vertices_[i].depth / vertices_[i].length;
             if (is_changed && depth > min_depth)
                 continue;
             
@@ -294,13 +303,12 @@ double UnitigGraph::LocalDepth_(UnitigGraphVertex &vertex, int local_width) {
             UnitigGraphVertex &next_vertex = vertices_[next_vertex_iter->second];
             assert(!next_vertex.is_deleted);
 
-            int vertex_length = next_vertex.label.length() - sdbg_->kmer_k + 1;
-            if (vertex_length <= local_width) {
-                num_added_kmer += vertex_length;
+            if (next_vertex.length <= local_width) {
+                num_added_kmer += next_vertex.length;
                 total_depth += next_vertex.depth;
             } else {
                 num_added_kmer += local_width;
-                total_depth += (double)next_vertex.depth * local_width / vertex_length;
+                total_depth += (double)next_vertex.depth * local_width / next_vertex.length;
             }
         }
     }
@@ -381,9 +389,9 @@ void UnitigGraph::Refresh_() {
 
         if (linear_path.empty()) { continue; }
 
-        bool palindrome = false;
+        bool is_palindrome = false;
         if (i == linear_path.back().first) {
-            palindrome = true;
+            is_palindrome = true;
         } else if (!marked.lock(linear_path.back().first)) {
             if (linear_path.back().first > i) {
                 marked.unset(i);
@@ -397,34 +405,18 @@ void UnitigGraph::Refresh_() {
 
         // assemble the linear path
 
-        CompactSequence label = vertices_[i].label; 
-        int64_t depth = vertices_[i].depth; 
-        if (dir == 1) {
-            label.ReverseComplement();
-        }
+        int64_t depth = vertices_[i].depth;
+        int64_t length = vertices_[i].length;
 
         for (unsigned j = 0; j < linear_path.size(); ++j) {
             UnitigGraphVertex &next_vertex = vertices_[linear_path[j].first];
-            if (linear_path[j].second) {
-                next_vertex.label.ReverseComplement();
-            }
-            // assert(label.substr(label.length() - sdbg_->kmer_k + 1) == next_vertex.label.substr(0, sdbg_->kmer_k - 1));
-            label.resize(label.length() - sdbg_->kmer_k + 1);
-            label.Append(next_vertex.label);
 
-            if (palindrome && linear_path[j].second) {
-                next_vertex.label.ReverseComplement();
-            }
-
+            length += next_vertex.length;
             depth += next_vertex.depth;
             next_vertex.is_deleted = true;
         }
 
-        for (unsigned j = 0; j < linear_path.size(); ++j) {
-            CompactSequence empty_str;
-            vertices_[linear_path[j].first].label.swap(empty_str);
-        }
-        vertices_[i].label = label;
+        vertices_[i].length = length;
         vertices_[i].depth = depth;
 
         int64_t new_end;
@@ -442,6 +434,7 @@ void UnitigGraph::Refresh_() {
         vertices_[i].rev_start_node = new_rc_start;
         vertices_[i].rev_end_node = new_rc_end;
         vertices_[i].is_changed = true;
+        vertices_[i].is_palindrome = is_palindrome;
         if (i == linear_path.back().first) {
             vertices_[i].is_deleted = false;
         }
@@ -453,9 +446,8 @@ void UnitigGraph::Refresh_() {
         if (!vertices_[i].is_deleted && !marked.get(i)) {
             omp_set_lock(&reassemble_lock);
             if (!vertices_[i].is_deleted && !marked.get(i)) {
-                CompactSequence &label = vertices_[i].label;
+                uint32_t length = vertices_[i].length;
                 int64_t depth = vertices_[i].depth;
-                int vertex_length = vertices_[i].label.length() - sdbg_->kmer_k + 1;
 
                 vertices_[i].is_changed = true;
                 vertices_[i].is_loop = true;
@@ -472,26 +464,14 @@ void UnitigGraph::Refresh_() {
                         UnitigGraphVertex &next_vertex = vertices_[next_vertex_iter->second];
                         if (next_vertex.is_deleted) { break; }
 
-                        if (next_vertex.start_node != next_start) {
-                            next_vertex.label.ReverseComplement();
-                        }
-
-                        // assert(label.substr(label.length() - sdbg_->kmer_k + 1) == next_vertex.label.substr(0, sdbg_->kmer_k - 1));
-                        label.resize(label.length() - sdbg_->kmer_k + 1);
-                        label.Append(next_vertex.label);
-
+                        length += next_vertex.length;
                         depth += next_vertex.depth;
-                        vertex_length += next_vertex.label.length() - sdbg_->kmer_k + 1;
-
                         next_vertex.is_deleted = true;
-
-                        CompactSequence empty_str;
-                        next_vertex.label.swap(empty_str);
                     }
-                    label.ReverseComplement();
                 }
 
-                vertices_[i].depth = depth * 1.0 / vertex_length + 0.5;
+                vertices_[i].depth = depth;
+                vertices_[i].length = length;
             }
             omp_unset_lock(&reassemble_lock);
         }
@@ -515,15 +495,8 @@ void UnitigGraph::OutputInitUnitigs(FILE *contig_file, FILE *multi_file, std::ma
 
 #pragma omp parallel for
     for (unsigned i = 0; i < vertices_.size(); ++i) {
-        uint16_t multi;
-        if (vertices_[i].is_loop) {
-            multi = std::min(kMaxMulti_t, int(vertices_[i].depth + 0.5));
-        } else {
-            double dbg_vertex_length = vertices_[i].label.length() - sdbg_->kmer_k + 1;
-            multi = std::min(kMaxMulti_t, int(vertices_[i].depth / dbg_vertex_length + 0.5)); 
-        }
-
-        std::string label = vertices_[i].label.ToDNAString();
+        uint16_t multi = std::min(kMaxMulti_t, int(vertices_[i].depth / vertices_[i].length + 0.5));
+        std::string label = VertexToDNAString(sdbg_, vertices_[i]);
 
         if (vertices_[i].is_loop) {
             omp_set_lock(&output_lock);
@@ -534,7 +507,7 @@ void UnitigGraph::OutputInitUnitigs(FILE *contig_file, FILE *multi_file, std::ma
                                  label.c_str());
             fwrite(&multi, sizeof(uint16_t), 1, multi_file);
             ++output_id;
-            ++histo[vertices_[i].label.length()];
+            ++histo[label.length()];
             omp_unset_lock(&output_lock);
         } else {
             int indegree = sdbg_->Indegree(vertices_[i].start_node);
@@ -552,13 +525,80 @@ void UnitigGraph::OutputInitUnitigs(FILE *contig_file, FILE *multi_file, std::ma
                                  label.c_str());
             fwrite(&multi, sizeof(uint16_t), 1, multi_file);
             ++output_id;
-            ++histo[vertices_[i].label.length()];
+            ++histo[label.length()];
             omp_unset_lock(&output_lock);
         }
+    }
 
-        if (vertices_[i].is_deleted) {
-            CompactSequence empty_str;
-            vertices_[i].label.swap(empty_str);
+    omp_destroy_lock(&output_lock);
+}
+
+void UnitigGraph::OutputInitUnitigs(FILE *contig_file, 
+                                    FILE *multi_file, 
+                                    FILE *final_contig_file, 
+                                    std::map<int64_t, int> &histo,
+                                    int min_final_contig_length) {
+
+    uint32_t output_id = 0;
+    omp_lock_t output_lock;
+    omp_init_lock(&output_lock);
+    histo.clear();
+
+#pragma omp parallel for
+    for (unsigned i = 0; i < vertices_.size(); ++i) {
+        uint16_t multi = std::min(kMaxMulti_t, int(vertices_[i].depth / vertices_[i].length + 0.5));
+        std::string label = VertexToDNAString(sdbg_, vertices_[i]);
+
+        if (vertices_[i].is_loop) {
+            if (vertices_[i].is_palindrome) {
+                FoldPalindrome(label, sdbg_->kmer_k, vertices_[i].is_loop);
+            }
+            if (label.length() < (unsigned)min_final_contig_length) {
+                continue;
+            }
+            omp_set_lock(&output_lock);
+            fprintf(final_contig_file, ">contig_%d_%d_length_%ld_multi_%d_loop\n%s\n", 
+                                 sdbg_->kmer_k,
+                                 output_id, 
+                                 label.length(),
+                                 multi,
+                                 label.c_str());
+            ++output_id;
+            ++histo[label.length()];
+            omp_unset_lock(&output_lock);
+        } else {
+            int indegree = sdbg_->Indegree(vertices_[i].start_node);
+            int outdegree = sdbg_->Outdegree(vertices_[i].end_node);
+            FILE *out_file = contig_file;
+            if (indegree == 0 && outdegree == 0) {
+                vertices_[i].is_deleted = true;
+                if (vertices_[i].is_palindrome) {
+                    assert(vertices_[i].start_node == vertices_[i].rev_start_node);
+                    FoldPalindrome(label, sdbg_->kmer_k, vertices_[i].is_loop);
+                }
+
+                if (label.length() >= (unsigned)min_final_contig_length) {
+                    out_file = final_contig_file;
+                } else {
+                    continue;
+                }
+            }
+
+            omp_set_lock(&output_lock);
+            fprintf(out_file, ">contig_%d_%d_length_%ld_multi_%d_in_%d_out_%d\n%s\n", 
+                                 sdbg_->kmer_k,
+                                 output_id, 
+                                 label.length(), 
+                                 multi, 
+                                 indegree, 
+                                 outdegree, 
+                                 label.c_str());
+            if (out_file == contig_file) {
+                fwrite(&multi, sizeof(uint16_t), 1, multi_file);
+            }
+            ++output_id;
+            ++histo[label.length()];
+            omp_unset_lock(&output_lock);
         }
     }
 
@@ -579,21 +619,14 @@ void UnitigGraph::OutputChangedUnitigs(FILE *add_contig_file, FILE *addi_multi_f
             continue;
         }
 
+        uint16_t multi = std::min(kMaxMulti_t, int(vertices_[i].depth / vertices_[i].length + 0.5));
+        std::string label = VertexToDNAString(sdbg_, vertices_[i]);
+
         omp_set_lock(&histo_lock);
-        ++histo[vertices_[i].label.length()];
+        ++histo[label.length()];
         omp_unset_lock(&histo_lock);
 
         if (!vertices_[i].is_changed) { continue; }
-
-        uint16_t multi;
-        if (vertices_[i].is_loop) {
-            multi = std::min(kMaxMulti_t, int(vertices_[i].depth + 0.5));
-        } else {
-            double dbg_vertex_length = vertices_[i].label.length() - sdbg_->kmer_k + 1;
-            multi = std::min(kMaxMulti_t, int(vertices_[i].depth / dbg_vertex_length + 0.5)); 
-        }
-
-        std::string label = vertices_[i].label.ToDNAString();
 
         if (vertices_[i].is_loop) {
             if (label.length() >= (unsigned)sdbg_->kmer_k && 
@@ -642,88 +675,6 @@ void UnitigGraph::OutputChangedUnitigs(FILE *add_contig_file, FILE *addi_multi_f
     omp_destroy_lock(&output_lock);
 }
 
-void UnitigGraph::OutputInitUnitigs(FILE *contig_file, 
-                                    FILE *multi_file, 
-                                    FILE *final_contig_file, 
-                                    std::map<int64_t, int> &histo,
-                                    int min_final_contig_length) {
-
-    uint32_t output_id = 0;
-    omp_lock_t output_lock;
-    omp_init_lock(&output_lock);
-    histo.clear();
-
-#pragma omp parallel for
-    for (unsigned i = 0; i < vertices_.size(); ++i) {
-        uint16_t multi;
-        if (vertices_[i].is_loop) {
-            multi = std::min(kMaxMulti_t, int(vertices_[i].depth + 0.5));
-        } else {
-            double dbg_vertex_length = vertices_[i].label.length() - sdbg_->kmer_k + 1;
-            multi = std::min(kMaxMulti_t, int(dbg_vertex_length == 1 ? 0 : vertices_[i].depth / (dbg_vertex_length - 1) + 0.5));
-        }
-
-        std::string label = vertices_[i].label.ToDNAString();
-
-        if (vertices_[i].is_loop) {
-            if (label.length() < (unsigned)min_final_contig_length) {
-                continue;
-            }
-            omp_set_lock(&output_lock);
-            fprintf(final_contig_file, ">contig_%d_%d_length_%ld_multi_%d_loop\n%s\n", 
-                                 sdbg_->kmer_k,
-                                 output_id, 
-                                 label.length(),
-                                 multi,
-                                 label.c_str());
-            ++output_id;
-            ++histo[label.length()];
-            omp_unset_lock(&output_lock);
-        } else {
-            int indegree = sdbg_->Indegree(vertices_[i].start_node);
-            int outdegree = sdbg_->Outdegree(vertices_[i].end_node);
-            FILE *out_file = contig_file;
-            if (indegree == 0 && outdegree == 0) {
-                vertices_[i].is_deleted = true;
-                if (vertices_[i].start_node == vertices_[i].rev_start_node) {
-                    // palindrome
-                    int num_kmer = label.length() - sdbg_->kmer_k + 1;
-                    assert(num_kmer % 2 == 0);
-                    label.resize(num_kmer / 2 + (sdbg_->kmer_k - 1));
-                }
-
-                if (label.length() >= (unsigned)min_final_contig_length) {
-                    out_file = final_contig_file;
-                } else {
-                    continue;
-                }
-            }
-
-            omp_set_lock(&output_lock);
-            fprintf(out_file, ">contig_%d_%d_length_%ld_multi_%d_in_%d_out_%d\n%s\n", 
-                                 sdbg_->kmer_k,
-                                 output_id, 
-                                 label.length(), 
-                                 multi, 
-                                 indegree, 
-                                 outdegree, 
-                                 label.c_str());
-            if (out_file == contig_file) {
-                fwrite(&multi, sizeof(uint16_t), 1, multi_file);
-            }
-            ++output_id;
-            ++histo[label.length()];
-            omp_unset_lock(&output_lock);
-        }
-
-        if (vertices_[i].is_deleted) {
-            CompactSequence empty_str;
-            vertices_[i].label.swap(empty_str);
-        }
-    }
-
-    omp_destroy_lock(&output_lock);
-}
 
 void UnitigGraph::OutputFinalUnitigs(FILE *final_contig_file,
                                      std::map<int64_t, int> &histo,
@@ -739,17 +690,13 @@ void UnitigGraph::OutputFinalUnitigs(FILE *final_contig_file,
             continue;
         }
         
-        uint16_t multi;
-        if (vertices_[i].is_loop) {
-            multi = std::min(kMaxMulti_t, int(vertices_[i].depth + 0.5));
-        } else {
-            double dbg_vertex_length = vertices_[i].label.length() - sdbg_->kmer_k + 1;
-            multi = std::min(kMaxMulti_t, int(dbg_vertex_length == 1 ? 0 : vertices_[i].depth / (dbg_vertex_length - 1) + 0.5)); 
-        }
-
-        std::string label = vertices_[i].label.ToDNAString();
+        uint16_t multi = std::min(kMaxMulti_t, int(vertices_[i].depth / vertices_[i].length + 0.5));
+        std::string label = VertexToDNAString(sdbg_, vertices_[i]);
 
         if (vertices_[i].is_loop) {
+            if (vertices_[i].is_palindrome) {
+                FoldPalindrome(label, sdbg_->kmer_k, vertices_[i].is_loop);
+            }
             if (label.length() < (unsigned)min_final_contig_length) {
                 continue;
             }
@@ -765,9 +712,11 @@ void UnitigGraph::OutputFinalUnitigs(FILE *final_contig_file,
             omp_unset_lock(&output_lock);
         } else if (vertices_[i].start_node == vertices_[i].rev_start_node) {
             // it is a palindrome
-            int num_kmer = label.length() - sdbg_->kmer_k + 1;
-            assert(num_kmer % 2 == 0);
-            label.resize(num_kmer / 2 + (sdbg_->kmer_k - 1));
+            if (vertices_[i].is_palindrome) {
+                assert(vertices_[i].start_node == vertices_[i].rev_start_node);
+                FoldPalindrome(label, sdbg_->kmer_k, vertices_[i].is_loop);
+            }
+
             if (label.length() < (unsigned)min_final_contig_length) {
                 continue;
             }
