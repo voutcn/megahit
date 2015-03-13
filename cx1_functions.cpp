@@ -46,6 +46,8 @@
 #define GPU_BYTES_PER_ITEM 16 // key & value, 4 bytes each. double for radix sort internal buffer
 #define LV1_BYTES_PER_ITEM 4 // 32-bit differential offset
 
+int sdbg_builder_verbose = 3;
+
 /**
  * @brief extract the nth char in a packed read/edge
  */
@@ -243,7 +245,9 @@ void ReadInputFile(struct global_data_t &globals) {
     gzFile fp = strcmp(globals.input_file, "-") ? gzopen(globals.input_file, "r") : gzdopen(fileno(stdin), "r");
     kseq_t *seq = kseq_init(fp); // kseq to read files
     packed_reads_p = packed_reads = (edge_word_t*) MallocAndCheck(globals.capacity * globals.words_per_read * sizeof(edge_word_t), __FILE__, __LINE__);
-    log("[B::%s] Max read length is %d; words per read: %d\n", __func__, globals.max_read_length, globals.words_per_read);
+    if (sdbg_builder_verbose >= 2) {
+        log("[B::%s] Max read length is %d; words per read: %d\n", __func__, globals.max_read_length, globals.words_per_read);
+    }
 
     // --- main reading loop ---
     bool stop_reading = false;
@@ -415,7 +419,9 @@ void InitGlobalData(struct global_data_t &globals) {
     xtimer_t timer;
     timer.reset();
     timer.start();
-    log("[B::%s] Filling read partition buckets...\n", __func__);
+    if (sdbg_builder_verbose >= 3) {
+        log("[B::%s] Filling read partition buckets...\n", __func__);
+    }
     pthread_mutex_init(&globals.lv1_items_scanning_lock, NULL); // init lock
     PrepareBucketScan(globals);
     PreprocessScanToFillBucketSizes(globals); // Multithread: fill the read partition buckets, then sum up into the global buckets
@@ -423,7 +429,9 @@ void InitGlobalData(struct global_data_t &globals) {
     globals.tot_bucket_size = 0;
     for (int i = 0; i < phase1::kNumBuckets; ++i) { globals.tot_bucket_size += globals.bucket_sizes[i]; }
     timer.stop();
-    log("[B::%s] Done. Time elapsed: %.4lfs\n", __func__, timer.elapsed());
+    if (sdbg_builder_verbose >= 3) {
+        log("[B::%s] Done. Time elapsed: %.4lfs\n", __func__, timer.elapsed());
+    }
 
     // --- calculate lv2 memory ---
 #ifdef DISABLE_GPU
@@ -446,8 +454,10 @@ void InitGlobalData(struct global_data_t &globals) {
 #ifdef DISABLE_GPU
     lv2_bytes_per_item += sizeof(uint64_t) * 2; // CPU memory is used to simulate GPU
 #endif
-    log("[B::%s] %d words per read, %d words per substring, %d words per edge\n", __func__, globals.words_per_read, globals.words_per_substring, globals.words_per_edge);
-    
+
+    if (sdbg_builder_verbose >= 2) {
+        log("[B::%s] %d words per read, %d words per substring, %d words per edge\n", __func__, globals.words_per_read, globals.words_per_substring, globals.words_per_edge);
+    }
     // --- memory stuff ---
     int64_t mem_remained = globals.host_mem 
                          - globals.mem_packed_reads
@@ -475,9 +485,11 @@ void InitGlobalData(struct global_data_t &globals) {
         GetNumItems(globals, mem_remained, lv2_bytes_per_item);
     }
 
-    log("[B::%s] Memory for reads: %lld\n", __func__, globals.mem_packed_reads);
-    log("[B::%s] max # lv.1 items = %lld\n", __func__, globals.max_lv1_items);
-    log("[B::%s] max # lv.2 items = %lld\n", __func__, globals.max_lv2_items);
+    if (sdbg_builder_verbose >= 2) {
+        log("[B::%s] Memory for reads: %lld\n", __func__, globals.mem_packed_reads);
+        log("[B::%s] max # lv.1 items = %lld\n", __func__, globals.max_lv1_items);
+        log("[B::%s] max # lv.2 items = %lld\n", __func__, globals.max_lv2_items);
+    }
 
     // --- alloc memory ---
     globals.lv1_items = (int*) MallocAndCheck(globals.max_lv1_items * sizeof(int), __FILE__, __LINE__);
@@ -934,8 +946,10 @@ void* Lv2CountingThread(void *_op) {
         }
     }
     local_timer.stop();
-    log("[B::%s] Counting time elapsed: %.4lfs\n", __func__, local_timer.elapsed());
 
+    if (sdbg_builder_verbose >= 4) {
+        log("[B::%s] Counting time elapsed: %.4lfs\n", __func__, local_timer.elapsed());
+    }
     return NULL;
 }
 
@@ -1019,12 +1033,20 @@ void Phase1Entry(struct global_data_t &globals) {
     // --- read queries ---
     timer.reset();
     timer.start();
-    log("[B::%s] Reading input...\n", __func__);
+
+    if (sdbg_builder_verbose >= 2) {
+        log("[B::%s] Reading input...\n", __func__);
+    }
     InitDNAMap();
     ReadInputFile(globals);
-    log("[B::%s] Done reading input, %lld reads in total.\n", __func__, globals.num_reads);
+
+    if (sdbg_builder_verbose >= 2) {
+        log("[B::%s] Done reading input, %lld reads in total.\n", __func__, globals.num_reads);
+    }
     timer.stop();
-    log("[B::%s] Time elapsed: %.4lfs\n", __func__, timer.elapsed());
+    if (sdbg_builder_verbose >= 2) {
+        log("[B::%s] Time elapsed: %.4lfs\n", __func__, timer.elapsed());
+    }
 
 #ifdef DBJ_DEBUG
     debug("The 5th read is [[");
@@ -1060,12 +1082,19 @@ void Phase1Entry(struct global_data_t &globals) {
         }
 
         // --- LV1 scan to fill offsets in host mem ---
-        log("[B::%s] Iteration %d, from bucket %d to %d\n", __func__, lv1_iteration, globals.lv1_start_bucket, globals.lv1_end_bucket-1);
-        log("[B::%s] Scanning and filling offsets...\n", __func__);
+
+        if (sdbg_builder_verbose >= 3) {
+            log("[B::%s] Iteration %d, from bucket %d to %d\n", __func__, lv1_iteration, globals.lv1_start_bucket, globals.lv1_end_bucket-1);
+            log("[B::%s] Scanning and filling offsets...\n", __func__);
+        }
         Lv1ScanToFillOffests(globals);
         local_timer.stop();
-        log("[B::%s] Scanning and filling offsets...done. Number of large differentials: %llu\n", __func__, globals.lv1_items_special.size());
-        log("[B::%s] time elapsed: %.4lfs\n", __func__, local_timer.elapsed());
+
+        if (sdbg_builder_verbose >= 3) {
+            log("[B::%s] Scanning and filling offsets...done. Number of large differentials: %llu\n", __func__, globals.lv1_items_special.size());
+            log("[B::%s] time elapsed: %.4lfs\n", __func__, local_timer.elapsed());
+        }
+
         if (globals.lv1_items_special.size() > kDifferentialLimit) {
             err("[ERROR B::%s] Too many large differentials!\n", __func__);
             exit(1);
@@ -1086,10 +1115,16 @@ void Phase1Entry(struct global_data_t &globals) {
             }
 
             // --- extract substring to host mem ---
-            log("[B::%s] > Iteration [%d,%d], from bucket %d to %d\n", __func__, lv1_iteration, lv2_iteration, globals.lv2_start_bucket, globals.lv2_end_bucket-1);
+
+            if (sdbg_builder_verbose >= 4) {
+                log("[B::%s] > Iteration [%d,%d], from bucket %d to %d\n", __func__, lv1_iteration, lv2_iteration, globals.lv2_start_bucket, globals.lv2_end_bucket-1);
+            }
             Lv2ExtractSubstrings(globals);
             local_timer.stop();
-            log("[B::%s] Extracting substrings...done. Time elapsed: %.4lfs\n", __func__, local_timer.elapsed());
+
+            if (sdbg_builder_verbose >= 4) {
+                log("[B::%s] Extracting substrings...done. Time elapsed: %.4lfs\n", __func__, local_timer.elapsed());
+            }
             // --- sorting ---
 #ifdef DISABLE_GPU
             omp_set_num_threads(globals.num_cpu_threads - globals.phase1_num_output_threads);
@@ -1098,13 +1133,19 @@ void Phase1Entry(struct global_data_t &globals) {
             lv2_cpu_sort(globals.lv2_substrings, globals.permutation, globals.cpu_sort_space, globals.words_per_substring, globals.lv2_num_items);
             omp_set_num_threads(globals.num_cpu_threads);
             local_timer.stop();
-            log("[B::%s] Sorting substrings with CPU...done. Time elapsed: %.4lfs\n", __func__, local_timer.elapsed());
+
+            if (sdbg_builder_verbose >= 4) {
+                log("[B::%s] Sorting substrings with CPU...done. Time elapsed: %.4lfs\n", __func__, local_timer.elapsed());
+            }
 #else
             local_timer.reset();
             local_timer.start();
             lv2_gpu_sort(globals.lv2_substrings, globals.permutation, globals.words_per_substring, globals.lv2_num_items);
             local_timer.stop();
-            log("[B::%s] Sorting substrings with GPU...done. Time elapsed: %.4lfs\n", __func__, local_timer.elapsed());
+
+            if (sdbg_builder_verbose >= 4) {
+                log("[B::%s] Sorting substrings with GPU...done. Time elapsed: %.4lfs\n", __func__, local_timer.elapsed());
+            }
 #endif
             // --- output is pipelined ---
             if (output_thread_created) {
@@ -1129,7 +1170,10 @@ void Phase1Entry(struct global_data_t &globals) {
     }
 
     timer.stop();
-    log("[B::%s] Done all counting. Time elapsed: %.4lf\n", __func__, timer.elapsed());
+
+    if (sdbg_builder_verbose >= 3) {
+        log("[B::%s] Done all counting. Time elapsed: %.4lf\n", __func__, timer.elapsed());
+    }
 
     // --- output reads for mercy ---
     int64_t num_candidate_reads = 0;
@@ -1147,7 +1191,10 @@ void Phase1Entry(struct global_data_t &globals) {
         }
     }
     fclose(candidate_file);
-    log("[B::%s] Total number of candidate reads: %lld(%lld)\n", __func__, num_candidate_reads, num_has_tips);
+
+    if (sdbg_builder_verbose >= 2) {
+        log("[B::%s] Total number of candidate reads: %lld(%lld)\n", __func__, num_candidate_reads, num_has_tips);
+    }
 
     // --- stat ---
     int64_t num_solid_edges = 0;
@@ -1155,7 +1202,10 @@ void Phase1Entry(struct global_data_t &globals) {
         num_solid_edges += globals.edge_counting[i];
     }
     globals.num_edges = globals.num_outgoing_zero_nodes + globals.num_incoming_zero_nodes + num_solid_edges;
-    log("[B::%s] Total number of solid edges: %llu\n", __func__, num_solid_edges);
+
+    if (sdbg_builder_verbose >= 2) {
+        log("[B::%s] Total number of solid edges: %llu\n", __func__, num_solid_edges);
+    }
 
     FILE *counting_file = OpenFileAndCheck((std::string(globals.output_prefix)+".counting").c_str(), "w");
     for (int64_t i = 1, acc = 0; i <= kMaxMulti_t; ++i) {
@@ -1196,8 +1246,11 @@ int64_t ReadEdges(global_data_t &globals) {
     }
     int64_t bytes_per_edge = globals.words_per_edge * sizeof(edge_word_t) + globals.mult_mem_type;
     int64_t max_num_edges = globals.host_mem * 0.9 / bytes_per_edge; // TODO: more accurate
-    log("[B::%s] kmer_k: %d, words_per_edge: %d\n", __func__, globals.kmer_k, globals.words_per_edge);
-    log("[B::%s] Max host mem: %ld, max number of edges can be loaded: %lld\n", __func__, globals.host_mem, (long long)max_num_edges);
+
+    if (sdbg_builder_verbose >= 2) {
+        log("[B::%s] kmer_k: %d, words_per_edge: %d\n", __func__, globals.kmer_k, globals.words_per_edge);
+        log("[B::%s] Max host mem: %ld, max number of edges can be loaded: %lld\n", __func__, globals.host_mem, (long long)max_num_edges);
+    }
 
     // --- alloc memory for edges ---
     globals.capacity = std::min(max_num_edges, int64_t(10485760)); // 10M
@@ -1271,7 +1324,10 @@ int64_t ReadEdges(global_data_t &globals) {
         globals.mem_packed_edges = bytes_per_edge * num_edges;
     }
     globals.num_edges = num_edges;
-    log("[B::%s] Number of edges: %lld\n", __func__, num_edges);
+
+    if (sdbg_builder_verbose >= 3) {
+        log("[B::%s] Number of edges: %lld\n", __func__, num_edges);
+    }
     return num_edges;
 }
 
@@ -1349,7 +1405,10 @@ int64_t ReadMercyEdges(global_data_t &globals) {
         globals.multiplicity16 = (uint16_t*) ReAllocAndCheck(globals.multiplicity16, sizeof(uint16_t) * num_edges, __FILE__, __LINE__);
     }
 
-    log("[B::%s] Number of mercy edges: %lld\n", __func__, num_edges - globals.num_edges);
+
+    if (sdbg_builder_verbose >= 2) {
+        log("[B::%s] Number of mercy edges: %lld\n", __func__, num_edges - globals.num_edges);
+    }
     globals.num_edges = num_edges;
     globals.mem_packed_edges = bytes_per_edge * num_edges;
     return num_edges;
@@ -1498,7 +1557,10 @@ void InitGlobalData(global_data_t &globals) {
     xtimer_t timer;
     timer.reset();
     timer.start();
-    log("[B::%s] Filling edge partition buckets...\n", __func__);
+
+    if (sdbg_builder_verbose >= 3) {
+        log("[B::%s] Filling edge partition buckets...\n", __func__);
+    }
     pthread_mutex_init(&globals.lv1_items_scanning_lock, NULL); // init lock
     PrepareBucketScan(globals);
     PreprocessScanToFillBucketSizes(globals); // Multithread: fill the read partition buckets, then sum up into the global buckets
@@ -1506,7 +1568,10 @@ void InitGlobalData(global_data_t &globals) {
     globals.tot_bucket_size = 0;
     for (int i = 0; i < phase2::kNumBuckets; ++i) { globals.tot_bucket_size += globals.bucket_sizes[i]; }
     timer.stop();
-    log("[B::%s] Done. Time elapsed: %.4lfs\n", __func__, timer.elapsed());
+
+    if (sdbg_builder_verbose >= 3) {
+        log("[B::%s] Done. Time elapsed: %.4lfs\n", __func__, timer.elapsed());
+    }
 
     // --- calculate lv2 memory ---
 #ifdef DISABLE_GPU
@@ -1528,7 +1593,10 @@ void InitGlobalData(global_data_t &globals) {
 #ifdef DISABLE_GPU
     lv2_bytes_per_item += sizeof(uint64_t) * 2; // simulate GPU
 #endif
-    log("[B::%s] %d words per substring, k_num_bits: %d, words per dummy node ($v): %d\n", __func__, globals.words_per_substring, globals.k_num_bits, globals.words_per_dummy_node);
+
+    if (sdbg_builder_verbose >= 2) {
+        log("[B::%s] %d words per substring, k_num_bits: %d, words per dummy node ($v): %d\n", __func__, globals.words_per_substring, globals.k_num_bits, globals.words_per_dummy_node);
+    }
 
     // --- memory stuff ---
     int64_t mem_remained = globals.host_mem
@@ -1554,9 +1622,12 @@ void InitGlobalData(global_data_t &globals) {
         // use all
         GetNumItems(globals, mem_remained, lv2_bytes_per_item);
     }
-    log("[B::%s] Memory for edges: %lld\n", __func__, globals.mem_packed_edges);
-    log("[B::%s] max # lv.1 items = %lld\n", __func__, globals.max_lv1_items);
-    log("[B::%s] max # lv.2 items = %lld\n", __func__, globals.max_lv2_items);
+
+    if (sdbg_builder_verbose >= 2) {
+        log("[B::%s] Memory for edges: %lld\n", __func__, globals.mem_packed_edges);
+        log("[B::%s] max # lv.1 items = %lld\n", __func__, globals.max_lv1_items);
+        log("[B::%s] max # lv.2 items = %lld\n", __func__, globals.max_lv2_items);
+    }
 
     // --- alloc memory ---
     globals.lv1_items = (int*) MallocAndCheck(globals.max_lv1_items * sizeof(int), __FILE__, __LINE__);
@@ -1907,11 +1978,16 @@ void ReadReadsAndGetMercyEdges(global_data_t &globals) {
             }
         }
         if (num_reads % (16 * package.kMaxNumReads) == 0) {
-            log("[B::%s] Number of reads: %ld, Number of mercy edges: %ld\n", __func__, num_reads, num_mercy_edges);   
+            if (sdbg_builder_verbose >= 4) {
+                log("[B::%s] Number of reads: %ld, Number of mercy edges: %ld\n", __func__, num_reads, num_mercy_edges);
+            }
         }
     }
 
-    log("[B::%s] Number of reads: %ld, Number of mercy edges: %ld\n", __func__, num_reads, num_mercy_edges);
+
+    if (sdbg_builder_verbose >= 2) {
+        log("[B::%s] Number of reads: %ld, Number of mercy edges: %ld\n", __func__, num_reads, num_mercy_edges);
+    }
 
     free(kmers);
     free(rev_kmers);
@@ -2414,7 +2490,10 @@ void *Lv2OutputThread(void *_op) {
             }
         }
         local_timer.stop();
-        log("[B::%s] Linear part: %lf\n", __func__, local_timer.elapsed());
+
+        if (sdbg_builder_verbose >= 4) {
+            log("[B::%s] Linear part: %lf\n", __func__, local_timer.elapsed());
+        }
     }
     return NULL;
 }
@@ -2499,20 +2578,31 @@ void Phase2Entry(struct global_data_t &globals) {
     // --- read edges ---
     timer.reset();
     timer.start();
-    log("[B::%s] Reading edges from temporary files...\n", __func__);
+
+    if (sdbg_builder_verbose >= 3) {
+        log("[B::%s] Reading edges from temporary files...\n", __func__);
+    }
     InitDNAMap();
     ReadEdges(globals);
     timer.stop();
-    log("[B::%s] Done. Time elapsed: %.4lfs\n", __func__, timer.elapsed());
+
+    if (sdbg_builder_verbose >= 3) {
+        log("[B::%s] Done. Time elapsed: %.4lfs\n", __func__, timer.elapsed());
+    }
 
     if (globals.need_mercy) {
         timer.reset();
         timer.start();
-        log("[B::%s] Adding mercy edges...\n", __func__);
+        if (sdbg_builder_verbose >= 3) {
+            log("[B::%s] Adding mercy edges...\n", __func__);
+        }
         ReadReadsAndGetMercyEdges(globals);
         ReadMercyEdges(globals);
         timer.stop();
-        log("[B::%s] Done. Time elapsed: %.4lfs\n", __func__, timer.elapsed());
+
+        if (sdbg_builder_verbose >= 3) {
+            log("[B::%s] Done. Time elapsed: %.4lfs\n", __func__, timer.elapsed());
+        }
     }
 
     // --- init global data ---
@@ -2541,7 +2631,10 @@ void Phase2Entry(struct global_data_t &globals) {
         xtimer_t local_timer;
         lv1_iteration++;
         // --- finds the bucket range for this iteration ---
-        log("[B::%s] Finding end bucket...\n", __func__);
+
+        if (sdbg_builder_verbose >= 3) {
+            log("[B::%s] Finding end bucket...\n", __func__);
+        }
         local_timer.reset();
         local_timer.start();
         globals.lv1_end_bucket = FindEndBucket(globals.bucket_sizes, globals.lv1_start_bucket, phase2::kNumBuckets, globals.max_lv1_items, globals.lv1_num_items);
@@ -2549,13 +2642,19 @@ void Phase2Entry(struct global_data_t &globals) {
             err("[ERROR] Bucket %d too large for lv.1: contains %lld items\n", globals.lv1_end_bucket, globals.bucket_sizes[globals.lv1_end_bucket]);
             exit(1);
         }
-        log("[B::%s] Iteration %d, from bucket %d to %d\n", __func__, lv1_iteration, globals.lv1_start_bucket, globals.lv1_end_bucket-1);
 
-        log("[B::%s] Scanning and filling offsets...\n", __func__);
+        if (sdbg_builder_verbose >= 3) {
+            log("[B::%s] Iteration %d, from bucket %d to %d\n", __func__, lv1_iteration, globals.lv1_start_bucket, globals.lv1_end_bucket-1);
+            log("[B::%s] Scanning and filling offsets...\n", __func__);
+        }
         Lv1ScanToFillOffests(globals);
         local_timer.stop();
-        log("[B::%s] Number of large differentials: %llu\n", __func__, globals.lv1_items_special.size());
-        log("[B::%s] Lv1 scanning time elapsed: %.4lfs\n", __func__, local_timer.elapsed());
+
+        if (sdbg_builder_verbose >= 3) {
+            log("[B::%s] Number of large differentials: %llu\n", __func__, globals.lv1_items_special.size());
+            log("[B::%s] Lv1 scanning time elapsed: %.4lfs\n", __func__, local_timer.elapsed());
+        }
+
         if (globals.lv1_items_special.size() > kDifferentialLimit) {
             err("[ERROER B::%s]Too many large differentials!\n", __func__);
             exit(1);
@@ -2574,11 +2673,17 @@ void Phase2Entry(struct global_data_t &globals) {
                 err("[ERROR B::%s] Bucket %d too large for lv.2: contains %lld items\n", __func__, globals.lv2_end_bucket, globals.bucket_sizes[globals.lv2_end_bucket]);
                 exit(1);
             }
-            log("[B::%s] > Iteration [%d,%d], from bucket %d to %d\n", __func__, lv1_iteration, lv2_iteration, globals.lv2_start_bucket, globals.lv2_end_bucket-1);
+
+            if (sdbg_builder_verbose >= 4) {
+                log("[B::%s] > Iteration [%d,%d], from bucket %d to %d\n", __func__, lv1_iteration, lv2_iteration, globals.lv2_start_bucket, globals.lv2_end_bucket-1);
+            }
 
             Lv2ExtractSubstrings(globals);
             local_timer.stop();
-            log("[B::%s] Extracting substrings... done. Time elapsed: %.4lfs\n", __func__, local_timer.elapsed());
+
+            if (sdbg_builder_verbose >= 4) {
+                log("[B::%s] Extracting substrings... done. Time elapsed: %.4lfs\n", __func__, local_timer.elapsed());
+            }
 
             // --- sorting ---
 #ifdef DISABLE_GPU
@@ -2588,13 +2693,19 @@ void Phase2Entry(struct global_data_t &globals) {
             lv2_cpu_sort(globals.lv2_substrings, globals.permutation, globals.cpu_sort_space, globals.words_per_substring, globals.lv2_num_items);
             omp_set_num_threads(globals.num_cpu_threads);
             local_timer.stop();
-            log("[B::%s] Sorting substrings with CPU...Sorting time elapsed: %.4lfs\n", __func__, local_timer.elapsed());
+
+            if (sdbg_builder_verbose >= 4) {
+                log("[B::%s] Sorting substrings with CPU...Sorting time elapsed: %.4lfs\n", __func__, local_timer.elapsed());
+            }
 #else
             local_timer.reset();
             local_timer.start();
             lv2_gpu_sort(globals.lv2_substrings, globals.permutation, globals.words_per_substring, globals.lv2_num_items);
             local_timer.stop();
-            log("[B::%s] Sorting substrings with GPU...Sorting time elapsed: %.4lfs\n", __func__, local_timer.elapsed());
+
+            if (sdbg_builder_verbose >= 4) {
+                log("[B::%s] Sorting substrings with GPU...Sorting time elapsed: %.4lfs\n", __func__, local_timer.elapsed());
+            }
 #endif
             // --- output ---
             if (output_thread_created) {
@@ -2618,8 +2729,12 @@ void Phase2Entry(struct global_data_t &globals) {
         Lv2OutputJoin(globals);
     }
     timer.stop();
-    log("[B::%s] Done sorting! Time elapsed: %.4lf\n", __func__, timer.elapsed());
-    log("[B::%s] Number of $ A C G T A- C- G- T-:\n", __func__);
+
+    if (sdbg_builder_verbose >= 3) {
+        log("[B::%s] Done sorting! Time elapsed: %.4lf\n", __func__, timer.elapsed());
+        log("[B::%s] Number of $ A C G T A- C- G- T-:\n", __func__);
+    }
+
     for (int i = 0; i < 9; ++i) {
         log("%lld ", globals.num_chars_in_w[i]);
     }
@@ -2630,10 +2745,13 @@ void Phase2Entry(struct global_data_t &globals) {
     fprintf(globals.output_f_file, "%d\n", globals.kmer_k);
     fprintf(globals.output_f_file, "%lld\n", (long long)globals.num_dollar_nodes);
 
-    log("[B::%s] Total number of edges: %llu\n", __func__, globals.total_number_edges);
-    log("[B::%s] Total number of ONEs: %llu\n", __func__, globals.num_ones_in_last);
-    log("[B::%s] Total number of v$ edges: %llu\n", __func__, globals.num_dummy_edges);
-    log("[B::%s] Total number of $v edges: %llu\n", __func__, globals.num_dollar_nodes);
+
+    if (sdbg_builder_verbose >= 2) {
+        log("[B::%s] Total number of edges: %llu\n", __func__, globals.total_number_edges);
+        log("[B::%s] Total number of ONEs: %llu\n", __func__, globals.num_ones_in_last);
+        log("[B::%s] Total number of v$ edges: %llu\n", __func__, globals.num_dummy_edges);
+        log("[B::%s] Total number of $v edges: %llu\n", __func__, globals.num_dollar_nodes);
+    }
 
     ////////////////////////////////// Cleaning up... /////////////////////////////////
     Phase2Clean(globals);

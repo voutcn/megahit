@@ -236,4 +236,6 @@ void Phase2Entry(struct global_data_t &globals);
 
 }
 
+extern int sdbg_builder_verbose;
+
 #endif // SDBG_BUILDER_UTIL_H_
