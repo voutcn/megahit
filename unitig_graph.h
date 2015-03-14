@@ -48,11 +48,12 @@ struct UnitigGraphVertex {
     bool is_loop: 1;
     uint32_t length: 31;
     bool is_palindrome: 1;
-    // CompactSequence label;
 };
 
 class UnitigGraph {
 public:
+    typedef uint32_t vertexID_t; 
+
     UnitigGraph(SuccinctDBG *sdbg): sdbg_(sdbg) {}
     ~UnitigGraph() {}
 
@@ -73,9 +74,9 @@ private:
 
 private:
     // data
-    static const size_t kMaxNumVertices = uint32_t(4294967295ULL); // std::numeric_limits<uint32_t>::max();
+    static const size_t kMaxNumVertices;// = std::numeric_limits<vertexID_t>::max();
     SuccinctDBG *sdbg_;
-    HashMap<int64_t, uint32_t> start_node_map_;
+    HashMap<int64_t, vertexID_t> start_node_map_;
     std::vector<UnitigGraphVertex> vertices_;
 };
 
