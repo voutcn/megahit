@@ -52,7 +52,7 @@ struct AutoMaxRssRecorder {
     ~AutoMaxRssRecorder() {
         gettimeofday(&tv2, NULL);
         struct rusage usage;
-        if (getrusage(RUSAGE_SELF,&usage)) {
+        if (getrusage(RUSAGE_SELF, &usage)) {
             fprintf(stderr, "Fail to getrusage()\n");
             return;
         }

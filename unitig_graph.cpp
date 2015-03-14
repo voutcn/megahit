@@ -69,11 +69,9 @@ static inline void ReverseComplement(std::string &s) {
 std::string VertexToDNAString(SuccinctDBG *sdbg_, UnitigGraphVertex &v) {
     static char acgt[] = "ACGT";
     std::string label;
-    int64_t start_node = v.start_node;
-    int64_t end_node = v.end_node;
+    int64_t cur_node = v.end_node;
 
-    int64_t cur_node = end_node;
-    while (cur_node != start_node) {
+    for (int i = 1; i < v.length; ++i) {
         int64_t prev_node =  assembly_algorithms::PrevSimplePathNode(*sdbg_, cur_node);
         cur_node = sdbg_->GetLastIndex(prev_node);
         int8_t cur_char = sdbg_->GetW(prev_node);
@@ -81,8 +79,16 @@ std::string VertexToDNAString(SuccinctDBG *sdbg_, UnitigGraphVertex &v) {
         label.append(1, acgt[cur_char > 4 ? (cur_char - 5) : (cur_char - 1)]);
     }
 
+    assert(cur_node == v.start_node);
+    while (cur_node != v.start_node) {
+        int64_t prev_node =  assembly_algorithms::PrevSimplePathNode(*sdbg_, cur_node);
+        cur_node = sdbg_->GetLastIndex(prev_node);
+        int8_t cur_char = sdbg_->GetW(prev_node);
+        label.append(1, acgt[cur_char > 4 ? (cur_char - 5) : (cur_char - 1)]);
+    }
+
     uint8_t seq[sdbg_->kMaxKmerK];
-    sdbg_->Label(start_node, seq);
+    sdbg_->Label(v.start_node, seq);
     for (int i = sdbg_->kmer_k - 1; i >= 0; --i) {
         assert(seq[i] >= 1 && seq[i] <= 4);
         label.append(1, acgt[seq[i] - 1]);
@@ -103,7 +109,6 @@ void FoldPalindrome(std::string &s, int kmer_k, bool is_loop) {
                 break;
             }
         }
-        assert(false);
     } else {
         int num_kmer = s.length() - kmer_k + 1;
         assert(num_kmer % 2 == 0);
@@ -194,7 +199,7 @@ void UnitigGraph::InitFromSdBG() {
             if (!marked.get(node_idx)) {
                 int64_t cur_node = node_idx;
                 int64_t depth = sdbg_->NodeMultiplicity(node_idx);
-                uint32_t length = 1;
+                uint32_t length = 0;
 
                 bool rc_marked = marked.get(sdbg_->ReverseComplement(node_idx)); // whether it is marked before entering the loop
 
@@ -207,14 +212,17 @@ void UnitigGraph::InitFromSdBG() {
                     ++length;
                 }
 
+                assert(cur_node == node_idx);
+
                 if (!rc_marked) {
-                    vertices_.push_back(UnitigGraphVertex(cur_node, node_idx, 0, 0, depth, length));
+                    int64_t start = sdbg_->GetLastIndex(assembly_algorithms::NextSimplePathNode(*sdbg_, node_idx));
+                    int64_t end = node_idx;
+                    vertices_.push_back(UnitigGraphVertex(start, end, sdbg_->ReverseComplement(end), sdbg_->ReverseComplement(start), depth, length));
                     vertices_.back().is_loop = true;
                     vertices_.back().is_deleted = true;
                     if (marked.get(sdbg_->ReverseComplement(node_idx))) {
                         // this loop is palindrome
                         vertices_.back().is_palindrome = true;
-                        vertices_.back().length;
                     }
                 }
             }
@@ -390,7 +398,7 @@ void UnitigGraph::Refresh_() {
 
         if (linear_path.empty()) { continue; }
 
-        if (!marked.lock(linear_path.back().first)) {
+        if (i != linear_path.back().first && !marked.lock(linear_path.back().first)) { // if i == linear_path.back().first it is a palindrome self loop
             if (linear_path.back().first > i) {
                 marked.unset(i);
                 continue;
@@ -408,7 +416,6 @@ void UnitigGraph::Refresh_() {
 
         for (unsigned j = 0; j < linear_path.size(); ++j) {
             UnitigGraphVertex &next_vertex = vertices_[linear_path[j].first];
-
             length += next_vertex.length;
             depth += next_vertex.depth;
             next_vertex.is_deleted = true;
@@ -449,26 +456,38 @@ void UnitigGraph::Refresh_() {
                 vertices_[i].is_changed = true;
                 vertices_[i].is_loop = true;
                 vertices_[i].is_deleted = true;
+                bool is_palindrome = false;
 
-                for (int dir = 0; dir < 2; ++dir) {
-                    int64_t cur_end = vertices_[i].end_node;
-                    if (dir == 1) { cur_end = vertices_[i].rev_end_node; }
-                    while (true) {
-                        int64_t next_start = assembly_algorithms::NextSimplePathNode(*sdbg_, cur_end);
-                        assert(next_start != -1);
-                        auto next_vertex_iter = start_node_map_.find(next_start);
-                        assert(next_vertex_iter != start_node_map_.end());
-                        UnitigGraphVertex &next_vertex = vertices_[next_vertex_iter->second];
-                        if (next_vertex.is_deleted) { break; }
-
-                        length += next_vertex.length;
-                        depth += next_vertex.depth;
-                        next_vertex.is_deleted = true;
+                int64_t cur_end = vertices_[i].end_node;
+                while (true) {
+                    int64_t next_start = assembly_algorithms::NextSimplePathNode(*sdbg_, cur_end);
+                    assert(next_start != -1);
+                    if (next_start == vertices_[i].start_node) {
+                        break;
                     }
+
+                    auto next_vertex_iter = start_node_map_.find(next_start);
+                    assert(next_vertex_iter != start_node_map_.end());
+                    UnitigGraphVertex &next_vertex = vertices_[next_vertex_iter->second];
+
+                    if (next_vertex.is_deleted) {
+                        // that means the loop has alrealy gone through its rc
+                        is_palindrome = true;
+                    }
+
+                    length += next_vertex.length;
+                    depth += next_vertex.depth;
+                    next_vertex.is_deleted = true;
+
+                    cur_end = (next_vertex.start_node == next_start) ? next_vertex.end_node : next_vertex.rev_end_node;
                 }
 
                 vertices_[i].depth = depth;
                 vertices_[i].length = length;
+                vertices_[i].is_palindrome = is_palindrome;
+                vertices_[i].end_node = sdbg_->GetLastIndex(assembly_algorithms::PrevSimplePathNode(*sdbg_, vertices_[i].start_node));
+                vertices_[i].rev_start_node = sdbg_->ReverseComplement(vertices_[i].end_node);
+                vertices_[i].rev_end_node = sdbg_->ReverseComplement(vertices_[i].start_node);
             }
             omp_unset_lock(&reassemble_lock);
         }
@@ -492,7 +511,7 @@ void UnitigGraph::OutputInitUnitigs(FILE *contig_file, FILE *multi_file, std::ma
 
 #pragma omp parallel for
     for (unsigned i = 0; i < vertices_.size(); ++i) {
-        uint16_t multi = std::min(kMaxMulti_t, int(vertices_[i].depth / vertices_[i].length + 0.5));
+        uint16_t multi = std::min(kMaxMulti_t, int((double)vertices_[i].depth / vertices_[i].length + 0.5));
         std::string label = VertexToDNAString(sdbg_, vertices_[i]);
 
         if (vertices_[i].is_loop) {
@@ -542,7 +561,7 @@ void UnitigGraph::OutputInitUnitigs(FILE *contig_file,
 
 #pragma omp parallel for
     for (unsigned i = 0; i < vertices_.size(); ++i) {
-        uint16_t multi = std::min(kMaxMulti_t, int(vertices_[i].depth / vertices_[i].length + 0.5));
+        uint16_t multi = std::min(kMaxMulti_t, int((double)vertices_[i].depth / vertices_[i].length + 0.5));
         std::string label = VertexToDNAString(sdbg_, vertices_[i]);
 
         if (vertices_[i].is_loop) {
@@ -614,7 +633,7 @@ void UnitigGraph::OutputChangedUnitigs(FILE *add_contig_file, FILE *addi_multi_f
             continue;
         }
 
-        uint16_t multi = std::min(kMaxMulti_t, int(vertices_[i].depth / vertices_[i].length + 0.5));
+        uint16_t multi = std::min(kMaxMulti_t, int((double)vertices_[i].depth / vertices_[i].length + 0.5));
         std::string label = VertexToDNAString(sdbg_, vertices_[i]);
 
         omp_set_lock(&histo_lock);
@@ -685,7 +704,7 @@ void UnitigGraph::OutputFinalUnitigs(FILE *final_contig_file,
             continue;
         }
         
-        uint16_t multi = std::min(kMaxMulti_t, int(vertices_[i].depth / vertices_[i].length + 0.5));
+        uint16_t multi = std::min(kMaxMulti_t, int((double)vertices_[i].depth / vertices_[i].length + 0.5));
         std::string label = VertexToDNAString(sdbg_, vertices_[i]);
 
         if (vertices_[i].is_loop) {
