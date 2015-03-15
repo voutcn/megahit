@@ -151,7 +151,6 @@ ifneq ($(disablempopcnt), 1)
 	CFLAGS += -mpopcnt
 endif
 DEPS = Makefile
-BIN_DIR = ./bin/
 
 #-------------------------------------------------------------------------------
 # CPU & GPU version
@@ -180,8 +179,8 @@ endif
 sdbg_builder_cpu: sdbg_builder.cpp .cx1_functions_cpu.o lv2_cpu_sort.h options_description.o $(DEPS)
 	$(CXX) $(CFLAGS) -D DISABLE_GPU sdbg_builder.cpp .cx1_functions_cpu.o options_description.o $(ZLIB) -o sdbg_builder_cpu
 
-megahit_assemble: assembler.cpp succinct_dbg.o rank_and_select.o assembly_algorithms.o branch_group.o options_description.o unitig_graph.o compact_sequence.o $(DEPS)
-	$(CXX) $(CFLAGS) assembler.cpp rank_and_select.o succinct_dbg.o assembly_algorithms.o branch_group.o options_description.o unitig_graph.o compact_sequence.o $(ZLIB) -o megahit_assemble
+megahit_assemble: assembler.cpp succinct_dbg.o rank_and_select.o assembly_algorithms.o branch_group.o options_description.o unitig_graph.o $(DEPS)
+	$(CXX) $(CFLAGS) assembler.cpp rank_and_select.o succinct_dbg.o assembly_algorithms.o branch_group.o options_description.o unitig_graph.o $(ZLIB) -o megahit_assemble
 
 megahit_iter_all: megahit_iter_k61 megahit_iter_k92 megahit_iter_k124
 

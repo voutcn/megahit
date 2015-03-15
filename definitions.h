@@ -25,6 +25,10 @@ typedef uint16_t multi_t;
 const int kBitsPerMulti_t = 16;
 const int kMaxMulti_t = 65535;
 
+typedef uint8_t multi2_t;
+const int kMaxMulti2_t = 254;
+const multi2_t kMulti2Sp = 255;
+
 typedef uint32_t edge_word_t;
 static const int kBitsPerEdgeWord = 32;
 static const int kBitsPerEdgeChar = 2;

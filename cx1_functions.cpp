@@ -1534,6 +1534,7 @@ void InitGlobalData(global_data_t &globals) {
     globals.dummy_nodes_writer.init((std::string(globals.output_prefix)+".dn").c_str());
     globals.output_f_file = OpenFileAndCheck((std::string(globals.output_prefix)+".f").c_str(), "w");
     globals.output_multiplicity_file = OpenFileAndCheck((std::string(globals.output_prefix)+".mul").c_str(), "wb");
+    globals.output_multiplicity_file2 = OpenFileAndCheck((std::string(globals.output_prefix)+".mul2").c_str(), "wb");
 
     // --- compute k_num_bits ---
     {
@@ -2468,7 +2469,14 @@ void *Lv2OutputThread(void *_op) {
                 globals.sdbg_writer.outputW(globals.lv2_aux[i] & 0xF);
                 globals.sdbg_writer.outputLast((globals.lv2_aux[i] >> 4) & 1);
                 globals.sdbg_writer.outputIsDollar((globals.lv2_aux[i] >> 5) & 1);
-                fwrite(&counting_to_output, sizeof(multi_t), 1, globals.output_multiplicity_file);
+                if (counting_to_output <= kMaxMulti2_t) {
+                    multi2_t c = counting_to_output;
+                    fwrite(&c, sizeof(multi2_t), 1, globals.output_multiplicity_file);   
+                } else {
+                    int64_t c = counting_to_output | (globals.total_number_edges << 16);
+                    fwrite(&c, sizeof(int64_t), 1, globals.output_multiplicity_file2);
+                    fwrite(&kMulti2Sp, sizeof(multi2_t), 1, globals.output_multiplicity_file);
+                }
 
                 globals.total_number_edges++;
                 globals.num_chars_in_w[globals.lv2_aux[i] & 0xF]++;
