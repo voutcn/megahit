@@ -171,6 +171,7 @@ struct global_data_t {
     WordWriter dummy_nodes_writer;
     FILE *output_f_file;
     FILE *output_multiplicity_file;
+    FILE *output_multiplicity_file2;
 
     // statistics
     int64_t num_chars_in_w[9];

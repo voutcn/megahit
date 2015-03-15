@@ -327,6 +327,7 @@ void SuccinctDBG::LoadFromFile(const char *dbg_name) {
     FILE *is_dollar_file = OpenFileAndCheck((std::string(dbg_name) + ".isd").c_str(), "rb");
     FILE *dollar_node_seq_file = OpenFileAndCheck((std::string(dbg_name) + ".dn").c_str(), "rb");
     FILE *edge_multiplicity_file = OpenFileAndCheck((std::string(dbg_name) + ".mul").c_str(), "rb");
+    FILE *edge_multiplicity_file2 = OpenFileAndCheck((std::string(dbg_name) + ".mul2").c_str(), "rb");
     assert(w_file != NULL);
     assert(last_file != NULL);
     assert(f_file != NULL);
@@ -345,7 +346,8 @@ void SuccinctDBG::LoadFromFile(const char *dbg_name) {
     last_ = (unsigned long long*) MallocAndCheck(sizeof(unsigned long long) * word_needed_last, __FILE__, __LINE__);
     is_dollar_ = (unsigned long long*) MallocAndCheck(sizeof(unsigned long long) * word_needed_last, __FILE__, __LINE__);
     invalid_ = (unsigned long long*) MallocAndCheck(sizeof(unsigned long long) * word_needed_last, __FILE__, __LINE__);
-    edge_multiplicities_ = (multi_t*) MallocAndCheck(sizeof(multi_t) * size, __FILE__, __LINE__);
+    edge_multiplicities_ = (multi2_t*) MallocAndCheck(sizeof(multi2_t) * size, __FILE__, __LINE__);
+    large_multi_h_ = kh_init(k64v16);
 
     assert(w_ != NULL);
     assert(last_ != NULL);
@@ -359,12 +361,19 @@ void SuccinctDBG::LoadFromFile(const char *dbg_name) {
     word_read = fread(is_dollar_, sizeof(unsigned long long), word_needed_last, is_dollar_file);
     assert(word_read == word_needed_last);
     memcpy(invalid_, is_dollar_, sizeof(unsigned long long) * word_needed_last);
-    if (edge_multiplicity_file != NULL) {
-        word_read = fread(edge_multiplicities_, sizeof(multi_t), size, edge_multiplicity_file);
-        assert(word_read == (size_t)size);
-    } else {
-        memset(edge_multiplicities_, 0xFF, sizeof(multi_t) * size);
+    word_read = fread(edge_multiplicities_, sizeof(multi2_t), size, edge_multiplicity_file);
+    assert(word_read == (size_t)size);
+
+    // read large multiplicities
+    int64_t *buf = (int64_t*) MallocAndCheck(sizeof(int64_t) * 4096, __FILE__, __LINE__);
+    while ((word_read = fread(buf, sizeof(int64_t), 4096, edge_multiplicity_file2)) != 0) {
+        for (unsigned i = 0; i < word_read; ++i) {
+            int ret;
+            khint_t k = kh_put(k64v16, large_multi_h_, buf[i] >> 16, &ret);
+            kh_value(large_multi_h_, k) = buf[i] & ((1 << 16) - 1);
+        }
     }
+    free(buf);
 
     // read dollar nodes sequences
     assert(fread(&uint32_per_dollar_nodes_, sizeof(uint32_t), 1, dollar_node_seq_file) == 1);
@@ -386,6 +395,7 @@ void SuccinctDBG::LoadFromFile(const char *dbg_name) {
     fclose(dollar_node_seq_file);
     if (edge_multiplicity_file != NULL) {
         fclose(edge_multiplicity_file);
+        fclose(edge_multiplicity_file2);
     }
 }
 

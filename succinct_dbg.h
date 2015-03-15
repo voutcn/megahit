@@ -22,13 +22,15 @@
 #define SUCCINCT_DBG_H_
 #include <assert.h>
 #include <vector>
+#include "definitions.h"
 #include "rank_and_select.h"
+#include "khash.h"
 
 using std::vector;
+KHASH_MAP_INIT_INT64(k64v16, multi_t); // declare khash
 
 class SuccinctDBG {
   public:
-    typedef uint16_t multi_t;
     // constants
     static const int kAlphabetSize = 4;
     static const int kWAlphabetSize = 9;
@@ -55,6 +57,7 @@ class SuccinctDBG {
 
         if (need_to_free_mul_) {
             free(edge_multiplicities_);
+            kh_destroy(k64v16, large_multi_h_);
         }
     }
     
@@ -120,7 +123,11 @@ class SuccinctDBG {
     }
 
     int EdgeMultiplicity(int64_t x) {
-        return edge_multiplicities_[x];
+        if (__builtin_expect(edge_multiplicities_[x] != kMulti2Sp, 1)) {
+            return edge_multiplicities_[x];
+        } else {
+            return kh_value(large_multi_h_, kh_get(k64v16, large_multi_h_, x));
+        }
     }
 
     int NodeMultiplicity(int64_t x);
@@ -165,6 +172,7 @@ class SuccinctDBG {
     void FreeMul() {
         if (need_to_free_mul_) {
             free(edge_multiplicities_);
+            kh_destroy(k64v16, large_multi_h_);
         }
         need_to_free_mul_ = false;
     }
@@ -176,7 +184,9 @@ class SuccinctDBG {
     unsigned long long *is_dollar_;
     unsigned long long *invalid_;
     uint32_t *dollar_node_seq_;
-    multi_t *edge_multiplicities_;
+    multi2_t *edge_multiplicities_;
+    khash_t(k64v16) *large_multi_h_;
+
     long long f_[kAlphabetSize + 2];
 
     unsigned int num_dollar_nodes_;
