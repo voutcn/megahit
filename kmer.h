@@ -220,7 +220,7 @@ public:
     static const uint32_t kMaxSize = kBitsForKmer / 2;
 
     uint64_t data_[kNumUint64];
-};
+} __attribute__((packed));
 
 namespace std
 {

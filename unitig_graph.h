@@ -48,7 +48,7 @@ struct UnitigGraphVertex {
     bool is_loop: 1;
     uint32_t length: 31;
     bool is_palindrome: 1;
-};
+} __attribute__((packed));
 
 class UnitigGraph {
 public:

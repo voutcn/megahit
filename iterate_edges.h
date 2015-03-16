@@ -27,8 +27,8 @@
 #include <zlib.h>
 #include "definitions.h"
 #include "kmer.h"
-#include "hash_set.h"
-#include "hash_map.h"
+#include "KmerPlus.h"
+#include "hash_table.h"
 
 struct IterateGlobalData {
     char dna_map[256];
@@ -53,9 +53,9 @@ struct IterateGlobalData {
     int num_cpu_threads;
 
     // large table
-    HashMap<Kmer<KMER_NUM_UINT64>, uint64_t> crusial_kmers; // assume that iterate step <= 29, s.t. 64 bit can store them
+    HashTable<KmerPlus<KMER_NUM_UINT64, uint64_t>, Kmer<KMER_NUM_UINT64> > crusial_kmers;// assume that iterate step <= 29, s.t. 64 bit can store them
                                            // the last 6 bits store the length
-    HashMap<Kmer<KMER_NUM_UINT64>, multi_t> iterative_edges;
+    HashTable<KmerPlus<KMER_NUM_UINT64, multi_t>, Kmer<KMER_NUM_UINT64> > iterative_edges;
 
     // stat
     int64_t num_of_reads;

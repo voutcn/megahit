@@ -34,7 +34,7 @@ import multiprocessing
 
 from datetime import datetime, date, time
 
-megahit_version_str = "MEGAHIT v0.2.1-dev-0314-8bitMulti"
+megahit_version_str = "MEGAHIT v0.2.1-dev-0316-pack_hash_key_value"
 usage_message = '''
 Copyright (c) The University of Hong Kong
 
