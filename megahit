@@ -34,7 +34,7 @@ import multiprocessing
 
 from datetime import datetime, date, time
 
-megahit_version_str = "MEGAHIT v0.2.1-dev-0316-pack_hash_key_value"
+megahit_version_str = "MEGAHIT v0.2.1-dev-0317-kmer1word"
 usage_message = '''
 Copyright (c) The University of Hong Kong
 
@@ -372,14 +372,8 @@ def check_bin():
     if not os.path.exists(opt.bin_dir + "megahit_assemble"):
         print(megahit_version_str + '\n' + "Cannot find sub-program \"megahit_assemble\", please recompile.", file=sys.stderr)
         exit(1)
-    if not os.path.exists(opt.bin_dir + "megahit_iter_k61"):
-        print(megahit_version_str + '\n' + "Cannot find sub-program \"megahit_iter_k61\", please recompile.", file=sys.stderr)
-        exit(1)
-    if not os.path.exists(opt.bin_dir + "megahit_iter_k92"):
-        print(megahit_version_str + '\n' + "Cannot find sub-program \"megahit_iter_k92\", please recompile.", file=sys.stderr)
-        exit(1)
-    if not os.path.exists(opt.bin_dir + "megahit_iter_k124"):
-        print(megahit_version_str + '\n' + "Cannot find sub-program \"megahit_iter_k124\", please recompile.", file=sys.stderr)
+    if not os.path.exists(opt.bin_dir + "megahit_iter"):
+        print(megahit_version_str + '\n' + "Cannot find sub-program \"megahit_iter\", please recompile.", file=sys.stderr)
         exit(1)
 
 def check_builder():
@@ -522,13 +516,7 @@ def iterate(cur_k, step):
     global cp
     if (not opt.continue_mode) or (cp > opt.last_cp):
         next_k = cur_k + step
-        iterator = ""
-        if next_k < 61:
-            iterator = opt.bin_dir + "megahit_iter_k61"
-        elif next_k < 92:
-            iterator = opt.bin_dir + "megahit_iter_k92"
-        else:
-            iterator = opt.bin_dir + "megahit_iter_k124"
+        iterator = opt.bin_dir + "megahit_iter"
 
         iterate_cmd = [iterator,
                        "-c", graph_prefix(cur_k) + ".contigs.fa",

@@ -32,7 +32,7 @@
 KSEQ_INIT(gzFile, gzread)
 
 struct ContigPackage {
-    const static unsigned kMaxNumChars = (1 << 30); // tunable
+    const static unsigned kMaxNumChars = (1 << 28); // tunable
 
     std::string seqs;
     std::vector<int> seq_lengths;

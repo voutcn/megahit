@@ -26,8 +26,7 @@
 #include <string>
 #include <zlib.h>
 #include "definitions.h"
-#include "kmer.h"
-#include "KmerPlus.h"
+#include "kmer_plus.h"
 #include "hash_table.h"
 
 struct IterateGlobalData {
@@ -51,11 +50,6 @@ struct IterateGlobalData {
     int step;
     int max_read_len;
     int num_cpu_threads;
-
-    // large table
-    HashTable<KmerPlus<KMER_NUM_UINT64, uint64_t>, Kmer<KMER_NUM_UINT64> > crusial_kmers;// assume that iterate step <= 29, s.t. 64 bit can store them
-                                           // the last 6 bits store the length
-    HashTable<KmerPlus<KMER_NUM_UINT64, multi_t>, Kmer<KMER_NUM_UINT64> > iterative_edges;
 
     // stat
     int64_t num_of_reads;
