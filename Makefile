@@ -151,16 +151,17 @@ ifneq ($(disablempopcnt), 1)
 	CFLAGS += -mpopcnt
 endif
 DEPS = Makefile
+BIN_DIR = ./bin/
 
 #-------------------------------------------------------------------------------
 # CPU & GPU version
 #-------------------------------------------------------------------------------
 
 ifeq ($(use_gpu), 1)
-all:  megahit_assemble megahit_iter sdbg_builder_gpu sdbg_builder_cpu
+all:  megahit_assemble megahit_iter_all sdbg_builder_gpu sdbg_builder_cpu
 	chmod +x ./megahit
 else
-all:  megahit_assemble megahit_iter sdbg_builder_cpu
+all:  megahit_assemble megahit_iter_all sdbg_builder_cpu
 	chmod +x ./megahit
 endif
 
@@ -182,14 +183,22 @@ sdbg_builder_cpu: sdbg_builder.cpp .cx1_functions_cpu.o lv2_cpu_sort.h options_d
 megahit_assemble: assembler.cpp succinct_dbg.o rank_and_select.o assembly_algorithms.o branch_group.o options_description.o unitig_graph.o $(DEPS)
 	$(CXX) $(CFLAGS) assembler.cpp rank_and_select.o succinct_dbg.o assembly_algorithms.o branch_group.o options_description.o unitig_graph.o $(ZLIB) -o megahit_assemble
 
-megahit_iter: iterate_edges.cpp iterate_edges.h options_description.o $(DEPS)
-	$(CXX) $(CFLAGS) iterate_edges.cpp options_description.o $(ZLIB) -o megahit_iter
+megahit_iter_all: megahit_iter_k61 megahit_iter_k92 megahit_iter_k124
+
+megahit_iter_k61: iterate_edges.cpp iterate_edges.h options_description.o $(DEPS)
+	$(CXX) $(CFLAGS) -D KMER_NUM_UINT64=2 iterate_edges.cpp options_description.o $(ZLIB) -o megahit_iter_k61
+
+megahit_iter_k92: iterate_edges.cpp iterate_edges.h options_description.o $(DEPS)
+	$(CXX) $(CFLAGS) -D KMER_NUM_UINT64=3 iterate_edges.cpp options_description.o $(ZLIB) -o megahit_iter_k92
+
+megahit_iter_k124: iterate_edges.cpp iterate_edges.h options_description.o $(DEPS)
+	$(CXX) $(CFLAGS) -D KMER_NUM_UINT64=4 iterate_edges.cpp options_description.o $(ZLIB) -o megahit_iter_k124
 
 #-------------------------------------------------------------------------------
 # Applications for debug usage
 #-------------------------------------------------------------------------------
-query_sdbg: query_sdbg.cpp succinct_dbg.o rank_and_select.o assembly_algorithms.o branch_group.o unitig_graph.o compact_sequence.o $(DEPS)
-	$(CXX) $(CFLAGS) query_sdbg.cpp rank_and_select.o succinct_dbg.o assembly_algorithms.o branch_group.o unitig_graph.o compact_sequence.o -o query_sdbg
+query_sdbg: query_sdbg.cpp succinct_dbg.o rank_and_select.o assembly_algorithms.o branch_group.o unitig_graph.o $(DEPS)
+	$(CXX) $(CFLAGS) query_sdbg.cpp rank_and_select.o succinct_dbg.o assembly_algorithms.o branch_group.o unitig_graph.o -o query_sdbg
 
 ifeq ($(use_gpu), 1)
 #-------------------------------------------------------------------------------
@@ -218,13 +227,13 @@ endif
 #-------------------------------------------------------------------------------
 
 .PHONY:
-test: megahit_assemble megahit_iter sdbg_builder_cpu
+test: megahit_assemble megahit_iter_all sdbg_builder_cpu
 	-rm -fr example/megahit_out
-	./megahit -m 0.9 -l 100 -r example/readsInterleaved.fa --cpu-only -o example/megahit_out
+	./megahit -m 0.9 -l 100 -r example/readsInterleaved.fa -o example/megahit_out
 
-test_gpu: megahit_assemble megahit_iter sdbg_builder_gpu sdbg_builder_cpu
+test_gpu: megahit_assemble megahit_iter_all sdbg_builder_gpu
 	-rm -fr example/megahit_gpu_out
-	./megahit -m 0.9 -l 100 -r example/readsInterleaved.fa -o example/megahit_gpu_out
+	./megahit -m 0.9 -l 100 -r example/readsInterleaved.fa --use-gpu -o example/megahit_gpu_out
 
 .PHONY:
 clean:

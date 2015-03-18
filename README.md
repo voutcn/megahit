@@ -21,25 +21,28 @@ make
 
 Notably, for MAC OS X, the `g++` in the path is probably the sym-link of `clang`, which do not support OpenMP. Users should have the "real" G++ installed and use `make CXX=/PATH/TO/G++` to specify the compiler.
 
+### Stable releases
+Please refer to the [release page](https://github.com/voutcn/megahit/releases).
+
 ### Running MEGAHIT
 If MEGAHIT is successfully compiled, it can be run by the following command:
 
 ```
-./megahit [options] --cpu-only -m <max_memory_to_use> -l <max_read_len> {-r <reads.fa> | --input_cmd <command>}
+./megahit [options] -m <max_memory_to_use> -l <max_read_len> {-r <reads.fa> | --input_cmd <command>}
 ```
 
-User can also run `./megahit -h` for the usage message.
+or type `make test` in MEGAHIT's source directory for a quick test and `./megahit -h` for the usage message.
 
 ### Using GPU Version
-To use the GPU version, run `make use_gpu=1` to compile MEGAHIT, and run MEGAHIT without `--cpu-only` option. GPU version has only been tested in Linux.
+To use the GPU version, run `make use_gpu=1` to compile MEGAHIT, and run MEGAHIT with `--use-gpu`. GPU version has only been tested in Linux.
 
 
 Memory Setting
 ----------------
-Users are requried to set a memory parameter `-m` for MEGAHIT. This parameter specifies the maximum memory that can be used by the SdBG constrution conponent of MEGAHIT. `--mem-flag` is another option for memory control.
+Users are requried to set a memory parameter `-m` for MEGAHIT. This parameter specifies the maximum memory that can be used by the SdBG constrution component of MEGAHIT. If 0 < `-m` < 1, the parameter specifies the fraction of the machine's total memory to be used; if `-m` >= 1, it specifies the memory in BYTE to be used. `--mem-flag` is another option for memory control. 
 
 ### Quick recommendation
-Set the `-m` parameter to be 90-95% of the available memory and leave the `--mem-flag` default. For example if your machine have 64G available memory, a proper setting is `-m 60e9`.
+Set the `-m` parameter to be 90-95% of the available memory (e.g. `-m 0.9`) and leave the `--mem-flag` default.
 
 ### Detail explanation 
 Please refer to [this wiki page](https://github.com/voutcn/megahit/wiki/MEGAHIT-Memory-setting).
@@ -63,31 +66,18 @@ For ultra complex metagenomics data such as soil, a larger *k<sub>min</sub>*, sa
 ###Mercy *k*-mer
 This is specially designed for metagenomics assembly to recover low coverage sequence. You can disable it with `--no-mercy` option.
 
-Issue Report
+Reporting Issues
 -----------------------
-If you have any questions or suggestions, please [report an issus](https://github.com/voutcn/megahit/issues) on Github.
+If you have any questions or suggestions, please [report an issue](https://github.com/voutcn/megahit/issues) on Github.
 
-Cite MEGAHIT
+Citing MEGAHIT
 -----------------------
-* Li, D., *et al*. (2015) MEGAHIT: An ultra-fast single-node solution for large and complex metagenomics assembly via succinct de Bruijn graph. *Bioinformatics*, doi: 10.1093/bioinformatics/btv033 [PMID: [25609793](http://www.ncbi.nlm.nih.gov/pubmed/25609793)].
+* Li, D., Liu, C-M., Luo, R., Sadakane, K., and Lam, T-W., (2015) MEGAHIT: An ultra-fast single-node solution for large and complex metagenomics assembly via succinct de Bruijn graph. *Bioinformatics*, doi: 10.1093/bioinformatics/btv033 [PMID: [25609793](http://www.ncbi.nlm.nih.gov/pubmed/25609793)].
 
 License
 -----------------------
-```
-  MEGAHIT
-  
-  Copyright (C) 2014 The University of Hong Kong
+MEGAHIT is released under GPLv3. Several third-party libs are used, including:
 
-  This program is free software: you can redistribute it and/or modify
-  it under the terms of the GNU General Public License as published by
-  the Free Software Foundation, either version 3 of the License, or
-  (at your option) any later version.
-
-  This program is distributed in the hope that it will be useful,
-  but WITHOUT ANY WARRANTY; without even the implied warranty of
-  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-  GNU General Public License for more details.
-
-  You should have received a copy of the GNU General Public License
-  along with this program.  If not, see <http://www.gnu.org/licenses/>.
-```
+* [CUB](https://github.com/NVlabs/cub) under "New BSD"" license
+* kseq.h in [klib](https://github.com/attractivechaos/klib) under MIT license
+* hash_{table, set, map}.h in [IDBA package](http://i.cs.hku.hk/~alse/hkubrg/projects/idba/) under GPLv2
