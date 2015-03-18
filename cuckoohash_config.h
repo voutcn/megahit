@@ -11,6 +11,6 @@ const size_t SLOT_PER_BUCKET = 8;
 const size_t DEFAULT_SIZE = (1U << 16) * SLOT_PER_BUCKET;
 
 //! set LIBCUCKOO_DEBUG to 1 to enable debug output
-#define LIBCUCKOO_DEBUG 0
+#define LIBCUCKOO_DEBUG 1
 
 #endif

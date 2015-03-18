@@ -32,7 +32,7 @@
 
 #include <algorithm>
 #include <cstring>
-
+#include "city.h"
 #include "bit_operation.h"
 
 

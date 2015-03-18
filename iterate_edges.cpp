@@ -335,7 +335,7 @@ static void ReadContigsAndBuildHash(IterateGlobalData &globals,
         }
 
         if (!is_addi_contigs) {
-// #pragma omp parallel for
+#pragma omp parallel for
             for (unsigned i = 0; i < cur_package.size(); ++i) {
                 if (cur_package.seq_lengths[i] < globals.kmer_k) {
                     continue;
@@ -350,9 +350,8 @@ static void ReadContigsAndBuildHash(IterateGlobalData &globals,
                 for (int j = 0; j < globals.step && j < s_length; ++j) {
                     s_seq |= uint64_t(cur_package.CharAt(i, j + globals.kmer_k)) << (31 - j) * 2;
                 }
-                fprintf(stderr, "%u 1: %lu\n", i, s_seq);
-                assert(crusial_kmers.insert(kmer, s_seq));
-                fprintf(stderr, "%u 1: %lu\n", i, s_seq);
+                s_seq |= s_length;
+                crusial_kmers.insert(kmer, s_seq);
 
                 if (cur_package.seq_lengths[i] > globals.kmer_k) {
                     for (int j = 0; j < globals.kmer_k; ++j) {
@@ -364,9 +363,7 @@ static void ReadContigsAndBuildHash(IterateGlobalData &globals,
                         s_seq |= uint64_t(3 - cur_package.CharAt(i, cur_package.seq_lengths[i] - globals.kmer_k - 1 - j)) << (31 - j) * 2;
                     }
                     s_seq |= s_length;
-                    fprintf(stderr, "%u 2: %lu\n", i, s_seq);
-                    assert(crusial_kmers.insert(kmer, s_seq));
-                    fprintf(stderr, "%u 2: %lu\n", i, s_seq);
+                    crusial_kmers.insert(kmer, s_seq);
                 }
             }
         }
@@ -387,7 +384,7 @@ static void ReadContigsAndBuildHash(IterateGlobalData &globals,
             }
 
             double multiplicity_prev = cur_package.multiplicity[i];
-            uint16_t multiplicity;
+            multi_t multiplicity;
             // convert the multiplicity from k to k+s+1
             {
                 int num_kmer = cur_package.seq_lengths[i] - globals.kmer_k + 1;
@@ -436,9 +433,7 @@ static void ReadContigsAndBuildHash(IterateGlobalData &globals,
         }
     }
     printf("Number of crusial kmers: %lu\n", crusial_kmers.size());
-    // for (auto iter = crusial_kmers.cbegin(); !iter.is_end(); ++iter) {
-    //     fprintf(stderr, "%lu\n", iter->second);
-    // }
+    fprintf(stderr, "Loading factor: %f\n", crusial_kmers.load_factor());
 
     kseq_destroy(seq);
 }
@@ -466,7 +461,7 @@ static void* ReadReadsThread(void* data) {
 template<uint32_t kNumUint64_p, uint32_t kNumUint64_n>
 static void ReadReadsAndProcessKernel(IterateGlobalData &globals, 
                                       cuckoohash_map<Kmer<kNumUint64_p>, uint64_t, Hash<Kmer<kNumUint64_p> > > &crusial_kmers,
-                                      cuckoohash_map<Kmer<kNumUint64_n>, uint16_t, Hash<Kmer<kNumUint64_n> > > &iterative_edges)
+                                      cuckoohash_map<Kmer<kNumUint64_n>, multi_t, Hash<Kmer<kNumUint64_n> > > &iterative_edges)
 {
     ReadPackage packages[2];
     packages[0].init(globals.max_read_len);
@@ -515,7 +510,7 @@ static void ReadReadsAndProcessKernel(IterateGlobalData &globals,
             pthread_join(input_thread, NULL);
         }
 
-// #pragma omp parallel for
+#pragma omp parallel for
         for (unsigned i = 0; i < (unsigned)cur_package.num_of_reads; ++i) {
             int length = cur_package.length(i);
             assert(length <= cur_package.max_read_len);
@@ -606,7 +601,7 @@ static void ReadReadsAndProcessKernel(IterateGlobalData &globals,
                         rev_kmer_nextk.ReverseComplement();
                     }
 
-                    auto updatefn = [](const uint16_t& count) { return (count >= kMaxMulti_t ? count : count+1); };
+                    auto updatefn = [](multi_t &count) { if (count < kMaxMulti_t) ++count; };
                     if (kmer_nextk < rev_kmer_nextk) {
                         iterative_edges.upsert(kmer_nextk, updatefn, 1);
                     } else {
@@ -637,7 +632,7 @@ static void ReadReadsAndProcessKernel(IterateGlobalData &globals,
         }
     }
     printf("Total: %lld, aligned: %lld. Iterative edges: %llu\n", (long long)num_total_reads, (long long)num_aligned_reads, (unsigned long long)iterative_edges.size());
-
+    fprintf(stderr, "Loading factor: %f\n", iterative_edges.load_factor());
     kseq_destroy(seq);
 
     printf("Writing iterative edges...\n");
@@ -670,22 +665,22 @@ static void ReadReadsAndProcess(IterateGlobalData &globals,
 {
     if ((unsigned)globals.kmer_k + globals.step + 1 <= Kmer<1>::max_size())
     {
-        cuckoohash_map<Kmer<1>, uint16_t, Hash<Kmer<1> > > iterative_edges;
+        cuckoohash_map<Kmer<1>, multi_t, Hash<Kmer<1> > > iterative_edges;
         ReadReadsAndProcessKernel(globals, crusial_kmers, iterative_edges);
     }
     else if ((unsigned)globals.kmer_k + globals.step + 1 <= Kmer<2>::max_size())
     {
-        cuckoohash_map<Kmer<2>, uint16_t, Hash<Kmer<2> > > iterative_edges;
+        cuckoohash_map<Kmer<2>, multi_t, Hash<Kmer<2> > > iterative_edges;
         ReadReadsAndProcessKernel(globals, crusial_kmers, iterative_edges);
     }
     else if ((unsigned)globals.kmer_k + globals.step + 1 <= Kmer<3>::max_size())
     {
-        cuckoohash_map<Kmer<3>, uint16_t, Hash<Kmer<3> > > iterative_edges;
+        cuckoohash_map<Kmer<3>, multi_t, Hash<Kmer<3> > > iterative_edges;
         ReadReadsAndProcessKernel(globals, crusial_kmers, iterative_edges);
     }
     else if ((unsigned)globals.kmer_k + globals.step + 1 <= Kmer<4>::max_size())
     {
-        cuckoohash_map<Kmer<4>, uint16_t, Hash<Kmer<4> > > iterative_edges;
+        cuckoohash_map<Kmer<4>, multi_t, Hash<Kmer<4> > > iterative_edges;
         ReadReadsAndProcessKernel(globals, crusial_kmers, iterative_edges);
     }
     else 
