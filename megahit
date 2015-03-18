@@ -34,7 +34,7 @@ import multiprocessing
 
 from datetime import datetime, date, time
 
-megahit_version_str = "MEGAHIT v0.2.1-beta"
+megahit_version_str = "MEGAHIT v0.2.1"
 usage_message = '''
 Copyright (c) The University of Hong Kong
 
@@ -64,7 +64,8 @@ Optional Arguments:
     --mem-flag                     <int>        How the SdBG build utilize memory. SdBG builder runs faster with more memory.
                                                 0: minimum; 1: moderate; others: use all memory specified by '-m/--memory'.
                                                 Default: 1.
-    --cpu-only                                  do not use GPU. Use CPU only.
+    --cpu-only                                  Use CPU only, turn on by default since v0.2.1
+    --use-gpu                                   use GPU, will overwrite --cpu-only
     --gpu-mem                      <float>      GPU memory in byte to be used. Default: auto detect to use up all free GPU memory. 
     -t/--num-cpu-threads           <int>        Number of CPU threads, at least 2. Default: auto detect to use all CPU threads.
 
@@ -126,8 +127,8 @@ class Options():
         self.low_local_ratio = 0.2
         self.temp_dir = self.out_dir + "tmp/"
         self.keep_tmp_files = 0
-        self.builder = "sdbg_builder_gpu"
-        self.cpu_only = 0
+        self.builder = "sdbg_builder_cpu"
+        self.use_gpu = 0
         self.mem_flag = 1
         self.continue_mode = 0;
         self.last_cp = -1;
@@ -167,6 +168,7 @@ def parse_opt(argv):
                                      "out-dir=",
                                      "min-contig-len=",
                                      "cpu-only",
+                                     "use-gpu",
                                      "num-cpu-threads=",
                                      "gpu-mem=",
                                      "k-min=",
@@ -229,8 +231,10 @@ def parse_opt(argv):
         elif option == "--keep-tmp-files":
             opt.keep_tmp_files = 1
         elif option == "--cpu-only":
-            opt.cpu_only = 1
-            opt.builder = "sdbg_builder_cpu"
+            continue # default since v0.2.1
+        elif option == "--use-gpu":
+            opt.use_gpu = 1
+            opt.builder = "sdbg_builder_gpu"
         elif option == "--mem-flag":
             opt.mem_flag = int(value)
         elif option == "--continue":
@@ -266,7 +270,7 @@ def check_opt():
             print("Using: " + str(round(float(opt.host_mem)/(1024**3),3)) + "Gb.", file=sys.stderr)
     else:
         opt.host_mem = long(opt.host_mem)
-    if opt.cpu_only == 1:
+    if opt.use_gpu == 0:
         opt.gpu_mem = 0
     if opt.max_read_len <= 1:
         print("max_read_len must be greater than 1.", file=sys.stderr)
@@ -385,8 +389,8 @@ def check_bin():
 def check_builder():
     if not os.path.exists(opt.bin_dir + opt.builder):
         print(megahit_version_str + '\n' + "Cannot find sub-program \"%s\", please recompile." % opt.builder, file=sys.stderr)
-        if opt.cpu_only == 0:
-            print("Or if you want to use the CPU-only version, please run MEGAHIT with \"--cpu-only\"", file=sys.stderr)
+        if opt.use_gpu == 0:
+            print("Or if you want to use the GPU version, please run MEGAHIT with \"--use-gpu\"", file=sys.stderr)
         exit(1)
 
 def graph_prefix(kmer_k):

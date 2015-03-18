@@ -180,8 +180,8 @@ endif
 sdbg_builder_cpu: sdbg_builder.cpp .cx1_functions_cpu.o lv2_cpu_sort.h options_description.o $(DEPS)
 	$(CXX) $(CFLAGS) -D DISABLE_GPU sdbg_builder.cpp .cx1_functions_cpu.o options_description.o $(ZLIB) -o sdbg_builder_cpu
 
-megahit_assemble: assembler.cpp succinct_dbg.o rank_and_select.o assembly_algorithms.o branch_group.o options_description.o unitig_graph.o compact_sequence.o $(DEPS)
-	$(CXX) $(CFLAGS) assembler.cpp rank_and_select.o succinct_dbg.o assembly_algorithms.o branch_group.o options_description.o unitig_graph.o compact_sequence.o $(ZLIB) -o megahit_assemble
+megahit_assemble: assembler.cpp succinct_dbg.o rank_and_select.o assembly_algorithms.o branch_group.o options_description.o unitig_graph.o $(DEPS)
+	$(CXX) $(CFLAGS) assembler.cpp rank_and_select.o succinct_dbg.o assembly_algorithms.o branch_group.o options_description.o unitig_graph.o $(ZLIB) -o megahit_assemble
 
 megahit_iter_all: megahit_iter_k61 megahit_iter_k92 megahit_iter_k124
 
@@ -197,8 +197,8 @@ megahit_iter_k124: iterate_edges.cpp iterate_edges.h options_description.o $(DEP
 #-------------------------------------------------------------------------------
 # Applications for debug usage
 #-------------------------------------------------------------------------------
-query_sdbg: query_sdbg.cpp succinct_dbg.o rank_and_select.o assembly_algorithms.o branch_group.o unitig_graph.o compact_sequence.o $(DEPS)
-	$(CXX) $(CFLAGS) query_sdbg.cpp rank_and_select.o succinct_dbg.o assembly_algorithms.o branch_group.o unitig_graph.o compact_sequence.o -o query_sdbg
+query_sdbg: query_sdbg.cpp succinct_dbg.o rank_and_select.o assembly_algorithms.o branch_group.o unitig_graph.o $(DEPS)
+	$(CXX) $(CFLAGS) query_sdbg.cpp rank_and_select.o succinct_dbg.o assembly_algorithms.o branch_group.o unitig_graph.o -o query_sdbg
 
 ifeq ($(use_gpu), 1)
 #-------------------------------------------------------------------------------
@@ -229,12 +229,11 @@ endif
 .PHONY:
 test: megahit_assemble megahit_iter_all sdbg_builder_cpu
 	-rm -fr example/megahit_out
-	./megahit -m 0.9 -l 100 -r example/readsInterleaved.fa --cpu-only -o example/megahit_out
-ifeq ($(use_gpu), 1)
-test_gpu: megahit_assemble megahit_iter_all sdbg_builder_gpu sdbg_builder_cpu
+	./megahit -m 0.9 -l 100 -r example/readsInterleaved.fa -o example/megahit_out
+
+test_gpu: megahit_assemble megahit_iter_all sdbg_builder_gpu
 	-rm -fr example/megahit_gpu_out
-	./megahit -m 0.9 -l 100 -r example/readsInterleaved.fa -o example/megahit_gpu_out
-endif
+	./megahit -m 0.9 -l 100 -r example/readsInterleaved.fa --use-gpu -o example/megahit_gpu_out
 
 .PHONY:
 clean:

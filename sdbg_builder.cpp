@@ -18,7 +18,6 @@
 
 #include <assert.h>
 #include <omp.h>
-// #include <sys/sysinfo.h>
 #include <algorithm>
 #include <iostream>
 #include <stdexcept>
@@ -28,6 +27,7 @@
 #include "lv2_gpu_functions.h"
 #include "helper_functions-inl.h"
 #include "sdbg_builder_util.h"
+#include "timer.h"
 
 struct Phase1Options {
     int kmer_k;
@@ -208,6 +208,8 @@ void DisplayHelp(char *program_name) {
     fprintf(stderr, "    2. Build Succinct dBG from solid edges: \n");
     fprintf(stderr, "       type \"%s build\" for help.\n", program_name);
 }
+
+static AutoMaxRssRecorder recorder;
 
 int main(int argc, char** argv) {
     struct global_data_t globals;

@@ -108,6 +108,8 @@ void ParseOption(int argc, char *argv[]) {
     }
 }
 
+static AutoMaxRssRecorder recorder;
+
 int main(int argc, char **argv) {
     // set stdout line buffered
     setvbuf(stdout, NULL, _IONBF, 0);
