@@ -165,10 +165,7 @@ public:
 
     uint64_t hash() const
     {
-        uint64_t key = 0;
-        for (unsigned i = 0; i < kNumUint64; ++i)
-            key ^= data_[i];
-        return (key * 1299709 + 104729) % 323780508946331ULL;
+        return CityHash64((const char*)data_, sizeof(data_[0]) * kNumUint64);
     }
 
     Kmer unique_format() const

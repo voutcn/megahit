@@ -34,7 +34,7 @@ import multiprocessing
 
 from datetime import datetime, date, time
 
-megahit_version_str = "MEGAHIT v0.2.1-dev-0318"
+megahit_version_str = "MEGAHIT v0.2.1-dev-0318-cityhash-cuckoo"
 usage_message = '''
 Copyright (c) The University of Hong Kong
 

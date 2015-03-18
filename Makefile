@@ -183,8 +183,8 @@ sdbg_builder_cpu: sdbg_builder.cpp .cx1_functions_cpu.o lv2_cpu_sort.h options_d
 megahit_assemble: assembler.cpp succinct_dbg.o rank_and_select.o assembly_algorithms.o branch_group.o options_description.o unitig_graph.o $(DEPS)
 	$(CXX) $(CFLAGS) assembler.cpp rank_and_select.o succinct_dbg.o assembly_algorithms.o branch_group.o options_description.o unitig_graph.o $(ZLIB) -o megahit_assemble
 
-megahit_iter: iterate_edges.cpp iterate_edges.h options_description.o $(DEPS)
-	$(CXX) $(CFLAGS) iterate_edges.cpp options_description.o $(ZLIB) -o megahit_iter
+megahit_iter: iterate_edges.cpp iterate_edges.h options_description.o city.o $(DEPS)
+	$(CXX) $(CFLAGS) iterate_edges.cpp options_description.o city.o $(ZLIB) -o megahit_iter
 
 #-------------------------------------------------------------------------------
 # Applications for debug usage
