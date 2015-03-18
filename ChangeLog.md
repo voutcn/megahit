@@ -1,3 +1,16 @@
+### 0.2.1 / 2015-03-18
+Bug Fixes:
+
+* Fixed incorrect mercy kmers searching when read length >= 255
+* Minor bugs (huge log in some edge cases, etc.)
+
+New features:
+
+* Semi-auto memory setting: when 0 < "-m" < 1, use fraction of the machine's memory
+* `--out-prefix` option
+* `--cpu-only` turn on by default, and `--use-gpu` option to enable GPU
+* python3 compatibility
+
 ### 0.2.0 / 2015-01-30
 Bug Fixes:
 

@@ -27,7 +27,6 @@
 #include <zlib.h>
 #include "definitions.h"
 #include "kmer.h"
-#include "hash_set.h"
 #include "hash_map.h"
 
 struct IterateGlobalData {
