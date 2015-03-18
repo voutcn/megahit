@@ -50,6 +50,8 @@ struct AutoMaxRssRecorder {
     }
 
     ~AutoMaxRssRecorder() {
+// #define TURN_ON_MAX_RSS_LOG
+#ifdef TURN_ON_MAX_RSS_LOG
         gettimeofday(&tv2, NULL);
         struct rusage usage;
         if (getrusage(RUSAGE_SELF, &usage)) {
@@ -62,6 +64,7 @@ struct AutoMaxRssRecorder {
         long long real_time = (long long)(tv2.tv_sec - tv1.tv_sec) * 1000000 + tv2.tv_usec - tv1.tv_usec;
         fprintf(stderr, "Real: %.4lf", real_time / 1000000.0);
         fprintf(stderr, "\tuser: %.4lf\tsys: %.4lf\tmaxrss: %ld\n", utime, stime, usage.ru_maxrss);
+#endif
     }
 };
 
