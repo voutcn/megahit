@@ -26,8 +26,6 @@
 #include <string>
 #include <zlib.h>
 #include "definitions.h"
-#include "kmer_plus.h"
-#include "hash_table.h"
 
 struct IterateGlobalData {
     char dna_map[256];

@@ -50,7 +50,7 @@ struct AutoMaxRssRecorder {
     }
 
     ~AutoMaxRssRecorder() {
-// #define TURN_ON_MAX_RSS_LOG
+#define TURN_ON_MAX_RSS_LOG
 #ifdef TURN_ON_MAX_RSS_LOG
         gettimeofday(&tv2, NULL);
         struct rusage usage;

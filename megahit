@@ -519,7 +519,7 @@ def iterate(cur_k, step):
     global cp
     if (not opt.continue_mode) or (cp > opt.last_cp):
         next_k = cur_k + step
-        iterator = "megahit_iter"
+        iterator = opt.bin_dir + "megahit_iter"
 
         iterate_cmd = [iterator,
                        "-c", graph_prefix(cur_k) + ".contigs.fa",
