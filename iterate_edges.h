@@ -39,13 +39,13 @@ struct IterateGlobalData {
     FILE *output_read_file;
 
     enum ReadFormats {
-        kFasta,
-        kFastq,
+        kFastx,
         kBinary,
     } read_format;
 
     int kmer_k;
     int step;
+    int next_k1;
     int max_read_len;
     int num_cpu_threads;
 

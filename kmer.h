@@ -40,6 +40,7 @@
 /**
  * @brief It represents a k-mer. The value of k is limited by the number of 
  * words used. The maximum value can be calculated by max_size().
+ * The value of k is not stored, many functions require a explict parameter k to work
  */
 template <unsigned kNumWords = 4, typename T = uint64_t>
 class Kmer
@@ -52,9 +53,6 @@ public:
 
     Kmer(const Kmer &kmer)
     { std::memcpy(data_, kmer.data_, sizeof(word_t) * kNumWords); }
-
-    explicit Kmer(uint32_t size) 
-    { std::memset(data_, 0, sizeof(word_t) * kNumWords); resize(size); }
 
     ~Kmer() {}
 
@@ -101,12 +99,9 @@ public:
         return false;
     }
 
-    const Kmer &ReverseComplement()
+    const Kmer &ReverseComplement(int k)
     {
-        uint32_t kmer_size = size();
-        uint32_t used_words = (kmer_size + kCharsPerWord - 1) / kCharsPerWord;
-
-        resize(0);
+        uint32_t used_words = (k + kCharsPerWord - 1) / kCharsPerWord;
 
         for (unsigned i = 0; i < used_words; ++i)
             bit_operation::ReverseComplement(data_[i]);
@@ -114,56 +109,41 @@ public:
         for (unsigned i = 0; i < (used_words >> 1); ++i)
             std::swap(data_[i], data_[used_words-1-i]);
 
-        if ((kmer_size % kCharsPerWord) != 0)
+        if ((k % kCharsPerWord) != 0)
         {
-            unsigned offset = (kCharsPerWord - kmer_size % kCharsPerWord) << 1;
+            unsigned offset = (kCharsPerWord - k % kCharsPerWord) << 1;
             for (unsigned i = 0; i+1 < used_words; ++i)
                 data_[i] = (data_[i] >> offset) | data_[i+1] << (kBitsPerWord - offset);
             data_[used_words-1] >>= offset;
         }
-
-        resize(kmer_size);
-
         return *this;
     }
 
-    void ShiftAppend(uint8_t ch)
+    void ShiftAppend(uint8_t ch, int k)
     {
         ch &= 3;
-        uint32_t kmer_size = size();
-        uint32_t used_words = (kmer_size + kCharsPerWord - 1) / kCharsPerWord;
-
-        resize(0);
-
+        uint32_t used_words = (k + kCharsPerWord - 1) / kCharsPerWord;
         for (unsigned i = 0; i+1 < used_words ; ++i)
             data_[i] = (data_[i] >> 2) | (data_[i+1] << (kBitsPerWord - 2));
-        data_[used_words-1] = (data_[used_words-1] >> 2) | (word_t(ch) << ((kmer_size - 1) % kCharsPerWord << 1));
-
-        resize(kmer_size);
+        data_[used_words-1] = (data_[used_words-1] >> 2) | (word_t(ch) << ((k - 1) % kCharsPerWord << 1));
     }
 
-    void ShiftPreappend(uint8_t ch)
+    void ShiftPreappend(uint8_t ch, int k)
     {
         ch &= 3;
-        uint32_t kmer_size = size();
-        uint32_t used_words = (kmer_size + kCharsPerWord - 1) / kCharsPerWord;
-
-        resize(0);
-
+        uint32_t used_words = (k + kCharsPerWord - 1) / kCharsPerWord;
         for (int i = used_words-1; i > 0; --i)
             data_[i] = (data_[i] << 2) | (data_[i-1] >> (kBitsPerWord - 2));
         data_[0] = (data_[0] << 2) | ch;
 
-        if (kmer_size % kCharsPerWord != 0)
-            data_[used_words-1] &= (word_t(1) << (kmer_size % kCharsPerWord << 1)) - 1;
-
-        resize(kmer_size);
+        if (k % kCharsPerWord != 0)
+            data_[used_words-1] &= (word_t(1) << (k % kCharsPerWord << 1)) - 1;
     }
 
-    bool IsPalindrome() const
+    bool IsPalindrome(int k) const
     {
         Kmer kmer(*this);
-        return kmer.ReverseComplement() == *this;
+        return kmer.ReverseComplement(k) == *this;
     }
 
     uint64_t hash() const
@@ -171,10 +151,10 @@ public:
         return CityHash64((const char*)data_, sizeof(data_[0]) * kNumWords);
     }
 
-    Kmer unique_format() const
+    Kmer unique_format(int k) const
     {
         Kmer rev_comp = *this;
-        rev_comp.ReverseComplement();
+        rev_comp.ReverseComplement(k);
         return (*this < rev_comp ? *this : rev_comp);
     }
 
@@ -200,16 +180,9 @@ public:
         }
     }
 
-    uint32_t size() const
-    { return data_[kNumWords-1] >> (kBitsPerWord - kBitsForSize); }
-    void resize(uint32_t new_size)
-    { data_[kNumWords-1] = ((data_[kNumWords-1] << kBitsForSize) >> kBitsForSize) | (word_t(new_size) << (kBitsPerWord - kBitsForSize)); }
-
     void clear()
-    { 
-        uint32_t kmer_size = size();
+    {
         memset(data_, 0, sizeof(word_t) * kNumWords); 
-        resize(kmer_size);
     }
 
     static uint32_t max_size()
@@ -217,8 +190,7 @@ public:
 
     static const uint32_t kBitsPerWord = sizeof(word_t) * 8;
     static const uint32_t kCharsPerWord = kBitsPerWord / 2;
-    static const uint32_t kBitsForSize = (bit_operation::MostSignificantBit<kCharsPerWord * kNumWords>::value + 1) / 2 * 2;
-    static const uint32_t kBitsForKmer = (kNumWords * kBitsPerWord - kBitsForSize);
+    static const uint32_t kBitsForKmer = kNumWords * kBitsPerWord;
     static const uint32_t kMaxSize = kBitsForKmer / 2;
 
     word_t data_[kNumWords];

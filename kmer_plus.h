@@ -12,7 +12,6 @@ struct KmerPlus
 	ann_t ann;
 
 	explicit KmerPlus(const kmer_t &kmer = kmer_t(), const ann_t &ann = ann_t()): kmer(kmer), ann(ann) {}
-	explicit KmerPlus(uint32_t k_size, const ann_t &ann = ann_t()): kmer(k_size), ann(ann) {}
 
     KmerPlus(const KmerPlus &rhs): kmer(rhs.kmer), ann(rhs.ann) {}
 

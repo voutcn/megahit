@@ -138,13 +138,14 @@ static void InitGlobalData(IterateGlobalData &globals) {
 
     globals.kmer_k = options.kmer_k;
     globals.step = options.step;
+    globals.next_k1 = globals.kmer_k + globals.step + 1;
     globals.max_read_len = options.max_read_len;
     globals.num_cpu_threads = options.num_cpu_threads;
 
     if (string(options.read_format) == "fastq") {
-        globals.read_format = IterateGlobalData::kFastq;
+        globals.read_format = IterateGlobalData::kFastx;
     } else if (string(options.read_format) == "fasta") {
-        globals.read_format = IterateGlobalData::kFasta;
+        globals.read_format = IterateGlobalData::kFastx;
     } else if (string(options.read_format) == "binary") {
         globals.read_format = IterateGlobalData::kBinary;
     } else {
@@ -224,7 +225,7 @@ static void* ReadReadsThread(void* data) {
     kseq_t *seq = ((ReadReadsThreadData*)data)->seq;
     package.clear();
 
-    if (globals.read_format == IterateGlobalData::kFastq || globals.read_format == IterateGlobalData::kFasta) {
+    if (globals.read_format == IterateGlobalData::kFastx) {
         package.ReadFastxReads(seq, globals.dna_map);
     } else {
         package.ReadBinaryReads(globals.read_file);
@@ -300,13 +301,13 @@ static bool ReadReadsAndProcessKernel(IterateGlobalData &globals,
                 vector<bool> kmer_exist(length, false);
                 int cur_pos = 0;
                 int last_marked_pos = -1;
-                Kmer<kNumKmerWord_p, kmer_word_p_t> kmer(globals.kmer_k);
+                Kmer<kNumKmerWord_p, kmer_word_p_t> kmer;
                 for (int j = 0; j < globals.kmer_k; ++j) {
-                    kmer.ShiftAppend(cur_package.CharAt(i, j));
+                    kmer.ShiftAppend(cur_package.CharAt(i, j), globals.kmer_k);
                 }
                 
                 Kmer<kNumKmerWord_p, kmer_word_p_t> rev_kmer(kmer);
-                rev_kmer.ReverseComplement();
+                rev_kmer.ReverseComplement(globals.kmer_k);
 
                 while (cur_pos + globals.kmer_k <= length) {
                     int next_pos = cur_pos + 1;
@@ -346,8 +347,8 @@ static bool ReadReadsAndProcessKernel(IterateGlobalData &globals,
                         while (cur_pos < next_pos) {
                             ++cur_pos;
                             uint8_t c = cur_package.CharAt(i, cur_pos + globals.kmer_k - 1);
-                            kmer.ShiftAppend(c);
-                            rev_kmer.ShiftPreappend(3 - c);
+                            kmer.ShiftAppend(c, globals.kmer_k);
+                            rev_kmer.ShiftPreappend(3 - c, globals.kmer_k);
                         }
                     } else {
                         break;
@@ -355,8 +356,8 @@ static bool ReadReadsAndProcessKernel(IterateGlobalData &globals,
                 }
 
                 bool aligned = false;
-                KmerPlus<kNumKmerWord_n, kmer_word_n_t, uint16_t> kmer_p(globals.kmer_k + 1 + globals.step);
-                KmerPlus<kNumKmerWord_n, kmer_word_n_t, uint16_t> rev_kmer_p(globals.kmer_k + 1 + globals.step);
+                KmerPlus<kNumKmerWord_n, kmer_word_n_t, uint16_t> kmer_p;
+                KmerPlus<kNumKmerWord_n, kmer_word_n_t, uint16_t> rev_kmer_p;
 
                 for (int j = 0, last_j = -globals.kmer_k, acc_exist = 0; j + globals.kmer_k <= length; ++j) {
                     acc_exist = kmer_exist[j] ? acc_exist + 1 : 0;
@@ -365,21 +366,21 @@ static bool ReadReadsAndProcessKernel(IterateGlobalData &globals,
                         if (j - last_j < 8) { // tunable
                             for (int x = last_j + 1; x <= j; ++x) {
                                 uint8_t c = cur_package.CharAt(i, x + globals.kmer_k - 1);
-                                kmer_p.kmer.ShiftAppend(c);
-                                rev_kmer_p.kmer.ShiftPreappend(3 - c);
+                                kmer_p.kmer.ShiftAppend(c, globals.next_k1);
+                                rev_kmer_p.kmer.ShiftPreappend(3 - c, globals.next_k1);
                             }
                         } else if (j - last_j < globals.kmer_k + globals.step + 1) {
                             for (int x = last_j + 1; x <= j; ++x) {
-                                kmer_p.kmer.ShiftAppend(cur_package.CharAt(i, x + globals.kmer_k - 1));
+                                kmer_p.kmer.ShiftAppend(cur_package.CharAt(i, x + globals.kmer_k - 1), globals.next_k1);
                             }
                             rev_kmer_p.kmer = kmer_p.kmer;
-                            rev_kmer_p.kmer.ReverseComplement();
+                            rev_kmer_p.kmer.ReverseComplement(globals.next_k1);
                         } else {
                             for (int k = j - globals.step - 1; k < j + globals.kmer_k; ++k) {
-                                kmer_p.kmer.ShiftAppend(cur_package.CharAt(i, k));
+                                kmer_p.kmer.ShiftAppend(cur_package.CharAt(i, k), globals.next_k1);
                             }
                             rev_kmer_p.kmer = kmer_p.kmer;
-                            rev_kmer_p.kmer.ReverseComplement();
+                            rev_kmer_p.kmer.ReverseComplement(globals.next_k1);
                         }
 
                         if (kmer_p.kmer < rev_kmer_p.kmer) {
@@ -420,14 +421,14 @@ static bool ReadReadsAndProcessKernel(IterateGlobalData &globals,
         kseq_destroy(seq);
 
         printf("Writing iterative edges...\n");
-        int next_k = globals.step + globals.kmer_k;
-        int last_shift = (next_k + 1) % 16;
+        int next_k = globals.next_k1 - 1;
+        int last_shift = globals.next_k1 % 16;
         last_shift = (last_shift == 0 ? 0 : 16 - last_shift) * 2;
         for (auto iter = iterative_edges.begin(); iter != iterative_edges.end(); ++iter) {
             memset(packed_edge, 0, sizeof(uint32_t) * kWordsPerEdge);
             int w = 0;
             int end_word = 0;
-            for (int j = 0; j < next_k + 1; ) {
+            for (int j = 0; j < globals.next_k1; ) {
                 w = (w << 2) | iter->kmer.get_base(next_k - j);
                 ++j;
                 if (j % 16 == 0) {
@@ -517,10 +518,10 @@ static void ReadContigsAndBuildHash(IterateGlobalData &globals,
                     continue;
                 }
 
-                KmerPlus<kNumKmerWord_p, kmer_word_p_t, uint64_t> kmer_p(globals.kmer_k);
+                KmerPlus<kNumKmerWord_p, kmer_word_p_t, uint64_t> kmer_p;
                 Kmer<kNumKmerWord_p, kmer_word_p_t> &kmer = kmer_p.kmer;
                 for (int j = 0; j < globals.kmer_k; ++j) {
-                    kmer.ShiftAppend(cur_package.CharAt(i, j));
+                    kmer.ShiftAppend(cur_package.CharAt(i, j), globals.kmer_k);
                 }
                 uint64_t s_seq = 0;
                 int s_length = std::min(globals.step, cur_package.seq_lengths[i] - globals.kmer_k);
@@ -533,7 +534,7 @@ static void ReadContigsAndBuildHash(IterateGlobalData &globals,
 
                 if (cur_package.seq_lengths[i] > globals.kmer_k) {
                     for (int j = 0; j < globals.kmer_k; ++j) {
-                        kmer.ShiftAppend(3 - cur_package.CharAt(i, cur_package.seq_lengths[i] - 1 - j));
+                        kmer.ShiftAppend(3 - cur_package.CharAt(i, cur_package.seq_lengths[i] - 1 - j), globals.kmer_k);
                     }
 
                     s_seq = 0;
@@ -554,11 +555,13 @@ static void ReadContigsAndBuildHash(IterateGlobalData &globals,
             is_first_round = false;
         }
 
+        // write to disk
         int next_k = globals.kmer_k + globals.step;
-        int last_shift = (next_k + 1) % 16;
+        int last_shift = (globals.next_k1) % 16;
         last_shift = (last_shift == 0 ? 0 : 16 - last_shift) * 2;
+        
         for (unsigned i = 0; i < cur_package.size(); ++i) {
-            if (cur_package.seq_lengths[i] < next_k + 1) {
+            if (cur_package.seq_lengths[i] < globals.next_k1) {
                 continue;
             }
 
@@ -567,22 +570,22 @@ static void ReadContigsAndBuildHash(IterateGlobalData &globals,
             // convert the multiplicity from k to k+s+1
             {
                 int num_kmer = cur_package.seq_lengths[i] - globals.kmer_k + 1;
-                int num_nextk1 = cur_package.seq_lengths[i] - (next_k + 1) + 1;
-                int internal_max = std::min(next_k + 1 - globals.kmer_k + 1, num_nextk1);
+                int num_nextk1 = cur_package.seq_lengths[i] - (globals.next_k1) + 1;
+                int internal_max = std::min(globals.next_k1 - globals.kmer_k + 1, num_nextk1);
                 int num_external = internal_max - 1;
                 int num_internal = num_kmer - num_external * 2;
 
-                double exp_num_kmer = (double)num_external * (num_external + 1) / (next_k + 1 - globals.kmer_k + 1)
-                                      + (double)internal_max / (next_k + 1 - globals.kmer_k + 1) * num_internal;
+                double exp_num_kmer = (double)num_external * (num_external + 1) / (globals.next_k1 - globals.kmer_k + 1)
+                                      + (double)internal_max / (globals.next_k1 - globals.kmer_k + 1) * num_internal;
                 exp_num_kmer *= multiplicity_prev;
-                multiplicity = std::min(int(exp_num_kmer * globals.kmer_k / (next_k + 1) / num_nextk1 + 0.5), kMaxMulti_t);
+                multiplicity = std::min(int(exp_num_kmer * globals.kmer_k / (globals.next_k1) / num_nextk1 + 0.5), kMaxMulti_t);
             }
 
             memset(packed_edge, 0, sizeof(uint32_t) * kWordsPerEdge);
 
             int w = 0;
             int end_word = 0;
-            for (int j = 0; j < next_k + 1; ) {
+            for (int j = 0; j < globals.next_k1; ) {
                 w = (w << 2) | cur_package.CharAt(i, next_k - j);
                 ++j;
                 if (j % 16 == 0) {
@@ -596,7 +599,7 @@ static void ReadContigsAndBuildHash(IterateGlobalData &globals,
 
             fwrite(packed_edge, sizeof(uint32_t), kWordsPerEdge, globals.output_edge_file);
 
-            for (int j = next_k + 1; j < cur_package.seq_lengths[i]; ++j) {
+            for (int j = globals.next_k1; j < cur_package.seq_lengths[i]; ++j) {
                 packed_edge[kWordsPerEdge - 1] ^= multiplicity;
                 packed_edge[next_k / 16] &= ~(3 << (15 - next_k % 16) * 2);
                 for (int k = kWordsPerEdge - 1; k > 0; --k) {
