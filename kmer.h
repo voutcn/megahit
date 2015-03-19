@@ -22,6 +22,7 @@
  * @author Yu Peng (ypeng@cs.hku.hk)
  * @version 1.0.0
  * @date 2011-08-02
+ * @modified by Dinghua Li
  */
 
 #ifndef __BASIC_KMER_H_
@@ -38,29 +39,31 @@
 
 /**
  * @brief It represents a k-mer. The value of k is limited by the number of 
- * uint64 words used. The maximum value can be calculated by max_size().
+ * words used. The maximum value can be calculated by max_size().
  */
-template <uint32_t kNumUint64 = 4>
+template <unsigned kNumWords = 4, typename T = uint64_t>
 class Kmer
 {
 public:
+    typedef T word_t;
+
     Kmer() 
-    { std::memset(data_, 0, sizeof(uint64_t) * kNumUint64); }
+    { std::memset(data_, 0, sizeof(word_t) * kNumWords); }
 
     Kmer(const Kmer &kmer)
-    { std::memcpy(data_, kmer.data_, sizeof(uint64_t) * kNumUint64); }
+    { std::memcpy(data_, kmer.data_, sizeof(word_t) * kNumWords); }
 
     explicit Kmer(uint32_t size) 
-    { std::memset(data_, 0, sizeof(uint64_t) * kNumUint64); resize(size); }
+    { std::memset(data_, 0, sizeof(word_t) * kNumWords); resize(size); }
 
     ~Kmer() {}
 
     const Kmer &operator = (const Kmer &kmer)
-    { std::memcpy(data_, kmer.data_, sizeof(uint64_t) * kNumUint64); return *this; }
+    { std::memcpy(data_, kmer.data_, sizeof(word_t) * kNumWords); return *this; }
 
     bool operator <(const Kmer &kmer) const
     {
-        for (int i = kNumUint64-1; i >= 0; --i)
+        for (int i = kNumWords-1; i >= 0; --i)
         {
             if (data_[i] != kmer.data_[i])
                 return data_[i] < kmer.data_[i];
@@ -70,7 +73,7 @@ public:
 
     bool operator >(const Kmer &kmer) const
     {
-        for (int i = kNumUint64-1; i >= 0; --i)
+        for (int i = kNumWords-1; i >= 0; --i)
         {
             if (data_[i] != kmer.data_[i])
                 return data_[i] > kmer.data_[i];
@@ -80,7 +83,7 @@ public:
 
     bool operator ==(const Kmer &kmer) const
     {
-        for (unsigned i = 0; i < kNumUint64; ++i)
+        for (unsigned i = 0; i < kNumWords; ++i)
         {
             if (data_[i] != kmer.data_[i])
                 return false;
@@ -90,7 +93,7 @@ public:
 
     bool operator !=(const Kmer &kmer) const
     {
-        for (unsigned i = 0; i < kNumUint64; ++i)
+        for (unsigned i = 0; i < kNumWords; ++i)
         {
             if (data_[i] != kmer.data_[i])
                 return true;
@@ -101,7 +104,7 @@ public:
     const Kmer &ReverseComplement()
     {
         uint32_t kmer_size = size();
-        uint32_t used_words = (kmer_size + 31) >> 5;
+        uint32_t used_words = (kmer_size + kCharsPerWord - 1) / kCharsPerWord;
 
         resize(0);
 
@@ -111,11 +114,11 @@ public:
         for (unsigned i = 0; i < (used_words >> 1); ++i)
             std::swap(data_[i], data_[used_words-1-i]);
 
-        if ((kmer_size & 31) != 0)
+        if ((kmer_size % kCharsPerWord) != 0)
         {
-            unsigned offset = (32 - (kmer_size & 31)) << 1;
+            unsigned offset = (kCharsPerWord - kmer_size % kCharsPerWord) << 1;
             for (unsigned i = 0; i+1 < used_words; ++i)
-                data_[i] = (data_[i] >> offset) | data_[i+1] << (64 - offset);
+                data_[i] = (data_[i] >> offset) | data_[i+1] << (kBitsPerWord - offset);
             data_[used_words-1] >>= offset;
         }
 
@@ -128,13 +131,13 @@ public:
     {
         ch &= 3;
         uint32_t kmer_size = size();
-        uint32_t used_words = (kmer_size + 31) >> 5;
+        uint32_t used_words = (kmer_size + kCharsPerWord - 1) / kCharsPerWord;
 
         resize(0);
 
         for (unsigned i = 0; i+1 < used_words ; ++i)
-            data_[i] = (data_[i] >> 2) | (data_[i+1] << 62);
-        data_[used_words-1] = (data_[used_words-1] >> 2) | (uint64_t(ch) << (((kmer_size - 1) & 31) << 1));
+            data_[i] = (data_[i] >> 2) | (data_[i+1] << (kBitsPerWord - 2));
+        data_[used_words-1] = (data_[used_words-1] >> 2) | (word_t(ch) << ((kmer_size - 1) % kCharsPerWord << 1));
 
         resize(kmer_size);
     }
@@ -143,16 +146,16 @@ public:
     {
         ch &= 3;
         uint32_t kmer_size = size();
-        uint32_t used_words = (kmer_size + 31) >> 5;
+        uint32_t used_words = (kmer_size + kCharsPerWord - 1) / kCharsPerWord;
 
         resize(0);
 
         for (int i = used_words-1; i > 0; --i)
-            data_[i] = (data_[i] << 2) | (data_[i-1] >> 62);
+            data_[i] = (data_[i] << 2) | (data_[i-1] >> (kBitsPerWord - 2));
         data_[0] = (data_[0] << 2) | ch;
 
-        if ((kmer_size & 31) != 0)
-            data_[used_words-1] &= (1ULL << ((kmer_size & 31) << 1)) - 1;
+        if (kmer_size % kCharsPerWord != 0)
+            data_[used_words-1] &= (word_t(1) << (kmer_size % kCharsPerWord << 1)) - 1;
 
         resize(kmer_size);
     }
@@ -165,7 +168,7 @@ public:
 
     uint64_t hash() const
     {
-        return CityHash64((const char*)data_, sizeof(data_[0]) * kNumUint64);
+        return CityHash64((const char*)data_, sizeof(data_[0]) * kNumWords);
     }
 
     Kmer unique_format() const
@@ -176,52 +179,54 @@ public:
     }
 
     uint8_t operator [] (uint32_t index) const 
-    { return (data_[index>>5] >> ((index & 31) << 1)) & 3; }
+    { return (data_[index / kCharsPerWord] >> ((index % kCharsPerWord) << 1)) & 3; }
 
     uint8_t get_base(uint32_t index) const
-    { return (data_[index>>5] >> ((index & 31) << 1)) & 3; }
+    { return (data_[index / kCharsPerWord] >> ((index % kCharsPerWord) << 1)) & 3; }
 
     void set_base(uint32_t index, uint8_t ch)
     {
         ch &= 3;
-        unsigned offset = (index & 31) << 1;
-        data_[index>>5] = (data_[index>>5] & ~(3ULL << offset)) | (uint64_t(ch) << offset);
+        unsigned offset = (index % kCharsPerWord) << 1;
+        data_[index / kCharsPerWord] = (data_[index / kCharsPerWord] & ~(word_t(3) << offset)) | (word_t(ch) << offset);
     }
 
     void swap(Kmer &kmer)
     {
         if (this != &kmer)
         {
-            for (unsigned i = 0; i < kNumUint64; ++i)
+            for (unsigned i = 0; i < kNumWords; ++i)
                 std::swap(data_[i], kmer.data_[i]);
         }
     }
 
     uint32_t size() const
-    { return data_[kNumUint64-1] >> (64 - kBitsForSize); }
+    { return data_[kNumWords-1] >> (kBitsPerWord - kBitsForSize); }
     void resize(uint32_t new_size)
-    { data_[kNumUint64-1] = ((data_[kNumUint64-1] << kBitsForSize) >> kBitsForSize) | (uint64_t(new_size) << (64 - kBitsForSize)); }
+    { data_[kNumWords-1] = ((data_[kNumWords-1] << kBitsForSize) >> kBitsForSize) | (word_t(new_size) << (kBitsPerWord - kBitsForSize)); }
 
     void clear()
     { 
         uint32_t kmer_size = size();
-        memset(data_, 0, sizeof(uint64_t) * kNumUint64); 
+        memset(data_, 0, sizeof(word_t) * kNumWords); 
         resize(kmer_size);
     }
 
     static uint32_t max_size()
     { return kMaxSize; }
 
-    static const uint32_t kBitsForSize = ((kNumUint64 <= 2) ? 6 : ((kNumUint64 <= 8) ? 8 : 16));
-    static const uint32_t kBitsForKmer = (kNumUint64 * 64 - kBitsForSize);
+    static const uint32_t kBitsPerWord = sizeof(word_t) * 8;
+    static const uint32_t kCharsPerWord = kBitsPerWord / 2;
+    static const uint32_t kBitsForSize = (bit_operation::MostSignificantBit<kCharsPerWord * kNumWords>::value + 1) / 2 * 2;
+    static const uint32_t kBitsForKmer = (kNumWords * kBitsPerWord - kBitsForSize);
     static const uint32_t kMaxSize = kBitsForKmer / 2;
 
-    uint64_t data_[kNumUint64];
+    word_t data_[kNumWords];
 } __attribute__((packed));
 
 namespace std
 {
-template <const uint32_t kNumUint64> inline void swap(Kmer<kNumUint64> &kmer1, Kmer<kNumUint64> &kmer2) { kmer1.swap(kmer2); }
+template <const unsigned kNumWords, typename T> inline void swap(Kmer<kNumWords, T> &kmer1, Kmer<kNumWords, T> &kmer2) { kmer1.swap(kmer2); }
 }
 
 #endif

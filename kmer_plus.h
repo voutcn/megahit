@@ -4,10 +4,10 @@
 #include <algorithm>
 #include "kmer.h"
 
-template <uint32_t kNumUint64, typename ann_t>
+template <uint32_t kNumUint64, typename kmer_word_t, typename ann_t>
 struct KmerPlus
 {
-	typedef Kmer<kNumUint64> kmer_t;
+	typedef Kmer<kNumUint64, kmer_word_t> kmer_t;
 	kmer_t kmer;
 	ann_t ann;
 

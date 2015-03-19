@@ -230,4 +230,5 @@ test_gpu: megahit_assemble megahit_iter sdbg_builder_gpu
 .PHONY:
 clean:
 	-rm -fr *.i* *.cubin *.cu.c *.cudafe* *.fatbin.c *.ptx *.hash *.cu.cpp *.o .*.cpp \
-		example/megahit_*out
+		example/megahit_*out \
+		megahit_assemble megahit_iter sdbg_builder_cpu sdbg_builder_gpu

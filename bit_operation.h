@@ -57,18 +57,29 @@ inline void ReverseComplement(uint64_t &value)
     value = ~value;
 }
 
-// inline void ReverseComplement(uint8_t &value)
-// {
-//     value = ((value & kSwap8Mask4) << 4) | ((value & ~kSwap8Mask4) >> 4);
-//     value = ((value & kSwap8Mask2) << 2) | ((value & ~kSwap8Mask2) >> 2);
-//     value = ~value;
-// }
+inline void ReverseComplement(uint32_t &value)
+{
+    value = ((value & kSwap64Mask16) << 16) | ((value & ~kSwap64Mask16) >> 16);
+    value = ((value & kSwap64Mask8) << 8) | ((value & ~kSwap64Mask8) >> 8);
+    value = ((value & kSwap64Mask4) << 4) | ((value & ~kSwap64Mask4) >> 4);
+    value = ((value & kSwap64Mask2) << 2) | ((value & ~kSwap64Mask2) >> 2);
+    value = ~value;
+}
 
-// inline void Reverse(uint8_t &value)
-// {
-//     value = ((value & kSwap8Mask4) << 4) | ((value & ~kSwap8Mask4) >> 4);
-//     value = ((value & kSwap8Mask2) << 2) | ((value & ~kSwap8Mask2) >> 2);
-// }
+inline void ReverseComplement(uint16_t &value)
+{
+    value = ((value & kSwap64Mask8) << 8) | ((value & ~kSwap64Mask8) >> 8);
+    value = ((value & kSwap64Mask4) << 4) | ((value & ~kSwap64Mask4) >> 4);
+    value = ((value & kSwap64Mask2) << 2) | ((value & ~kSwap64Mask2) >> 2);
+    value = ~value;
+}
+
+inline void ReverseComplement(uint8_t &value)
+{
+    value = ((value & kSwap64Mask4) << 4) | ((value & ~kSwap64Mask4) >> 4);
+    value = ((value & kSwap64Mask2) << 2) | ((value & ~kSwap64Mask2) >> 2);
+    value = ~value;
+}
 
 inline uint8_t ReverseComplement(uint8_t value)
 {
@@ -119,6 +130,16 @@ inline int BitToIndex(uint8_t x)
     static int bit_to_index[] = {0, 0, 1, 0, 2, 0, 0, 0, 3,};
     return bit_to_index[x];
 }
+
+template<uint32_t number>
+struct MostSignificantBit {
+    static const int value = 1 + MostSignificantBit<(number >> 1)>::value;
+};
+
+template<>
+struct MostSignificantBit<0> {
+    static const int value = 0;
+};
 
 
 }
