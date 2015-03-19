@@ -32,10 +32,9 @@
 #include "io-utility.h"
 #include "options_description.h"
 #include "atomic_bit_vector.h"
-#include "kmer.h"
-#include "hash.h"
-#include "cuckoohash_map.h"
 #include "timer.h"
+#include "kmer_plus.h"
+#include "hash_table.h"
 
 using std::string;
 using std::vector;
@@ -43,9 +42,9 @@ using std::vector;
 static void InitGlobalData(IterateGlobalData &globals);
 static void ClearGlobalData(IterateGlobalData &globals);
 template <uint32_t kNumUint64_p>
-static void ReadContigsAndBuildHash(IterateGlobalData &globals, cuckoohash_map<Kmer<kNumUint64_p>, uint64_t, Hash<Kmer<kNumUint64_p> > > &crusial_kmers, bool is_addi_contigs);
+static void ReadContigsAndBuildHash(IterateGlobalData &globals, HashTable<KmerPlus<kNumUint64_p, uint64_t>, Kmer<kNumUint64_p> > &crusial_kmers, bool is_addi_contigs);
 template <uint32_t kNumUint64_p>
-static void ReadReadsAndProcess(IterateGlobalData &globals, cuckoohash_map<Kmer<kNumUint64_p>, uint64_t, Hash<Kmer<kNumUint64_p> > > &crusial_kmers);
+static void ReadReadsAndProcess(IterateGlobalData &globals, HashTable<KmerPlus<kNumUint64_p, uint64_t>, Kmer<kNumUint64_p> > &crusial_kmers);
 
 struct Options {
     string contigs_file;
@@ -148,7 +147,7 @@ int main(int argc, char *argv[]) {
 
     if ((unsigned)globals.kmer_k <= Kmer<1>::max_size())
     {
-        cuckoohash_map<Kmer<1>, uint64_t, Hash<Kmer<1> > > crusial_kmers;
+        HashTable<KmerPlus<1, uint64_t>, Kmer<1> > crusial_kmers;
         ReadContigsAndBuildHash(globals, crusial_kmers, false);
 
         if (options.addi_multi_file != "") {
@@ -159,7 +158,7 @@ int main(int argc, char *argv[]) {
     }
     else if ((unsigned)globals.kmer_k <= Kmer<2>::max_size())
     {
-        cuckoohash_map<Kmer<2>, uint64_t, Hash<Kmer<2> > > crusial_kmers;
+        HashTable<KmerPlus<2, uint64_t>, Kmer<2> > crusial_kmers;
         ReadContigsAndBuildHash(globals, crusial_kmers, false);
 
         if (options.addi_multi_file != "") {
@@ -170,7 +169,7 @@ int main(int argc, char *argv[]) {
     }
     else if ((unsigned)globals.kmer_k <= Kmer<3>::max_size())
     {
-        cuckoohash_map<Kmer<3>, uint64_t, Hash<Kmer<3> > > crusial_kmers;
+        HashTable<KmerPlus<3, uint64_t>, Kmer<3> > crusial_kmers;
         ReadContigsAndBuildHash(globals, crusial_kmers, false);
 
         if (options.addi_multi_file != "") {
@@ -181,7 +180,7 @@ int main(int argc, char *argv[]) {
     }
     else if ((unsigned)globals.kmer_k <= Kmer<4>::max_size())
     {
-        cuckoohash_map<Kmer<4>, uint64_t, Hash<Kmer<4> > > crusial_kmers;
+        HashTable<KmerPlus<4, uint64_t>, Kmer<4> > crusial_kmers;
         ReadContigsAndBuildHash(globals, crusial_kmers, false);
 
         if (options.addi_multi_file != "") {
@@ -285,7 +284,7 @@ static void* ReadContigsThread(void* data) {
 
 template<uint32_t kNumUint64_p>
 static void ReadContigsAndBuildHash(IterateGlobalData &globals, 
-                                    cuckoohash_map<Kmer<kNumUint64_p>, uint64_t, Hash<Kmer<kNumUint64_p> > > &crusial_kmers, 
+                                    HashTable<KmerPlus<kNumUint64_p, uint64_t>, Kmer<kNumUint64_p> > &crusial_kmers, 
                                     bool is_addi_contigs)
 {
     ContigPackage packages[2];
@@ -341,7 +340,8 @@ static void ReadContigsAndBuildHash(IterateGlobalData &globals,
                     continue;
                 }
 
-                Kmer<kNumUint64_p> kmer(globals.kmer_k);
+                KmerPlus<kNumUint64_p, uint64_t> kmer_p(globals.kmer_k);
+                Kmer<kNumUint64_p> &kmer = kmer_p.kmer;
                 for (int j = 0; j < globals.kmer_k; ++j) {
                     kmer.ShiftAppend(cur_package.CharAt(i, j));
                 }
@@ -351,7 +351,8 @@ static void ReadContigsAndBuildHash(IterateGlobalData &globals,
                     s_seq |= uint64_t(cur_package.CharAt(i, j + globals.kmer_k)) << (31 - j) * 2;
                 }
                 s_seq |= s_length;
-                crusial_kmers.insert(kmer, s_seq);
+                KmerPlus<kNumUint64_p, uint64_t> &kp = crusial_kmers.find_or_insert(kmer_p);
+                kp.ann = s_seq;
 
                 if (cur_package.seq_lengths[i] > globals.kmer_k) {
                     for (int j = 0; j < globals.kmer_k; ++j) {
@@ -363,7 +364,8 @@ static void ReadContigsAndBuildHash(IterateGlobalData &globals,
                         s_seq |= uint64_t(3 - cur_package.CharAt(i, cur_package.seq_lengths[i] - globals.kmer_k - 1 - j)) << (31 - j) * 2;
                     }
                     s_seq |= s_length;
-                    crusial_kmers.insert(kmer, s_seq);
+                    KmerPlus<kNumUint64_p, uint64_t> &kp = crusial_kmers.find_or_insert(kmer_p);
+                    kp.ann = s_seq;
                 }
             }
         }
@@ -384,7 +386,7 @@ static void ReadContigsAndBuildHash(IterateGlobalData &globals,
             }
 
             double multiplicity_prev = cur_package.multiplicity[i];
-            multi_t multiplicity;
+            uint16_t multiplicity;
             // convert the multiplicity from k to k+s+1
             {
                 int num_kmer = cur_package.seq_lengths[i] - globals.kmer_k + 1;
@@ -433,7 +435,6 @@ static void ReadContigsAndBuildHash(IterateGlobalData &globals,
         }
     }
     printf("Number of crusial kmers: %lu\n", crusial_kmers.size());
-    fprintf(stderr, "Loading factor: %f\n", crusial_kmers.load_factor());
 
     kseq_destroy(seq);
 }
@@ -460,8 +461,8 @@ static void* ReadReadsThread(void* data) {
 
 template<uint32_t kNumUint64_p, uint32_t kNumUint64_n>
 static void ReadReadsAndProcessKernel(IterateGlobalData &globals, 
-                                      cuckoohash_map<Kmer<kNumUint64_p>, uint64_t, Hash<Kmer<kNumUint64_p> > > &crusial_kmers,
-                                      cuckoohash_map<Kmer<kNumUint64_n>, multi_t, Hash<Kmer<kNumUint64_n> > > &iterative_edges)
+                                      HashTable<KmerPlus<kNumUint64_p, uint64_t>, Kmer<kNumUint64_p> > &crusial_kmers,
+                                      HashTable<KmerPlus<kNumUint64_n, uint16_t>, Kmer<kNumUint64_n> > &iterative_edges)
 {
     ReadPackage packages[2];
     packages[0].init(globals.max_read_len);
@@ -532,9 +533,10 @@ static void ReadReadsAndProcessKernel(IterateGlobalData &globals,
             while (cur_pos + globals.kmer_k <= length) {
                 int next_pos = cur_pos + 1;
                 if (!kmer_exist[cur_pos]) {
-                    uint64_t s_seq = 0;
-                    if (crusial_kmers.find(kmer, s_seq)) {
+                    auto iter = crusial_kmers.find(kmer);
+                    if (iter != crusial_kmers.end()) {
                         kmer_exist[cur_pos] = true;
+                        int64_t s_seq = iter->ann;
                         int s_seq_length = s_seq & 63;
                         int j;
                         for (j = 0; j < s_seq_length && cur_pos + globals.kmer_k + j < length; ++j) {
@@ -547,8 +549,9 @@ static void ReadReadsAndProcessKernel(IterateGlobalData &globals,
 
                         last_marked_pos = cur_pos + j;
                         next_pos = last_marked_pos + 1;
-                    } else if (crusial_kmers.find(rev_kmer, s_seq)) {
+                    } else if ((iter = crusial_kmers.find(rev_kmer)) != crusial_kmers.end()) {
                         kmer_exist[cur_pos] = true;
+                        int64_t s_seq = iter->ann;
                         int s_seq_length = s_seq & 63;
                         int j;
                         for (j = 0; j < s_seq_length && cur_pos - 1 - j > last_marked_pos; ++j) {
@@ -574,8 +577,8 @@ static void ReadReadsAndProcessKernel(IterateGlobalData &globals,
             }
 
             bool aligned = false;
-            Kmer<kNumUint64_n> kmer_nextk(globals.kmer_k + 1 + globals.step);
-            Kmer<kNumUint64_n> rev_kmer_nextk(globals.kmer_k + 1 + globals.step);
+            KmerPlus<kNumUint64_n, uint16_t> kmer_p(globals.kmer_k + 1 + globals.step);
+            KmerPlus<kNumUint64_n, uint16_t> rev_kmer_p(globals.kmer_k + 1 + globals.step);
 
             for (int j = 0, last_j = -globals.kmer_k, acc_exist = 0; j + globals.kmer_k <= length; ++j) {
                 acc_exist = kmer_exist[j] ? acc_exist + 1 : 0;
@@ -584,28 +587,31 @@ static void ReadReadsAndProcessKernel(IterateGlobalData &globals,
                     if (j - last_j < 8) { // tunable
                         for (int x = last_j + 1; x <= j; ++x) {
                             uint8_t c = cur_package.CharAt(i, x + globals.kmer_k - 1);
-                            kmer_nextk.ShiftAppend(c);
-                            rev_kmer_nextk.ShiftPreappend(3 - c);
+                            kmer_p.kmer.ShiftAppend(c);
+                            rev_kmer_p.kmer.ShiftPreappend(3 - c);
                         }
                     } else if (j - last_j < globals.kmer_k + globals.step + 1) {
                         for (int x = last_j + 1; x <= j; ++x) {
-                            kmer_nextk.ShiftAppend(cur_package.CharAt(i, x + globals.kmer_k - 1));
+                            kmer_p.kmer.ShiftAppend(cur_package.CharAt(i, x + globals.kmer_k - 1));
                         }
-                        rev_kmer_nextk = kmer_nextk;
-                        rev_kmer_nextk.ReverseComplement();
+                        rev_kmer_p.kmer = kmer_p.kmer;
+                        rev_kmer_p.kmer.ReverseComplement();
                     } else {
                         for (int k = j - globals.step - 1; k < j + globals.kmer_k; ++k) {
-                            kmer_nextk.ShiftAppend(cur_package.CharAt(i, k));
+                            kmer_p.kmer.ShiftAppend(cur_package.CharAt(i, k));
                         }
-                        rev_kmer_nextk = kmer_nextk;
-                        rev_kmer_nextk.ReverseComplement();
+                        rev_kmer_p.kmer = kmer_p.kmer;
+                        rev_kmer_p.kmer.ReverseComplement();
                     }
 
-                    auto updatefn = [](multi_t &count) { if (count < kMaxMulti_t) ++count; };
-                    if (kmer_nextk < rev_kmer_nextk) {
-                        iterative_edges.upsert(kmer_nextk, updatefn, 1);
+                    if (kmer_p.kmer < rev_kmer_p.kmer) {
+                        KmerPlus<kNumUint64_n, uint16_t> &kp = iterative_edges.find_or_insert_with_lock(kmer_p);
+                        if (kp.ann < kMaxMulti_t) { ++kp.ann; }
+                        iterative_edges.unlock(kmer_p);
                     } else {
-                        iterative_edges.upsert(rev_kmer_nextk, updatefn, 1);
+                        KmerPlus<kNumUint64_n, uint16_t> &kp = iterative_edges.find_or_insert_with_lock(rev_kmer_p);
+                        if (kp.ann < kMaxMulti_t) { ++kp.ann; }
+                        iterative_edges.unlock(rev_kmer_p);
                     }
                     last_j = j;
                     aligned = true;
@@ -632,19 +638,19 @@ static void ReadReadsAndProcessKernel(IterateGlobalData &globals,
         }
     }
     printf("Total: %lld, aligned: %lld. Iterative edges: %llu\n", (long long)num_total_reads, (long long)num_aligned_reads, (unsigned long long)iterative_edges.size());
-    fprintf(stderr, "Loading factor: %f\n", iterative_edges.load_factor());
+
     kseq_destroy(seq);
 
     printf("Writing iterative edges...\n");
     int next_k = globals.step + globals.kmer_k;
     int last_shift = (next_k + 1) % 16;
     last_shift = (last_shift == 0 ? 0 : 16 - last_shift) * 2;
-    for (auto iter = iterative_edges.cbegin(); !iter.is_end(); ++iter) {
+    for (auto iter = iterative_edges.begin(); iter != iterative_edges.end(); ++iter) {
         memset(packed_edge, 0, sizeof(uint32_t) * kWordsPerEdge);
         int w = 0;
         int end_word = 0;
         for (int j = 0; j < next_k + 1; ) {
-            w = (w << 2) | iter->first.get_base(next_k - j);
+            w = (w << 2) | iter->kmer.get_base(next_k - j);
             ++j;
             if (j % 16 == 0) {
                 packed_edge[end_word] = w;
@@ -654,33 +660,33 @@ static void ReadReadsAndProcessKernel(IterateGlobalData &globals,
         }
         packed_edge[end_word] = (w << last_shift);
         assert((packed_edge[kWordsPerEdge - 1] & kMaxMulti_t) == 0);
-        packed_edge[kWordsPerEdge - 1] |= iter->second;
+        packed_edge[kWordsPerEdge - 1] |= iter->ann;
         fwrite(packed_edge, sizeof(uint32_t), kWordsPerEdge, globals.output_edge_file);
     }
 }
 
 template<uint32_t kNumUint64_p>
 static void ReadReadsAndProcess(IterateGlobalData &globals, 
-                                cuckoohash_map<Kmer<kNumUint64_p>, uint64_t, Hash<Kmer<kNumUint64_p> > > &crusial_kmers)
+                                HashTable<KmerPlus<kNumUint64_p, uint64_t>, Kmer<kNumUint64_p> > &crusial_kmers)
 {
     if ((unsigned)globals.kmer_k + globals.step + 1 <= Kmer<1>::max_size())
     {
-        cuckoohash_map<Kmer<1>, multi_t, Hash<Kmer<1> > > iterative_edges;
+        HashTable<KmerPlus<1, multi_t>, Kmer<1> > iterative_edges;
         ReadReadsAndProcessKernel(globals, crusial_kmers, iterative_edges);
     }
     else if ((unsigned)globals.kmer_k + globals.step + 1 <= Kmer<2>::max_size())
     {
-        cuckoohash_map<Kmer<2>, multi_t, Hash<Kmer<2> > > iterative_edges;
+        HashTable<KmerPlus<2, multi_t>, Kmer<2> > iterative_edges;
         ReadReadsAndProcessKernel(globals, crusial_kmers, iterative_edges);
     }
     else if ((unsigned)globals.kmer_k + globals.step + 1 <= Kmer<3>::max_size())
     {
-        cuckoohash_map<Kmer<3>, multi_t, Hash<Kmer<3> > > iterative_edges;
+        HashTable<KmerPlus<3, multi_t>, Kmer<3> > iterative_edges;
         ReadReadsAndProcessKernel(globals, crusial_kmers, iterative_edges);
     }
     else if ((unsigned)globals.kmer_k + globals.step + 1 <= Kmer<4>::max_size())
     {
-        cuckoohash_map<Kmer<4>, multi_t, Hash<Kmer<4> > > iterative_edges;
+        HashTable<KmerPlus<4, multi_t>, Kmer<4> > iterative_edges;
         ReadReadsAndProcessKernel(globals, crusial_kmers, iterative_edges);
     }
     else 

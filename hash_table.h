@@ -50,7 +50,7 @@ struct HashTableNode
 {
     HashTableNode<T> *next;
     T value;
-};
+} __attribute__((packed));
 
 template <typename Value, typename Key, typename HashFunc,
          typename ExtractKey, typename EqualKey>
