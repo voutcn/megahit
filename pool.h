@@ -112,6 +112,7 @@ public:
 
                 omp_set_lock(&lock_alloc_);
                 chunks_.push_back(chunk_type(p, size));
+                // fprintf(stderr, "%p - %p, size: %lu\n", p+1, p, sizeof(*p));
                 omp_unset_lock(&lock_alloc_);
 
                 buffer.address = p;

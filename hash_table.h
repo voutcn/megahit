@@ -44,7 +44,6 @@
 #include "hash.h"
 #include "functional.h"
 
-
 template <typename T>
 struct HashTableNode
 {

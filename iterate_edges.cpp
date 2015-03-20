@@ -39,6 +39,8 @@
 using std::string;
 using std::vector;
 
+static AutoMaxRssRecorder recorder;
+
 struct Options {
     string contigs_file;
     string contigs_multi_file;
@@ -242,6 +244,7 @@ static bool ReadReadsAndProcessKernel(IterateGlobalData &globals,
     }
     else 
     {
+        // fprintf(stderr, "Second: %u %u %u\n", kNumKmerWord_n, sizeof(Kmer<kNumKmerWord_n, kmer_word_n_t>), sizeof(KmerPlus<kNumKmerWord_n, kmer_word_n_t, uint16_t>));
         HashTable<KmerPlus<kNumKmerWord_n, kmer_word_n_t, uint16_t>, Kmer<kNumKmerWord_n, kmer_word_n_t> > iterative_edges;
         ReadPackage packages[2];
         packages[0].init(globals.max_read_len);
@@ -417,7 +420,7 @@ static bool ReadReadsAndProcessKernel(IterateGlobalData &globals,
             }
         }
         printf("Total: %lld, aligned: %lld. Iterative edges: %llu\n", (long long)num_total_reads, (long long)num_aligned_reads, (unsigned long long)iterative_edges.size());
-
+        // recorder.watch();
         kseq_destroy(seq);
 
         printf("Writing iterative edges...\n");
@@ -624,20 +627,20 @@ bool IterateToNextK(IterateGlobalData &globals)
 {
     if (Kmer<kNumKmerWord_p, kmer_word_p_t>::max_size() >= (unsigned)globals.kmer_k)
     {
+        // fprintf(stderr, "First: %u %u %u\n", kNumKmerWord_p, sizeof(Kmer<kNumKmerWord_p, kmer_word_p_t>), sizeof(KmerPlus<kNumKmerWord_p, kmer_word_p_t, uint64_t>));
         HashTable<KmerPlus<kNumKmerWord_p, kmer_word_p_t, uint64_t>, Kmer<kNumKmerWord_p, kmer_word_p_t> > crusial_kmers;
         ReadContigsAndBuildHash(globals, crusial_kmers, false);
 
         if (options.addi_multi_file != "") {
             ReadContigsAndBuildHash(globals, crusial_kmers, true);
         }
+        // recorder.watch();
 
         ReadReadsAndProcess(globals, crusial_kmers);
         return true;
     }
     return false;
 }
-
-static AutoMaxRssRecorder recorder;
 
 int main(int argc, char *argv[]) {
     // set stdout line buffered

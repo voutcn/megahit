@@ -196,6 +196,7 @@ public:
     word_t data_[kNumWords];
 } __attribute__((packed));
 
+
 namespace std
 {
 template <const unsigned kNumWords, typename T> inline void swap(Kmer<kNumWords, T> &kmer1, Kmer<kNumWords, T> &kmer2) { kmer1.swap(kmer2); }
