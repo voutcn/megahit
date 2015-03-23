@@ -34,7 +34,7 @@ import multiprocessing
 
 from datetime import datetime, date, time
 
-megahit_version_str = "MEGAHIT v0.2.1-dev-0323-Builder1pass-no-mercy"
+megahit_version_str = "MEGAHIT v0.2.1-dev-0323-Builder1pass-mercy"
 usage_message = '''
 Copyright (c) The University of Hong Kong
 
@@ -447,7 +447,7 @@ def build_first_graph():
             count_and_build_cmd.append("-")
 
         if opt.no_mercy == 0:
-            build_cmd.append("--need_mercy")
+            count_and_build_cmd.append("--need_mercy")
 
         try:
             log_file = open(log_file_name(), "a")

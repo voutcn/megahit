@@ -24,6 +24,7 @@
 #include <algorithm>
 #include <string>
 #include <omp.h>
+#include <parallel/algorithm>
 
 #include "timer.h"
 #include "definitions.h"
@@ -414,6 +415,21 @@ void InitGlobalData(struct global_data_t &globals) {
         }
     }
 
+    // --- initialize output mercy files ---
+    globals.num_mercy_files = 1;
+    while (globals.num_mercy_files * 10485760LL < globals.num_reads && globals.num_mercy_files < 64) {
+        globals.num_mercy_files <<= 1;
+    }
+    if (sdbg_builder_verbose >= 3) {
+        log("[B::%s] Number of files for mercy candidate reads: %d\n", __func__, globals.num_mercy_files);
+    }
+    globals.mercy_output_locks.reset(globals.num_mercy_files);
+    for (int i = 0; i < globals.num_mercy_files; ++i) {
+        char file_name[10240];
+        sprintf(file_name, "%s.mercy_cand.%d", globals.output_prefix, i);
+        globals.mercy_files.push_back(OpenFileAndCheck(file_name, "wb"));
+    }
+
     // --- initialize stat ---
     globals.edge_counting = (int64_t *) MallocAndCheck((kMaxMulti_t + 1) * sizeof(int64_t), __FILE__, __LINE__);
     globals.thread_edge_counting = (int64_t *) MallocAndCheck((kMaxMulti_t + 1) * globals.phase1_num_output_threads * sizeof(int64_t), __FILE__, __LINE__);
@@ -465,7 +481,6 @@ void InitGlobalData(struct global_data_t &globals) {
     // --- memory stuff ---
     int64_t mem_remained = globals.host_mem 
                          - globals.mem_packed_reads
-                         - globals.num_reads * sizeof(unsigned char) * 2 // first_in0 & last_out0
                          - phase1::kNumBuckets * sizeof(int64_t) * (globals.num_cpu_threads * 3 + 1)
                          - (kMaxMulti_t + 1) * (globals.phase1_num_output_threads + 1) * sizeof(int64_t);
     if (globals.mem_flag == 1) {
@@ -506,8 +521,6 @@ void InitGlobalData(struct global_data_t &globals) {
  #ifdef DISABLE_GPU
     globals.cpu_sort_space = (uint64_t*) MallocAndCheck(sizeof(uint64_t) * globals.max_lv2_items, __FILE__, __LINE__);
  #endif
-    globals.mercy_in_candidates.resize(globals.phase1_num_output_threads);
-    globals.mercy_out_candidates.resize(globals.phase1_num_output_threads);
 }
 
 /**
@@ -602,7 +615,7 @@ void Lv1ScanToFillOffests(struct global_data_t &globals) {
 
 // single thread helper function
 // 'spacing' is the strip length for read-word "coalescing"
-void CopySubstring(edge_word_t* dest, edge_word_t* src_read, int offset, int num_chars_to_copy, global_data_t &globals, uint8_t prev_char = 0) {
+void CopySubstring(edge_word_t* dest, edge_word_t* src_read, int offset, int num_chars_to_copy, global_data_t &globals) {
     int64_t spacing = globals.lv2_num_items;
     int words_per_read = globals.words_per_read;
     int words_per_substring = globals.words_per_substring;
@@ -658,13 +671,9 @@ void CopySubstring(edge_word_t* dest, edge_word_t* src_read, int offset, int num
             which_word++;
         }
     }
-
-    // edge_word_t *last_word = dest + (words_per_substring - 1) * spacing;
-    // *last_word |= int(num_chars_to_copy == kmer_k) << kBWTCharNumBits;
-    // *last_word |= prev_char;
 }
 
-void CopySubstringRC(edge_word_t* dest, edge_word_t* src_read, int offset, int num_chars_to_copy, global_data_t &globals, uint8_t prev_char = 0, bool counted = 1) {
+void CopySubstringRC(edge_word_t* dest, edge_word_t* src_read, int offset, int num_chars_to_copy, global_data_t &globals) {
     int spacing = globals.lv2_num_items;
     int which_word = (offset + num_chars_to_copy - 1) / kCharsPerEdgeWord;
     int word_offset = (offset + num_chars_to_copy - 1) % kCharsPerEdgeWord;
@@ -711,10 +720,6 @@ void CopySubstringRC(edge_word_t* dest, edge_word_t* src_read, int offset, int n
             which_word++;
         }
     }
-
-    // edge_word_t *last_word = dest + (globals.words_per_substring - 1) * spacing;
-    // *last_word |= int(num_chars_to_copy == globals.kmer_k) << kBWTCharNumBits;
-    // *last_word |= prev_char;
 }
 
 /**
@@ -859,10 +864,21 @@ void* Lv2CountingThread(void *_op) {
 
                 // check if this is a mercy candidate
                 if ((!has_in && strand == 0) || (!has_out && strand == 1)) {
-                    globals.mercy_in_candidates[thread_id].push_back(read_id * globals.num_k1_per_read + offset);
+                    assert(offset < globals.num_k1_per_read);
+                    // no in
+                    int64_t packed_mercy_cand = (read_id << (globals.offset_num_bits + 1)) | (offset << 1);
+                    globals.mercy_output_locks.lock(read_id & (globals.num_mercy_files - 1));
+                    fwrite(&packed_mercy_cand, sizeof(packed_mercy_cand), 1, globals.mercy_files[read_id & (globals.num_mercy_files - 1)]);
+                    globals.mercy_output_locks.unset(read_id & (globals.num_mercy_files - 1));
                 }
-                else if ((!has_in && strand == 1) || (!has_out && strand == 0)) {
-                    globals.mercy_out_candidates[thread_id].push_back(read_id * globals.num_k1_per_read + offset);
+
+                if ((!has_in && strand == 1) || (!has_out && strand == 0)) {
+                    assert(offset < globals.num_k1_per_read);
+                    // no out
+                    int64_t packed_mercy_cand = (read_id << (globals.offset_num_bits + 1)) | (offset << 1) | 1;
+                    globals.mercy_output_locks.lock(read_id & (globals.num_mercy_files - 1));
+                    fwrite(&packed_mercy_cand, sizeof(packed_mercy_cand), 1, globals.mercy_files[read_id & (globals.num_mercy_files - 1)]);
+                    globals.mercy_output_locks.unset(read_id & (globals.num_mercy_files - 1));
                 }
             }
         }
@@ -938,6 +954,10 @@ void Phase1Clean(struct global_data_t &globals) {
     for (int t = 0; t < globals.num_cpu_threads; ++t) {
        free(globals.readpartitions[t].rp_bucket_sizes);
        free(globals.readpartitions[t].rp_bucket_offsets);
+    }
+
+    for (int i = 0; i < globals.num_mercy_files; ++i) {
+        fclose(globals.mercy_files[i]);
     }
 
  #ifdef DISABLE_GPU
@@ -1214,7 +1234,96 @@ void PreprocessScanToFillBucketSizes(struct global_data_t &globals) {
 }
 
 void AddMercyEdge(global_data_t &globals) {
+    std::vector<uint64_t> mercy_cand;
+    uint64_t offset_mask = (1 << globals.offset_num_bits) - 1; // 0000....00011..11
+    uint64_t num_mercy = 0;
 
+    for (int fid = 0; fid < globals.num_mercy_files; ++fid) {
+        char file_name[10240];
+        sprintf(file_name, "%s.mercy_cand.%d", globals.output_prefix, fid);
+        FILE *fp = OpenFileAndCheck(file_name, "rb");
+        mercy_cand.clear();
+
+        int num_read = 0;
+        uint64_t buf[4096];
+        while ((num_read = fread(buf, sizeof(uint64_t), 4096, fp)) > 0) {
+            mercy_cand.insert(mercy_cand.end(), buf, buf + num_read);
+        }
+
+        omp_set_num_threads(globals.num_cpu_threads);
+        __gnu_parallel::sort(mercy_cand.begin(), mercy_cand.end());
+
+        // multi threading
+        uint64_t avg = DivCeiling(mercy_cand.size(), globals.num_cpu_threads);
+        std::vector<uint64_t> start_idx(globals.num_cpu_threads), end_idx(globals.num_cpu_threads);
+
+        // manually distribute threads
+        for (int tid = 0; tid < globals.num_cpu_threads; ++tid) {
+            if (tid == 0) { start_idx[tid] = 0; }
+            else { start_idx[tid] = end_idx[tid - 1]; }
+
+            uint64_t this_end = avg * (tid + 1);
+            uint64_t read_id = mercy_cand[this_end] >> (globals.offset_num_bits + 1);
+            while (this_end < mercy_cand.size() && (mercy_cand[this_end] >> (globals.offset_num_bits + 1)) == read_id) {
+                ++this_end;
+            }
+            end_idx[tid] = this_end;
+        }
+
+ #pragma omp parallel for reduction(+:num_mercy)
+        for (int tid = 0; tid < globals.num_cpu_threads; ++tid) {
+            std::vector<bool> no_in(globals.max_read_length);
+            std::vector<bool> no_out(globals.max_read_length);
+
+            uint64_t i = start_idx[tid];
+            // go read by read
+            while (i != end_idx[tid]) {
+                uint64_t read_id = mercy_cand[i] >> (globals.offset_num_bits + 1);
+                int first_0_out = globals.max_read_length + 1;
+                int last_0_in = -1;
+
+                std::fill(no_in.begin(), no_in.end(), false);
+                std::fill(no_out.begin(), no_out.end(), false);
+
+                while (i != end_idx[tid] && (mercy_cand[i] >> (globals.offset_num_bits + 1)) == read_id) {
+                    if (mercy_cand[i] & 1) {
+                        no_out[(mercy_cand[i] >> 1) & offset_mask] = true;
+                        first_0_out = std::min(first_0_out, int((mercy_cand[i] >> 1) & offset_mask));
+                    } else {
+                        no_in[(mercy_cand[i] >> 1) & offset_mask] = true;
+                        last_0_in = std::max(last_0_in, int((mercy_cand[i] >> 1) & offset_mask));
+                    }
+                    ++i;
+                }
+                if (last_0_in < first_0_out) { continue; }
+
+                int read_length = GetReadLengthByID(read_id, globals);
+                int last_no_out = -1;
+
+                for (int i = 0; i + globals.kmer_k < read_length; ++i) {
+                    if (no_in[i] && last_no_out != -1) {
+                        assert(globals.is_solid.get(read_id * globals.num_k1_per_read + i));
+                        for (int j = last_no_out + 1; j < i; ++j) {
+                            globals.is_solid.set(read_id * globals.num_k1_per_read + j);
+                        }
+                        num_mercy += i - last_no_out - 1;
+                    }
+                    if (globals.is_solid.get(read_id * globals.num_k1_per_read + i)) {
+                        last_no_out = -1;
+                    }
+                    if (no_out[i]) {
+                        assert(globals.is_solid.get(read_id * globals.num_k1_per_read + i));
+                        last_no_out = i;
+                    }
+                }
+
+            }
+        }
+
+        fclose(fp);
+    }
+
+    log("[B::%s] Number of mercy edges (reads): %ld\n", __func__, num_mercy);
 }
 
 void InitGlobalData(global_data_t &globals) {
@@ -1510,7 +1619,7 @@ void CopySubstring(edge_word_t* dest, edge_word_t* src_read, int offset, int num
     *last_word |= prev_char;
 }
 
-void CopySubstringRC(edge_word_t* dest, edge_word_t* src_read, int offset, int num_chars_to_copy, global_data_t &globals, uint8_t prev_char = 0, bool counted = 1) {
+void CopySubstringRC(edge_word_t* dest, edge_word_t* src_read, int offset, int num_chars_to_copy, global_data_t &globals, uint8_t prev_char = 0) {
     int spacing = globals.lv2_num_items;
     int which_word = (offset + num_chars_to_copy - 1) / kCharsPerEdgeWord;
     int word_offset = (offset + num_chars_to_copy - 1) % kCharsPerEdgeWord;
@@ -1603,17 +1712,10 @@ void* Lv2ExtractSubstringsThread(void* _data) {
                         num_chars_to_copy--;
                         break;
                       default:
-                        // err("%ld\n", (lv1_p - (globals.lv1_items + globals.readpartitions[0].rp_bucket_offsets[ bp.bp_start_bucket ])));
-                        // err("%ld %d %d %d\n", read_id, offset, strand, edge_type);
-                        // err("%d %d %d\n", b, t, i);
                         assert(false);
                     }
 
                     CopySubstring(substrings_p, PACKED_READS(read_id, globals), offset, num_chars_to_copy, globals, prev);
-                    if ((*substrings_p >> (16 - phase1::kBucketPrefixLength) * 2) != b) {
-                        err("%d %d\n", (*substrings_p >> (16 - phase1::kBucketPrefixLength) * 2), b);
-                        err("%ld %d %d %d\n", read_id, offset, strand, edge_type);
-                    }
                 } else {
                     int num_chars_to_copy = globals.kmer_k;
                     uint8_t prev = kSentinelValue;
@@ -1634,10 +1736,6 @@ void* Lv2ExtractSubstringsThread(void* _data) {
                     }
 
                     CopySubstringRC(substrings_p, PACKED_READS(read_id, globals), offset, num_chars_to_copy, globals, prev);
-                    if ((*substrings_p >> (16 - phase1::kBucketPrefixLength) * 2) != b) {
-                        err("%d %d\n", (*substrings_p >> (16 - phase1::kBucketPrefixLength) * 2), b);
-                        err("%ld %d %d %d\n", read_id, offset, strand, edge_type);
-                    }
                 }
 
                 substrings_p++;
@@ -1941,11 +2039,6 @@ void Phase2Entry(struct global_data_t &globals) {
 
     // --- init global data ---
     InitGlobalData(globals);
-    FILE *bf = fopen("bucket.txt", "w");
-    for (int i = 0; i < phase1::kNumBuckets; ++i) {
-        fprintf(bf, "%d %d\n", i, globals.bucket_sizes[i]);
-    }
-    fclose(bf);
 
     ////////////////////////////////// Start processing... ////////////////////////////
     int lv1_iteration = 0;

@@ -101,8 +101,6 @@ struct global_data_t {
     uint32_t* permutation_to_output;    // dump for double buffer
     uint64_t *cpu_sort_space;
     AtomicBitVector is_solid;
-    std::vector<std::vector<int64_t> > mercy_in_candidates; // a vertor per thread
-    std::vector<std::vector<int64_t> > mercy_out_candidates;
 
     // memory resources used. computational limits.
     int64_t max_lv1_items;
@@ -152,6 +150,9 @@ struct global_data_t {
     int64_t num_incoming_zero_nodes;
     int64_t num_outgoing_zero_nodes;
     int phase1_num_output_threads;
+    std::vector<FILE*> mercy_files;
+    AtomicBitVector mercy_output_locks;
+    int num_mercy_files;
 
     // output
     WordWriter word_writer[kMaxNumCPUThreads];
@@ -185,8 +186,6 @@ struct global_data_t {
     int64_t num_dollar_nodes;
     int cur_prefix;
     int cur_suffix_first_char;
-
-    int64_t bucket_filling_size[65536];
 
     // for output thread
     unsigned char *lv2_aux;
