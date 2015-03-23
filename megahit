@@ -34,7 +34,7 @@ import multiprocessing
 
 from datetime import datetime, date, time
 
-megahit_version_str = "MEGAHIT v0.2.1-dev-0320-MostCompactKmer-fixed"
+megahit_version_str = "MEGAHIT v0.2.1-dev-0323-Builder1pass-no-mercy"
 usage_message = '''
 Copyright (c) The University of Hong Kong
 
@@ -429,7 +429,7 @@ def build_first_graph():
     global cp
     phase1_out_threads = max(1, int(opt.num_cpu_threads / 3))
     if (not opt.continue_mode) or (cp > opt.last_cp):
-        count_cmd = [opt.bin_dir + opt.builder, "count",
+        count_and_build_cmd = [opt.bin_dir + "sdbg_builder_cpu_1pass", "count",
                        "-k", str(opt.k_min),
                        "-m", str(opt.min_count),
                        "--host_mem", str(opt.host_mem),
@@ -440,26 +440,29 @@ def build_first_graph():
                        "--num_cpu_threads", str(opt.num_cpu_threads),
                        "--num_output_threads", str(phase1_out_threads)]
         if opt.read_file != "":
-            count_cmd.append("--input_file")
-            count_cmd.append(opt.read_file)
+            count_and_build_cmd.append("--input_file")
+            count_and_build_cmd.append(opt.read_file)
         else:
-            count_cmd.append("--input_file")
-            count_cmd.append("-")
+            count_and_build_cmd.append("--input_file")
+            count_and_build_cmd.append("-")
+
+        if opt.no_mercy == 0:
+            build_cmd.append("--need_mercy")
 
         try:
             log_file = open(log_file_name(), "a")
             start_time = datetime.now()
-            print("%s" % (" ").join(count_cmd), file=log_file)
+            print("%s" % (" ").join(count_and_build_cmd), file=log_file)
             print("[%s] Extracting solid (k+1)-mers for k = %d" % (start_time.strftime("%c"), opt.k_min), file=sys.stderr)
             print("[%s] Extracting solid (k+1)-mers for k = %d" % (start_time.strftime("%c"), opt.k_min), file=log_file)
             log_file.flush()
             if opt.read_file == "":
                 input_thread = subprocess.Popen(opt.input_cmd, shell = True, stdout = subprocess.PIPE)
-                cmd_thread = subprocess.Popen(count_cmd, stdin = input_thread.stdout, stdout = log_file)
+                cmd_thread = subprocess.Popen(count_and_build_cmd, stdin = input_thread.stdout, stdout = log_file)
                 cmd_thread.wait()
                 ret_code = cmd_thread.returncode
             else:
-                ret_code = subprocess.call(count_cmd, stdout = log_file)
+                ret_code = subprocess.call(count_and_build_cmd, stdout = log_file)
             if ret_code != 0:
                 print("Error occurs when running \"builder count\"", file=sys.stderr)
                 print("[Exit code %d] " % ret_code, file=sys.stderr)
@@ -473,8 +476,6 @@ def build_first_graph():
 
     write_cp(cp)
     cp = cp + 1
-
-    build_graph(opt.k_min, phase1_out_threads)
 
 def build_graph(kmer_k, num_edge_files):
     global cp
@@ -490,8 +491,6 @@ def build_graph(kmer_k, num_edge_files):
                        "--max_read_len", str(opt.max_read_len),
                        "--num_cpu_threads", str(opt.num_cpu_threads),
                        "--num_edge_files", str(num_edge_files)]
-        if opt.no_mercy == 0 and kmer_k == opt.k_min:
-            build_cmd.append("--need_mercy")
 
         try:
             log_file = open(log_file_name(), "a")

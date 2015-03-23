@@ -161,7 +161,7 @@ ifeq ($(use_gpu), 1)
 all:  megahit_assemble megahit_iter sdbg_builder_gpu sdbg_builder_cpu
 	chmod +x ./megahit
 else
-all:  megahit_assemble megahit_iter sdbg_builder_cpu
+all:  megahit_assemble megahit_iter sdbg_builder_cpu sdbg_builder_cpu_1pass
 	chmod +x ./megahit
 endif
 
@@ -174,11 +174,17 @@ endif
 .cx1_functions_cpu.o: cx1_functions.cpp $(DEPS)
 	$(CXX) $(CFLAGS) -D DISABLE_GPU -c cx1_functions.cpp -o .cx1_functions_cpu.o
 
+.cx1_functions_1pass.o: cx1_functions_1pass.cpp $(DEPS)
+	$(CXX) $(CFLAGS) -D DISABLE_GPU -c cx1_functions_1pass.cpp -o .cx1_functions_1pass.o
+
 #-------------------------------------------------------------------------------
 # CPU Applications
 #-------------------------------------------------------------------------------
 sdbg_builder_cpu: sdbg_builder.cpp .cx1_functions_cpu.o lv2_cpu_sort.h options_description.o $(DEPS)
 	$(CXX) $(CFLAGS) -D DISABLE_GPU sdbg_builder.cpp .cx1_functions_cpu.o options_description.o $(ZLIB) -o sdbg_builder_cpu
+
+sdbg_builder_cpu_1pass: sdbg_builder_1pass.cpp .cx1_functions_1pass.o lv2_cpu_sort.h options_description.o $(DEPS)
+	$(CXX) $(CFLAGS) -D DISABLE_GPU sdbg_builder_1pass.cpp .cx1_functions_1pass.o options_description.o $(ZLIB) -o sdbg_builder_cpu_1pass
 
 megahit_assemble: assembler.cpp succinct_dbg.o rank_and_select.o assembly_algorithms.o branch_group.o options_description.o unitig_graph.o $(DEPS)
 	$(CXX) $(CFLAGS) assembler.cpp rank_and_select.o succinct_dbg.o assembly_algorithms.o branch_group.o options_description.o unitig_graph.o $(ZLIB) -o megahit_assemble

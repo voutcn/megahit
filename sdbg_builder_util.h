@@ -24,6 +24,7 @@
 #include "MAC_pthread_barrier.h"
 #include "definitions.h"
 #include "timer.h"
+#include "atomic_bit_vector.h"
 #include "sdbg_builder_writers.h"
 
 // uncomment the following line if read lenght > 254 bp; comment it if read length <= 254 and want to save memory
@@ -70,6 +71,7 @@ struct global_data_t {
     int64_t host_mem;
     int64_t gpu_mem;
     int mem_flag;
+    int num_k1_per_read; // = max_read_length - kmer_k
 
     const char *input_file;
     const char *phase2_input_prefix;
@@ -98,6 +100,9 @@ struct global_data_t {
     edge_word_t* lv2_substrings_to_output; // dump for double buffer
     uint32_t* permutation_to_output;    // dump for double buffer
     uint64_t *cpu_sort_space;
+    AtomicBitVector is_solid;
+    std::vector<std::vector<int64_t> > mercy_in_candidates; // a vertor per thread
+    std::vector<std::vector<int64_t> > mercy_out_candidates;
 
     // memory resources used. computational limits.
     int64_t max_lv1_items;
@@ -140,9 +145,6 @@ struct global_data_t {
     // memory usage
     int64_t mem_packed_reads;
 
-    // output
-    WordWriter word_writer[kMaxNumCPUThreads];
-
     // stat
     int64_t *edge_counting; // count the number of (k+1)mer with occurs i times
     int64_t *thread_edge_counting;
@@ -150,6 +152,9 @@ struct global_data_t {
     int64_t num_incoming_zero_nodes;
     int64_t num_outgoing_zero_nodes;
     int phase1_num_output_threads;
+
+    // output
+    WordWriter word_writer[kMaxNumCPUThreads];
 
     //-----------end-of-phase1-----------------------
 
@@ -181,8 +186,11 @@ struct global_data_t {
     int cur_prefix;
     int cur_suffix_first_char;
 
+    int64_t bucket_filling_size[65536];
+
     // for output thread
     unsigned char *lv2_aux;
+    std::vector<std::vector<uint64_t> > lv2_output_items;
     int phase2_num_output_threads;
     xtimer_t phase2_output_timer;
     pthread_barrier_t output_barrier;
