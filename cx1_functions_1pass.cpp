@@ -176,6 +176,28 @@ void Lv2DistributeBucketPartitions(struct global_data_t &globals, int num_output
     globals.bucketpartitions[globals.num_cpu_threads-num_output_threads-1].bp_end_bucket = globals.lv2_end_bucket;
 }
 
+// helper: see whether two lv2 items have the same (k-1)-mer
+inline bool IsDiffKMinusOneMer(edge_word_t *item1, edge_word_t *item2, int64_t spacing, int kmer_k) {
+    // mask extra bits
+    int chars_in_last_word = (kmer_k - 1) % kCharsPerEdgeWord;
+    int num_full_words = (kmer_k - 1) / kCharsPerEdgeWord;
+    if (chars_in_last_word > 0) {
+        edge_word_t w1 = item1[num_full_words * spacing];
+        edge_word_t w2 = item2[num_full_words * spacing];
+        if ((w1 >> (kCharsPerEdgeWord - chars_in_last_word) * kBitsPerEdgeChar) != (w2 >> (kCharsPerEdgeWord - chars_in_last_word) * kBitsPerEdgeChar)) {
+            return true;
+        }
+    } 
+
+    for (int i = num_full_words - 1; i >= 0; --i) {
+        if (item1[i * spacing] != item2[i * spacing]) {
+            return true;
+        }
+    }
+    return false;
+}
+
+
 namespace phase1 {
 /**
  * @brief encode read_id and its offset in one int64_t
@@ -339,46 +361,41 @@ void* PreprocessScanToFillBucketSizesThread(void *_data) {
     int64_t *bucket_sizes = rp.rp_bucket_sizes;
     memset(bucket_sizes, 0, phase1::kNumBuckets * sizeof(int64_t));
     edge_word_t *read_p = PACKED_READS(rp.rp_start_id, globals);
-    KmerUint32 edge, rev_edge; // (k+1)-mer and its rc
+    KmerUint32 k_minus1_mer, rev_k_minus1_mer; // (k-1)-mer and its rc
     for (int64_t read_id = rp.rp_start_id; read_id < rp.rp_end_id; ++read_id, read_p += globals.words_per_read) {
         int read_length = GetReadLength(read_p, globals.words_per_read, globals.read_length_mask);
         if (read_length < globals.kmer_k + 1) { continue; }
-        edge.init(read_p, globals.kmer_k + 1);
-        rev_edge.clean();
-        for (int i = 0; i <= globals.kmer_k; ++i) {
-            rev_edge.Append(3 - ExtractNthChar(read_p, globals.kmer_k - i));
+        k_minus1_mer.init(read_p, globals.kmer_k - 1);
+        rev_k_minus1_mer.clean();
+        for (int i = 0; i < globals.kmer_k - 1; ++i) {
+            rev_k_minus1_mer.Append(3 - ExtractNthChar(read_p, globals.kmer_k - 2 - i));
         }
+        
+        // the first one special handling
+        bucket_sizes[k_minus1_mer.data_[0] >> (kCharsPerEdgeWord - phase1::kBucketPrefixLength) * kBitsPerEdgeChar]++;
+        bucket_sizes[rev_k_minus1_mer.data_[0] >> (kCharsPerEdgeWord - phase1::kBucketPrefixLength) * kBitsPerEdgeChar]++;
 
-        int last_char_offset = globals.kmer_k;
-        int64_t full_offset = read_id * globals.num_k1_per_read;
-        while (true) {
-            if (globals.run_mode != 3) {
-                if (rev_edge < edge) {
-                    bucket_sizes[rev_edge.data_[0] >> (kCharsPerEdgeWord - phase1::kBucketPrefixLength) * kBitsPerEdgeChar]++;
-                } else {
-                    bucket_sizes[edge.data_[0] >> (kCharsPerEdgeWord - phase1::kBucketPrefixLength) * kBitsPerEdgeChar]++;
-                }
-            }
-            else {
-                if (globals.is_solid.get(full_offset)) {
-                    bool is_palindrome = (rev_edge == edge);
-                    bucket_sizes[(edge.data_[0] << 2) >> (kCharsPerEdgeWord - phase1::kBucketPrefixLength) * kBitsPerEdgeChar]++;
-                    if (!is_palindrome)
-                        bucket_sizes[(rev_edge.data_[0] << 2) >> (kCharsPerEdgeWord - phase1::kBucketPrefixLength) * kBitsPerEdgeChar]++;
+        int last_char_offset = globals.kmer_k - 1;
+        int c = ExtractNthChar(read_p, last_char_offset);
+        k_minus1_mer.ShiftLeftAppend(c);
+        rev_k_minus1_mer.ShiftRightAppend(3 - c);
 
-                }
-
-                ++full_offset;
-            }
-
-            if (++last_char_offset >= read_length) {
-                break;
+        while (last_char_offset < read_length - 1) {
+            int cmp = k_minus1_mer.cmp(rev_k_minus1_mer);
+            if (cmp > 0) {
+                bucket_sizes[rev_k_minus1_mer.data_[0] >> (kCharsPerEdgeWord - phase1::kBucketPrefixLength) * kBitsPerEdgeChar]++;
             } else {
-                int c = ExtractNthChar(read_p, last_char_offset);
-                edge.ShiftLeftAppend(c);
-                rev_edge.ShiftRightAppend(3 - c);
+                bucket_sizes[k_minus1_mer.data_[0] >> (kCharsPerEdgeWord - phase1::kBucketPrefixLength) * kBitsPerEdgeChar]++;
             }
+
+            int c = ExtractNthChar(read_p, ++last_char_offset);
+            k_minus1_mer.ShiftLeftAppend(c);
+            rev_k_minus1_mer.ShiftRightAppend(3 - c);
         }
+
+        // last one special handling
+        bucket_sizes[k_minus1_mer.data_[0] >> (kCharsPerEdgeWord - phase1::kBucketPrefixLength) * kBitsPerEdgeChar]++;
+        bucket_sizes[rev_k_minus1_mer.data_[0] >> (kCharsPerEdgeWord - phase1::kBucketPrefixLength) * kBitsPerEdgeChar]++;
     }
     return NULL;
 }
@@ -466,7 +483,12 @@ void InitGlobalData(struct global_data_t &globals) {
         exit(1);
     }
  #endif
-    globals.words_per_substring = DivCeiling((globals.kmer_k + 1) * kBitsPerEdgeChar, kBitsPerEdgeWord);
+    // to count (k+1)-mers, sort by the internal (k-1)-mer
+    // (k+1)-mer = abS[0..k-2]cd
+    // is solid: number of bSc >= threshold
+    // bS has in coming: for some a, num of abS >= threshold
+    // Sc has outgoing: for some a, num of Scd >= threshold
+    globals.words_per_substring = DivCeiling((globals.kmer_k - 1) * kBitsPerEdgeChar + 2 * kBWTCharNumBits, kBitsPerEdgeWord);
     globals.words_per_edge = DivCeiling((globals.kmer_k + 1) * kBitsPerEdgeChar + kBitsPerMulti_t, kBitsPerEdgeWord);
     // lv2 bytes: substring, permutation, readinfo
     int64_t lv2_bytes_per_item = (globals.words_per_substring) * sizeof(edge_word_t) + sizeof(uint32_t) + sizeof(int64_t);
@@ -535,21 +557,21 @@ void* Lv1ScanToFillOffsetsThread(void *_data) {
         prev_full_offsets[b] = rp.rp_lv1_differential_base;
     // this loop is VERY similar to that in PreprocessScanToFillBucketSizesThread
     edge_word_t *read_p = PACKED_READS(rp.rp_start_id, globals);
-    KmerUint32 edge, rev_edge; // (k+1)-mer and its rc
+    KmerUint32 k_minus1_mer, rev_k_minus1_mer; // (k+1)-mer and its rc
     int key;
     for (int64_t read_id = rp.rp_start_id; read_id < rp.rp_end_id; ++read_id, read_p += globals.words_per_read) {
         int read_length = GetReadLength(read_p, globals.words_per_read, globals.read_length_mask);
         if (read_length < globals.kmer_k + 1) { continue; }
-        edge.init(read_p, globals.kmer_k + 1);
-        rev_edge.clean();
-        for (int i = 0; i <= globals.kmer_k; ++i) {
-            rev_edge.Append(3 - ExtractNthChar(read_p, globals.kmer_k - i));
+        k_minus1_mer.init(read_p, globals.kmer_k - 1);
+        rev_k_minus1_mer.clean();
+        for (int i = 0; i < globals.kmer_k - 1; ++i) {
+            rev_k_minus1_mer.Append(3 - ExtractNthChar(read_p, globals.kmer_k - 2 - i));
         }
 
         // ===== this is a macro to save some copy&paste ================
  #define CHECK_AND_SAVE_OFFSET(offset, strand)                                   \
     do {                                                                \
-      assert(offset + globals.kmer_k < read_length); \
+      assert(offset + globals.kmer_k - 1 <= read_length); \
       if (((key - globals.lv1_start_bucket) ^ (key - globals.lv1_end_bucket)) & kSignBitMask) { \
         int64_t full_offset = EncodeOffset(read_id, offset, strand, globals.offset_num_bits); \
         int64_t differential = full_offset - prev_full_offsets[key];      \
@@ -568,25 +590,48 @@ void* Lv1ScanToFillOffsetsThread(void *_data) {
         // ^^^^^ why is the macro surrounded by a do-while? please ask Google
         // =========== end macro ==========================
 
+        // the first one special handling
+        key = k_minus1_mer.data_[0] >> (kCharsPerEdgeWord - phase1::kBucketPrefixLength) * kBitsPerEdgeChar;
+        CHECK_AND_SAVE_OFFSET(0, 0);
+        key = rev_k_minus1_mer.data_[0] >> (kCharsPerEdgeWord - phase1::kBucketPrefixLength) * kBitsPerEdgeChar;
+        CHECK_AND_SAVE_OFFSET(0, 1);
+
+        int last_char_offset = globals.kmer_k - 1;
+        int c = ExtractNthChar(read_p, last_char_offset);
+        k_minus1_mer.ShiftLeftAppend(c);
+        rev_k_minus1_mer.ShiftRightAppend(3 - c);
+
         // shift the key char by char
-        int last_char_offset = globals.kmer_k;
-        while (true) {
-            if (rev_edge < edge) {
-                key = rev_edge.data_[0] >> (kCharsPerEdgeWord - phase1::kBucketPrefixLength) * kBitsPerEdgeChar;
-                CHECK_AND_SAVE_OFFSET(last_char_offset - globals.kmer_k, 1);
+        while (last_char_offset < read_length - 1) {
+            int cmp = k_minus1_mer.cmp(rev_k_minus1_mer);
+            if (cmp > 0) {
+                key = rev_k_minus1_mer.data_[0] >> (kCharsPerEdgeWord - phase1::kBucketPrefixLength) * kBitsPerEdgeChar;
+                CHECK_AND_SAVE_OFFSET(last_char_offset - globals.kmer_k + 2, 1);
+            } else if (cmp < 0) {
+                key = k_minus1_mer.data_[0] >> (kCharsPerEdgeWord - phase1::kBucketPrefixLength) * kBitsPerEdgeChar;
+                CHECK_AND_SAVE_OFFSET(last_char_offset - globals.kmer_k + 2, 0);
             } else {
-                key = edge.data_[0] >> (kCharsPerEdgeWord - phase1::kBucketPrefixLength) * kBitsPerEdgeChar;
-                CHECK_AND_SAVE_OFFSET(last_char_offset - globals.kmer_k, 0);
+                int prev = ExtractNthChar(read_p, last_char_offset - (globals.kmer_k - 1));
+                int next = ExtractNthChar(read_p, last_char_offset + 1);
+                if (prev <= 3 - next) {
+                    key = rev_k_minus1_mer.data_[0] >> (kCharsPerEdgeWord - phase1::kBucketPrefixLength) * kBitsPerEdgeChar;
+                    CHECK_AND_SAVE_OFFSET(last_char_offset - globals.kmer_k + 2, 0);
+                } else {
+                    key = rev_k_minus1_mer.data_[0] >> (kCharsPerEdgeWord - phase1::kBucketPrefixLength) * kBitsPerEdgeChar;
+                    CHECK_AND_SAVE_OFFSET(last_char_offset - globals.kmer_k + 2, 1);
+                }
             }
 
-            if (++last_char_offset >= read_length) {
-                break;
-            } else {
-                int c = ExtractNthChar(read_p, last_char_offset);
-                edge.ShiftLeftAppend(c);
-                rev_edge.ShiftRightAppend(3 - c);
-            }
+            int c = ExtractNthChar(read_p, ++last_char_offset);
+            k_minus1_mer.ShiftLeftAppend(c);
+            rev_k_minus1_mer.ShiftRightAppend(3 - c);
         }
+
+        // the last one special handling
+        key = k_minus1_mer.data_[0] >> (kCharsPerEdgeWord - phase1::kBucketPrefixLength) * kBitsPerEdgeChar;
+        CHECK_AND_SAVE_OFFSET(last_char_offset - globals.kmer_k + 2, 0);
+        key = rev_k_minus1_mer.data_[0] >> (kCharsPerEdgeWord - phase1::kBucketPrefixLength) * kBitsPerEdgeChar;
+        CHECK_AND_SAVE_OFFSET(last_char_offset - globals.kmer_k + 2, 1);
     }
 
  #undef CHECK_AND_SAVE_OFFSET
@@ -600,7 +645,7 @@ void* Lv1ScanToFillOffsetsThread(void *_data) {
  */
 void Lv1ScanToFillOffests(struct global_data_t &globals) {
     globals.lv1_items_special.clear();
-    Lv1ComputeBucketOffset(globals);\
+    Lv1ComputeBucketOffset(globals);
     // create threads
     for (int t = 1; t < globals.num_cpu_threads; ++t) {
         pthread_create(&(globals.readpartitions[t].thread), NULL, Lv1ScanToFillOffsetsThread, &globals.readpartitions[t]);
@@ -615,7 +660,7 @@ void Lv1ScanToFillOffests(struct global_data_t &globals) {
 
 // single thread helper function
 // 'spacing' is the strip length for read-word "coalescing"
-void CopySubstring(edge_word_t* dest, edge_word_t* src_read, int offset, int num_chars_to_copy, global_data_t &globals) {
+void CopySubstring(edge_word_t* dest, edge_word_t* src_read, int offset, int num_chars_to_copy, global_data_t &globals, uint8_t head, uint8_t tail) {
     int64_t spacing = globals.lv2_num_items;
     int words_per_read = globals.words_per_read;
     int words_per_substring = globals.words_per_substring;
@@ -671,9 +716,12 @@ void CopySubstring(edge_word_t* dest, edge_word_t* src_read, int offset, int num
             which_word++;
         }
     }
+
+    edge_word_t *last_word = dest + (globals.words_per_substring - 1) * spacing;
+    *last_word |= (head << kBWTCharNumBits) | tail;
 }
 
-void CopySubstringRC(edge_word_t* dest, edge_word_t* src_read, int offset, int num_chars_to_copy, global_data_t &globals) {
+void CopySubstringRC(edge_word_t* dest, edge_word_t* src_read, int offset, int num_chars_to_copy, global_data_t &globals, uint8_t head, uint8_t tail) {
     int spacing = globals.lv2_num_items;
     int which_word = (offset + num_chars_to_copy - 1) / kCharsPerEdgeWord;
     int word_offset = (offset + num_chars_to_copy - 1) % kCharsPerEdgeWord;
@@ -720,6 +768,9 @@ void CopySubstringRC(edge_word_t* dest, edge_word_t* src_read, int offset, int n
             which_word++;
         }
     }
+
+    edge_word_t *last_word = dest + (globals.words_per_substring - 1) * spacing;
+    *last_word |= (head << kBWTCharNumBits) | tail;
 }
 
 /**
@@ -748,25 +799,39 @@ void* Lv2ExtractSubstringsThread(void* _data) {
                 int strand = full_offset & 1;
                 int offset = (full_offset >> 1) & offset_mask;
 
-                int num_chars_to_copy = globals.kmer_k + 1;
-                unsigned char prev, next;
-                if (offset > 0) {
-                    prev = ExtractNthChar(PACKED_READS(read_id, globals), offset - 1);
+                int num_chars_to_copy = globals.kmer_k - 1;
+                unsigned char prev, next, head, tail; // (k+1)=abScd, prev=a, head=b, tail=c, next=d
+                if (offset > 1) {
+                    head = ExtractNthChar(PACKED_READS(read_id, globals), offset - 1);
+                    prev = ExtractNthChar(PACKED_READS(read_id, globals), offset - 2);
                 } else {
                     prev = kSentinelValue;
+                    if (offset > 0) {
+                        head = ExtractNthChar(PACKED_READS(read_id, globals), offset - 1);
+                    } else {
+                        head = kSentinelValue;
+                    }
                 }
 
-                if (offset + globals.kmer_k + 1 < GetReadLengthByID(read_id, globals)) {
-                    next = ExtractNthChar(PACKED_READS(read_id, globals), offset + globals.kmer_k + 1);
+                int read_length = GetReadLengthByID(read_id, globals);
+                if (offset + globals.kmer_k < read_length) {
+                    tail = ExtractNthChar(PACKED_READS(read_id, globals), offset + globals.kmer_k - 1);
+                    next = ExtractNthChar(PACKED_READS(read_id, globals), offset + globals.kmer_k);
                 } else {
                     next = kSentinelValue;
+                    if (offset + globals.kmer_k - 1 < read_length) {
+                        tail = ExtractNthChar(PACKED_READS(read_id, globals), offset + globals.kmer_k - 1);
+                    } else {
+                        tail = kSentinelValue;
+                    }
                 }
 
                 if (strand == 0) {
-                    CopySubstring(substrings_p, PACKED_READS(read_id, globals), offset, num_chars_to_copy, globals);
+                    CopySubstring(substrings_p, PACKED_READS(read_id, globals), offset, num_chars_to_copy, globals, head, tail);
                     *read_info_p = (full_offset << 6) | (prev << 3) | next;
                 } else {
-                    CopySubstringRC(substrings_p, PACKED_READS(read_id, globals), offset, num_chars_to_copy, globals);
+                    CopySubstringRC(substrings_p, PACKED_READS(read_id, globals), offset, num_chars_to_copy, globals, 
+                                    tail == kSentinelValue ? kSentinelValue : (3 - tail), head == kSentinelValue ? kSentinelValue : (3 - head));
                     *read_info_p = (full_offset << 6) | ((next == kSentinelValue ? kSentinelValue : (3 - next)) << 3)
                                                       | (prev == kSentinelValue ? kSentinelValue : (3 - prev));
                 }
@@ -793,14 +858,13 @@ void Lv2ExtractSubstrings(struct global_data_t &globals) {
     }
 }
 
-// helper function for counting
-inline bool IsDifferentEdges(edge_word_t *item1, edge_word_t* item2, int num_words, int spacing) {
-    for (int i = num_words - 1; i >= 0; --i) {
-        if (*(item1 + (int64_t)i * spacing) != *(item2 + (int64_t)i * spacing)) {
-            return true;
-        }
-    }
-    return false;
+// helper
+inline uint8_t ExtractHeadTail(edge_word_t *item, int64_t spacing, int words_per_substring) {
+    return *(item + spacing * (words_per_substring - 1)) & ((1 << 2 * kBWTCharNumBits) - 1);
+}
+
+inline uint8_t ExtractPrevNext(int i, global_data_t &globals) {
+    return globals.lv2_read_info_to_output[i] & ((1 << 2 * kBWTCharNumBits) - 1);
 }
 
 void* Lv2CountingThread(void *_op) {
@@ -814,7 +878,8 @@ void* Lv2CountingThread(void *_op) {
     local_timer.reset();
     int start_idx;
     int end_idx;
-    int count_prev[5], count_next[5];
+    int count_prev_head[5][5];
+    int count_tail_next[5][5];
     int64_t offset_mask = (1 << globals.offset_num_bits) - 1;
     int64_t *thread_edge_counting = globals.thread_edge_counting + thread_id * (kMaxMulti_t + 1);
 
@@ -822,61 +887,90 @@ void* Lv2CountingThread(void *_op) {
         start_idx = i;
         end_idx = i + 1;
         edge_word_t *first_item = globals.lv2_substrings_to_output + (globals.permutation_to_output[i]);
+
         while (end_idx < op_end_index) {
-            if (IsDifferentEdges(first_item,
+            if (IsDiffKMinusOneMer(first_item,
                                  globals.lv2_substrings_to_output + globals.permutation_to_output[end_idx],
-                                 globals.words_per_substring, globals.lv2_num_items_to_output))
+                                 globals.lv2_num_items_to_output,
+                                 globals.kmer_k))
             {
                 break;
             }
             ++end_idx;
         }
-        int count = end_idx - start_idx;
-        ++thread_edge_counting[std::min(count, kMaxMulti_t)];
-        if (count < globals.kmer_freq_threshold) {
-            continue;
-        }
 
-        memset(count_prev, 0, sizeof(int) * 4);
-        memset(count_next, 0, sizeof(int) * 4);
-        bool has_in = false;
-        bool has_out = false;
+        memset(count_prev_head, 0, sizeof(count_prev_head));
+        memset(count_tail_next, 0, sizeof(count_tail_next));
         for (int j = start_idx; j < end_idx; ++j) {
-            int prev_and_next = globals.lv2_read_info_to_output[globals.permutation_to_output[j]] & ((1 << 6) - 1);
-            count_prev[prev_and_next >> 3]++;
-            count_next[prev_and_next & 7]++;
+            uint8_t prev_and_next = ExtractPrevNext(globals.permutation_to_output[j], globals);
+            uint8_t head_and_tail = ExtractHeadTail(globals.lv2_substrings_to_output + globals.permutation_to_output[j], globals.lv2_num_items_to_output, globals.words_per_substring);
+            count_prev_head[prev_and_next >> 3][head_and_tail >> 3]++;
+            count_tail_next[head_and_tail & 7][prev_and_next & 7]++;
         }
 
+        int has_in = 0, has_out = 0;
         for (int j = 0; j < 4; ++j) {
-            if (count_prev[j] >= globals.kmer_freq_threshold) { has_in = true; }
-            if (count_next[j] >= globals.kmer_freq_threshold) { has_out = true; }
+            for (int x = 0; x < 4; ++x) {
+                if (count_prev_head[x][j] >= globals.kmer_freq_threshold) {
+                    has_in |= 1 << j;
+                    break;
+                }
+            }
+
+            for (int x = 0; x < 4; ++x) {
+                if (count_tail_next[j][x] >= globals.kmer_freq_threshold) {
+                    has_out |= 1 << j;
+                    break;
+                }
+            }
         }
 
-        if (count >= globals.kmer_freq_threshold) {
-            for (int j = start_idx; j < end_idx; ++j) {
+        while (i < end_idx) {
+            uint8_t head_and_tail = ExtractHeadTail(globals.lv2_substrings_to_output + globals.permutation_to_output[i], globals.lv2_num_items_to_output, globals.words_per_substring);
+            uint8_t head = head_and_tail >> 3;
+            uint8_t tail = head_and_tail & 7;
+            int count = 1;
+            ++i;
+            if (head == kSentinelValue || tail == kSentinelValue) {
+                continue;
+            }
+
+            while (i < end_idx && ExtractHeadTail(globals.lv2_substrings_to_output + globals.permutation_to_output[i], globals.lv2_num_items_to_output, globals.words_per_substring) == head_and_tail) {
+                ++i;
+                ++count;
+            }
+
+            ++thread_edge_counting[std::min(count, kMaxMulti_t)];
+            if (count < globals.kmer_freq_threshold) { continue; }
+
+            for (int j = i - count; j < i; ++j) {
                 int64_t read_info = globals.lv2_read_info_to_output[globals.permutation_to_output[j]] >> 6;
                 int strand = read_info & 1;
-                int offset = (read_info >> 1) & offset_mask;
+                int offset = ((read_info >> 1) & offset_mask) - 1;
                 int64_t read_id = read_info >> (1 + globals.offset_num_bits);
 
                 // mark this is a solid edge
                 globals.is_solid.set(globals.num_k1_per_read * read_id + offset); 
 
                 // check if this is a mercy candidate
-                if ((!has_in && strand == 0) || (!has_out && strand == 1)) {
+                if ((!(has_in & (1 << head)) && strand == 0) || (!(has_out & (1 << tail)) && strand == 1)) {
                     assert(offset < globals.num_k1_per_read);
                     // no in
                     int64_t packed_mercy_cand = (read_id << (globals.offset_num_bits + 1)) | (offset << 1);
-                    globals.mercy_output_locks.lock(read_id & (globals.num_mercy_files - 1));
+                    while (globals.mercy_output_locks.lock(read_id & (globals.num_mercy_files - 1))) {
+                        continue;
+                    }
                     fwrite(&packed_mercy_cand, sizeof(packed_mercy_cand), 1, globals.mercy_files[read_id & (globals.num_mercy_files - 1)]);
                     globals.mercy_output_locks.unset(read_id & (globals.num_mercy_files - 1));
                 }
 
-                if ((!has_in && strand == 1) || (!has_out && strand == 0)) {
+                if ((!(has_in & (1 << head)) && strand == 1) || (!(has_out & (1 << tail)) && strand == 0)) {
                     assert(offset < globals.num_k1_per_read);
                     // no out
                     int64_t packed_mercy_cand = (read_id << (globals.offset_num_bits + 1)) | (offset << 1) | 1;
-                    globals.mercy_output_locks.lock(read_id & (globals.num_mercy_files - 1));
+                    while (globals.mercy_output_locks.lock(read_id & (globals.num_mercy_files - 1))) {
+                        continue;
+                    }
                     fwrite(&packed_mercy_cand, sizeof(packed_mercy_cand), 1, globals.mercy_files[read_id & (globals.num_mercy_files - 1)]);
                     globals.mercy_output_locks.unset(read_id & (globals.num_mercy_files - 1));
                 }
@@ -906,7 +1000,7 @@ void Lv2Counting(struct global_data_t &globals) {
             while (this_end_index < globals.lv2_num_items_to_output) {
                 edge_word_t *prev_item = globals.lv2_substrings_to_output + (globals.permutation_to_output[this_end_index - 1]);
                 edge_word_t *item = globals.lv2_substrings_to_output + (globals.permutation_to_output[this_end_index]);
-                if (IsDifferentEdges(prev_item, item, globals.words_per_substring, globals.lv2_num_items_to_output)) {
+                if (IsDiffKMinusOneMer(prev_item, item, globals.lv2_num_items_to_output, globals.kmer_k)) {
                     break;
                 }
                 ++this_end_index;
@@ -1757,26 +1851,6 @@ void Lv2ExtractSubstrings(struct global_data_t &globals) {
     for (int t = 0; t < globals.num_cpu_threads-globals.phase2_num_output_threads; ++t) {
         pthread_join(globals.bucketpartitions[t].thread, NULL);
     }
-}
-
-inline bool IsDiffKMinusOneMer(edge_word_t *item1, edge_word_t *item2, int64_t spacing, int kmer_k) {
-    // mask extra bits
-    int chars_in_last_word = (kmer_k - 1) % kCharsPerEdgeWord;
-    int num_full_words = (kmer_k - 1) / kCharsPerEdgeWord;
-    if (chars_in_last_word > 0) {
-        edge_word_t w1 = item1[num_full_words * spacing];
-        edge_word_t w2 = item2[num_full_words * spacing];
-        if ((w1 >> (kCharsPerEdgeWord - chars_in_last_word) * kBitsPerEdgeChar) != (w2 >> (kCharsPerEdgeWord - chars_in_last_word) * kBitsPerEdgeChar)) {
-            return true;
-        }
-    } 
-
-    for (int i = num_full_words - 1; i >= 0; --i) {
-        if (item1[i * spacing] != item2[i * spacing]) {
-            return true;
-        }
-    }
-    return false;
 }
 
 // helper
