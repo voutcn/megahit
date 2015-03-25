@@ -482,6 +482,7 @@ void InitGlobalData(struct global_data_t &globals) {
         // TODO: auto switch to CPU version
         exit(1);
     }
+    globals.max_lv2_items = std::max(globals.max_bucket_size, kMinLv2BatchSizeGPU);
  #endif
     // to count (k+1)-mers, sort by the internal (k-1)-mer
     // (k+1)-mer = abS[0..k-2]cd
@@ -1470,6 +1471,7 @@ void InitGlobalData(global_data_t &globals) {
         // TODO: auto switch to CPU version
         exit(1);
     }
+    globals.max_lv2_items = std::max(globals.max_bucket_size, kMinLv2BatchSizeGPU);
  #endif
     globals.words_per_substring = DivCeiling(globals.kmer_k * kBitsPerEdgeChar + kBWTCharNumBits + 1, kBitsPerEdgeWord);
     globals.words_per_dummy_node = DivCeiling(globals.kmer_k * kBitsPerEdgeChar, kBitsPerEdgeWord);

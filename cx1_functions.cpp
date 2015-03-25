@@ -445,6 +445,7 @@ void InitGlobalData(struct global_data_t &globals) {
         // TODO: auto switch to CPU version
         exit(1);
     }
+    globals.max_lv2_items = std::max(globals.max_bucket_size, kMinLv2BatchSizeGPU);
 #endif
     globals.words_per_substring = DivCeiling((globals.kmer_k + 1) * kBitsPerEdgeChar, kBitsPerEdgeWord);
     globals.words_per_edge = DivCeiling((globals.kmer_k + 1) * kBitsPerEdgeChar + kBitsPerMulti_t, kBitsPerEdgeWord);
@@ -1586,6 +1587,7 @@ void InitGlobalData(global_data_t &globals) {
         // TODO: auto switch to CPU version
         exit(1);
     }
+    globals.max_lv2_items = std::max(globals.max_bucket_size, kMinLv2BatchSizeGPU);
 #endif
     globals.words_per_substring = DivCeiling(globals.kmer_k * kBitsPerEdgeChar + kBWTCharNumBits + 1 + kBitsPerMulti_t, kBitsPerEdgeWord);
     globals.words_per_dummy_node = DivCeiling(globals.kmer_k * kBitsPerEdgeChar, kBitsPerEdgeWord);

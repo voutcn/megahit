@@ -215,6 +215,7 @@ static const int kSentinelOffset = 65535;
 
 // can be modified, efficiency related
 static const int64_t kMinLv2BatchSize = 2097152;
+static const int64_t kMinLv2BatchSizeGPU = 16777216; // 16M
 static const int kDefaultLv1ScanTime = 8;
 static const int kMaxLv1ScanTime = 64;
 
