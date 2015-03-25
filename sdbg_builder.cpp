@@ -25,9 +25,8 @@
 
 #include "options_description.h"
 #include "lv2_gpu_functions.h"
-#include "helper_functions-inl.h"
+#include "utils.h"
 #include "sdbg_builder_util.h"
-#include "timer.h"
 
 struct Phase1Options {
     int kmer_k;

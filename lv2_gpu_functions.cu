@@ -100,7 +100,7 @@ void lv2_gpu_sort(edge_word_t *lv2_substrings,
     size_t  temp_storage_bytes  = 0;
     void *gpu_temp_storage     = NULL;
     CubDebugExit(DeviceRadixSort::SortPairs(gpu_temp_storage, temp_storage_bytes, d_keys, d_values, lv2_num_items));
-    CubDebugExit(g_allocator.DeviceAllocate(&gpu_temp_storage, temp_storage_bytes)); 
+    CubDebugExit(g_allocator.DeviceAllocate(&gpu_temp_storage, temp_storage_bytes));
 
     for (int64_t iteration = words_per_substring - 1; iteration >= 0; --iteration) {
         if (iteration == words_per_substring - 1) { // first iteration

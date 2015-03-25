@@ -23,7 +23,7 @@
 
 #include "MAC_pthread_barrier.h"
 #include "definitions.h"
-#include "timer.h"
+#include "utils.h"
 #include "atomic_bit_vector.h"
 #include "sdbg_builder_writers.h"
 
@@ -195,7 +195,6 @@ struct global_data_t {
     unsigned char *lv2_aux;
     std::vector<std::vector<uint64_t> > lv2_output_items;
     int phase2_num_output_threads;
-    xtimer_t phase2_output_timer;
     pthread_barrier_t output_barrier;
 
     // for lookup binary search on sorted edges

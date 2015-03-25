@@ -2031,8 +2031,6 @@ void *Lv2OutputThread(void *_op) {
 }
 
 void Lv2Output(global_data_t &globals) {
-    globals.phase2_output_timer.reset();
-    globals.phase2_output_timer.start();
     // distribute threads
     int64_t last_end_index = 0;
     int64_t items_per_thread = globals.lv2_num_items_to_output / globals.phase2_num_output_threads;
@@ -2074,7 +2072,6 @@ void Lv2OutputJoin(global_data_t &globals) {
     }
 
     pthread_barrier_destroy(&globals.output_barrier);
-    globals.phase2_output_timer.stop();
 }
 
 void Phase2Clean(struct global_data_t &globals) {
@@ -2205,7 +2202,7 @@ void Phase2Entry(struct global_data_t &globals) {
  #else
             local_timer.reset();
             local_timer.start();
-            lv2_gpu_sort(globals.lv2_substrings, globals.permutation, globals.words_per_substring, globals.lv2_num_items
+            lv2_gpu_sort(globals.lv2_substrings, globals.permutation, globals.words_per_substring, globals.lv2_num_items,
                          globals.gpu_key_buffer1, globals.gpu_key_buffer2, globals.gpu_value_buffer1, globals.gpu_value_buffer2);
             local_timer.stop();
 

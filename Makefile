@@ -213,8 +213,8 @@ ifeq ($(use_gpu), 1)
 .cx1_functions.o: cx1_functions.cpp $(DEPS)
 	$(CXX) $(CFLAGS) -c cx1_functions.cpp -o .cx1_functions.o
 
-.cx1_functions_1pass.o: cx1_functions.cpp $(DEPS)
-	$(CXX) $(CFLAGS) -c cx1_functions.cpp -o .cx1_functions_1pass.o
+.cx1_functions_1pass.o: cx1_functions_1pass.cpp $(DEPS)
+	$(CXX) $(CFLAGS) -c cx1_functions_1pass.cpp -o .cx1_functions_1pass.o
 
 #-------------------------------------------------------------------------------
 # GPU Applications

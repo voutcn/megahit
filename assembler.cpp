@@ -25,7 +25,7 @@
 
 #include "succinct_dbg.h"
 #include "assembly_algorithms.h"
-#include "timer.h"
+#include "utils.h"
 #include "options_description.h"
 #include "mem_file_checker-inl.h"
 

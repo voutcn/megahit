@@ -431,7 +431,7 @@ def build_first_graph():
     global cp
     phase1_out_threads = max(1, int(opt.num_cpu_threads / 3))
     if (not opt.continue_mode) or (cp > opt.last_cp):
-        count_and_build_cmd = [opt.bin_dir + opt.builder_1pass, "count",
+        count_and_build_cmd = [opt.bin_dir + opt.builder_1pass,
                        "-k", str(opt.k_min),
                        "-m", str(opt.min_count),
                        "--host_mem", str(opt.host_mem),
