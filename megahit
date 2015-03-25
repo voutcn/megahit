@@ -236,7 +236,7 @@ def parse_opt(argv):
         elif option == "--use-gpu":
             opt.use_gpu = 1
             opt.builder = "sdbg_builder_gpu"
-            option.builder_1pass = "sdbg_builder_gpu_1pass"
+            opt.builder_1pass = "sdbg_builder_gpu_1pass"
         elif option == "--mem-flag":
             opt.mem_flag = int(value)
         elif option == "--continue":

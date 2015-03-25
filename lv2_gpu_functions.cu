@@ -36,6 +36,31 @@ void get_cuda_memory(size_t &free_mem, size_t &total_mem) {
     assert(cudaMemGetInfo(&free_mem, &total_mem) == cudaSuccess);
 }
 
+void alloc_gpu_buffers(void* &gpu_key_buffer1,
+                       void* &gpu_key_buffer2,
+                       void* &gpu_value_buffer1,
+                       void* &gpu_value_buffer2,
+                       size_t max_num_items)
+{
+    CubDebugExit(g_allocator.DeviceAllocate((void**)&gpu_key_buffer1, sizeof(edge_word_t) * max_num_items));
+    CubDebugExit(g_allocator.DeviceAllocate((void**)&gpu_key_buffer2, sizeof(edge_word_t) * max_num_items));
+    CubDebugExit(g_allocator.DeviceAllocate((void**)&gpu_value_buffer1, sizeof(uint32_t) * max_num_items));
+    CubDebugExit(g_allocator.DeviceAllocate((void**)&gpu_value_buffer2, sizeof(uint32_t) * max_num_items));
+}
+
+void free_gpu_buffers(void* gpu_key_buffer1,
+                      void* gpu_key_buffer2,
+                      void* gpu_value_buffer1,
+                      void* gpu_value_buffer2)
+{
+    // free device memory
+    CubDebugExit(g_allocator.DeviceFree(gpu_key_buffer1));
+    CubDebugExit(g_allocator.DeviceFree(gpu_key_buffer2));
+    CubDebugExit(g_allocator.DeviceFree(gpu_value_buffer1));
+    CubDebugExit(g_allocator.DeviceFree(gpu_value_buffer2));
+}
+
+
 // device function for permuting an array
 __global__ void permutation_kernel(edge_word_t *index, edge_word_t *val, edge_word_t *new_val, uint32_t num_items) {
     int tid = blockIdx.x * kGPUThreadPerBlock + threadIdx.x;
@@ -51,23 +76,31 @@ __global__ void reset_permutation_kernel(uint32_t *permutation, uint32_t num_ite
 }
 
 // single thread
-void lv2_gpu_sort(edge_word_t *lv2_substrings, uint32_t *permutation, int words_per_substring, int64_t lv2_num_items) {    
+void lv2_gpu_sort(edge_word_t *lv2_substrings,
+                  uint32_t *permutation,
+                  int words_per_substring,
+                  int64_t lv2_num_items,
+                  void* gpu_key_buffer1,
+                  void* gpu_key_buffer2,
+                  void* gpu_value_buffer1,
+                  void* gpu_value_buffer2)
+{  
     DoubleBuffer<edge_word_t> d_keys;
     DoubleBuffer<uint32_t> d_values;
-    CubDebugExit(g_allocator.DeviceAllocate((void**)&d_keys.d_buffers[0], sizeof(edge_word_t) * lv2_num_items));
-    CubDebugExit(g_allocator.DeviceAllocate((void**)&d_keys.d_buffers[1], sizeof(edge_word_t) * lv2_num_items));
-    CubDebugExit(g_allocator.DeviceAllocate((void**)&d_values.d_buffers[0], sizeof(uint32_t) * lv2_num_items));
-    CubDebugExit(g_allocator.DeviceAllocate((void**)&d_values.d_buffers[1], sizeof(uint32_t) * lv2_num_items));
-
-    // Allocate temporary storage
-    size_t  temp_storage_bytes  = 0;
-    void    *d_temp_storage     = NULL;
-    CubDebugExit(DeviceRadixSort::SortPairs(d_temp_storage, temp_storage_bytes, d_keys, d_values, lv2_num_items));
-    CubDebugExit(g_allocator.DeviceAllocate(&d_temp_storage, temp_storage_bytes)); 
+    d_keys.d_buffers[0] = static_cast<__typeof(d_keys.d_buffers[0])>(gpu_key_buffer1);
+    d_keys.d_buffers[1] = static_cast<__typeof(d_keys.d_buffers[1])>(gpu_key_buffer2);
+    d_values.d_buffers[0] = static_cast<__typeof(d_values.d_buffers[0])>(gpu_value_buffer1);
+    d_values.d_buffers[1] = static_cast<__typeof(d_values.d_buffers[1])>(gpu_value_buffer2);
 
     // Initialize permutation array
     int num_gpu_blocks = DivCeiling(lv2_num_items, kGPUThreadPerBlock);
     reset_permutation_kernel<<<num_gpu_blocks, kGPUThreadPerBlock>>>(d_values.d_buffers[d_values.selector], lv2_num_items);
+
+    // Allocate temporary storage
+    size_t  temp_storage_bytes  = 0;
+    void *gpu_temp_storage     = NULL;
+    CubDebugExit(DeviceRadixSort::SortPairs(gpu_temp_storage, temp_storage_bytes, d_keys, d_values, lv2_num_items));
+    CubDebugExit(g_allocator.DeviceAllocate(&gpu_temp_storage, temp_storage_bytes)); 
 
     for (int64_t iteration = words_per_substring - 1; iteration >= 0; --iteration) {
         if (iteration == words_per_substring - 1) { // first iteration
@@ -83,16 +116,11 @@ void lv2_gpu_sort(edge_word_t *lv2_substrings, uint32_t *permutation, int words_
         }
 
         // Run
-        CubDebugExit(DeviceRadixSort::SortPairs(d_temp_storage, temp_storage_bytes, d_keys, d_values, lv2_num_items));
+        CubDebugExit(DeviceRadixSort::SortPairs(gpu_temp_storage, temp_storage_bytes, d_keys, d_values, lv2_num_items));
     }
 
     // copy answer back to host
     CubDebugExit(cudaMemcpy(permutation, d_values.d_buffers[d_values.selector], sizeof(uint32_t) * lv2_num_items, cudaMemcpyDeviceToHost));
-
-    // free device memory
-    if (d_keys.d_buffers[0]) CubDebugExit(g_allocator.DeviceFree(d_keys.d_buffers[0]));
-    if (d_keys.d_buffers[1]) CubDebugExit(g_allocator.DeviceFree(d_keys.d_buffers[1]));
-    if (d_values.d_buffers[0]) CubDebugExit(g_allocator.DeviceFree(d_values.d_buffers[0]));
-    if (d_values.d_buffers[1]) CubDebugExit(g_allocator.DeviceFree(d_values.d_buffers[1]));
-    if (d_temp_storage) CubDebugExit(g_allocator.DeviceFree(d_temp_storage));
+    
+    CubDebugExit(g_allocator.DeviceFree(gpu_temp_storage));
 }

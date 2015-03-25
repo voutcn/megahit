@@ -507,9 +507,11 @@ void InitGlobalData(struct global_data_t &globals) {
     globals.first_0_out = (unsigned char*) MallocAndCheck(globals.num_reads * sizeof(unsigned char), __FILE__, __LINE__);
     globals.last_0_in = (unsigned char*) MallocAndCheck(globals.num_reads * sizeof(unsigned char), __FILE__, __LINE__);
 #endif
-#ifdef DISABLE_GPU
+ #ifdef DISABLE_GPU
     globals.cpu_sort_space = (uint64_t*) MallocAndCheck(sizeof(uint64_t) * globals.max_lv2_items, __FILE__, __LINE__);
-#endif
+ #else
+    alloc_gpu_buffers(globals.gpu_key_buffer1, globals.gpu_key_buffer2, globals.gpu_value_buffer1, globals.gpu_value_buffer2, (size_t)globals.max_lv2_items);
+ #endif
     memset(globals.first_0_out, 0xFF, globals.num_reads * sizeof(globals.first_0_out[0]));
     memset(globals.last_0_in, 0xFF, globals.num_reads * sizeof(globals.last_0_in[0]));
 
@@ -1024,9 +1026,11 @@ void Phase1Clean(struct global_data_t &globals) {
         globals.word_writer[t].destroy();
     }
 
-#ifdef DISABLE_GPU
+ #ifdef DISABLE_GPU
     free(globals.cpu_sort_space);
-#endif
+ #else
+    free_gpu_buffers(globals.gpu_key_buffer1, globals.gpu_key_buffer2, globals.gpu_value_buffer1, globals.gpu_value_buffer2);
+ #endif
 }
 
 void Phase1Entry(struct global_data_t &globals) {
@@ -1141,7 +1145,8 @@ void Phase1Entry(struct global_data_t &globals) {
 #else
             local_timer.reset();
             local_timer.start();
-            lv2_gpu_sort(globals.lv2_substrings, globals.permutation, globals.words_per_substring, globals.lv2_num_items);
+            lv2_gpu_sort(globals.lv2_substrings, globals.permutation, globals.words_per_substring, globals.lv2_num_items,
+                         globals.gpu_key_buffer1, globals.gpu_key_buffer2, globals.gpu_value_buffer1, globals.gpu_value_buffer2);
             local_timer.stop();
 
             if (sdbg_builder_verbose >= 4) {
@@ -1639,9 +1644,11 @@ void InitGlobalData(global_data_t &globals) {
     globals.lv2_substrings_to_output = (edge_word_t*) MallocAndCheck(globals.max_lv2_items * globals.words_per_substring * sizeof(edge_word_t), __FILE__, __LINE__);
     globals.permutation_to_output = (uint32_t *) MallocAndCheck(globals.max_lv2_items * sizeof(uint32_t), __FILE__, __LINE__);
     globals.lv2_aux = (unsigned char*) MallocAndCheck(globals.max_lv2_items * sizeof(unsigned char), __FILE__, __LINE__);
-#ifdef DISABLE_GPU
-    globals.cpu_sort_space = (uint64_t*) MallocAndCheck(sizeof(uint64_t) * globals.max_lv2_items, __FILE__, __LINE__); // simulate GPU
-#endif
+ #ifdef DISABLE_GPU
+    globals.cpu_sort_space = (uint64_t*) MallocAndCheck(sizeof(uint64_t) * globals.max_lv2_items, __FILE__, __LINE__);
+ #else
+    alloc_gpu_buffers(globals.gpu_key_buffer1, globals.gpu_key_buffer2, globals.gpu_value_buffer1, globals.gpu_value_buffer2, (size_t)globals.max_lv2_items);
+ #endif
 
     // --- write header ---
     fprintf(globals.output_f_file, "-1\n");
@@ -2578,9 +2585,11 @@ void Phase2Clean(struct global_data_t &globals) {
         free(globals.readpartitions[t].rp_bucket_sizes);
         free(globals.readpartitions[t].rp_bucket_offsets);
     }
-#ifdef DISABLE_GPU
+ #ifdef DISABLE_GPU
     free(globals.cpu_sort_space);
-#endif
+ #else
+    free_gpu_buffers(globals.gpu_key_buffer1, globals.gpu_key_buffer2, globals.gpu_value_buffer1, globals.gpu_value_buffer2);
+ #endif
 }
 
 void Phase2Entry(struct global_data_t &globals) {
@@ -2710,7 +2719,8 @@ void Phase2Entry(struct global_data_t &globals) {
 #else
             local_timer.reset();
             local_timer.start();
-            lv2_gpu_sort(globals.lv2_substrings, globals.permutation, globals.words_per_substring, globals.lv2_num_items);
+            lv2_gpu_sort(globals.lv2_substrings, globals.permutation, globals.words_per_substring, globals.lv2_num_items,
+                         globals.gpu_key_buffer1, globals.gpu_key_buffer2, globals.gpu_value_buffer1, globals.gpu_value_buffer2);
             local_timer.stop();
 
             if (sdbg_builder_verbose >= 4) {

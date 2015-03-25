@@ -223,7 +223,7 @@ sdbg_builder_gpu: sdbg_builder.cpp .cx1_functions.o .lv2_gpu_functions_$(SUFFIX)
 	$(CXX) $(CFLAGS) $(CUDALIBFLAG) sdbg_builder.cpp .lv2_gpu_functions_$(SUFFIX).o .cx1_functions.o options_description.o $(ZLIB) -o sdbg_builder_gpu
 
 sdbg_builder_gpu_1pass: sdbg_builder_1pass.cpp .cx1_functions_1pass.o .lv2_gpu_functions_$(SUFFIX).o options_description.o $(DEPS)
-	$(CXX) $(CFLAGS) $(CUDALIBFLAG) sdbg_builder.cpp .lv2_gpu_functions_$(SUFFIX).o .cx1_functions_1pass.o options_description.o $(ZLIB) -o sdbg_builder_gpu
+	$(CXX) $(CFLAGS) $(CUDALIBFLAG) sdbg_builder_1pass.cpp .lv2_gpu_functions_$(SUFFIX).o .cx1_functions_1pass.o options_description.o $(ZLIB) -o sdbg_builder_gpu_1pass
 endif
 
 #-------------------------------------------------------------------------------

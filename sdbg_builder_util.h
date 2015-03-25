@@ -100,6 +100,10 @@ struct global_data_t {
     edge_word_t* lv2_substrings_to_output; // dump for double buffer
     uint32_t* permutation_to_output;    // dump for double buffer
     uint64_t *cpu_sort_space;
+    void* gpu_key_buffer1;
+    void* gpu_key_buffer2;
+    void* gpu_value_buffer1;
+    void* gpu_value_buffer2;
     AtomicBitVector is_solid;
 
     // memory resources used. computational limits.
