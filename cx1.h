@@ -11,6 +11,7 @@
 #include <algorithm>
 
 #include "mem_file_checker-inl.h"
+#include "utils.h"
 
  /**
   * @brief    an CX1 engine
@@ -19,7 +20,7 @@
   * @tparam global_data_type the type of global datas used in a specified CX1 engine
   *                          must contain a member `CX1* cx1`, where cx1->g_ is itself,
   *                          that enables interactions with CX1 functions
-  * @tparam kNumBuckets      number of buckets 
+  * @tparam kNumBuckets      number of buckets
   */
 template <typename global_data_type, int kNumBuckets>
 struct CX1
@@ -29,7 +30,8 @@ struct CX1
 	// other settings, don't change
 	static const int kGPUBytePerItem = 16; // key & value, 4 byte each. double for radix sort internal buffer
 	static const int kLv1BytePerItem = 4; // 32-bit differatial offset
-	static const uint64_t kSpDiffLimit = (1ULL << 32) - 1;
+	static const uint64_t kSpDiffMaxNum = (1ULL << 32) - 1;
+	static const int64_t kDifferentialLimit = (1ULL << 32) - 1;
   
 	struct readpartition_data_t 
 	{  // local data for each read partition (i.e. a subrange of input reads)
@@ -73,25 +75,25 @@ struct CX1
 
 	// may change as cx1 goes
 	int64_t lv1_num_items_, lv2_num_items_;
-	int64_t lv1_start_bucket_, lv1_end_bucket_;
-	int64_t lv2_start_bucket_, lv2_end_bucket_;
+	int lv1_start_bucket_, lv1_end_bucket_;
+	int lv2_start_bucket_, lv2_end_bucket_;
 	std::vector<int64_t> lv1_items_special_;
 
 	// === functions to specify a CX1 instance ===
 	int64_t (*encode_lv1_diff_base_func_) (int64_t, global_data_t &);
-	void (*prepare_func_) (global_data_t &, CX1 &); // num_items_, num_cpu_threads_ and num_output_threads_ must be set here
+	void (*prepare_func_) (global_data_t &); // num_items_, num_cpu_threads_ and num_output_threads_ must be set here
 	void* (*lv0_calc_bucket_size_func_) (void*);
-	void (*init_global_and_set_cx1_func_) (global_data_t &, CX1 &);
+	void (*init_global_and_set_cx1_func_) (global_data_t &); // xxx set here
 	void* (*lv1_fill_offset_func_) (void*);
 	void* (*lv2_extract_substr_func_) (void*);
 	void (*lv2_sort_func_) (global_data_t &);
-	void (*lv2_pre_output_partition_func_) (global_data_t &, CX1 &);
+	void (*lv2_pre_output_partition_func_) (global_data_t &); // op_ set here
 	void* (*lv2_output_func_) (void*);
 	void (*lv2_post_output_func_) (global_data_t &);
 	void (*post_proc_func_) (global_data_t &);
 
 	// === single thread functions ===	
-	inline void adjust_mem(int64_t mem_avail, int64_t lv2_bytes_per_item, int min_lv1_items, int min_lv2_items) {
+	inline void adjust_mem(int64_t mem_avail, int64_t lv2_bytes_per_item, int64_t min_lv1_items, int64_t min_lv2_items) {
 	    // --- adjust max_lv2_items to fit memory ---
 	    while (max_lv2_items_ >= min_lv2_items) {
 	        int64_t mem_lv2 = lv2_bytes_per_item * max_lv2_items_;
@@ -284,49 +286,118 @@ struct CX1
 
 	// === go go go ===
 	inline void run() {
+		xtimer_t lv0_timer;
 		// read input & prepare
-		prepare_func_(*g_, *this);
+		if (kCX1Verbose >= 2) {
+			lv0_timer.reset();
+			lv0_timer.start();
+			log("[CX1] Preparing data...\n");
+		}
+
+		prepare_func_(*g_);
+
+		if (kCX1Verbose >= 2) {
+			lv0_timer.stop();
+			log("[CX1] Preparing data... Done. Time elapsed: %.4f\n", lv0_timer.elapsed());
+		}
+
+
+		if (kCX1Verbose >= 2) {
+			lv0_timer.reset();
+			lv0_timer.start();
+			log("[CX1] Preparing partitions and initialing global data...\n");
+		}
+
 		// prepare rp bp and op
 		prepare_rp_and_bp_();
 		// calc bucket size
 		lv0_calc_bucket_size_mt_();
 		// init global datas
-		init_global_and_set_cx1_func_(*g_, *this);
+		init_global_and_set_cx1_func_(*g_);
+
+		if (kCX1Verbose >= 2) {
+			lv0_timer.stop();
+			log("[CX1] Preparing partitions and initialing global data... Done. Time elapsed: %.4f\n", lv0_timer.elapsed());
+		}
+
+		if (kCX1Verbose >= 2) {
+			lv0_timer.reset();
+			lv0_timer.start();
+			log("[CX1] Start main loop...\n");
+		}
 
 		// === start main loop ===
 		bool output_thread_created = false;
 		int lv1_iteration = 0;
 		lv1_start_bucket_ = 0;
 		while (lv1_start_bucket_ < kNumBuckets) {
+			xtimer_t lv1_timer;
+
         	lv1_iteration++;
 			// --- finds the bucket range for this iteration ---
 			lv1_end_bucket_ = find_end_buckets_(lv1_start_bucket_, kNumBuckets, max_lv1_items_, lv1_num_items_);
 			if (lv1_num_items_ == 0) {
-				fprintf(stderr, "[CX1] Bucket %d too large for lv1: %lld > %lld\n", lv1_end_bucket_, bucket_sizes_[lv1_end_bucket_], max_lv1_items_);
+				fprintf(stderr, "[CX1] Bucket %d too large for lv1: %lld > %lld\n", lv1_end_bucket_, (long long)bucket_sizes_[lv1_end_bucket_], (long long)max_lv1_items_);
 				exit(1);
+			}
+
+			if (kCX1Verbose >= 3) {
+				lv1_timer.reset();
+				lv1_timer.start();
+				log("[CX1] Lv1 scanning from bucket %d to %d\n", lv1_start_bucket_, lv1_end_bucket_);
 			}
 
 			// --- scan to fill offset ---
 			lv1_fill_offset_mt_();
-			if (lv1_items_special_.size() > kSpDiffLimit) {
+			if (lv1_items_special_.size() > kSpDiffMaxNum) {
 				fprintf(stderr, "[CX1] Too many large diff items (%lu) from in buckets [%d, %d)\n", lv1_items_special_.size(), lv1_start_bucket_, lv1_end_bucket_);
 				exit(1);
+			}
+
+			if (kCX1Verbose >= 3) {
+				lv1_timer.stop();
+				log("[CX1] Lv1 scanning done. Large diff: %lu. Time elapsed: %.4f\n", lv1_items_special_.size(), lv1_timer.elapsed());
+				lv1_timer.reset();
+				lv1_timer.start();
 			}
 
 			// --- lv2 loop ---
 			int lv2_iteration = 0;
 			lv2_start_bucket_ = lv1_start_bucket_;
 			while (lv2_start_bucket_ < lv1_end_bucket_) {
+				xtimer_t lv2_timer;
+
 				lv2_iteration++;
 				lv2_end_bucket_ = find_end_buckets_(lv2_start_bucket_, lv1_end_bucket_, max_lv2_items_, lv2_num_items_);
 				if (lv2_num_items_ == 0) {
-					fprintf(stderr, "[CX1] Bucket %d too large for lv2: %lld > %lld\n", lv2_end_bucket_, bucket_sizes_[lv2_end_bucket_], max_lv2_items_);
+					fprintf(stderr, "[CX1] Bucket %d too large for lv2: %lld > %lld\n", lv2_end_bucket_, (long long)bucket_sizes_[lv2_end_bucket_], (long long)max_lv2_items_);
 					exit(1);
+				}
+
+				if (kCX1Verbose >= 4) {
+					lv2_timer.reset();
+					lv2_timer.start();
+					log("[CX1] Lv2 fetching substrings from bucket %d to %d\n", lv2_start_bucket_, lv2_end_bucket_);
 				}
 
 				// --- extract lv2 substr and sort ---
 				lv2_extract_substr_mt_();
+
+				if (kCX1Verbose >= 4) {
+					lv2_timer.stop();
+					log("[CX1] Lv2 fetching substrings done. Time elapsed: %.4f\n", lv2_timer.elapsed());
+					lv2_timer.reset();
+					lv2_timer.start();
+				}
+
 				lv2_sort_func_(*g_);
+
+				if (kCX1Verbose >= 4) {
+					lv2_timer.stop();
+					log("[CX1] Lv2 sorting done. Time elapsed: %.4f\n", lv2_timer.elapsed());
+					lv2_timer.reset();
+					lv2_timer.start();
+				}
 
 				// --- the output is pipelined, join the previous one ---
 				if (output_thread_created) {
@@ -335,10 +406,19 @@ struct CX1
 				}
 
 				// --- the create new output threads ---
-				lv2_pre_output_partition_func_(*g_, *this);
+				lv2_pre_output_partition_func_(*g_);
 				lv2_output_mt_();
 				output_thread_created = true;
+
+				lv2_start_bucket_ = lv2_end_bucket_;
 			}
+
+			if (kCX1Verbose >= 3) {
+				lv1_timer.stop();
+				log("[CX1] Lv1 fetching & sorting done. Time elapsed: %.4f\n", lv1_timer.elapsed());
+			}
+
+			lv1_start_bucket_ = lv1_end_bucket_;
 		}
 
 		if (output_thread_created) {
@@ -346,8 +426,24 @@ struct CX1
 			lv2_post_output_func_(*g_);
 		}
 
+		if (kCX1Verbose >= 2) {
+			lv0_timer.stop();
+			log("[CX1] Main loop done. Time elapsed: %.4f\n", lv0_timer.elapsed());
+		}
+
+		if (kCX1Verbose >= 2) {
+			lv0_timer.reset();
+			lv0_timer.start();
+			log("[CX1] Postprocessing...\n");
+		}
+
 		post_proc_func_(*g_);
 		clean_();
+
+		if (kCX1Verbose >= 2) {
+			lv0_timer.stop();
+			log("[CX1] Postprocess done. Time elapsed: %.4f\n", lv0_timer.elapsed());
+		}
 	}
 };
 

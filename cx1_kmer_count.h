@@ -1,16 +1,17 @@
-#ifndef SDBG_BUILDER_COUNT_H__
-#define SDBG_BUILDER_COUNT_H__
+#ifndef CX1_KMER_COUNT_H__
+#define CX1_KMER_COUNT_H__
 
+#include <pthread.h>
+#include <stdint.h>
 #include <vector>
 #include <string>
+#include "definitions.h"
 #include "cx1.h"
-
-class std::string;
-class std::vector;
+#include "sdbg_builder_writers.h"
 
 struct count_opt_t {
     int kmer_k;
-    int min_edge_freq;
+    int kmer_freq_threshold;
     double host_mem;
     double gpu_mem;
     int max_read_length;
@@ -23,7 +24,7 @@ struct count_opt_t {
 
     count_opt_t() {
         kmer_k = 21;
-        min_edge_freq = 2;
+        kmer_freq_threshold = 2;
         host_mem = 0;
         gpu_mem = 0;
         max_read_length = 120;
@@ -36,12 +37,33 @@ struct count_opt_t {
     }
 };
 
+namespace cx1_kmer_count {
+
+static const int kBucketPrefixLength = 8;
+static const int kBucketBase = 4;
+static const int kNumBuckets = 65536; // pow(4, 8)
+static const int64_t kMinLv2BatchSize = 2 * 1024 * 1024;
+static const int64_t kMinLv2BatchSizeGPU = 64 * 1024 * 1024;
+static const int64_t kDefaultLv1ScanTime = 8;
+static const int64_t kMaxLv1ScanTime = 64;
+static const int kSentinelValue = 4;
+
+#define LONG_READS
+#ifdef LONG_READS
+static const int kSentinelOffset = 65535;
+#else
+static const int kSentinelOffset = 255;
+#endif
+
 struct count_global_t {
+    CX1<count_global_t, kNumBuckets> cx1;
+
     // input options
     int max_read_length;
     int kmer_k;
     int kmer_freq_threshold;
     int num_cpu_threads;
+    int num_output_threads;
     int64_t host_mem;
     int64_t gpu_mem;
     int mem_flag;
@@ -70,16 +92,14 @@ struct count_global_t {
     uint16_t *first_0_out;
     uint16_t *last_0_in; 
 #endif
+    int32_t* lv1_items; // each item is an offset (read ID and position) in differential representation
+
     int64_t *lv2_read_info; // to store where this lv2_item (k+1)-mer come from
-    int64_t *lv2_read_info_db;
-    int64_t* bucket_sizes; // the number of items of each bucket
-    int* lv1_items; // each item is an offset (read ID and position) in differential representation
-    std::vector<int64_t> lv1_items_special; // if the differential > 2^31, store full offset in this vector
-    int64_t* lv2_items; // each item is an offset (read ID and position), full expressed
+    int64_t *lv2_read_info_db; // double buffer
     edge_word_t* lv2_substrings; // stripped format
     edge_word_t* lv2_substrings_db; // double buffer
     uint32_t* permutation; // permutation of { 1, ..., lv2_num_items }. for sorting (as value in a key-value pair)
-    uint32_t* permutation_db;    // dump for double buffer
+    uint32_t* permutation_db;    // double buffer
 
 #ifdef DISABLE_GPU
     uint64_t *cpu_sort_space;
@@ -90,18 +110,8 @@ struct count_global_t {
     void *gpu_value_buffer2;
 #endif
 
-    // memory resources used. computational limits.
-    int64_t max_lv1_items;
-    int64_t max_lv2_items;
-
-    // Lv.1 variables
-    int lv1_start_bucket, lv1_end_bucket; // end is exclusive
-    int64_t lv1_num_items;
     pthread_mutex_t lv1_items_scanning_lock;  
 
-    // Lv.2 variables
-    int lv2_start_bucket, lv2_end_bucket; // end is exclusive
-    int64_t lv2_num_items;
     int64_t lv2_num_items_db;
 
     // memory usage
@@ -113,7 +123,20 @@ struct count_global_t {
     int output_threads;
 
     // output
-    WordWriter word_writer[kMaxNumCPUThreads];
+    WordWriter *word_writer;
 };
 
-#endif // SDBG_BUILDER_COUNT_H__
+int64_t encode_lv1_diff_base(int64_t read_id, count_global_t &g);
+void    read_input_prepare(count_global_t &g); // num_items_, num_cpu_threads_ and num_output_threads_ must be set here
+void*   lv0_calc_bucket_size(void*); // pthread working function
+void    init_global_and_set_cx1(count_global_t &g);
+void*   lv1_fill_offset(void*); // pthread working function
+void*   lv2_extract_substr(void*); // pthread working function
+void    lv2_sort(count_global_t &g);
+void    lv2_pre_output_partition(count_global_t &g);
+void*   lv2_output(void*); // pthread working function
+void    lv2_post_output(count_global_t &g);
+void    post_proc(count_global_t &g);
+
+} // end of namespace cx1_kmer_count
+#endif // CX1_KMER_COUNT_H__

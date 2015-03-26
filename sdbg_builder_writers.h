@@ -22,6 +22,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <zlib.h>
+#include <stdint.h>
 
 #include "mem_file_checker-inl.h"
 
@@ -182,9 +183,12 @@ struct WordWriter {
     edge_word_t output_buffer[kBufferSize];
     FILE *file;
 
-    WordWriter(): file(NULL) {}
+    WordWriter() {
+        file = NULL;
+    }
     ~WordWriter() {
         if (file != NULL)
+            fprintf(stderr, "%p\n", file);
             destroy();
     }
 

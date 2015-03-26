@@ -27,7 +27,8 @@
 #include <sys/resource.h>
 #include <fcntl.h>
 #include <unistd.h>
-
+ 
+static const int kSignBitMask = 0x80000000; // the MSB of 32-bit
 
 template<typename T1, typename T2>
 inline T1 DivCeiling(T1 a, T2 b) {

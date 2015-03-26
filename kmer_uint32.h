@@ -20,7 +20,7 @@
 #define KMER_UINT32_H_
 
 #include "definitions.h"
-#include "helper_functions-inl.h"
+#include "utils.h"
 
 /**
  * @brief a kmer struct for sdbg_builder (for efficiency). Not well OO.

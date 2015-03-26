@@ -24,12 +24,11 @@
 
 #include <stdlib.h>
 #include <stdio.h>
-#include "helper_functions-inl.h"
 
 inline FILE *OpenFileAndCheck(const char *filename, const char * mode) {
     FILE *fp;
     if ((fp = fopen(filename, mode)) == NULL){
-        err("[ERROR] Cannot open %s. Now exit to system...\n", filename);
+        fprintf(stderr, "[ERROR] Cannot open %s. Now exit to system...\n", filename);
         exit ( -1 );
     }
 
@@ -41,12 +40,12 @@ inline void* MallocAndCheck(size_t size_in_byte,
                             int malloc_from_which_line = __LINE__) {
     void *ptr = malloc(size_in_byte);
     if (ptr == NULL && size_in_byte != 0) {
-        err("[ERROR] Ran out of memory while applying %llubytes\n", (unsigned long long)size_in_byte);
-        err("In file: %s, line %d\n", malloc_from_which_file, malloc_from_which_line);
-        err("There may be errors as follows:\n");
-        err("1) Not enough memory.\n");
-        err("2) The ARRAY may be overrode.\n");
-        err("3) The wild pointers.\n");
+        fprintf(stderr, "[ERROR] Ran out of memory while applying %llubytes\n", (unsigned long long)size_in_byte);
+        fprintf(stderr, "In file: %s, line %d\n", malloc_from_which_file, malloc_from_which_line);
+        fprintf(stderr, "There may be errors as follows:\n");
+        fprintf(stderr, "1) Not enough memory.\n");
+        fprintf(stderr, "2) The ARRAY may be overrode.\n");
+        fprintf(stderr, "3) The wild pointers.\n");
         exit(-1);
     }
 
@@ -61,12 +60,12 @@ inline void* ReAllocAndCheck(void *ptr,
     if (size_in_byte == 0 || ptr != NULL) {
         return new_ptr;
     } else {
-        err("[ERROR] Ran out of memory while re-applying %llubytes\n", (unsigned long long)size_in_byte);
-        err("In file: %s, line %d\n", realloc_from_which_file, realloc_from_which_line);
-        err("There may be errors as follows:\n");
-        err("1) Not enough memory.\n");
-        err("2) The ARRAY may be overrode.\n");
-        err("3) The wild pointers.\n");
+        fprintf(stderr, "[ERROR] Ran out of memory while re-applying %llubytes\n", (unsigned long long)size_in_byte);
+        fprintf(stderr, "In file: %s, line %d\n", realloc_from_which_file, realloc_from_which_line);
+        fprintf(stderr, "There may be errors as follows:\n");
+        fprintf(stderr, "1) Not enough memory.\n");
+        fprintf(stderr, "2) The ARRAY may be overrode.\n");
+        fprintf(stderr, "3) The wild pointers.\n");
         free(ptr);
         exit(-1);
     }
