@@ -23,6 +23,10 @@ template <typename global_data_type, int kNumBuckets>
 struct CX1
 {
 	typedef global_data_t global_data_type;
+	static const int kCX1Verbose = 3; // tunable
+	// other settings, don't change
+	static const int kGPUBytePerItem = 16; // key & value, 4 byte each. double for radix sort internal buffer
+	static const int kLv1BytePerItem = 4; // 32-bit differatial offset
   
 	struct readpartition_data_t 
 	{  // local data for each read partition (i.e. a subrange of input reads)
@@ -83,10 +87,41 @@ struct CX1
 	void (*lv2_post_output_func_) (global_data_t &);
 	void (*post_proc_func_) (global_data_t &);
 
-	// === static helper functions ===
-	static inline void adjust_mem(); // typically used in init_global_and_set_cx1_func_ to determine memory usg
+	// === single thread functions ===	
+	inline void adjust_mem(int64_t mem_avail, int64_t lv2_bytes_per_item, int min_lv1_items, int min_lv2_items) {
+	    // --- adjust max_lv2_items to fit memory ---
+	    while (max_lv2_items_ >= min_lv2_items) {
+	        int64_t mem_lv2 = lv2_bytes_per_item * max_lv2_items_;
+	        if (mem_remained <= mem_lv2) {
+	            max_lv2_items_ *= 0.9;
+	            continue;
+	        }
 
-	// === single thread functions ===
+	        max_lv1_items_ = (mem_remained - mem_lv2) / LV1_BYTES_PER_ITEM;
+	        if (max_lv1_items_ < min_lv1_items || 
+	            max_lv1_items_ < max_lv2_items_) {
+	            max_lv2_items_ *= 0.9;
+	        } else {
+	            break;
+	        }
+	    }
+
+	    if (max_lv2_items_ < min_lv2_items) {
+	        fprintf(stderr, "[CX1] No enough memory to process.\n");
+	        exit(1);
+	    }
+
+	    // --- adjust max_lv2_items to fit more lv1 item ---
+	    // TODO: 4 is arbitrary chosen, not fine tune
+	    while (max_lv2_items_ * 4 > max_lv1_items_) {
+	        if (max_lv2_items_ * 0.95 >= min_lv2_items) {
+	            max_lv2_items_ *= 0.95;
+	            max_lv1_items_ = (mem_remained - lv2_bytes_per_item * max_lv2_items_) / LV1_BYTES_PER_ITEM;
+	        } else {
+	            break;
+	        }
+	    } 
+	}
 
 	inline void prepare_rp_and_bp_() { // call after prepare_func_
 		rp_ = (readpartition_data_t*) MallocAndCheck(sizeof(readpartition_data_t) * num_cpu_threads_, __FILE__, __LINE__);
@@ -116,7 +151,7 @@ struct CX1
 	    bucket_sizes_ = (int64_t *) MallocAndCheck(kNumBuckets * sizeof(int64_t), __FILE__, __LINE__);
 	}
 
-	inline void clean() {
+	inline void clean_() {
 		for (int t = 0; t < num_cpu_threads_; ++t) {
 			free(rp_[t].rp_bucket_sizes);
 			free(rp_[t].rp_bucket_offsets);
@@ -127,7 +162,7 @@ struct CX1
 		free(bucket_sizes_);
 	}
 
-	int find_end_buckets_(int start_bucket, int end_limit, int64_t item_limit, int64_t &num_items) {    
+	inline int find_end_buckets_(int start_bucket, int end_limit, int64_t item_limit, int64_t &num_items) {    
 	    num_items = 0;
 	    int end_bucket = start_bucket;
 	    while (end_bucket < end_limit) { // simple linear scan
@@ -250,27 +285,60 @@ struct CX1
 		init_global_and_set_cx1_func_(g_, *this);
 
 		// === start main loop ===
+		bool output_thread_created = false;
 		int lv1_iteration = 0;
 		lv1_start_bucket_ = 0;
 		while (lv1_start_bucket_ < kNumBuckets) {
+        	lv1_iteration++;
 			// --- finds the bucket range for this iteration ---
 			lv1_end_bucket_ = find_end_buckets_(bucket_sizes_, lv1_start_bucket_, kNumBuckets, max_lv1_items, lv1_num_items_);
 			if (lv1_num_items_ == 0) {
-				fprintf(stderr, "%s\n");
+				fprintf(stderr, "[CX1] Bucket %d too large for lv1: %lld > %lld\n", lv1_end_bucket_, bucket_sizes_[lv1_end_bucket_], max_lv1_items_);
+				exit(1);
+			}
+
+			// --- scan to fill offset ---
+			lv1_fill_offset_mt_();
+			if (lv1_items_special_.size() > kSpDiffLimit) {
+				fprintf(stderr, "[CX1] Too many large diff items (%lu) from in buckets [%d, %d)\n", lv1_item_special_.size(), lv1_start_bucket_, lv1_end_bucket_);
+				exit(1);
+			}
+
+			// --- lv2 loop ---
+			int lv2_iteration = 0;
+			lv2_start_bucket_ = lv1_start_bucket_;
+			while (lv2_start_bucket_ < lv1_end_bucket_) {
+				lv2_iteration++;
+				lv2_end_bucket_ = find_end_buckets_(bucket_sizes_, lv2_start_bucket_, lv1_end_bucket_, max_lv2_items_, lv2_num_items_);
+				if (lv2_num_items_ == 0) {
+					fprintf(stderr, "[CX1] Bucket %d too large for lv2: %lld > %lld\n", lv2_end_bucket_, bucket_sizes_[lv2_end_bucket_], max_lv2_items_);
+					exit(1);
+				}
+
+				// --- extract lv2 substr and sort ---
+				lv2_extract_substr_mt_();
+				lv2_sort_func_(g_);
+
+				// --- the output is pipelined, join the previous one ---
+				if (output_thread_created) {
+					lv2_output_join_();
+					lv2_post_output_func_(g_);
+				}
+
+				// --- the create new output threads ---
+				lv2_pre_output_partition_func_(g_, *this);
+				lv2_output_mt_();
+				output_thread_created = true;
 			}
 		}
 
-			int64_t (*encode_lv1_diff_base_func_) (int64_t, global_data_t &);
-	void (*prepare_func_) (global_data_t &, CX1 &); // num_items_, num_cpu_threads_ and num_output_threads_ must be set here
-	(void*) (*lv0_calc_bucket_size_func_) (void*);
-	void (*init_global_and_set_cx1_func_) (global_data_t &, CX1 &);
-	(void*) (*lv1_fill_offset_func_) (void*);
-	(void*) (*lv2_extract_substr_func_) (void*);
-	void (*lv1_sort_func_) (global_data_t &);
-	void (*lv2_pre_output_partition_func_) (global_data_t &, CX1 &);
-	(void*) (*lv2_output_func_) (void*);
-	void (*lv2_post_output_func_) (global_data_t &);
-	void (*post_proc_func_) (global_data_t &);
+		if (output_thread_created) {
+			lv2_output_join_();
+			lv2_post_output_func_(g_);
+		}
+
+		post_proc_func_(g_);
+		clean_();
 	}
 };
 
