@@ -98,7 +98,7 @@ struct count_global_t {
     uint32_t* permutation; // permutation of { 1, ..., lv2_num_items }. for sorting (as value in a key-value pair)
     uint32_t* permutation_db;    // double buffer
 
-#ifdef DISABLE_GPU
+#ifndef USE_GPU
     uint64_t *cpu_sort_space;
 #else
     void *gpu_key_buffer1;

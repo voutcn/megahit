@@ -22,24 +22,25 @@
 #include <zlib.h>
 #include <assert.h>
 #include <algorithm>
+#include <vector>
 #include <string>
 #include <omp.h>
 #include <parallel/algorithm>
 
-#include "timer.h"
+#include "utils.h"
 #include "definitions.h"
 #include "io-utility.h"
-#include "helper_functions-inl.h"
 #include "mem_file_checker-inl.h"
 #include "sdbg_builder_util.h"
 #include "sdbg_builder_writers.h"
 #include "kmer_uint32.h"
-#include "lv2_cpu_sort.h"
 #include "MAC_pthread_barrier.h"
 #include "kseq.h"
 
-#ifndef DISABLE_GPU
+#ifdef USE_GPU
 #include "lv2_gpu_functions.h"
+#else
+#include "lv2_cpu_sort.h"
 #endif
 
 // *** func & def commonly used in both phases ***
@@ -471,7 +472,7 @@ void InitGlobalData(struct global_data_t &globals) {
     }
 
     // --- calculate lv2 memory ---
- #ifdef DISABLE_GPU
+ #ifndef USE_GPU
     globals.max_lv2_items = std::max(globals.max_bucket_size, kMinLv2BatchSize);
  #else
     int64_t lv2_mem = globals.gpu_mem - 1073741824; // should reserver ~1G for GPU sorting
@@ -494,7 +495,7 @@ void InitGlobalData(struct global_data_t &globals) {
     // lv2 bytes: substring, permutation, readinfo
     int64_t lv2_bytes_per_item = (globals.words_per_substring) * sizeof(edge_word_t) + sizeof(uint32_t) + sizeof(int64_t);
     lv2_bytes_per_item = lv2_bytes_per_item * 2; // double buffering
- #ifdef DISABLE_GPU
+ #ifndef USE_GPU
     lv2_bytes_per_item += sizeof(uint64_t) * 2; // CPU memory is used to simulate GPU
  #endif
 
@@ -541,7 +542,7 @@ void InitGlobalData(struct global_data_t &globals) {
     globals.permutation_to_output = (uint32_t *) MallocAndCheck(globals.max_lv2_items * sizeof(uint32_t), __FILE__, __LINE__);
     globals.lv2_read_info = (int64_t *) MallocAndCheck(globals.max_lv2_items * sizeof(int64_t), __FILE__, __LINE__);
     globals.lv2_read_info_to_output = (int64_t *) MallocAndCheck(globals.max_lv2_items * sizeof(int64_t), __FILE__, __LINE__);
- #ifdef DISABLE_GPU
+ #ifndef USE_GPU
     globals.cpu_sort_space = (uint64_t*) MallocAndCheck(sizeof(uint64_t) * globals.max_lv2_items, __FILE__, __LINE__);
  #else
     alloc_gpu_buffers(globals.gpu_key_buffer1, globals.gpu_key_buffer2, globals.gpu_value_buffer1, globals.gpu_value_buffer2, (size_t)globals.max_lv2_items);
@@ -1057,7 +1058,7 @@ void Phase1Clean(struct global_data_t &globals) {
         fclose(globals.mercy_files[i]);
     }
 
- #ifdef DISABLE_GPU
+ #ifndef USE_GPU
     free(globals.cpu_sort_space);
  #else
     free_gpu_buffers(globals.gpu_key_buffer1, globals.gpu_key_buffer2, globals.gpu_value_buffer1, globals.gpu_value_buffer2);
@@ -1153,7 +1154,7 @@ void Phase1Entry(struct global_data_t &globals) {
                 log("[B::%s] Extracting substrings...done. Time elapsed: %.4lfs\n", __func__, local_timer.elapsed());
             }
             // --- sorting ---
- #ifdef DISABLE_GPU
+ #ifndef USE_GPU
             omp_set_num_threads(globals.num_cpu_threads - globals.phase1_num_output_threads);
             local_timer.reset();
             local_timer.start();
@@ -1465,7 +1466,7 @@ void InitGlobalData(global_data_t &globals) {
     }
 
     // --- calculate lv2 memory ---
- #ifdef DISABLE_GPU
+ #ifndef USE_GPU
     globals.max_lv2_items = std::max(globals.max_bucket_size, kMinLv2BatchSize);
  #else
     int64_t lv2_mem = globals.gpu_mem - 1073741824; // should reserver ~1G for GPU sorting
@@ -1482,7 +1483,7 @@ void InitGlobalData(global_data_t &globals) {
     globals.words_per_dummy_node = DivCeiling(globals.kmer_k * kBitsPerEdgeChar, kBitsPerEdgeWord);
     // lv2 bytes: substring (double buffer), permutation, aux
     int64_t lv2_bytes_per_item = (globals.words_per_substring * sizeof(edge_word_t) + sizeof(uint32_t)) * 2 + sizeof(int64_t);
- #ifdef DISABLE_GPU
+ #ifndef USE_GPU
     lv2_bytes_per_item += sizeof(uint64_t) * 2; // simulate GPU
  #endif
 
@@ -1527,7 +1528,7 @@ void InitGlobalData(global_data_t &globals) {
     globals.permutation = (uint32_t *) MallocAndCheck(globals.max_lv2_items * sizeof(uint32_t), __FILE__, __LINE__);
     globals.lv2_substrings_to_output = (edge_word_t*) MallocAndCheck(globals.max_lv2_items * globals.words_per_substring * sizeof(edge_word_t), __FILE__, __LINE__);
     globals.permutation_to_output = (uint32_t *) MallocAndCheck(globals.max_lv2_items * sizeof(uint32_t), __FILE__, __LINE__);
- #ifdef DISABLE_GPU
+ #ifndef USE_GPU
     globals.cpu_sort_space = (uint64_t*) MallocAndCheck(sizeof(uint64_t) * globals.max_lv2_items, __FILE__, __LINE__);
  #else
     alloc_gpu_buffers(globals.gpu_key_buffer1, globals.gpu_key_buffer2, globals.gpu_value_buffer1, globals.gpu_value_buffer2, (size_t)globals.max_lv2_items);
@@ -1979,7 +1980,7 @@ void *Lv2OutputThread(void *_op) {
         local_timer.reset();
         local_timer.start();
         for (int tid = 0; tid < globals.phase2_num_output_threads; ++tid) {
-            for (auto it = globals.lv2_output_items[tid].begin(); it != globals.lv2_output_items[tid].end(); ++it) {
+            for (std::vector<uint64_t>::const_iterator it = globals.lv2_output_items[tid].begin(); it != globals.lv2_output_items[tid].end(); ++it) {
                 int i = (*it) >> 32;
                 edge_word_t *item = globals.lv2_substrings_to_output + globals.permutation_to_output[i];
                 while (ExtractFirstChar(item) > globals.cur_suffix_first_char) {
@@ -2090,7 +2091,7 @@ void Phase2Clean(struct global_data_t &globals) {
         free(globals.readpartitions[t].rp_bucket_sizes);
         free(globals.readpartitions[t].rp_bucket_offsets);
     }
- #ifdef DISABLE_GPU
+ #ifndef USE_GPU
     free(globals.cpu_sort_space);
  #else
     free_gpu_buffers(globals.gpu_key_buffer1, globals.gpu_key_buffer2, globals.gpu_value_buffer1, globals.gpu_value_buffer2);
@@ -2188,7 +2189,7 @@ void Phase2Entry(struct global_data_t &globals) {
             }
 
             // --- sorting ---
- #ifdef DISABLE_GPU
+ #ifndef USE_GPU
             omp_set_num_threads(globals.num_cpu_threads - globals.phase2_num_output_threads);
             local_timer.reset();
             local_timer.start();

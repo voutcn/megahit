@@ -208,7 +208,6 @@ static const int kSentinelValue = 4; // 4 = $
 static const int kBWTCharNumBits = 3; // need 3 bits to represent ACGT$
 static const int kTopCharShift = kBitsPerEdgeWord - kBitsPerEdgeChar; // bits >> to get the most significant char
 static const uint32_t kDifferentialLimit = 2147483647; // 32-bit signed max int
-static const int kSignBitMask = 0x80000000; // the MSB of 32-bit
 
 #ifndef LONG_READS
 static const int kSentinelOffset = 255;

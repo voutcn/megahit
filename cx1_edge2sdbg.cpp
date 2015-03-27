@@ -7,7 +7,7 @@
 #include "io-utility.h"
 #include "utils.h"
 
-#ifdef DISABLE_GPU
+#ifndef USE_GPU
 #include "lv2_cpu_sort.h"
 #else
 #include "lv2_gpu_functions.h"
@@ -855,7 +855,7 @@ void init_global_and_set_cx1(edge2sdbg_global_t &globals) {
     globals.max_bucket_size = *std::max_element(globals.cx1.bucket_sizes_, globals.cx1.bucket_sizes_ + kNumBuckets);
     globals.tot_bucket_size = 0;
     for (int i = 0; i < kNumBuckets; ++i) { globals.tot_bucket_size += globals.cx1.bucket_sizes_[i]; }
-#ifdef DISABLE_GPU
+#ifndef USE_GPU
     globals.cx1.max_lv2_items_ = std::max(globals.max_bucket_size, kMinLv2BatchSize);
 #else
     int64_t lv2_mem = globals.gpu_mem - 1073741824; // should reserver ~1G for GPU sorting
@@ -870,7 +870,7 @@ void init_global_and_set_cx1(edge2sdbg_global_t &globals) {
     globals.words_per_dummy_node = DivCeiling(globals.kmer_k * kBitsPerEdgeChar, kBitsPerEdgeWord);
     // lv2 bytes: substring (double buffer), permutation, aux
     int64_t lv2_bytes_per_item = (globals.words_per_substring * sizeof(edge_word_t) + sizeof(uint32_t)) * 2 + sizeof(unsigned char);
-#ifdef DISABLE_GPU
+#ifndef USE_GPU
     lv2_bytes_per_item += sizeof(uint64_t) * 2; // simulate GPU
 #endif
 
@@ -919,7 +919,7 @@ void init_global_and_set_cx1(edge2sdbg_global_t &globals) {
     globals.lv2_substrings_db = (edge_word_t*) MallocAndCheck(globals.cx1.max_lv2_items_ * globals.words_per_substring * sizeof(edge_word_t), __FILE__, __LINE__);
     globals.permutation_db = (uint32_t *) MallocAndCheck(globals.cx1.max_lv2_items_ * sizeof(uint32_t), __FILE__, __LINE__);
     globals.lv2_aux = (unsigned char*) MallocAndCheck(globals.cx1.max_lv2_items_ * sizeof(unsigned char), __FILE__, __LINE__);
- #ifdef DISABLE_GPU
+ #ifndef USE_GPU
     globals.cpu_sort_space = (uint64_t*) MallocAndCheck(sizeof(uint64_t) * globals.cx1.max_lv2_items_, __FILE__, __LINE__);
  #else
     alloc_gpu_buffers(globals.gpu_key_buffer1, globals.gpu_key_buffer2, globals.gpu_value_buffer1, globals.gpu_value_buffer2, (size_t)globals.cx1.max_lv2_items_);
@@ -1067,7 +1067,7 @@ void* lv2_extract_substr(void* _data) {
 
 void lv2_sort(edge2sdbg_global_t &globals) {
 	xtimer_t local_timer;
-#ifdef DISABLE_GPU
+#ifndef USE_GPU
     if (cx1_t::kCX1Verbose >= 4) {
 	    local_timer.reset();
 	    local_timer.start();
@@ -1314,7 +1314,7 @@ void post_proc(edge2sdbg_global_t &globals) {
         free(globals.multiplicity16);
     }
     globals.dummy_nodes_writer.destroy();
- #ifdef DISABLE_GPU
+ #ifndef USE_GPU
     free(globals.cpu_sort_space);
  #else
     free_gpu_buffers(globals.gpu_key_buffer1, globals.gpu_key_buffer2, globals.gpu_value_buffer1, globals.gpu_value_buffer2);

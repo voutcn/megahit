@@ -51,7 +51,7 @@ COMMA = ,
 ifdef sm
 	SM_ARCH = $(subst $(COMMA),-,$(sm))
 else 
-    SM_ARCH = 300
+    SM_ARCH = 350
 endif
 
 # Only one arch per tuning binary
@@ -145,13 +145,12 @@ DEPS =   ./Makefile \
 # g++ and its options
 #-------------------------------------------------------------------------------
 CUDALIBFLAG = -L/usr/local/cuda/lib64/ -lcuda -lcudart
-CFLAGS = -O3 -Wall -funroll-loops -fprefetch-loop-arrays -fopenmp -std=c++0x -static-libgcc -static-libstdc++ -D DISABLE_GPU -lm
-ZLIB = -lz
+CFLAGS = -O3 -Wall -funroll-loops -fprefetch-loop-arrays -fopenmp -std=c++0x -static-libgcc -static-libstdc++
+LIB = -lpthread -lm -lz
 ifneq ($(disablempopcnt), 1)
 	CFLAGS += -mpopcnt
 endif
 DEPS = Makefile
-BIN_DIR = ./bin/
 
 #-------------------------------------------------------------------------------
 # CPU & GPU version
@@ -171,26 +170,20 @@ endif
 %.o: %.cpp %.h $(DEPS)
 	$(CXX) $(CFLAGS) -c $< -o $@
 
-.cx1_functions_cpu.o: cx1_functions.cpp $(DEPS)
-	$(CXX) $(CFLAGS) -c cx1_functions.cpp -o .cx1_functions_cpu.o
-
-.cx1_functions_cpu_1pass.o: cx1_functions_1pass.cpp $(DEPS)
-	$(CXX) $(CFLAGS) -c cx1_functions_1pass.cpp -o .cx1_functions_cpu_1pass.o
-
 #-------------------------------------------------------------------------------
 # CPU Applications
 #-------------------------------------------------------------------------------
 sdbg_builder_cpu: sdbg_builder.cpp cx1.h lv2_cpu_sort.h cx1_kmer_count.o cx1_edge2sdbg.o options_description.o $(DEPS)
-	$(CXX) $(CFLAGS) sdbg_builder.cpp cx1_kmer_count.o options_description.o cx1_edge2sdbg.o $(ZLIB) -o sdbg_builder_cpu
+	$(CXX) $(CFLAGS) sdbg_builder.cpp cx1_kmer_count.o options_description.o cx1_edge2sdbg.o $(LIB) -o sdbg_builder_cpu
 
-sdbg_builder_cpu_1pass: sdbg_builder_1pass.cpp .cx1_functions_cpu_1pass.o lv2_cpu_sort.h options_description.o $(DEPS)
-	$(CXX) $(CFLAGS) sdbg_builder_1pass.cpp .cx1_functions_cpu_1pass.o options_description.o $(ZLIB) -o sdbg_builder_cpu_1pass
+sdbg_builder_cpu_1pass: sdbg_builder_1pass.cpp cx1_functions_1pass.o lv2_cpu_sort.h options_description.o $(DEPS)
+	$(CXX) $(CFLAGS) sdbg_builder_1pass.cpp cx1_functions_1pass.o options_description.o $(LIB) -o sdbg_builder_cpu_1pass
 
 megahit_assemble: assembler.cpp succinct_dbg.o rank_and_select.o assembly_algorithms.o branch_group.o options_description.o unitig_graph.o $(DEPS)
-	$(CXX) $(CFLAGS) assembler.cpp rank_and_select.o succinct_dbg.o assembly_algorithms.o branch_group.o options_description.o unitig_graph.o $(ZLIB) -o megahit_assemble
+	$(CXX) $(CFLAGS) assembler.cpp rank_and_select.o succinct_dbg.o assembly_algorithms.o branch_group.o options_description.o unitig_graph.o $(LIB) -o megahit_assemble
 
 megahit_iter: iterate_edges.cpp iterate_edges.h options_description.o city.o $(DEPS)
-	$(CXX) $(CFLAGS) iterate_edges.cpp options_description.o city.o $(ZLIB) -o megahit_iter
+	$(CXX) $(CFLAGS) iterate_edges.cpp options_description.o city.o $(LIB) -o megahit_iter
 
 #-------------------------------------------------------------------------------
 # Applications for debug usage
@@ -198,7 +191,6 @@ megahit_iter: iterate_edges.cpp iterate_edges.h options_description.o city.o $(D
 query_sdbg: query_sdbg.cpp succinct_dbg.o rank_and_select.o assembly_algorithms.o branch_group.o unitig_graph.o $(DEPS)
 	$(CXX) $(CFLAGS) query_sdbg.cpp rank_and_select.o succinct_dbg.o assembly_algorithms.o branch_group.o unitig_graph.o -o query_sdbg
 
-ifeq ($(use_gpu), 1)
 #-------------------------------------------------------------------------------
 # GPU objectives
 #-------------------------------------------------------------------------------
@@ -207,24 +199,26 @@ ifeq ($(use_gpu), 1)
 	$(NVCC) $(DEFINES) $(SM_TARGETS) lv2_gpu_functions.cu $(NVCCFLAGS) $(CPU_ARCH) $(INC) $(LIBS) -O3 -DTUNE_ARCH=$(SM_ARCH) -DTUNE_SIZE=$(TUNE_SIZE) -o .lv2_gpu_functions_$(SUFFIX).cpp 
 
 # cpp -> o
-.lv2_gpu_functions_$(SUFFIX).o: .lv2_gpu_functions_$(SUFFIX).cpp $(DEPS)
-	$(CXX) $(CFLAGS) -c .lv2_gpu_functions_$(SUFFIX).cpp -o .lv2_gpu_functions_$(SUFFIX).o
+lv2_gpu_functions_$(SUFFIX).o: .lv2_gpu_functions_$(SUFFIX).cpp $(DEPS)
+	$(CXX) $(CFLAGS) -c .lv2_gpu_functions_$(SUFFIX).cpp -o lv2_gpu_functions_$(SUFFIX).o
 
-.cx1_functions.o: cx1_functions.cpp $(DEPS)
-	$(CXX) $(CFLAGS) -c cx1_functions.cpp -o .cx1_functions.o
+cx1_kmer_count_gpu.o: cx1_kmer_count.cpp $(DEPS)
+	$(CXX) $(CFLAGS) -D USE_GPU -c cx1_kmer_count.cpp -o cx1_kmer_count_gpu.o
 
-.cx1_functions_1pass.o: cx1_functions_1pass.cpp $(DEPS)
-	$(CXX) $(CFLAGS) -c cx1_functions_1pass.cpp -o .cx1_functions_1pass.o
+cx1_edge2sdbg_gpu.o: cx1_edge2sdbg.cpp $(DEPS)
+	$(CXX) $(CFLAGS) -D USE_GPU -c cx1_edge2sdbg.cpp -o cx1_edge2sdbg_gpu.o
+
+cx1_functions_1pass_gpu.o: cx1_functions_1pass.cpp $(DEPS)
+	$(CXX) $(CFLAGS) -D USE_GPU -c cx1_functions_1pass.cpp -o cx1_functions_1pass_gpu.o
 
 #-------------------------------------------------------------------------------
 # GPU Applications
 #-------------------------------------------------------------------------------
-sdbg_builder_gpu: sdbg_builder.cpp .cx1_functions.o .lv2_gpu_functions_$(SUFFIX).o options_description.o $(DEPS)
-	$(CXX) $(CFLAGS) $(CUDALIBFLAG) sdbg_builder.cpp .lv2_gpu_functions_$(SUFFIX).o .cx1_functions.o options_description.o $(ZLIB) -o sdbg_builder_gpu
+sdbg_builder_gpu: sdbg_builder.cpp cx1_kmer_count_gpu.o cx1_edge2sdbg_gpu.o lv2_gpu_functions_$(SUFFIX).o options_description.o $(DEPS)
+	$(CXX) $(CFLAGS) $(CUDALIBFLAG) -D USE_GPU sdbg_builder.cpp lv2_gpu_functions_$(SUFFIX).o cx1_kmer_count_gpu.o cx1_edge2sdbg_gpu.o options_description.o $(LIB) -o sdbg_builder_gpu
 
-sdbg_builder_gpu_1pass: sdbg_builder_1pass.cpp .cx1_functions_1pass.o .lv2_gpu_functions_$(SUFFIX).o options_description.o $(DEPS)
-	$(CXX) $(CFLAGS) $(CUDALIBFLAG) sdbg_builder_1pass.cpp .lv2_gpu_functions_$(SUFFIX).o .cx1_functions_1pass.o options_description.o $(ZLIB) -o sdbg_builder_gpu_1pass
-endif
+sdbg_builder_gpu_1pass: sdbg_builder_1pass.cpp cx1_functions_1pass_gpu.o lv2_gpu_functions_$(SUFFIX).o options_description.o $(DEPS)
+	$(CXX) $(CFLAGS) $(CUDALIBFLAG) -D USE_GPU sdbg_builder_1pass.cpp lv2_gpu_functions_$(SUFFIX).o cx1_functions_1pass_gpu.o options_description.o $(LIB) -o sdbg_builder_gpu_1pass
 
 #-------------------------------------------------------------------------------
 # Build binary directory

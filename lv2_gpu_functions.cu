@@ -21,7 +21,7 @@
 #include <assert.h>
 #include "cub/util_allocator.cuh"
 #include "cub/device/device_radix_sort.cuh"
-#include "helper_functions-inl.h"
+#include "utils.h"
 
 using namespace cub;
 

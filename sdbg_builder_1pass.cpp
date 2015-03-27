@@ -25,9 +25,8 @@
 
 #include "options_description.h"
 #include "lv2_gpu_functions.h"
-#include "helper_functions-inl.h"
+#include "utils.h"
 #include "sdbg_builder_util.h"
-#include "timer.h"
 
 struct Options {
     int kmer_k;
@@ -91,7 +90,7 @@ void ParsePhase1Option(int argc, char *argv[]) {
         }
 
         if (opt.gpu_mem == 0) {
-#ifndef DISABLE_GPU
+#ifdef USE_GPU
             size_t free_gpu_mem, total_gpu_mem;
             get_cuda_memory(free_gpu_mem, total_gpu_mem);
             opt.gpu_mem = free_gpu_mem;

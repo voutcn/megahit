@@ -11,7 +11,7 @@
 #include "utils.h"
 #include "kmer_uint32.h"
 
-#ifdef DISABLE_GPU
+#ifndef USE_GPU
 #include "lv2_cpu_sort.h"
 #else
 #include "lv2_gpu_functions.h"
@@ -377,7 +377,7 @@ void init_global_and_set_cx1(count_global_t &globals) {
     globals.tot_bucket_size = 0;
     for (int i = 0; i < kNumBuckets; ++i) { globals.tot_bucket_size += globals.cx1.bucket_sizes_[i]; }
 
-#ifdef DISABLE_GPU
+#ifndef USE_GPU
     globals.cx1.max_lv2_items_ = std::max(globals.max_bucket_size, kMinLv2BatchSize);
 #else
     int64_t lv2_mem = globals.gpu_mem - 1073741824; // should reserver ~1G for GPU sorting
@@ -393,7 +393,7 @@ void init_global_and_set_cx1(count_global_t &globals) {
     // lv2 bytes: substring, permutation, readinfo
     int64_t lv2_bytes_per_item = (globals.words_per_substring) * sizeof(edge_word_t) + sizeof(uint32_t) + sizeof(int64_t);
     lv2_bytes_per_item = lv2_bytes_per_item * 2; // double buffering
-#ifdef DISABLE_GPU
+#ifndef USE_GPU
     lv2_bytes_per_item += sizeof(uint64_t) * 2; // CPU memory is used to simulate GPU
 #endif
 
@@ -451,7 +451,7 @@ void init_global_and_set_cx1(count_global_t &globals) {
     globals.first_0_out = (unsigned char*) MallocAndCheck(globals.num_reads * sizeof(unsigned char), __FILE__, __LINE__);
     globals.last_0_in = (unsigned char*) MallocAndCheck(globals.num_reads * sizeof(unsigned char), __FILE__, __LINE__);
 #endif
- #ifdef DISABLE_GPU
+ #ifndef USE_GPU
     globals.cpu_sort_space = (uint64_t*) MallocAndCheck(sizeof(uint64_t) * globals.cx1.max_lv2_items_, __FILE__, __LINE__);
  #else
     alloc_gpu_buffers(globals.gpu_key_buffer1, globals.gpu_key_buffer2, globals.gpu_value_buffer1, globals.gpu_value_buffer2, (size_t)globals.cx1.max_lv2_items_);
@@ -603,7 +603,7 @@ void* lv2_extract_substr(void* _data) {
 
 void lv2_sort(count_global_t &globals) {
 	xtimer_t local_timer;
-#ifdef DISABLE_GPU
+#ifndef USE_GPU
     if (cx1_t::kCX1Verbose >= 4) {
 	    local_timer.reset();
 	    local_timer.start();
@@ -860,7 +860,7 @@ void post_proc(count_global_t &globals) {
     }
     free(globals.word_writer);
 
- #ifdef DISABLE_GPU
+ #ifndef USE_GPU
     free(globals.cpu_sort_space);
  #else
     free_gpu_buffers(globals.gpu_key_buffer1, globals.gpu_key_buffer2, globals.gpu_value_buffer1, globals.gpu_value_buffer2);

@@ -30,7 +30,7 @@
 #include "branch_group.h"
 #include "atomic_bit_vector.h"
 #include "unitig_graph.h"
-#include "timer.h"
+#include "utils.h"
 
 using std::vector;
 using std::string;

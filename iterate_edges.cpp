@@ -32,7 +32,7 @@
 #include "io-utility.h"
 #include "options_description.h"
 #include "atomic_bit_vector.h"
-#include "timer.h"
+#include "utils.h"
 #include "kmer_plus.h"
 #include "hash_table.h"
 

@@ -44,7 +44,7 @@ int main_kmer_count(int argc, char **argv) {
             throw std::logic_error("Please specify the host memory!");
         }
         if (opt.gpu_mem == 0) {
-#ifndef DISABLE_GPU
+#ifdef USE_GPU
             size_t free_gpu_mem, total_gpu_mem;
             get_cuda_memory(free_gpu_mem, total_gpu_mem);
             opt.gpu_mem = free_gpu_mem;
@@ -138,7 +138,7 @@ int main_edge2sdbg(int argc, char **argv) {
         }
 
         if (opt.gpu_mem == 0) {
-#ifndef DISABLE_GPU
+#ifdef USE_GPU
             size_t free_gpu_mem, total_gpu_mem;
             get_cuda_memory(free_gpu_mem, total_gpu_mem);
             opt.gpu_mem = free_gpu_mem;
