@@ -180,8 +180,8 @@ endif
 #-------------------------------------------------------------------------------
 # CPU Applications
 #-------------------------------------------------------------------------------
-sdbg_builder_cpu: sdbg_builder.cpp cx1.h lv2_cpu_sort.h cx1_kmer_count.o options_description.o $(DEPS)
-	$(CXX) $(CFLAGS) sdbg_builder.cpp cx1_kmer_count.o options_description.o $(ZLIB) -o sdbg_builder_cpu
+sdbg_builder_cpu: sdbg_builder.cpp cx1.h lv2_cpu_sort.h cx1_kmer_count.o cx1_edge2sdbg.o options_description.o $(DEPS)
+	$(CXX) $(CFLAGS) sdbg_builder.cpp cx1_kmer_count.o options_description.o cx1_edge2sdbg.o $(ZLIB) -o sdbg_builder_cpu
 
 sdbg_builder_cpu_1pass: sdbg_builder_1pass.cpp .cx1_functions_cpu_1pass.o lv2_cpu_sort.h options_description.o $(DEPS)
 	$(CXX) $(CFLAGS) sdbg_builder_1pass.cpp .cx1_functions_cpu_1pass.o options_description.o $(ZLIB) -o sdbg_builder_cpu_1pass

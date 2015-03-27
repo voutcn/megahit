@@ -27,7 +27,7 @@ struct CompareHigh32Bits {
     }
 };
 
-void lv2_cpu_sort(edge_word_t *lv2_substrings, uint32_t *permutation, uint64_t *cpu_sort_space, int words_per_substring, int64_t lv2_num_items) {
+inline void lv2_cpu_sort(edge_word_t *lv2_substrings, uint32_t *permutation, uint64_t *cpu_sort_space, int words_per_substring, int64_t lv2_num_items) {
 #pragma omp parallel for
     for (uint32_t i = 0; i < lv2_num_items; ++i) {
         cpu_sort_space[i] = i;

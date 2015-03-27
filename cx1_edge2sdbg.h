@@ -53,6 +53,8 @@ static const int64_t kMinLv2BatchSizeGPU = 64 * 1024 * 1024;
 static const int64_t kDefaultLv1ScanTime = 8;
 static const int64_t kMaxLv1ScanTime = 64;
 static const int kSentinelValue = 4;
+static const int kBWTCharNumBits = 3;
+static const int kTopCharShift = kBitsPerEdgeWord - kBitsPerEdgeChar;
 
 struct edge2sdbg_global_t {
     CX1<edge2sdbg_global_t, kNumBuckets> cx1;
@@ -60,6 +62,7 @@ struct edge2sdbg_global_t {
     // input options
     int max_read_length;
     int kmer_k;
+    int num_edge_files;
     int num_cpu_threads;
     int num_output_threads;
     int64_t host_mem;
@@ -111,6 +114,7 @@ struct edge2sdbg_global_t {
     int64_t num_ones_in_last;
     int64_t total_number_edges;
     int64_t num_dollar_nodes;
+    int64_t num_dummy_edges;
     int cur_prefix;
     int cur_suffix_first_char;
 
@@ -123,13 +127,10 @@ struct edge2sdbg_global_t {
 
     unsigned char *lv2_aux;
     pthread_barrier_t output_barrier;
-
-    // for lookup binary search on sorted edges
-    int64_t *edge_lookup;
 };
 
 int64_t encode_lv1_diff_base(int64_t read_id, edge2sdbg_global_t &g);
-void    read_edge_prepare(edge2sdbg_global_t &g); // num_items_, num_cpu_threads_ and num_output_threads_ must be set here
+void    read_edges_and_prepare(edge2sdbg_global_t &g); // num_items_, num_cpu_threads_ and num_output_threads_ must be set here
 void*   lv0_calc_bucket_size(void*); // pthread working function
 void    init_global_and_set_cx1(edge2sdbg_global_t &g);
 void*   lv1_fill_offset(void*); // pthread working function

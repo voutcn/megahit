@@ -381,14 +381,12 @@ void init_global_and_set_cx1(count_global_t &globals) {
     globals.cx1.max_lv2_items_ = std::max(globals.max_bucket_size, kMinLv2BatchSize);
 #else
     int64_t lv2_mem = globals.gpu_mem - 1073741824; // should reserver ~1G for GPU sorting
-    globals.cx1.max_lv2_items_ = lv2_mem / cx1_t::kGPUBytePerItem;
-    globals.cx1.max_lv2_items_ = std::min(globals.cx1.max_lv2_items_, globals.tot_bucket_size);
+    globals.cx1.max_lv2_items_ = std::min(lv2_mem / cx1_t::kGPUBytePerItem, std::max(globals.max_bucket_size, kMinLv2BatchSizeGPU));
     if (globals.max_bucket_size > globals.cx1.max_lv2_items_) {
         err("[ERROR C::%s] Bucket too large for GPU: contains %lld items. Please try CPU version.\n", __func__, globals.max_bucket_size);
         // TODO: auto switch to CPU version
         exit(1);
     }
-    globals.cx1.max_lv2_items_ = std::max(globals.max_bucket_size, kMinLv2BatchSizeGPU);
 #endif
     globals.words_per_substring = DivCeiling((globals.kmer_k + 1) * kBitsPerEdgeChar, kBitsPerEdgeWord);
     globals.words_per_edge = DivCeiling((globals.kmer_k + 1) * kBitsPerEdgeChar + kBitsPerMulti_t, kBitsPerEdgeWord);
