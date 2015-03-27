@@ -39,4 +39,6 @@ static const char dna_chars[] = "ACGT";
 
 static const int kMaxNumCPUThreads = 255;
 
+#define LONG_READS
+
 #endif // DEFINITIONS_H_

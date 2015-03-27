@@ -53,15 +53,8 @@ static const int64_t kDefaultLv1ScanTime = 8;
 static const int64_t kMaxLv1ScanTime = 64;
 static const int kSentinelValue = 4;
 
-#define LONG_READS
-#ifdef LONG_READS
-static const int kSentinelOffset = 65535;
-#else
-static const int kSentinelOffset = 255;
-#endif
-
-struct count_global_t {
-    CX1<count_global_t, kNumBuckets> cx1;
+struct edge2sdbg_global_t {
+    CX1<edge2sdbg_global_t, kNumBuckets> cx1;
 
     // input options
     int max_read_length;
@@ -131,17 +124,17 @@ struct count_global_t {
     WordWriter *word_writer;
 };
 
-int64_t encode_lv1_diff_base(int64_t read_id, count_global_t &g);
-void    read_input_prepare(count_global_t &g); // num_items_, num_cpu_threads_ and num_output_threads_ must be set here
+int64_t encode_lv1_diff_base(int64_t read_id, edge2sdbg_global_t &g);
+void    read_input_prepare(edge2sdbg_global_t &g); // num_items_, num_cpu_threads_ and num_output_threads_ must be set here
 void*   lv0_calc_bucket_size(void*); // pthread working function
-void    init_global_and_set_cx1(count_global_t &g);
+void    init_global_and_set_cx1(edge2sdbg_global_t &g);
 void*   lv1_fill_offset(void*); // pthread working function
 void*   lv2_extract_substr(void*); // pthread working function
-void    lv2_sort(count_global_t &g);
-void    lv2_pre_output_partition(count_global_t &g);
+void    lv2_sort(edge2sdbg_global_t &g);
+void    lv2_pre_output_partition(edge2sdbg_global_t &g);
 void*   lv2_output(void*); // pthread working function
-void    lv2_post_output(count_global_t &g);
-void    post_proc(count_global_t &g);
+void    lv2_post_output(edge2sdbg_global_t &g);
+void    post_proc(edge2sdbg_global_t &g);
 
 } // end of namespace cx1_edge2sdbg
 #endif // CX1_EDGE2SDBG_H__
