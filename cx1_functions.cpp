@@ -422,7 +422,6 @@ void InitGlobalData(struct global_data_t &globals) {
     if (sdbg_builder_verbose >= 3) {
         log("[B::%s] Filling read partition buckets...\n", __func__);
     }
-    pthread_mutex_init(&globals.lv1_items_scanning_lock, NULL); // init lock
     PrepareBucketScan(globals);
     PreprocessScanToFillBucketSizes(globals); // Multithread: fill the read partition buckets, then sum up into the global buckets
     globals.max_bucket_size = *std::max_element(globals.bucket_sizes, globals.bucket_sizes + phase1::kNumBuckets);

@@ -67,8 +67,6 @@ struct count_global_t {
     int64_t host_mem;
     int64_t gpu_mem;
     int mem_flag;
-    int num_k1_per_read; // = max_read_length - kmer_k
-
     const char *input_file;
     const char *output_prefix;
 
@@ -80,7 +78,6 @@ struct count_global_t {
     int64_t tot_bucket_size;
     int words_per_read; // number of (32-bit) words needed to represent a read in 2-bit-per-char format
     int read_length_mask;
-    int k_num_bits; // the number of bits needed to store the position of the first $ in the kmer (i.e. log2(kmer_k+1))
     int64_t num_reads; // total number of reads
 
     // big arrays
@@ -120,8 +117,7 @@ struct count_global_t {
     // stat
     int64_t *edge_counting; // count the number of (k+1)mer with occurs i times
     int64_t *thread_edge_counting;
-    int output_threads;
-
+    
     // output
     WordWriter *word_writer;
 };

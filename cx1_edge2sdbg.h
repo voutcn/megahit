@@ -5,6 +5,7 @@
 #include <stdint.h>
 #include <vector>
 #include <string>
+#include "MAC_pthread_barrier.h"
 #include "definitions.h"
 #include "cx1.h"
 #include "sdbg_builder_writers.h"
@@ -59,41 +60,33 @@ struct edge2sdbg_global_t {
     // input options
     int max_read_length;
     int kmer_k;
-    int kmer_freq_threshold;
     int num_cpu_threads;
     int num_output_threads;
     int64_t host_mem;
     int64_t gpu_mem;
     int mem_flag;
-    int num_k1_per_read; // = max_read_length - kmer_k
+    bool need_mercy;
 
-    const char *input_file;
+    const char *input_prefix;
     const char *output_prefix;
 
+    int64_t num_edges;
     int words_per_edge; // number of (32-bit) words needed to represent a (k+1)-mer
     int64_t words_per_substring; // substrings to be sorted by GPU
-    int offset_num_bits; // the number of bits needed to store the offset of a base in the read/(k+1)-mer (i.e. log(read_length))
     int64_t capacity;
     int64_t max_bucket_size;
     int64_t tot_bucket_size;
-    int words_per_read; // number of (32-bit) words needed to represent a read in 2-bit-per-char format
-    int read_length_mask;
+    int words_per_dummy_node;
+    int mult_mem_type; // 0: compact with (k+1)-mer; 1: use extra 8 bits; 2: use extra 16 bits
+
     int k_num_bits; // the number of bits needed to store the position of the first $ in the kmer (i.e. log2(kmer_k+1))
-    int64_t num_reads; // total number of reads
 
     // big arrays
-    edge_word_t* packed_reads;
-#ifndef LONG_READS
-    unsigned char *first_0_out;
-    unsigned char *last_0_in; // first potential 0-out-degree k-mer and last potential 0-in-degree k-mer
-#else
-    uint16_t *first_0_out;
-    uint16_t *last_0_in; 
-#endif
-    int32_t* lv1_items; // each item is an offset (read ID and position) in differential representation
+    edge_word_t* packed_edges;
+    uint8_t *multiplicity8;    // store multiplicity if 8 additional bits are needed
+    uint16_t *multiplicity16;   // store multiplicity if 16 additional bits are needed
 
-    int64_t *lv2_read_info; // to store where this lv2_item (k+1)-mer come from
-    int64_t *lv2_read_info_db; // double buffer
+    int32_t* lv1_items; // each item is an offset (read ID and position) in differential representation
     edge_word_t* lv2_substrings; // stripped format
     edge_word_t* lv2_substrings_db; // double buffer
     uint32_t* permutation; // permutation of { 1, ..., lv2_num_items }. for sorting (as value in a key-value pair)
@@ -109,23 +102,34 @@ struct edge2sdbg_global_t {
 #endif
 
     pthread_mutex_t lv1_items_scanning_lock;  
-
     int64_t lv2_num_items_db;
-
     // memory usage
-    int64_t mem_packed_reads;
+    int64_t mem_packed_edges;
 
-    // stat
-    int64_t *edge_counting; // count the number of (k+1)mer with occurs i times
-    int64_t *thread_edge_counting;
-    int output_threads;
+    // statistics
+    int64_t num_chars_in_w[9];
+    int64_t num_ones_in_last;
+    int64_t total_number_edges;
+    int64_t num_dollar_nodes;
+    int cur_prefix;
+    int cur_suffix_first_char;
 
     // output
-    WordWriter *word_writer;
+    DBG_BinaryWriter sdbg_writer;
+    WordWriter dummy_nodes_writer;
+    FILE *output_f_file;
+    FILE *output_multiplicity_file;
+    FILE *output_multiplicity_file2;
+
+    unsigned char *lv2_aux;
+    pthread_barrier_t output_barrier;
+
+    // for lookup binary search on sorted edges
+    int64_t *edge_lookup;
 };
 
 int64_t encode_lv1_diff_base(int64_t read_id, edge2sdbg_global_t &g);
-void    read_input_prepare(edge2sdbg_global_t &g); // num_items_, num_cpu_threads_ and num_output_threads_ must be set here
+void    read_edge_prepare(edge2sdbg_global_t &g); // num_items_, num_cpu_threads_ and num_output_threads_ must be set here
 void*   lv0_calc_bucket_size(void*); // pthread working function
 void    init_global_and_set_cx1(edge2sdbg_global_t &g);
 void*   lv1_fill_offset(void*); // pthread working function

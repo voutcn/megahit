@@ -466,6 +466,9 @@ void init_global_and_set_cx1(count_global_t &globals) {
     globals.thread_edge_counting = (int64_t *) MallocAndCheck((kMaxMulti_t + 1) * globals.num_output_threads * sizeof(int64_t), __FILE__, __LINE__);
     memset(globals.edge_counting, 0, (kMaxMulti_t + 1) * sizeof(int64_t));
 
+    // --- initialize lock ---
+    pthread_mutex_init(&globals.lv1_items_scanning_lock, NULL); // init lock
+
     // --- initialize writer ---
     globals.word_writer = (WordWriter*) MallocAndCheck(globals.num_output_threads * sizeof(WordWriter), __FILE__, __LINE__);
     for (int t = 0; t < globals.num_output_threads; ++t) {
