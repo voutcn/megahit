@@ -217,7 +217,7 @@ int64_t s2_encode_lv1_diff_base(int64_t read_id, read2sdbg_global_t &globals) {
 
 void s2_read_mercy_prepare(read2sdbg_global_t &globals) {
 	if (!globals.need_mercy) return;
-	
+
 	xtimer_t timer;
     if (cx1_t::kCX1Verbose >= 3) {
 	    timer.reset();
@@ -323,7 +323,8 @@ void s2_read_mercy_prepare(read2sdbg_global_t &globals) {
 
     if (cx1_t::kCX1Verbose >= 3) {
     	timer.stop();
-        log("[B1::%s] Adding mercy Done. Time elapsed: %.4lfs\n", __func__, timer.elapsed());
+        log("[B1::%s] Adding mercy Done. Time elapsed: %.4lf\n", __func__, timer.elapsed());
+        log("[B1::%s] Number mercy: %llu\n", __func__, (unsigned long long)num_mercy);
     }
 
     // set cx1 param

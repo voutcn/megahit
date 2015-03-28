@@ -301,7 +301,7 @@ void DisplayHelp(char *program_name) {
     fprintf(stderr, "       type \"%s count\" for help.\n", program_name);
     fprintf(stderr, "    2. Build Succinct dBG from solid edges: \n");
     fprintf(stderr, "       type \"%s build\" for help.\n", program_name);
-    fprintf(stderr, "    3. 1-pass count & build Succinct dBG: \n");
+    fprintf(stderr, "    3. read2sdbg count & build Succinct dBG: \n");
     fprintf(stderr, "       type \"%s 1pass\" for help.\n", program_name);
 }
 
