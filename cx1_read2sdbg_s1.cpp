@@ -205,6 +205,7 @@ void CopySubstringRC(edge_word_t* dest, edge_word_t* src_read, int offset, int n
 
     edge_word_t *last_word = dest + (globals.words_per_substring - 1) * spacing;
     *last_word |= (head << kBWTCharNumBits) | tail;
+
 }
 
 // helper: see whether two lv2 items have the same (k-1)-mer
@@ -479,7 +480,6 @@ void s1_init_global_and_set_cx1(read2sdbg_global_t &globals) {
         char file_name[10240];
         sprintf(file_name, "%s.mercy_cand.%d", globals.output_prefix, i);
         globals.mercy_files.push_back(OpenFileAndCheck(file_name, "wb"));
-    	pthread_spin_init(&globals.mercy_file_locks[i], NULL);
     }
     pthread_mutex_init(&globals.lv1_items_scanning_lock, NULL); // init lock
 
@@ -806,18 +806,14 @@ void* s1_lv2_output(void* _op) {
                     assert(offset < globals.num_k1_per_read);
                     // no in
                     int64_t packed_mercy_cand = (read_id << (globals.offset_num_bits + 1)) | (offset << 1);
-                    pthread_spin_lock(&globals.mercy_file_locks[read_id & (globals.num_mercy_files - 1)]);
                     fwrite(&packed_mercy_cand, sizeof(packed_mercy_cand), 1, globals.mercy_files[read_id & (globals.num_mercy_files - 1)]);
-                    pthread_spin_unlock(&globals.mercy_file_locks[read_id & (globals.num_mercy_files - 1)]);
                 }
 
                 if ((!(has_in & (1 << head)) && strand == 1) || (!(has_out & (1 << tail)) && strand == 0)) {
                     assert(offset < globals.num_k1_per_read);
                     // no out
                     int64_t packed_mercy_cand = (read_id << (globals.offset_num_bits + 1)) | (offset << 1) | 1;
-                    pthread_spin_lock(&globals.mercy_file_locks[read_id & (globals.num_mercy_files - 1)]);
                     fwrite(&packed_mercy_cand, sizeof(packed_mercy_cand), 1, globals.mercy_files[read_id & (globals.num_mercy_files - 1)]);
-                    pthread_spin_unlock(&globals.mercy_file_locks[read_id & (globals.num_mercy_files - 1)]);
                 }
             }
         }
@@ -869,7 +865,6 @@ void s1_post_proc(read2sdbg_global_t &globals) {
     free(globals.thread_edge_counting);
     for (int i = 0; i < globals.num_mercy_files; ++i) {
         fclose(globals.mercy_files[i]);
-        pthread_spin_destroy(&globals.mercy_file_locks[i]);
     }
 
  #ifndef USE_GPU

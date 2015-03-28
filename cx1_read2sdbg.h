@@ -50,6 +50,7 @@ static const int64_t kMaxLv1ScanTime = 64;
 static const int kSentinelValue = 4;
 static const int64_t kMaxDummyEdges = 4294967294LL;
 static const int kBWTCharNumBits = 3;
+static const int kTopCharShift = kBitsPerEdgeWord - kBitsPerEdgeChar; // bits >> to get the most significant char
 
 struct read2sdbg_global_t {
     CX1<read2sdbg_global_t, kNumBuckets> cx1;
@@ -63,6 +64,7 @@ struct read2sdbg_global_t {
     int64_t host_mem;
     int64_t gpu_mem;
     int mem_flag;
+    bool need_mercy;
     const char *input_file;
     const char *output_prefix;
 
@@ -70,6 +72,7 @@ struct read2sdbg_global_t {
     int num_mercy_files;
     int words_per_edge; // number of (32-bit) words needed to represent a (k+1)-mer
     int64_t words_per_substring; // substrings to be sorted by GPU
+    int words_per_dummy_node;
     int offset_num_bits; // the number of bits needed to store the offset of a base in the read/(k+1)-mer (i.e. log(read_length))
     int64_t capacity;
     int64_t max_bucket_size;
@@ -118,7 +121,7 @@ struct read2sdbg_global_t {
     int cur_suffix_first_char;
 
     // output-stage1
-    std::vector<pthread_spinlock_t> mercy_file_locks;
+    // std::vector<pthread_spinlock_t> mercy_file_locks;
     std::vector<FILE*> mercy_files;
     std::vector<std::vector<uint64_t> > lv2_output_items;
 
@@ -128,6 +131,7 @@ struct read2sdbg_global_t {
     FILE *output_f_file;
     FILE *output_multiplicity_file;
     FILE *output_multiplicity_file2;
+    pthread_barrier_t output_barrier;
 };
 
 namespace s1 {
@@ -148,7 +152,7 @@ void    s1_post_proc(read2sdbg_global_t &g);
 namespace s2 {
 // stage2 cx1 core functions
 int64_t s2_encode_lv1_diff_base(int64_t read_id, read2sdbg_global_t &g);
-void    s2_read_input_prepare(read2sdbg_global_t &g); // num_items_, num_cpu_threads_ and num_output_threads_ must be set here
+void    s2_read_mercy_prepare(read2sdbg_global_t &g); // num_items_, num_cpu_threads_ and num_output_threads_ must be set here
 void*   s2_lv0_calc_bucket_size(void*); // pthread working function
 void    s2_init_global_and_set_cx1(read2sdbg_global_t &g);
 void*   s2_lv1_fill_offset(void*); // pthread working function

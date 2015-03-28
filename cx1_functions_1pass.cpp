@@ -1335,9 +1335,14 @@ void PreprocessScanToFillBucketSizes(struct global_data_t &globals) {
 }
 
 void AddMercyEdge(global_data_t &globals) {
+    // -- debug --
+    FILE *debug_mercy = fopen("mercy.txt", "w");
+
     std::vector<uint64_t> mercy_cand;
     uint64_t offset_mask = (1 << globals.offset_num_bits) - 1; // 0000....00011..11
     uint64_t num_mercy = 0;
+    AtomicBitVector read_marker;
+    read_marker.reset(globals.num_reads);
 
     for (int fid = 0; fid < globals.num_mercy_files; ++fid) {
         char file_name[10240];
@@ -1350,6 +1355,7 @@ void AddMercyEdge(global_data_t &globals) {
         while ((num_read = fread(buf, sizeof(uint64_t), 4096, fp)) > 0) {
             mercy_cand.insert(mercy_cand.end(), buf, buf + num_read);
         }
+        fprintf(stderr, "Mercy file: %s: %lu\n", file_name, mercy_cand.size());
 
         omp_set_num_threads(globals.num_cpu_threads);
         __gnu_parallel::sort(mercy_cand.begin(), mercy_cand.end());
@@ -1371,7 +1377,7 @@ void AddMercyEdge(global_data_t &globals) {
             end_idx[tid] = this_end;
         }
 
- #pragma omp parallel for reduction(+:num_mercy)
+ // #pragma omp parallel for reduction(+:num_mercy)
         for (int tid = 0; tid < globals.num_cpu_threads; ++tid) {
             std::vector<bool> no_in(globals.max_read_length);
             std::vector<bool> no_out(globals.max_read_length);
@@ -1380,6 +1386,8 @@ void AddMercyEdge(global_data_t &globals) {
             // go read by read
             while (i != end_idx[tid]) {
                 uint64_t read_id = mercy_cand[i] >> (globals.offset_num_bits + 1);
+                assert(!read_marker.get(read_id));
+                read_marker.set(read_id);
                 int first_0_out = globals.max_read_length + 1;
                 int last_0_in = -1;
 
@@ -1401,6 +1409,11 @@ void AddMercyEdge(global_data_t &globals) {
                 int read_length = GetReadLengthByID(read_id, globals);
                 int last_no_out = -1;
 
+                std::string label;
+                for (int i = 0; i < read_length; ++i) {
+                    label.push_back("ACGT"[ExtractNthChar(PACKED_READS(read_id, globals), i)]);
+                }
+
                 for (int i = 0; i + globals.kmer_k < read_length; ++i) {
                     if (no_in[i] && last_no_out != -1) {
                         assert(globals.is_solid.get(read_id * globals.num_k1_per_read + i));
@@ -1408,6 +1421,7 @@ void AddMercyEdge(global_data_t &globals) {
                             globals.is_solid.set(read_id * globals.num_k1_per_read + j);
                         }
                         num_mercy += i - last_no_out - 1;
+                        fprintf(debug_mercy, "%s %d %d\n", label.c_str(), last_no_out + 1, i);
                     }
                     if (globals.is_solid.get(read_id * globals.num_k1_per_read + i)) {
                         last_no_out = -1;
@@ -1423,6 +1437,7 @@ void AddMercyEdge(global_data_t &globals) {
 
         fclose(fp);
     }
+    fclose(debug_mercy);
 
     log("[B::%s] Number of mercy edges (reads): %ld\n", __func__, num_mercy);
 }
