@@ -142,7 +142,6 @@ inline int64_t BinarySearchKmer(uint32_t *packed_edges, int64_t *lookup_table, i
  * @TODO: many hard-code in this function
  */
 void ReadReadsAndGetMercyEdges(edge2sdbg_global_t &globals) {
-    FILE *debug_mercy = fopen("mercy_old.txt", "w");
 	int64_t *edge_lookup;
     assert((edge_lookup = (int64_t *) MallocAndCheck(kLookUpSize * 2 * sizeof(int64_t), __FILE__, __LINE__)) != NULL);
     InitLookupTable(edge_lookup, globals.packed_edges, globals.num_edges, globals.words_per_edge);
@@ -209,7 +208,7 @@ void ReadReadsAndGetMercyEdges(edge2sdbg_global_t &globals) {
 
         num_reads += package.num_of_reads;
 
-// #pragma omp parallel for reduction(+:num_mercy_edges)
+#pragma omp parallel for reduction(+:num_mercy_edges)
         for (int read_id = 0; read_id < package.num_of_reads; ++read_id) {
             int read_length = package.length(read_id);
             if (read_length < kmer_k + 2) { continue; }
@@ -332,11 +331,6 @@ void ReadReadsAndGetMercyEdges(edge2sdbg_global_t &globals) {
                 rev_kmer[0] = (rev_kmer[0] >> 2) | ((3 - package.CharAt(read_id, first_index + kmer_k)) << 30);
             }
 
-            std::string label;
-            for (int i = 0; i < read_length; ++i) {
-                label.push_back("ACGT"[package.CharAt(read_id, i)]);
-            }
-
             // adding mercy edges
             int last_no_out = -1;
             std::vector<bool> is_mercy_edges(read_length - kmer_k, false);
@@ -352,7 +346,6 @@ void ReadReadsAndGetMercyEdges(edge2sdbg_global_t &globals) {
                                 is_mercy_edges[j] = true;
                             }
                             num_mercy_edges += i - last_no_out;
-                            fprintf(debug_mercy, "%s %d %d\n", label.c_str(), last_no_out, i);
                         }
                         last_no_out = -1;
                         break;
@@ -404,8 +397,6 @@ void ReadReadsAndGetMercyEdges(edge2sdbg_global_t &globals) {
             }
         }
     }
-
-    fclose(debug_mercy);
 
     if (cx1_t::kCX1Verbose >= 2) {
         log("[B::%s] Number of reads: %ld, Number of mercy edges: %ld\n", __func__, num_reads, num_mercy_edges);

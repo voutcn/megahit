@@ -130,7 +130,6 @@ class Options():
         self.temp_dir = self.out_dir + "tmp/"
         self.keep_tmp_files = 0
         self.builder = "sdbg_builder_cpu"
-        self.builder_1pass = "sdbg_builder_cpu_1pass"
         self.use_gpu = 0
         self.mem_flag = 1
         self.continue_mode = 0;
@@ -456,7 +455,7 @@ def build_first_graph():
 
         cmd = []
         if opt.k_min_1pass == 1:
-            cmd = [opt.bin_dir + opt.builder_1pass, "read2sdbg"] + count_opt
+            cmd = [opt.bin_dir + opt.builder, "read2sdbg"] + count_opt
             if opt.no_mercy == 0:
                 cmd.append("--need_mercy")
         else:
@@ -482,7 +481,7 @@ def build_first_graph():
             else:
                 ret_code = subprocess.call(cmd, stdout = log_file)
             if ret_code != 0:
-                print("Error occurs when running \"builder count\"", file=sys.stderr)
+                print("Error occurs when running \"builder count/read2sdbg\"", file=sys.stderr)
                 print("[Exit code %d] " % ret_code, file=sys.stderr)
                 exit(ret_code)
             log_file.close()
@@ -494,7 +493,7 @@ def build_first_graph():
 
     write_cp(cp)
     cp = cp + 1
-    if opt.k_min_1pass == 1:
+    if opt.k_min_1pass != 1:
          build_graph(opt.k_min, phase1_out_threads)
 
 def build_graph(kmer_k, num_edge_files):
@@ -511,6 +510,8 @@ def build_graph(kmer_k, num_edge_files):
                        "--max_read_len", str(opt.max_read_len),
                        "--num_cpu_threads", str(opt.num_cpu_threads),
                        "--num_edge_files", str(num_edge_files)]
+        if opt.no_mercy == 0 and kmer_k == opt.k_min:
+            build_cmd.append("--need_mercy")
 
         try:
             log_file = open(log_file_name(), "a")
