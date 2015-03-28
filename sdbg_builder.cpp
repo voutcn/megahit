@@ -300,20 +300,20 @@ void DisplayHelp(char *program_name) {
     fprintf(stderr, "    1. Counting & output solid edges: \n");
     fprintf(stderr, "       type \"%s count\" for help.\n", program_name);
     fprintf(stderr, "    2. Build Succinct dBG from solid edges: \n");
-    fprintf(stderr, "       type \"%s build\" for help.\n", program_name);
+    fprintf(stderr, "       type \"%s edge2sdbg\" for help.\n", program_name);
     fprintf(stderr, "    3. read2sdbg count & build Succinct dBG: \n");
-    fprintf(stderr, "       type \"%s 1pass\" for help.\n", program_name);
+    fprintf(stderr, "       type \"%s read2sdbg\" for help.\n", program_name);
 }
 
 int main(int argc, char** argv) {
-    if (argc < 2 || (std::string(argv[1]) != "count" && std::string(argv[1]) != "build" && std::string(argv[1]) != "read2sdbg")) {
+    if (argc < 2 || (std::string(argv[1]) != "count" && std::string(argv[1]) != "edge2sdbg" && std::string(argv[1]) != "read2sdbg")) {
         DisplayHelp(argv[0]);
         exit(1);
     }
 
     if (std::string(argv[1]) == "count") {
     	return main_kmer_count(argc - 1, argv + 1);
-    } else if (std::string(argv[1]) == "build") {
+    } else if (std::string(argv[1]) == "edge2sdbg") {
         return main_edge2sdbg(argc - 1, argv + 1);
     } else if (std::string(argv[1]) == "read2sdbg") {
         return main_read2sdbg(argc - 1, argv + 1);

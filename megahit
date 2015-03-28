@@ -34,7 +34,7 @@ import multiprocessing
 
 from datetime import datetime, date, time
 
-megahit_version_str = "MEGAHIT v0.2.1-dev-0325-Builder1pass-gpu-less-item"
+megahit_version_str = "MEGAHIT v0.2.1-dev-0329-kmin-1pass-mode"
 usage_message = '''
 Copyright (c) The University of Hong Kong
 
@@ -68,6 +68,8 @@ Optional Arguments:
     --use-gpu                                   use GPU, will overwrite --cpu-only
     --gpu-mem                      <float>      GPU memory in byte to be used. Default: auto detect to use up all free GPU memory. 
     -t/--num-cpu-threads           <int>        Number of CPU threads, at least 2. Default: auto detect to use all CPU threads.
+    --k-min-1pass                               Use 1pass mode to build SdBG of k_min, which is slower but requires less memory for
+                                                ultra low-depth data (soil)
 
   Output options:
     -o/--out-dir                   <string>     output directory, default: ./megahit_out
@@ -76,8 +78,8 @@ Optional Arguments:
     --keep-tmp-files                            keep all temporary files
 
   Basic assembly options:
-    --k-min                        <int>        minimum kmer size (<= 123), must be odd number, default: 21
-    --k-max                        <int>        maximum kmer size (<= 123), must be odd number, default: 99
+    --k-min                        <int>        minimum kmer size (<= 127), must be odd number, default: 21
+    --k-max                        <int>        maximum kmer size (<= 127), must be odd number, default: 99
     --k-step                       <int>        increment of kmer size of each iteration (<= 28), must be even number, default: 10
     --min-count                    <int>        minimum multiplicity for filtering (k+1)-mer when building the graph for k=k_min,
                                                 default: 2. 
@@ -134,6 +136,7 @@ class Options():
         self.continue_mode = 0;
         self.last_cp = -1;
         self.out_prefix = ""
+        self.k_min_1pass = 0
 
 opt = Options()
 cp = 0
@@ -172,6 +175,7 @@ def parse_opt(argv):
                                      "use-gpu",
                                      "num-cpu-threads=",
                                      "gpu-mem=",
+                                     "k-min-1pass",
                                      "k-min=",
                                      "k-max=",
                                      "k-step=",
@@ -213,6 +217,8 @@ def parse_opt(argv):
             opt.min_contig_len = int(value)
         elif option in ("-t", "--num-cpu-threads"):
             opt.num_cpu_threads = int(value)
+        elif option == "--k-min-1pass":
+            opt.k_min_1pass = 1
         elif option == "--k-min":
             opt.k_min = int(value)
         elif option == "--k-max":
@@ -292,8 +298,8 @@ def check_opt():
     if opt.k_min < 9:
         print("k_min should be at least 9.", file=sys.stderr)
         exit(1)
-    if opt.k_max > 123:
-        print("k_max cannot exceed 123.", file=sys.stderr)
+    if opt.k_max > 127:
+        print("k_max cannot exceed 127.", file=sys.stderr)
         exit(1)
     if opt.k_max < opt.k_min:
         print("k_min should be no larger than k_max.", file=sys.stderr)
@@ -431,40 +437,50 @@ def build_first_graph():
     global cp
     phase1_out_threads = max(1, int(opt.num_cpu_threads / 3))
     if (not opt.continue_mode) or (cp > opt.last_cp):
-        count_and_build_cmd = [opt.bin_dir + opt.builder_1pass,
-                       "-k", str(opt.k_min),
-                       "-m", str(opt.min_count),
-                       "--host_mem", str(opt.host_mem),
-                       "--mem_flag", str(opt.mem_flag),
-                       "--gpu_mem", str(opt.gpu_mem),
-                       "--max_read_len", str(opt.max_read_len),
-                       "--output_prefix", graph_prefix(opt.k_min),
-                       "--num_cpu_threads", str(opt.num_cpu_threads),
-                       "--num_output_threads", str(phase1_out_threads)]
-        if opt.read_file != "":
-            count_and_build_cmd.append("--input_file")
-            count_and_build_cmd.append(opt.read_file)
-        else:
-            count_and_build_cmd.append("--input_file")
-            count_and_build_cmd.append("-")
+        count_opt = ["-k", str(opt.k_min),
+                     "-m", str(opt.min_count),
+                     "--host_mem", str(opt.host_mem),
+                     "--mem_flag", str(opt.mem_flag),
+                     "--gpu_mem", str(opt.gpu_mem),
+                     "--max_read_len", str(opt.max_read_len),
+                     "--output_prefix", graph_prefix(opt.k_min),
+                     "--num_cpu_threads", str(opt.num_cpu_threads),
+                     "--num_output_threads", str(phase1_out_threads)]
 
-        if opt.no_mercy == 0:
-            count_and_build_cmd.append("--need_mercy")
+        if opt.read_file != "":
+            count_opt.append("--input_file")
+            count_opt.append(opt.read_file)
+        else:
+            count_opt.append("--input_file")
+            count_opt.append("-")
+
+        cmd = []
+        if opt.k_min_1pass == 1:
+            cmd = [opt.bin_dir + opt.builder_1pass, "read2sdbg"] + count_opt
+            if opt.no_mercy == 0:
+                cmd.append("--need_mercy")
+        else:
+            cmd = [opt.bin_dir + opt.builder, "count"] + count_opt
 
         try:
             log_file = open(log_file_name(), "a")
             start_time = datetime.now()
-            print("%s" % (" ").join(count_and_build_cmd), file=log_file)
-            print("[%s] Extracting solid (k+1)-mers for k = %d" % (start_time.strftime("%c"), opt.k_min), file=sys.stderr)
-            print("[%s] Extracting solid (k+1)-mers for k = %d" % (start_time.strftime("%c"), opt.k_min), file=log_file)
+            print("%s" % (" ").join(cmd), file=log_file)
+            if opt.k_min_1pass == 1:
+                print("[%s] Extracting solid (k+1)-mers and building sdbg for k = %d" % (start_time.strftime("%c"), opt.k_min), file=sys.stderr)
+                print("[%s] Extracting solid (k+1)-mers and building sdbg k = %d" % (start_time.strftime("%c"), opt.k_min), file=log_file)
+            else:
+                print("[%s] Extracting solid (k+1)-mers for k = %d" % (start_time.strftime("%c"), opt.k_min), file=sys.stderr)
+                print("[%s] Extracting solid (k+1)-mers for k = %d" % (start_time.strftime("%c"), opt.k_min), file=log_file)
             log_file.flush()
+
             if opt.read_file == "":
                 input_thread = subprocess.Popen(opt.input_cmd, shell = True, stdout = subprocess.PIPE)
-                cmd_thread = subprocess.Popen(count_and_build_cmd, stdin = input_thread.stdout, stdout = log_file)
+                cmd_thread = subprocess.Popen(cmd, stdin = input_thread.stdout, stdout = log_file)
                 cmd_thread.wait()
                 ret_code = cmd_thread.returncode
             else:
-                ret_code = subprocess.call(count_and_build_cmd, stdout = log_file)
+                ret_code = subprocess.call(cmd, stdout = log_file)
             if ret_code != 0:
                 print("Error occurs when running \"builder count\"", file=sys.stderr)
                 print("[Exit code %d] " % ret_code, file=sys.stderr)
@@ -478,13 +494,15 @@ def build_first_graph():
 
     write_cp(cp)
     cp = cp + 1
+    if opt.k_min_1pass == 1:
+         build_graph(opt.k_min, phase1_out_threads)
 
 def build_graph(kmer_k, num_edge_files):
     global cp
     if (not opt.continue_mode) or (cp > opt.last_cp):
         if os.path.getsize(graph_prefix(kmer_k) + ".edges.0") == 0:
             return False # not build
-        build_cmd = [opt.bin_dir + opt.builder, "build",
+        build_cmd = [opt.bin_dir + opt.builder, "edge2sdbg",
                        "--host_mem", str(opt.host_mem),
                        "--mem_flag", str(opt.mem_flag),
                        "--gpu_mem", str(opt.gpu_mem),
