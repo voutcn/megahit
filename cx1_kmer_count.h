@@ -16,7 +16,7 @@
  *  along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
- /* contact: Dinghua Li <dhli@cs.hku.hk> */
+/* contact: Dinghua Li <dhli@cs.hku.hk> */
 
 #ifndef CX1_KMER_COUNT_H__
 #define CX1_KMER_COUNT_H__
@@ -107,7 +107,7 @@ struct count_global_t {
     unsigned char *last_0_in; // first potential 0-out-degree k-mer and last potential 0-in-degree k-mer
 #else
     uint16_t *first_0_out;
-    uint16_t *last_0_in; 
+    uint16_t *last_0_in;
 #endif
     int32_t* lv1_items; // each item is an offset (read ID and position) in differential representation
 
@@ -127,7 +127,7 @@ struct count_global_t {
     void *gpu_value_buffer2;
 #endif
 
-    pthread_mutex_t lv1_items_scanning_lock;  
+    pthread_mutex_t lv1_items_scanning_lock;
 
     int64_t lv2_num_items_db;
 
@@ -137,7 +137,7 @@ struct count_global_t {
     // stat
     int64_t *edge_counting; // count the number of (k+1)mer with occurs i times
     int64_t *thread_edge_counting;
-    
+
     // output
     WordWriter *word_writer;
 };

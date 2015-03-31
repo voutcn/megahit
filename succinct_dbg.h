@@ -1,7 +1,7 @@
 /*
  *  succinct_dbg.h
  *  This file is a part of MEGAHIT
- *  
+ *
  *  Copyright (C) 2014 The University of Hong Kong
  *
  *  This program is free software: you can redistribute it and/or modify
@@ -60,7 +60,7 @@ class SuccinctDBG {
             kh_destroy(k64v16, large_multi_h_);
         }
     }
-    
+
     void LoadFromFile(const char *dbg_name);
     void init(unsigned long long *w, unsigned long long *last, long long *f, int64_t size, int kmer_k) {
         w_ = w;
@@ -131,7 +131,7 @@ class SuccinctDBG {
     }
 
     int NodeMultiplicity(int64_t x);
-    
+
     int64_t Forward(int64_t x) { // the last node x points to
         uint8_t a = GetW(x);
         if (a > 4) {

@@ -1,7 +1,7 @@
 /*
  *  io_utility.h
  *  This file is a part of MEGAHIT
- *  
+ *
  *  Copyright (C) 2014 The University of Hong Kong
  *
  *  This program is free software: you can redistribute it and/or modify
@@ -51,7 +51,7 @@ struct ContigPackage {
             }
 
             start_pos.push_back(seqs.size());
-            
+
             for (unsigned i = 0; i < seq->seq.l; ++i) {
                 seqs.push_back(dna_map[uint8_t(seq->seq.s[i])]);
             }
@@ -203,10 +203,10 @@ struct ReadPackage {
         }
     }
 
-    void ReadBinaryReads(gzFile read_file) { 
-        int num_bytes = gzread(read_file, packed_reads, 
-                                  sizeof(edge_word_t) * words_per_read * reads_per_batch);
-        assert(num_bytes % (words_per_read * sizeof(edge_word_t)) == 0); 
+    void ReadBinaryReads(gzFile read_file) {
+        int num_bytes = gzread(read_file, packed_reads,
+                               sizeof(edge_word_t) * words_per_read * reads_per_batch);
+        assert(num_bytes % (words_per_read * sizeof(edge_word_t)) == 0);
         num_of_reads = num_bytes / (words_per_read * sizeof(edge_word_t));
     }
 
@@ -284,7 +284,7 @@ struct EdgeReader {
             edges_files[i] = gzopen(file_name, "r");
             assert(edges_files[i] != NULL);
         }
-        
+
         words_per_true_edge = ((kmer_k + 1) * 2 + 31) / 32;
 
         buffer = (edge_word_t*) MallocAndCheck(sizeof(edge_word_t) * kBufferSize * words_per_edge * num_files, __FILE__, __LINE__);
@@ -331,7 +331,9 @@ struct EdgeReader {
     }
 
     bool NextEdge(edge_word_t *edge_p) {
-        if (edges_files.size() == 0) { return false; }
+        if (edges_files.size() == 0) {
+            return false;
+        }
         int max_idx = 0;
         for (int i = 1; i < (int)edges_files.size(); ++i) {
             if (compare_(i, max_idx)) {
@@ -350,7 +352,9 @@ struct EdgeReader {
     }
 
     bool NextEdgeUnsorted(edge_word_t *edge_p) {
-        if (edges_files.size() == 0) { return false; }
+        if (edges_files.size() == 0) {
+            return false;
+        }
 
         memcpy(edge_p, cur_p[0], sizeof(edge_word_t) * words_per_edge);
         cur_p[0] += words_per_edge;

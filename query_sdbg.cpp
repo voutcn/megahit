@@ -62,11 +62,12 @@ bool Query(SuccinctDBG &dbg, string &kmer, uint8_t *char_map, bool print_message
         int out_degree = dbg.Outgoings(x, edge, edge_mul);
         cout << "Outdegree: " << out_degree << endl;
         for (int i = 0; i < out_degree; ++i) {
-            cout << acgt[dbg.GetNodeLastChar(edge[i])] << ": " << edge_mul[i] << endl; 
+            cout << acgt[dbg.GetNodeLastChar(edge[i])] << ": " << edge_mul[i] << endl;
         }
         cout << "NodeMultiplicity: " << dbg.NodeMultiplicity(x) << endl;
 
-        { // construct its unitigs
+        {
+            // construct its unitigs
             string unitig;
             int64_t curr_node = x;
             int64_t prev, next;
@@ -95,7 +96,7 @@ bool Query(SuccinctDBG &dbg, string &kmer, uint8_t *char_map, bool print_message
         out_degree = dbg.Outgoings(y, edge, edge_mul);
         cout << "Outdegree: " << out_degree << endl;
         for (int i = 0; i < out_degree; ++i) {
-            cout << acgt[dbg.GetNodeLastChar(edge[i])] << ": " << edge_mul[i] << endl; 
+            cout << acgt[dbg.GetNodeLastChar(edge[i])] << ": " << edge_mul[i] << endl;
         }
         cout << "NodeMultiplicity: " << dbg.NodeMultiplicity(y) << endl;
     }
@@ -109,7 +110,8 @@ int main(int argc, char **argv) {
     int mode = atoi(argv[2]);
     SuccinctDBG dbg;
 
-    { // graph loading
+    {
+        // graph loading
         printf("Loading succinct de Bruijn graph: %s\n", dbg_name);
         dbg.LoadFromFile(dbg_name);
         printf("Number of Edges: %ld\n", dbg.size);;
@@ -135,7 +137,7 @@ int main(int argc, char **argv) {
     if (false) {
         omp_lock_t lock;
         omp_init_lock(&lock);
-#pragma omp parallel for
+        #pragma omp parallel for
         for (int64_t i = 0; i < dbg.size; ++i) {
             if (dbg.IsValidNode(i) && dbg.IsLast(i)) {
                 if (dbg.NodeMultiplicity(i) != dbg.NodeMultiplicity(dbg.ReverseComplement(i))) {
@@ -162,7 +164,7 @@ int main(int argc, char **argv) {
                 cin >> len;
                 assembly_algorithms::Trim(dbg, len, 200);
                 continue;
-            }    
+            }
             if ((int)kmer.length() != dbg.kmer_k) {
                 cout << "k value not match!" << endl;
                 continue;
@@ -172,7 +174,7 @@ int main(int argc, char **argv) {
             }
         }
     } else {
-        while (cin >> kmer) {      
+        while (cin >> kmer) {
             if ((int)kmer.length() != dbg.kmer_k) {
                 cout << "k value not match!" << endl;
                 continue;
@@ -182,10 +184,10 @@ int main(int argc, char **argv) {
         num_total = vs.size();
         omp_lock_t lock;
         omp_init_lock(&lock);
-#pragma omp parallel for
+        #pragma omp parallel for
         for (unsigned i = 0; i < vs.size(); ++i) {
             if (Query(dbg, vs[i], char_map, print_message)) {
-#pragma omp atomic
+                #pragma omp atomic
                 ++num_found;
             } else {
                 omp_set_lock(&lock);

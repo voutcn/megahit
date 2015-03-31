@@ -1,8 +1,8 @@
 /*
  *  mem_file_checker-inl.h
- *  
+ *
  *  This file is a part of MEGAHIT
- *  
+ *
  *  Copyright (C) 2014 The University of Hong Kong
  *
  *  This program is free software: you can redistribute it and/or modify
@@ -27,7 +27,7 @@
 
 inline FILE *OpenFileAndCheck(const char *filename, const char * mode) {
     FILE *fp;
-    if ((fp = fopen(filename, mode)) == NULL){
+    if ((fp = fopen(filename, mode)) == NULL) {
         fprintf(stderr, "[ERROR] Cannot open %s. Now exit to system...\n", filename);
         exit ( -1 );
     }
@@ -53,9 +53,9 @@ inline void* MallocAndCheck(size_t size_in_byte,
 }
 
 inline void* ReAllocAndCheck(void *ptr,
-                            size_t size_in_byte,
-                            const char *realloc_from_which_file = __FILE__,
-                            int realloc_from_which_line = __LINE__) {
+                             size_t size_in_byte,
+                             const char *realloc_from_which_file = __FILE__,
+                             int realloc_from_which_line = __LINE__) {
     void *new_ptr = realloc(ptr, size_in_byte);
     if (size_in_byte == 0 || ptr != NULL) {
         return new_ptr;

@@ -23,9 +23,8 @@
 #include <vector>
 #include "succinct_dbg.h"
 
-class BranchGroup
-{
-public:
+class BranchGroup {
+  public:
     typedef std::vector<int64_t> BranchRecord;
 
     BranchGroup(SuccinctDBG *sdbg, int64_t begin_node, int max_branches = 2, int max_length = 0):
@@ -38,7 +37,7 @@ public:
     }
 
     BranchGroup(const BranchGroup &rhs):
-        sdbg_(rhs.sdbg_), begin_node_(rhs.begin_node_), end_node_(rhs.end_node_), 
+        sdbg_(rhs.sdbg_), begin_node_(rhs.begin_node_), end_node_(rhs.end_node_),
         max_branches_(rhs.max_branches_), max_length_(rhs.max_length_), branches_(rhs.branches_),
         multiplicities_(rhs.multiplicities_), status_(kNotMergedOrCorrected) { }
 
@@ -60,11 +59,13 @@ public:
     bool RemoveErrorBranches(double cutoff_ratio = 0.5);
     bool Merge();
     size_t length() {
-        if (branches_.size() == 0) { return 0; }
+        if (branches_.size() == 0) {
+            return 0;
+        }
         return branches_[0].size();
     }
 
-private:
+  private:
     SuccinctDBG *sdbg_;
     int64_t begin_node_;
     int64_t end_node_;

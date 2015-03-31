@@ -85,7 +85,7 @@ struct KmerUint32 {
         }
         return 0;
     }
- 
+
     bool operator< (const KmerUint32 &rhs) const {
         return cmp(rhs) < 0;
     }
@@ -103,7 +103,7 @@ struct KmerUint32 {
     }
 
     void ShiftLeftAppend(int x) {
-        int num_words = DivCeiling(kmer_k, kCharsPerEdgeWord); 
+        int num_words = DivCeiling(kmer_k, kCharsPerEdgeWord);
         for (int i = 0; i < num_words - 1; ++i) {
             data_[i] = (data_[i] << kBitsPerEdgeChar) | (data_[i + 1] >> (kCharsPerEdgeWord - 1) * kBitsPerEdgeChar);
         }

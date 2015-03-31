@@ -30,7 +30,7 @@ RankAndSelect4Bits::RankAndSelect4Bits() {
         for (int j = 0; j < kCharPerWord; ++j) {
             popcount_char_xorer_[i] |= (unsigned long long)i << (kBitsPerChar * j);
         }
-        
+
         popcount_char_xorer_[i] = ~popcount_char_xorer_[i];
     }
     popcount_mask_ = ~popcount_char_xorer_[1];

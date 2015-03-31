@@ -66,7 +66,7 @@ int64_t Trim(SuccinctDBG &dbg, int len, int min_final_contig_len) {
     omp_init_lock(&path_lock);
     marked.reset(dbg.size);
 
-#pragma omp parallel for reduction(+:number_tips)  
+    #pragma omp parallel for reduction(+:number_tips)
     for (int64_t node_idx = 0; node_idx < dbg.size; ++node_idx) {
         if (dbg.IsValidNode(node_idx) && !marked.get(node_idx) && dbg.IsLast(node_idx) && dbg.OutdegreeZero(node_idx)) {
             vector<int64_t> path = {node_idx};
@@ -96,7 +96,7 @@ int64_t Trim(SuccinctDBG &dbg, int len, int min_final_contig_len) {
         }
     }
 
-#pragma omp parallel for reduction(+:number_tips)
+    #pragma omp parallel for reduction(+:number_tips)
     for (int64_t node_idx = 0; node_idx < dbg.size; ++node_idx) {
         if (dbg.IsValidNode(node_idx) && dbg.IsLast(node_idx) && !marked.get(node_idx) && dbg.IndegreeZero(node_idx)) {
             vector<int64_t> path = {node_idx};
@@ -125,7 +125,7 @@ int64_t Trim(SuccinctDBG &dbg, int len, int min_final_contig_len) {
         }
     }
 
-#pragma omp parallel for
+    #pragma omp parallel for
     for (int64_t node_idx = 0; node_idx < dbg.size; ++node_idx) {
         if (marked.get(node_idx)) {
             dbg.SetInvalid(node_idx);
@@ -159,11 +159,13 @@ int64_t PopBubbles(SuccinctDBG &dbg, int max_bubble_len, double low_depth_ratio)
     omp_lock_t bubble_lock;
     omp_init_lock(&bubble_lock);
     const int kMaxBranchesPerGroup = 4;
-    if (max_bubble_len <= 0) { max_bubble_len = dbg.kmer_k * 2 + 2; }
+    if (max_bubble_len <= 0) {
+        max_bubble_len = dbg.kmer_k * 2 + 2;
+    }
     vector<std::pair<int, int64_t> > bubble_candidates;
     int64_t num_bubbles = 0;
 
-#pragma omp parallel for
+    #pragma omp parallel for
     for (int64_t node_idx = 0; node_idx < dbg.size; ++node_idx) {
         if (dbg.IsValidNode(node_idx) && dbg.IsLast(node_idx) && dbg.Outdegree(node_idx) > 1) {
             BranchGroup bubble(&dbg, node_idx, kMaxBranchesPerGroup, max_bubble_len);
@@ -194,7 +196,7 @@ void AssembleFromUnitigGraph(SuccinctDBG &dbg, FILE *contigs_file, FILE *multi_f
     unitig_graph.InitFromSdBG();
     timer.stop();
     printf("unitig graph size: %u, time for building: %lf\n", unitig_graph.size(), timer.elapsed());
-    
+
     timer.reset();
     timer.start();
     histogram.clear();
@@ -216,7 +218,7 @@ void AssembleFinalFromUnitigGraph(SuccinctDBG &dbg, FILE *final_contig_file, int
     unitig_graph.InitFromSdBG();
     timer.stop();
     printf("unitig graph size: %u, time for building: %lf\n", unitig_graph.size(), timer.elapsed());
-    
+
     timer.reset();
     timer.start();
     histogram.clear();
@@ -226,8 +228,8 @@ void AssembleFinalFromUnitigGraph(SuccinctDBG &dbg, FILE *final_contig_file, int
     printf("Time to output: %lf\n", timer.elapsed());
 }
 
-void RemoveLowLocalAndOutputChanged(SuccinctDBG &dbg, FILE *contigs_file, FILE *multi_file, FILE *final_contig_file, 
-                                    FILE *addi_contig_file, FILE *addi_multi_file, 
+void RemoveLowLocalAndOutputChanged(SuccinctDBG &dbg, FILE *contigs_file, FILE *multi_file, FILE *final_contig_file,
+                                    FILE *addi_contig_file, FILE *addi_multi_file,
                                     double min_depth, int min_len, double local_ratio, int min_final_contig_len) {
     xtimer_t timer;
     timer.reset();
@@ -252,7 +254,7 @@ void RemoveLowLocalAndOutputChanged(SuccinctDBG &dbg, FILE *contigs_file, FILE *
     const double kMaxDepth = 65535;
     const int kLocalWidth = 1000;
     int64_t num_removed = 0;
-    
+
     timer.reset();
     timer.start();
     while (min_depth < kMaxDepth) {
@@ -275,7 +277,7 @@ void RemoveLowLocalAndOutputChanged(SuccinctDBG &dbg, FILE *contigs_file, FILE *
     PrintStat();
 }
 
-void RemoveLowLocalAndOutputFinal(SuccinctDBG &dbg, FILE *final_contig_file, 
+void RemoveLowLocalAndOutputFinal(SuccinctDBG &dbg, FILE *final_contig_file,
                                   double min_depth, int min_len, double local_ratio, int min_final_contig_len) {
     UnitigGraph unitig_graph(&dbg);
     unitig_graph.InitFromSdBG();
@@ -285,8 +287,8 @@ void RemoveLowLocalAndOutputFinal(SuccinctDBG &dbg, FILE *final_contig_file,
     const int kLocalWidth = 1000;
     int64_t num_removed = 0;
 
-    while (min_depth < kMaxDepth && 
-           unitig_graph.RemoveLocalLowDepth(min_depth, min_len, kLocalWidth, local_ratio, num_removed)) {
+    while (min_depth < kMaxDepth &&
+            unitig_graph.RemoveLocalLowDepth(min_depth, min_len, kLocalWidth, local_ratio, num_removed)) {
         min_depth *= 1.1;
     }
     printf("Number of unitigs removed: %lld\n", (long long)num_removed);
@@ -305,7 +307,9 @@ void PrintStat(long long genome_size) {
         total_length += it->first * it->second;
         total_contigs += it->second;
     }
-    if (genome_size == 0) { genome_size = total_length; }
+    if (genome_size == 0) {
+        genome_size = total_length;
+    }
 
     if (total_contigs > 0) {
         average_length = total_length / total_contigs;

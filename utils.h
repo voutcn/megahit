@@ -27,7 +27,7 @@
 #include <sys/resource.h>
 #include <fcntl.h>
 #include <unistd.h>
- 
+
 static const int kSignBitMask = 0x80000000; // the MSB of 32-bit
 
 template<typename T1, typename T2>
@@ -56,7 +56,7 @@ inline unsigned int mirror(unsigned int v) {
     // v = ((v >> 1) & 0x55555555) | ((v & 0x55555555) << 1);
     // swap consecutive pairs
     v = ((v >> 2) & 0x33333333) | ((v & 0x33333333) << 2);
-    // swap nibbles ... 
+    // swap nibbles ...
     v = ((v >> 4) & 0x0F0F0F0F) | ((v & 0x0F0F0F0F) << 4);
     // swap bytes
     v = ((v >> 8) & 0x00FF00FF) | ((v & 0x00FF00FF) << 8);
@@ -75,14 +75,22 @@ struct xtimer_t {
     struct timeval tv1, tv2;
     long long time_elapsed;
 
-    xtimer_t() { reset(); }
-    void reset() { time_elapsed = 0; }
-    void start() { gettimeofday(&tv1, NULL); }
+    xtimer_t() {
+        reset();
+    }
+    void reset() {
+        time_elapsed = 0;
+    }
+    void start() {
+        gettimeofday(&tv1, NULL);
+    }
     void stop() {
         gettimeofday(&tv2, NULL);
         time_elapsed += (long long)(tv2.tv_sec - tv1.tv_sec) * 1000000 + tv2.tv_usec - tv1.tv_usec;
     }
-    double elapsed() { return time_elapsed / 1000000.0; }
+    double elapsed() {
+        return time_elapsed / 1000000.0;
+    }
 };
 
 struct AutoMaxRssRecorder {

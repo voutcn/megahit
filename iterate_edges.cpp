@@ -16,7 +16,7 @@
  *  along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
- /* contact: Dinghua Li <dhli@cs.hku.hk> */
+/* contact: Dinghua Li <dhli@cs.hku.hk> */
 
 #include "iterate_edges.h"
 #include <stdio.h>
@@ -238,14 +238,11 @@ static void* ReadReadsThread(void* data) {
 }
 
 template<uint32_t kNumKmerWord_n, typename kmer_word_n_t, uint32_t kNumKmerWord_p, typename kmer_word_p_t>
-static bool ReadReadsAndProcessKernel(IterateGlobalData &globals, 
-                                      HashTable<KmerPlus<kNumKmerWord_p, kmer_word_p_t, uint64_t>, Kmer<kNumKmerWord_p, kmer_word_p_t> > &crusial_kmers)
-{
+static bool ReadReadsAndProcessKernel(IterateGlobalData &globals,
+                                      HashTable<KmerPlus<kNumKmerWord_p, kmer_word_p_t, uint64_t>, Kmer<kNumKmerWord_p, kmer_word_p_t> > &crusial_kmers) {
     if (Kmer<kNumKmerWord_n, kmer_word_n_t>::max_size() < (unsigned)globals.kmer_k + globals.step + 1) {
         return false;
-    }
-    else 
-    {
+    } else {
         // fprintf(stderr, "Second: %u %u %u\n", kNumKmerWord_n, sizeof(Kmer<kNumKmerWord_n, kmer_word_n_t>), sizeof(KmerPlus<kNumKmerWord_n, kmer_word_n_t, uint16_t>));
         HashTable<KmerPlus<kNumKmerWord_n, kmer_word_n_t, uint16_t>, Kmer<kNumKmerWord_n, kmer_word_n_t> > iterative_edges;
         ReadPackage packages[2];
@@ -295,7 +292,7 @@ static bool ReadReadsAndProcessKernel(IterateGlobalData &globals,
                 pthread_join(input_thread, NULL);
             }
 
-     #pragma omp parallel for
+            #pragma omp parallel for
             for (unsigned i = 0; i < (unsigned)cur_package.num_of_reads; ++i) {
                 int length = cur_package.length(i);
                 assert(length <= cur_package.max_read_len);
@@ -310,7 +307,7 @@ static bool ReadReadsAndProcessKernel(IterateGlobalData &globals,
                 for (int j = 0; j < globals.kmer_k; ++j) {
                     kmer.ShiftAppend(cur_package.CharAt(i, j), globals.kmer_k);
                 }
-                
+
                 Kmer<kNumKmerWord_p, kmer_word_p_t> rev_kmer(kmer);
                 rev_kmer.ReverseComplement(globals.kmer_k);
 
@@ -390,11 +387,15 @@ static bool ReadReadsAndProcessKernel(IterateGlobalData &globals,
 
                         if (kmer_p.kmer < rev_kmer_p.kmer) {
                             KmerPlus<kNumKmerWord_n, kmer_word_n_t, uint16_t> &kp = iterative_edges.find_or_insert_with_lock(kmer_p);
-                            if (kp.ann < kMaxMulti_t) { ++kp.ann; }
+                            if (kp.ann < kMaxMulti_t) {
+                                ++kp.ann;
+                            }
                             iterative_edges.unlock(kmer_p);
                         } else {
                             KmerPlus<kNumKmerWord_n, kmer_word_n_t, uint16_t> &kp = iterative_edges.find_or_insert_with_lock(rev_kmer_p);
-                            if (kp.ann < kMaxMulti_t) { ++kp.ann; }
+                            if (kp.ann < kMaxMulti_t) {
+                                ++kp.ann;
+                            }
                             iterative_edges.unlock(rev_kmer_p);
                         }
                         last_j = j;
@@ -403,7 +404,7 @@ static bool ReadReadsAndProcessKernel(IterateGlobalData &globals,
                 }
                 if (aligned) {
                     is_aligned.set(i);
-     #pragma omp atomic
+                    #pragma omp atomic
                     ++num_aligned_reads;
                 }
             }
@@ -452,9 +453,8 @@ static bool ReadReadsAndProcessKernel(IterateGlobalData &globals,
 }
 
 template<uint32_t kNumKmerWord_p, typename kmer_word_p_t>
-static void ReadReadsAndProcess(IterateGlobalData &globals, 
-                                HashTable<KmerPlus<kNumKmerWord_p, kmer_word_p_t, uint64_t>, Kmer<kNumKmerWord_p, kmer_word_p_t> > &crusial_kmers)
-{
+static void ReadReadsAndProcess(IterateGlobalData &globals,
+                                HashTable<KmerPlus<kNumKmerWord_p, kmer_word_p_t, uint64_t>, Kmer<kNumKmerWord_p, kmer_word_p_t> > &crusial_kmers) {
     if (ReadReadsAndProcessKernel<1, uint64_t>(globals, crusial_kmers)) return;
     if (ReadReadsAndProcessKernel<3, uint32_t>(globals, crusial_kmers)) return;
     if (ReadReadsAndProcessKernel<2, uint64_t>(globals, crusial_kmers)) return;
@@ -466,10 +466,9 @@ static void ReadReadsAndProcess(IterateGlobalData &globals,
 }
 
 template<uint32_t kNumKmerWord_p, typename kmer_word_p_t>
-static void ReadContigsAndBuildHash(IterateGlobalData &globals, 
-                                    HashTable<KmerPlus<kNumKmerWord_p, kmer_word_p_t, uint64_t>, Kmer<kNumKmerWord_p, kmer_word_p_t> > &crusial_kmers, 
-                                    bool is_addi_contigs)
-{
+static void ReadContigsAndBuildHash(IterateGlobalData &globals,
+                                    HashTable<KmerPlus<kNumKmerWord_p, kmer_word_p_t, uint64_t>, Kmer<kNumKmerWord_p, kmer_word_p_t> > &crusial_kmers,
+                                    bool is_addi_contigs) {
     ContigPackage packages[2];
     kseq_t *seq;
     if (is_addi_contigs) {
@@ -517,7 +516,7 @@ static void ReadContigsAndBuildHash(IterateGlobalData &globals,
         }
 
         if (!is_addi_contigs) {
- #pragma omp parallel for
+            #pragma omp parallel for
             for (unsigned i = 0; i < cur_package.size(); ++i) {
                 if (cur_package.seq_lengths[i] < globals.kmer_k) {
                     continue;
@@ -564,7 +563,7 @@ static void ReadContigsAndBuildHash(IterateGlobalData &globals,
         int next_k = globals.kmer_k + globals.step;
         int last_shift = (globals.next_k1) % 16;
         last_shift = (last_shift == 0 ? 0 : 16 - last_shift) * 2;
-        
+
         for (unsigned i = 0; i < cur_package.size(); ++i) {
             if (cur_package.seq_lengths[i] < globals.next_k1) {
                 continue;
@@ -625,10 +624,8 @@ static void ReadContigsAndBuildHash(IterateGlobalData &globals,
 }
 
 template <uint32_t kNumKmerWord_p, typename kmer_word_p_t>
-bool IterateToNextK(IterateGlobalData &globals)
-{
-    if (Kmer<kNumKmerWord_p, kmer_word_p_t>::max_size() >= (unsigned)globals.kmer_k)
-    {
+bool IterateToNextK(IterateGlobalData &globals) {
+    if (Kmer<kNumKmerWord_p, kmer_word_p_t>::max_size() >= (unsigned)globals.kmer_k) {
         // fprintf(stderr, "First: %u %u %u\n", kNumKmerWord_p, sizeof(Kmer<kNumKmerWord_p, kmer_word_p_t>), sizeof(KmerPlus<kNumKmerWord_p, kmer_word_p_t, uint64_t>));
         HashTable<KmerPlus<kNumKmerWord_p, kmer_word_p_t, uint64_t>, Kmer<kNumKmerWord_p, kmer_word_p_t> > crusial_kmers;
         ReadContigsAndBuildHash(globals, crusial_kmers, false);

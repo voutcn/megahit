@@ -99,7 +99,9 @@ bool BranchGroup::Search() {
                     break;
                 }
             }
-            if (converged) { break; }
+            if (converged) {
+                break;
+            }
         }
     }
     return converged && begin_node_ != end_node_;

@@ -16,7 +16,7 @@
  *  along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
- /* contact: Dinghua Li <dhli@cs.hku.hk> */
+/* contact: Dinghua Li <dhli@cs.hku.hk> */
 
 
 #ifndef CX1_EDGE2SDBG_H__
@@ -26,7 +26,7 @@
 #include <stdint.h>
 #include <vector>
 #include <string>
-#include "MAC_pthread_barrier.h"
+#include "mac_pthread_barrier.h"
 #include "definitions.h"
 #include "cx1.h"
 #include "sdbg_builder_writers.h"
@@ -125,7 +125,7 @@ struct edge2sdbg_global_t {
     void *gpu_value_buffer2;
 #endif
 
-    pthread_mutex_t lv1_items_scanning_lock;  
+    pthread_mutex_t lv1_items_scanning_lock;
     int64_t lv2_num_items_db;
     // memory usage
     int64_t mem_packed_edges;

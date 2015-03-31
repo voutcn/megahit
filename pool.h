@@ -17,20 +17,23 @@
 #include <vector>
 
 template <typename T>
-struct Chunk
-{
-    Chunk(T *address = NULL, uint32_t size = 0)
-    { this->address = address; this->size = size; }
+struct Chunk {
+    Chunk(T *address = NULL, uint32_t size = 0) {
+        this->address = address;
+        this->size = size;
+    }
 
     T *address;
     uint32_t size;
 };
 
 template <typename T>
-struct Buffer
-{
-    Buffer(T *address = NULL, uint32_t size = 0, uint32_t index = 0)
-    { this->address = address; this->size = size; this->index = index; }
+struct Buffer {
+    Buffer(T *address = NULL, uint32_t size = 0, uint32_t index = 0) {
+        this->address = address;
+        this->size = size;
+        this->index = index;
+    }
 
     T *address;
     uint32_t size;
@@ -38,9 +41,8 @@ struct Buffer
 };
 
 template <typename T, typename Allocator = std::allocator<T> >
-class Pool
-{
-public:
+class Pool {
+  public:
     typedef T value_type;
     typedef value_type *pointer;
     typedef const value_type *const_pointer;
@@ -57,33 +59,26 @@ public:
     static const uint32_t kMinChunkSize = (1 << 8);
 
 
-    Pool() 
-    { 
-        omp_init_lock(&lock_alloc_); 
-        heads_.resize(omp_get_max_threads(), (pointer)0); 
+    Pool() {
+        omp_init_lock(&lock_alloc_);
+        heads_.resize(omp_get_max_threads(), (pointer)0);
         buffers_.resize(omp_get_max_threads(), buffer_type());
-        chunk_size_ = kMinChunkSize; 
+        chunk_size_ = kMinChunkSize;
     }
-    ~Pool() 
-    { 
-        clear(); 
-        omp_destroy_lock(&lock_alloc_); 
+    ~Pool() {
+        clear();
+        omp_destroy_lock(&lock_alloc_);
     }
 
-    pointer allocate()
-    {
+    pointer allocate() {
         int thread_id = omp_get_thread_num();
-        if (heads_[thread_id] != NULL)
-        {
+        if (heads_[thread_id] != NULL) {
             pointer p = heads_[thread_id];
             heads_[thread_id] = *(pointer *)heads_[thread_id];
             return p;
-        }
-        else
-        {
+        } else {
             buffer_type &buffer = buffers_[thread_id];
-            if (buffer.index == buffer.size)
-            {
+            if (buffer.index == buffer.size) {
                 omp_set_lock(&lock_alloc_);
                 uint32_t size = chunk_size_;
                 if (chunk_size_ < kMaxChunkSize)
@@ -106,36 +101,30 @@ public:
         }
     }
 
-    void deallocate(pointer p)
-    {
+    void deallocate(pointer p) {
         int thread_id = omp_get_thread_num();
         *(pointer *)p = heads_[thread_id];
         heads_[thread_id] = p;
     }
 
-    pointer construct()
-    {
+    pointer construct() {
         pointer p = allocate();
         new ((void *)p)value_type();
         return p;
     }
 
-    pointer construct(const_reference x)
-    {
+    pointer construct(const_reference x) {
         pointer p = allocate();
         new ((void *)p)value_type(x);
         return p;
     }
 
-    void destroy(pointer p)
-    {
+    void destroy(pointer p) {
         ((value_type*)p)->~value_type();
     }
 
-    void swap(Pool<value_type> &pool)
-    {
-        if (this != &pool)
-        {
+    void swap(Pool<value_type> &pool) {
+        if (this != &pool) {
             heads_.swap(pool.heads_);
             buffers_.swap(pool.buffers_);
             chunks_.swap(pool.chunks_);
@@ -144,8 +133,7 @@ public:
         }
     }
 
-    void clear()
-    {
+    void clear() {
         omp_set_lock(&lock_alloc_);
         for (unsigned i = 0; i < chunks_.size(); ++i)
             alloc_.deallocate(chunks_[i].address, chunks_[i].size);
@@ -156,7 +144,7 @@ public:
         omp_unset_lock(&lock_alloc_);
     }
 
-private:
+  private:
     Pool(const pool_type &);
     const pool_type &operator =(const pool_type &);
 
@@ -168,9 +156,10 @@ private:
     allocator_type alloc_;
 };
 
-namespace std
-{
-    template <typename T> inline void swap(Pool<T> &x, Pool<T> &y) { x.swap(y); }
+namespace std {
+template <typename T> inline void swap(Pool<T> &x, Pool<T> &y) {
+    x.swap(y);
+}
 }
 
 #endif

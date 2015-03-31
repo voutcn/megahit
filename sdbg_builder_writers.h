@@ -189,7 +189,7 @@ struct WordWriter {
     ~WordWriter() {
         if (file != NULL)
             fprintf(stderr, "%p\n", file);
-            destroy();
+        destroy();
     }
 
     void init(const char *file_name) {

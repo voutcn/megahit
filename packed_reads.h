@@ -16,7 +16,7 @@
  *  along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
- /* contact: Dinghua Li <dhli@cs.hku.hk> */
+/* contact: Dinghua Li <dhli@cs.hku.hk> */
 
 
 /**
@@ -75,11 +75,10 @@ inline void PackReadFromAscii(char* read, edge_word_t* p, int read_length, int w
 }
 
 inline int64_t ReadFastxAndPack(edge_word_t *&packed_reads, const char *input_file, int words_per_read,
-								int min_read_len, int max_read_length, int64_t max_num_reads) 
-{	
-	for (int i = 0; i < 10; ++i) {
-		dna_map[int("ACGTNacgtn"[i])] = "0123101231"[i] - '0';
-	}
+                                int min_read_len, int max_read_length, int64_t max_num_reads) {
+    for (int i = 0; i < 10; ++i) {
+        dna_map[int("ACGTNacgtn"[i])] = "0123101231"[i] - '0';
+    }
 
     int64_t capacity = std::min(max_num_reads, int64_t(1048576)); // initial capacity 1M
     gzFile fp = strcmp(input_file, "-") ? gzopen(input_file, "r") : gzdopen(fileno(stdin), "r");
@@ -106,7 +105,7 @@ inline int64_t ReadFastxAndPack(edge_word_t *&packed_reads, const char *input_fi
                         err("[%s WRANING] No enough memory to hold all the reads. Only the first %llu reads are kept.\n", __func__, num_reads);
                         stop_reading = true;
                         break;
-                    } 
+                    }
                     capacity = std::min(capacity * 2, max_num_reads);
                     edge_word_t *new_ptr = (edge_word_t*) realloc(packed_reads, capacity * words_per_read * sizeof(edge_word_t));
                     if (new_ptr != NULL) {
@@ -144,16 +143,16 @@ inline int64_t ReadFastxAndPack(edge_word_t *&packed_reads, const char *input_fi
  * @param packed_reads the ptr of read0
  * @param i read id
  * @param words_per_read
- * 
+ *
  * @return pointer pointing to the starting pos a read
  */
 inline edge_word_t* GetReadPtr(edge_word_t *packed_reads, int64_t i, int words_per_read) {
-	return packed_reads + i * words_per_read;
+    return packed_reads + i * words_per_read;
 }
 
 /**
  * @brief obtain the read length of a read
- * 
+ *
  * @param read_p
  * @param words_per_read
  * @param mask 0000...11111 = (1 << bits_of_len) - 1
@@ -175,14 +174,14 @@ inline int ExtractNthChar(edge_word_t *read_ptr, int n) {
 // 'spacing' is the strip length for read-word "coalescing"
 /**
  * @brief copy src_read[offset...(offset+num_chars_to_copy-1)] to dest
- * 
+ *
  * @param dest
  * @param src_read
  * @param offset
  * @param num_chars_to_copy
  */
 inline void CopySubstring(edge_word_t* dest, edge_word_t* src_read, int offset, int num_chars_to_copy,
-	                      int64_t spacing, int words_per_read, int words_per_substring) {
+                          int64_t spacing, int words_per_read, int words_per_substring) {
     // copy words of the suffix to the suffix pool
     int which_word = offset / kCharsPerEdgeWord;
     int word_offset = offset % kCharsPerEdgeWord;
@@ -212,7 +211,7 @@ inline void CopySubstring(edge_word_t* dest, edge_word_t* src_read, int offset, 
             which_word++;
         }
         *dest_p = d; // write last word
-	here:
+here:
         ;
     }
 
@@ -238,14 +237,14 @@ inline void CopySubstring(edge_word_t* dest, edge_word_t* src_read, int offset, 
 
 /**
  * @brief copy the reverse complement of src_read[offset...(offset+num_chars_to_copy-1)] to dest
- * 
+ *
  * @param dest [description]
  * @param src_read [description]
  * @param offset [description]
  * @param num_chars_to_copy [description]
  */
 inline void CopySubstringRC(edge_word_t* dest, edge_word_t* src_read, int offset, int num_chars_to_copy,
-					        int64_t spacing, int words_per_read, int words_per_substring) {
+                            int64_t spacing, int words_per_read, int words_per_substring) {
     int which_word = (offset + num_chars_to_copy - 1) / kCharsPerEdgeWord;
     int word_offset = (offset + num_chars_to_copy - 1) % kCharsPerEdgeWord;
     edge_word_t *dest_p = dest;
@@ -261,7 +260,7 @@ inline void CopySubstringRC(edge_word_t* dest, edge_word_t* src_read, int offset
         edge_word_t w;
         for (i = 0; i < words_per_substring - 1 && i < which_word; ++i) {
             w = (src_read[which_word - i] >> bit_offset) |
-                                      (src_read[which_word - i - 1] << (kBitsPerEdgeWord - bit_offset));
+                (src_read[which_word - i - 1] << (kBitsPerEdgeWord - bit_offset));
             *dest_p = ~ mirror(w);
             dest_p += spacing;
         }

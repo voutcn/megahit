@@ -16,7 +16,7 @@
  *  along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
- /* contact: Dinghua Li <dhli@cs.hku.hk> */
+/* contact: Dinghua Li <dhli@cs.hku.hk> */
 
 #include <omp.h>
 #include <assert.h>
@@ -119,10 +119,11 @@ int main(int argc, char **argv) {
 
     ParseOption(argc, argv);
 
-    SuccinctDBG dbg;  
+    SuccinctDBG dbg;
     xtimer_t timer;
 
-    { // graph loading
+    {
+        // graph loading
         timer.reset();
         timer.start();
         printf("Loading succinct de Bruijn graph: %s\n", options.sdbg_name.c_str());
@@ -133,7 +134,8 @@ int main(int argc, char **argv) {
         printf("K value: %d\n", dbg.kmer_k);
     }
 
-    { // set parameters
+    {
+        // set parameters
         if (options.num_cpu_threads == 0) {
             options.num_cpu_threads = omp_get_max_threads();
         }
@@ -182,24 +184,24 @@ int main(int argc, char **argv) {
 
             // FILE *out_final_contig_file = NULL; // uncomment to avoid output final contigs
             assembly_algorithms::RemoveLowLocalAndOutputChanged(
-                dbg, out_contig_file, 
-                out_multi_file, 
+                dbg, out_contig_file,
+                out_multi_file,
                 out_final_contig_file,
                 out_addi_contig_file,
-                out_addi_multi_file, 
-                2, 
-                dbg.kmer_k * 2, 
+                out_addi_multi_file,
+                2,
+                dbg.kmer_k * 2,
                 options.low_local_ratio,
                 options.min_final_contig_len);
-            
+
             fclose (out_addi_contig_file);
             fclose(out_addi_multi_file);
         } else {
             assembly_algorithms::RemoveLowLocalAndOutputFinal(
-                dbg, 
-                out_final_contig_file, 
-                2, 
-                dbg.kmer_k * 2, 
+                dbg,
+                out_final_contig_file,
+                2,
+                dbg.kmer_k * 2,
                 options.low_local_ratio,
                 options.min_final_contig_len);
         }
@@ -212,15 +214,15 @@ int main(int argc, char **argv) {
         if (!options.is_final_round) {
             // FILE *out_final_contig_file = NULL; // uncomment to avoid output final contigs
             assembly_algorithms::AssembleFromUnitigGraph(
-                dbg, 
-                out_contig_file, 
+                dbg,
+                out_contig_file,
                 out_multi_file,
                 out_final_contig_file,
                 options.min_final_contig_len);
         } else {
             assembly_algorithms::AssembleFinalFromUnitigGraph(
-                dbg, 
-                out_final_contig_file, 
+                dbg,
+                out_final_contig_file,
                 options.min_final_contig_len);
         }
 

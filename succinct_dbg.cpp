@@ -1,7 +1,7 @@
 /*
  *  succinct_dbg.cpp
  *  This file is a part of MEGAHIT
- *  
+ *
  *  Copyright (C) 2014 The University of Hong Kong
  *
  *  This program is free software: you can redistribute it and/or modify
@@ -42,8 +42,9 @@ int SuccinctDBG::NodeMultiplicity(int64_t x) {
     for (int64_t y = first_income + 1; count_ones < 5 && y < this->size; ++y) {
         count_ones += IsLastOrDollar(y);
         uint8_t cur_char = GetW(y);
-        if (cur_char == c) { break; }
-        else if (cur_char == c + 4 && !IsDollarNode(y)) {
+        if (cur_char == c) {
+            break;
+        } else if (cur_char == c + 4 && !IsDollarNode(y)) {
             incoming_multi += EdgeMultiplicity(y);
         }
     }
@@ -80,8 +81,9 @@ int SuccinctDBG::Indegree(int64_t x) {
     for (int64_t y = first_income + 1; count_ones < 5 && y < this->size; ++y) {
         count_ones += IsLastOrDollar(y);
         uint8_t cur_char = GetW(y);
-        if (cur_char == c) { break; }
-        else if (cur_char == c + 4 && IsValidNode(y)) {
+        if (cur_char == c) {
+            break;
+        } else if (cur_char == c + 4 && IsValidNode(y)) {
             ++indegree;
         }
     }
@@ -120,13 +122,16 @@ int SuccinctDBG::Incomings(int64_t x, int64_t *incomings) {
     int8_t c = GetW(first_income);
     int count_ones = IsLastOrDollar(first_income);
     int64_t indegree = IsValidNode(first_income);
-    if (indegree > 0) { incomings[0] = GetLastIndex(first_income); }
+    if (indegree > 0) {
+        incomings[0] = GetLastIndex(first_income);
+    }
 
     for (int64_t y = first_income + 1; count_ones < 5 && y < this->size; ++y) {
         count_ones += IsLastOrDollar(y);
         uint8_t cur_char = GetW(y);
-        if (cur_char == c) { break; }
-        else if (cur_char == c + 4 && IsValidNode(y)) {
+        if (cur_char == c) {
+            break;
+        } else if (cur_char == c + 4 && IsValidNode(y)) {
             incomings[indegree] = GetLastIndex(y);
             ++indegree;
         }
@@ -139,13 +144,16 @@ int SuccinctDBG::Incomings(int64_t x, int64_t *incomings, int *edge_countings) {
     int8_t c = GetW(first_income);
     int count_ones = IsLastOrDollar(first_income);
     int64_t indegree = IsValidNode(first_income);
-    if (indegree > 0) { incomings[0] = GetLastIndex(first_income); }
+    if (indegree > 0) {
+        incomings[0] = GetLastIndex(first_income);
+    }
 
     for (int64_t y = first_income + 1; count_ones < 5 && y < this->size; ++y) {
         count_ones += IsLastOrDollar(y);
         uint8_t cur_char = GetW(y);
-        if (cur_char == c) { break; }
-        else if (cur_char == c + 4 && IsValidNode(y)) {
+        if (cur_char == c) {
+            break;
+        } else if (cur_char == c + 4 && IsValidNode(y)) {
             incomings[indegree] = GetLastIndex(y);
             edge_countings[indegree] = EdgeMultiplicity(y);
             ++indegree;
@@ -169,13 +177,16 @@ bool SuccinctDBG::IndegreeZero(int64_t x) {
     int64_t first_income = Backward(x);
     int8_t c = GetW(first_income);
     int count_ones = IsLastOrDollar(first_income);
-    if (IsValidNode(first_income) != 0) { return false; }
+    if (IsValidNode(first_income) != 0) {
+        return false;
+    }
 
     for (int64_t y = first_income + 1; count_ones < 5 && y < this->size; ++y) {
         count_ones += IsLastOrDollar(y);
         uint8_t cur_char = GetW(y);
-        if (cur_char == c) { break; }
-        else if (cur_char == c + 4 && IsValidNode(y)) {
+        if (cur_char == c) {
+            break;
+        } else if (cur_char == c + 4 && IsValidNode(y)) {
             return false;
         }
     }
@@ -210,8 +221,9 @@ int64_t SuccinctDBG::UniqueIncoming(int64_t x) {
     for (++y; count_ones < 5 && y < this->size; ++y) {
         count_ones += IsLastOrDollar(y);
         uint8_t cur_char = GetW(y);
-        if (cur_char == c) { break; }
-        else if (cur_char == c + 4 && IsValidNode(y)) {
+        if (cur_char == c) {
+            break;
+        } else if (cur_char == c + 4 && IsValidNode(y)) {
             if (incoming != -1) {
                 return -1;
             } else {
@@ -250,17 +262,28 @@ int64_t SuccinctDBG::IndexBinarySearch(uint8_t *seq) {
                 for (int j = 0; j < i; ++j) {
                     uint8_t c = (dollar_node_seq[j / kCharsPerUint32] >> (kCharsPerUint32 - 1 - j % kCharsPerUint32) * kBitsPerChar) & 3;
                     c++;
-                    if (c < seq[i - j]) { cmp = -1; break; }
-                    else if (c > seq[i - j]) { cmp = 1; break; }
+                    if (c < seq[i - j]) {
+                        cmp = -1;
+                        break;
+                    } else if (c > seq[i - j]) {
+                        cmp = 1;
+                        break;
+                    }
                 }
 
                 if (cmp == 0) {
-                    if(IsDollarNode(mid)) { cmp = -1; }
-                    else {
+                    if(IsDollarNode(mid)) {
+                        cmp = -1;
+                    } else {
                         uint8_t c = (dollar_node_seq[i / kCharsPerUint32] >> (kCharsPerUint32 - 1 - i % kCharsPerUint32) * kBitsPerChar) & 3;
                         c++;
-                        if (c < seq[0]) { cmp = -1; break; }
-                        else if (c > seq[0]) { cmp = 1; break; }
+                        if (c < seq[0]) {
+                            cmp = -1;
+                            break;
+                        } else if (c > seq[0]) {
+                            cmp = 1;
+                            break;
+                        }
                     }
                 }
                 break;
@@ -268,8 +291,13 @@ int64_t SuccinctDBG::IndexBinarySearch(uint8_t *seq) {
 
             y = Backward(y);
             uint8_t c = GetW(y);
-            if (c < seq[i]) { cmp = -1; break; }
-            else if (c > seq[i]) { cmp = 1; break; }
+            if (c < seq[i]) {
+                cmp = -1;
+                break;
+            } else if (c > seq[i]) {
+                cmp = 1;
+                break;
+            }
         }
 
         if (cmp == 0) {
@@ -296,7 +324,9 @@ int SuccinctDBG::Label(int64_t x, uint8_t *seq) {
         x = Backward(x);
         seq[i] = GetW(x);
         assert(seq[i] > 0);
-        if (seq[i] > 4) { seq[i] -= 4; }
+        if (seq[i] > 4) {
+            seq[i] -= 4;
+        }
     }
     return kmer_k;
 }
@@ -390,7 +420,7 @@ void SuccinctDBG::LoadFromFile(const char *dbg_name) {
 
     fclose(w_file);
     fclose(last_file);
-    fclose(f_file); 
+    fclose(f_file);
     fclose(is_dollar_file);
     fclose(dollar_node_seq_file);
     if (edge_multiplicity_file != NULL) {

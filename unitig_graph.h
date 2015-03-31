@@ -28,10 +28,10 @@
 
 class SuccinctDBG;
 struct UnitigGraphVertex {
-    UnitigGraphVertex(int64_t start_node, int64_t end_node, 
-        int64_t rev_start_node, int64_t rev_end_node, int64_t depth, uint32_t length): 
-            start_node(start_node), end_node(end_node), rev_start_node(rev_start_node), 
-            rev_end_node(rev_end_node), depth(depth), length(length) {
+    UnitigGraphVertex(int64_t start_node, int64_t end_node,
+                      int64_t rev_start_node, int64_t rev_end_node, int64_t depth, uint32_t length):
+        start_node(start_node), end_node(end_node), rev_start_node(rev_start_node),
+        rev_end_node(rev_end_node), depth(depth), length(length) {
         is_deleted = false;
         is_changed = false;
         is_dead = false;
@@ -51,14 +51,16 @@ struct UnitigGraphVertex {
 } __attribute__((packed));
 
 class UnitigGraph {
-public:
-    typedef uint32_t vertexID_t; 
+  public:
+    typedef uint32_t vertexID_t;
 
     UnitigGraph(SuccinctDBG *sdbg): sdbg_(sdbg) {}
     ~UnitigGraph() {}
 
     void InitFromSdBG();
-    uint32_t size() { return vertices_.size(); }
+    uint32_t size() {
+        return vertices_.size();
+    }
     bool RemoveLocalLowDepth(int min_depth, int min_len, int local_width, double local_ratio, int64_t &num_removed);
 
     // output
@@ -67,12 +69,12 @@ public:
     void OutputInitUnitigs(FILE *contig_file, FILE *multi_file, FILE *final_contig_file, std::map<int64_t, int> &histo, int min_final_contig_len);
     void OutputFinalUnitigs(FILE *final_contig_file, std::map<int64_t, int> &histo, int min_final_contig_len);
 
-private:
+  private:
     // functions
     double LocalDepth_(UnitigGraphVertex &path, int local_width);
     void Refresh_();
 
-private:
+  private:
     // data
     static const size_t kMaxNumVertices;// = std::numeric_limits<vertexID_t>::max();
     SuccinctDBG *sdbg_;

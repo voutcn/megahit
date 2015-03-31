@@ -16,7 +16,7 @@
  *  along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
- /* contact: Dinghua Li <dhli@cs.hku.hk> */
+/* contact: Dinghua Li <dhli@cs.hku.hk> */
 
 #include <stdio.h>
 #include <omp.h>
@@ -32,12 +32,12 @@
 #include "options_description.h"
 #include "utils.h"
 
-AutoMaxRssRecorder recorder; 
+AutoMaxRssRecorder recorder;
 
 int main_kmer_count(int argc, char **argv) {
-	// parse option
-	OptionsDescription desc;
-	count_opt_t opt;
+    // parse option
+    OptionsDescription desc;
+    count_opt_t opt;
 
     desc.AddOption("kmer_k", "k", opt.kmer_k, "kmer size");
     desc.AddOption("min_kmer_frequency", "m", opt.kmer_freq_threshold, "min frequency to output an edge");
@@ -69,7 +69,7 @@ int main_kmer_count(int argc, char **argv) {
             size_t free_gpu_mem, total_gpu_mem;
             get_cuda_memory(free_gpu_mem, total_gpu_mem);
             opt.gpu_mem = free_gpu_mem;
-#else 
+#else
             opt.gpu_mem = 0;
 #endif
         }
@@ -106,18 +106,18 @@ int main_kmer_count(int argc, char **argv) {
     // set & run cx1
     globals.cx1.g_ = &globals;
     globals.cx1.encode_lv1_diff_base_func_ = cx1_kmer_count::encode_lv1_diff_base;
-	globals.cx1.prepare_func_ = cx1_kmer_count::read_input_prepare;
-	globals.cx1.lv0_calc_bucket_size_func_ = cx1_kmer_count::lv0_calc_bucket_size;
-	globals.cx1.init_global_and_set_cx1_func_ = cx1_kmer_count::init_global_and_set_cx1;
-	globals.cx1.lv1_fill_offset_func_ = cx1_kmer_count::lv1_fill_offset;
-	globals.cx1.lv2_extract_substr_func_ = cx1_kmer_count::lv2_extract_substr;
-	globals.cx1.lv2_sort_func_ = cx1_kmer_count::lv2_sort;
-	globals.cx1.lv2_pre_output_partition_func_ = cx1_kmer_count::lv2_pre_output_partition;
-	globals.cx1.lv2_output_func_ = cx1_kmer_count::lv2_output;
-	globals.cx1.lv2_post_output_func_ = cx1_kmer_count::lv2_post_output;
-	globals.cx1.post_proc_func_ = cx1_kmer_count::post_proc;
+    globals.cx1.prepare_func_ = cx1_kmer_count::read_input_prepare;
+    globals.cx1.lv0_calc_bucket_size_func_ = cx1_kmer_count::lv0_calc_bucket_size;
+    globals.cx1.init_global_and_set_cx1_func_ = cx1_kmer_count::init_global_and_set_cx1;
+    globals.cx1.lv1_fill_offset_func_ = cx1_kmer_count::lv1_fill_offset;
+    globals.cx1.lv2_extract_substr_func_ = cx1_kmer_count::lv2_extract_substr;
+    globals.cx1.lv2_sort_func_ = cx1_kmer_count::lv2_sort;
+    globals.cx1.lv2_pre_output_partition_func_ = cx1_kmer_count::lv2_pre_output_partition;
+    globals.cx1.lv2_output_func_ = cx1_kmer_count::lv2_output;
+    globals.cx1.lv2_post_output_func_ = cx1_kmer_count::lv2_post_output;
+    globals.cx1.post_proc_func_ = cx1_kmer_count::post_proc;
 
-	globals.cx1.run();
+    globals.cx1.run();
 
     return 0;
 }
@@ -251,7 +251,7 @@ int main_read2sdbg(int argc, char **argv) {
             size_t free_gpu_mem, total_gpu_mem;
             get_cuda_memory(free_gpu_mem, total_gpu_mem);
             opt.gpu_mem = free_gpu_mem;
-#else 
+#else
             opt.gpu_mem = 0;
 #endif
         }
@@ -332,7 +332,7 @@ int main(int argc, char** argv) {
     }
 
     if (std::string(argv[1]) == "count") {
-    	return main_kmer_count(argc - 1, argv + 1);
+        return main_kmer_count(argc - 1, argv + 1);
     } else if (std::string(argv[1]) == "edge2sdbg") {
         return main_edge2sdbg(argc - 1, argv + 1);
     } else if (std::string(argv[1]) == "read2sdbg") {

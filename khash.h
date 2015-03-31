@@ -384,11 +384,10 @@ static const double __ac_HASH_UPPER = 0.77;
   @param  s     Pointer to a null terminated string
   @return       The hash value
  */
-static kh_inline khint_t __ac_X31_hash_string(const char *s)
-{
-	khint_t h = (khint_t)*s;
-	if (h) for (++s ; *s; ++s) h = (h << 5) - h + (khint_t)*s;
-	return h;
+static kh_inline khint_t __ac_X31_hash_string(const char *s) {
+    khint_t h = (khint_t)*s;
+    if (h) for (++s ; *s; ++s) h = (h << 5) - h + (khint_t)*s;
+    return h;
 }
 /*! @function
   @abstract     Another interface to const char* hash function
@@ -401,8 +400,7 @@ static kh_inline khint_t __ac_X31_hash_string(const char *s)
  */
 #define kh_str_hash_equal(a, b) (strcmp(a, b) == 0)
 
-static kh_inline khint_t __ac_Wang_hash(khint_t key)
-{
+static kh_inline khint_t __ac_Wang_hash(khint_t key) {
     key += ~(key << 15);
     key ^=  (key >> 10);
     key +=  (key << 3);

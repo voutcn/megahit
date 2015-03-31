@@ -19,10 +19,10 @@
  * @tparam T
  */
 template <typename T>
-struct Identity
-{
-    const T &operator ()(const T &value) const
-    { return value; }
+struct Identity {
+    const T &operator ()(const T &value) const {
+        return value;
+    }
 };
 
 /**
@@ -31,11 +31,11 @@ struct Identity
  * @tparam Pair
  */
 template <typename Pair>
-struct Select1st
-{
+struct Select1st {
     typedef typename Pair::first_type value_type;
-    const value_type &operator ()(const Pair &pair) const
-    { return pair.first; }
+    const value_type &operator ()(const Pair &pair) const {
+        return pair.first;
+    }
 };
 
 /**
@@ -45,10 +45,10 @@ struct Select1st
  * @tparam Value
  */
 template <typename Key, typename Value>
-struct GetKey
-{
-    const Key &operator ()(const Value &value) const
-    { return value.key(); }
+struct GetKey {
+    const Key &operator ()(const Value &value) const {
+        return value.key();
+    }
 };
 
 #endif
