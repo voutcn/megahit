@@ -1,5 +1,5 @@
 /*
- *  io-utility.h
+ *  io_utility.h
  *  This file is a part of MEGAHIT
  *  
  *  Copyright (C) 2014 The University of Hong Kong

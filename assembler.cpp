@@ -16,6 +16,8 @@
  *  along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+ /* contact: Dinghua Li <dhli@cs.hku.hk> */
+
 #include <omp.h>
 #include <assert.h>
 #include <string>

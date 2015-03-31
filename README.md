@@ -76,8 +76,9 @@ Citing MEGAHIT
 
 License
 -----------------------
-MEGAHIT is released under GPLv3. Several third-party libs are used, including:
+MEGAHIT is released under GPLv3. Several third-party codes are used, including:
 
 * [CUB](https://github.com/NVlabs/cub) under "New BSD" license
 * [klib](https://github.com/attractivechaos/klib) under MIT license
 * [IDBA package](http://i.cs.hku.hk/~alse/hkubrg/projects/idba/) under GPLv2
+* [CityHash](https://code.google.com/p/cityhash/) under MIT license
