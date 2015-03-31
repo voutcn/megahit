@@ -4,8 +4,9 @@
 #include <string>
 #include <vector>
 
-#include "io-utility.h"
+#include "io_utility.h"
 #include "utils.h"
+#include "packed_reads.h"
 
 #ifndef USE_GPU
 #include "lv2_cpu_sort.h"
@@ -26,15 +27,6 @@ typedef CX1<edge2sdbg_global_t, kNumBuckets>::outputpartition_data_t outputparti
  */
 inline int64_t EncodeEdgeOffset(int64_t edge_id, int offset, int strand, int k_num_bits) {
     return (edge_id << (k_num_bits + 1)) | (strand << k_num_bits) | offset;
-}
-
-/**
- * @brief extract the nth char in a packed read/edge
- */
-inline int ExtractNthChar(edge_word_t *read_ptr, int n) {
-    int which_word = n / kCharsPerEdgeWord;
-    int index_in_word = n % kCharsPerEdgeWord;
-    return (read_ptr[which_word] >> (kBitsPerEdgeChar * (kCharsPerEdgeWord - 1 - index_in_word))) & kEdgeCharMask;
 }
 
 /**
@@ -495,140 +487,6 @@ int64_t ReadMercyEdges(edge2sdbg_global_t &globals) {
     return num_edges;
 }
 
-void CopySubstring(edge_word_t* dest, edge_word_t* src_read, int offset, int num_chars_to_copy, int counting, edge2sdbg_global_t &globals) {
-    int64_t spacing = globals.cx1.lv2_num_items_;
-    int words_per_edge = globals.words_per_edge;
-    int64_t words_per_substring = globals.words_per_substring;
-    int kmer_k = globals.kmer_k;
-
-    // copy words of the suffix to the suffix pool
-    int which_word = offset / kCharsPerEdgeWord;
-    int word_offset = offset % kCharsPerEdgeWord;
-    edge_word_t *src_p = src_read + which_word;
-    edge_word_t *dest_p = dest;
-    int num_words_copied = 0;
-    if (!word_offset) { // special case (word aligned), easy
-        while (which_word < words_per_edge && num_words_copied < words_per_substring) {
-            *dest_p = *src_p; // write out
-            dest_p += spacing;
-            src_p++;
-            which_word++;
-            num_words_copied++;
-        }
-    } else { // not word-aligned
-        int bit_shift = offset * kBitsPerEdgeChar;
-        edge_word_t s = *src_p;
-        edge_word_t d = s << bit_shift;
-        which_word++;
-        while (which_word < words_per_edge) {
-            s = *(++src_p);
-            d |= s >> (kBitsPerEdgeWord - bit_shift);
-            *dest_p = d; // write out
-            if (++num_words_copied >= words_per_substring) goto here;
-            dest_p += spacing;
-            d = s << bit_shift;
-            which_word++;
-        }
-        *dest_p = d; // write last word
-here:
-        ;
-    }
-
-    {
-        // now mask the extra bits (TODO can be optimized)
-        int num_bits_to_copy = num_chars_to_copy * 2;
-        int which_word = num_bits_to_copy / kBitsPerEdgeWord;
-        edge_word_t *p = dest + which_word * spacing;
-        int bits_to_clear = kBitsPerEdgeWord - num_bits_to_copy % kBitsPerEdgeWord;
-        if (bits_to_clear < kBitsPerEdgeWord) {
-            *p >>= bits_to_clear;
-            *p <<= bits_to_clear;
-        } else if (which_word < globals.words_per_substring) {
-            *p = 0;
-        }
-        ++which_word;
-        while (which_word < words_per_substring) { // fill zero
-            *(p+=spacing) = 0;
-            which_word++;
-        }
-    }
-
-    int prev_char;
-    if (offset == 0) {
-        assert(num_chars_to_copy == globals.kmer_k);
-        prev_char = kSentinelValue;
-    } else {
-        prev_char = ExtractNthChar(src_read, offset - 1);
-    }
-
-    edge_word_t *last_word = dest + (words_per_substring - 1) * spacing;
-    *last_word |= int(num_chars_to_copy == kmer_k) << (kBWTCharNumBits + kBitsPerMulti_t);
-    *last_word |= prev_char << kBitsPerMulti_t;
-    *last_word |= std::min(counting, kMaxMulti_t);
-}
-
-void CopySubstringRC(edge_word_t* dest, edge_word_t* src_read, int offset, int num_chars_to_copy, int counting, edge2sdbg_global_t &globals) {
-    int64_t spacing = globals.cx1.lv2_num_items_;
-    int which_word = (globals.kmer_k - offset) / kCharsPerEdgeWord;
-    int word_offset = (globals.kmer_k - offset) % kCharsPerEdgeWord;
-    edge_word_t *dest_p = dest;
-
-    if (word_offset == kCharsPerEdgeWord - 1) { // edge_word_t aligned
-        for (int i = 0; i < globals.words_per_substring && i <= which_word; ++i) {
-            *dest_p = ~ mirror(src_read[which_word - i]);
-            dest_p += spacing;
-        }
-    } else {
-        int bit_offset = (kCharsPerEdgeWord - 1 - word_offset) * kBitsPerEdgeChar;
-        int i;
-        edge_word_t w;
-        for (i = 0; i < globals.words_per_substring - 1 && i < which_word; ++i) {
-            w = (src_read[which_word - i] >> bit_offset) |
-                                      (src_read[which_word - i - 1] << (kBitsPerEdgeWord - bit_offset));
-            *dest_p = ~ mirror(w);
-            dest_p += spacing;
-        }
-        // last word
-        w = src_read[which_word - i] >> bit_offset;
-        if (which_word >= i + 1) {
-            w |= (src_read[which_word - i - 1] << (kBitsPerEdgeWord - bit_offset));
-        }
-        *dest_p = ~ mirror(w);
-    }
-
-    {
-        // now mask the extra bits (TODO can be optimized)
-        int num_bits_to_copy = num_chars_to_copy * 2;
-        int which_word = num_bits_to_copy / kBitsPerEdgeWord;
-        edge_word_t *p = dest + which_word * spacing;
-        int bits_to_clear = kBitsPerEdgeWord - num_bits_to_copy % kBitsPerEdgeWord;
-        if (bits_to_clear < kBitsPerEdgeWord) {
-            *p >>= bits_to_clear;
-            *p <<= bits_to_clear;
-        } else if (which_word < globals.words_per_substring) {
-            *p = 0;
-        }
-        ++which_word;
-        while (which_word < globals.words_per_substring) { // fill zero
-            *(p+=spacing) = 0;
-            which_word++;
-        }
-    }
-
-    int prev_char;
-    if (offset == 0) {
-        assert(num_chars_to_copy == globals.kmer_k);
-        prev_char = kSentinelValue;
-    } else {
-        prev_char = 3 - ExtractNthChar(src_read, globals.kmer_k - (offset - 1));
-    }
-
-    edge_word_t *last_word = dest + (globals.words_per_substring - 1) * spacing;
-    *last_word |= int(num_chars_to_copy == globals.kmer_k) << (kBWTCharNumBits + kBitsPerMulti_t);
-    *last_word |= prev_char << kBitsPerMulti_t;
-    *last_word |= std::min(counting, kMaxMulti_t);
-}
-
 inline bool IsDiffKMinusOneMer(edge_word_t *item1, edge_word_t *item2, int64_t spacing, int kmer_k) {
     // mask extra bits
     int chars_in_last_word = (kmer_k - 1) % kCharsPerEdgeWord;
@@ -959,7 +817,7 @@ void* lv1_fill_offset(void* _data) {
     edge_word_t *edge_p = globals.packed_edges + rp.rp_start_id * globals.words_per_edge;
 
     // ===== this is a macro to save some copy&paste ================
-#define CHECK_AND_SAVE_OFFSET_PHASE(offset, strand)                                   \
+#define CHECK_AND_SAVE_OFFSET(offset, strand)                                   \
     do {                                                                \
       if (((key - globals.cx1.lv1_start_bucket_) ^ (key - globals.cx1.lv1_end_bucket_)) & kSignBitMask) { \
         int64_t full_offset = EncodeEdgeOffset(edge_id, offset, strand, globals.k_num_bits); \
@@ -995,7 +853,7 @@ void* lv1_fill_offset(void* _data) {
             }
             key = (key * kBucketBase + (w >> kTopCharShift) + 1) % kNumBuckets;
             w <<= kBitsPerEdgeChar;
-            CHECK_AND_SAVE_OFFSET_PHASE(i - kBucketPrefixLength + 1, 0);
+            CHECK_AND_SAVE_OFFSET(i - kBucketPrefixLength + 1, 0);
         }
 
         // reverse complement very sucking
@@ -1006,10 +864,10 @@ void* lv1_fill_offset(void* _data) {
         for (int i = kBucketPrefixLength - 1; i <= kBucketPrefixLength + 1; ++i) {
             key = (key * kBucketBase) + (3 - ExtractNthChar(edge_p, globals.kmer_k - i)) + 1;
             key %= kNumBuckets;
-            CHECK_AND_SAVE_OFFSET_PHASE(i - kBucketPrefixLength + 1, 1);
+            CHECK_AND_SAVE_OFFSET(i - kBucketPrefixLength + 1, 1);
         }
     }
-#undef CHECK_AND_SAVE_OFFSET_PHASE
+#undef CHECK_AND_SAVE_OFFSET
 
     free(prev_full_offsets);
     return NULL;
@@ -1053,9 +911,39 @@ void* lv2_extract_substr(void* _data) {
                     }
                 }
                 if (strand == 0) {
-                    CopySubstring(substrings_p, edge_p, offset, num_chars_to_copy, counting, globals);
+                    // copy counting and W char
+                    int prev_char;
+                    if (offset == 0) {
+                        assert(num_chars_to_copy == globals.kmer_k);
+                        prev_char = kSentinelValue;
+                    } else {
+                        prev_char = ExtractNthChar(edge_p, offset - 1);
+                    }
+                    
+                    CopySubstring(substrings_p, edge_p, offset, num_chars_to_copy,
+                                  globals.cx1.lv2_num_items_, globals.words_per_edge, globals.words_per_substring);
+
+                    edge_word_t *last_word = substrings_p + int64_t(globals.words_per_substring - 1) * globals.cx1.lv2_num_items_;
+                    *last_word |= int(num_chars_to_copy == globals.kmer_k) << (kBWTCharNumBits + kBitsPerMulti_t);
+                    *last_word |= prev_char << kBitsPerMulti_t;
+                    *last_word |= std::min(counting, kMaxMulti_t);
                 } else {
-                    CopySubstringRC(substrings_p, edge_p, offset, num_chars_to_copy, counting, globals);
+                    int prev_char;
+                    if (offset == 0) {
+                        assert(num_chars_to_copy == globals.kmer_k);
+                        prev_char = kSentinelValue;
+                    } else {
+                        prev_char = 3 - ExtractNthChar(edge_p, globals.kmer_k - (offset - 1));
+                    }
+
+                    offset = offset == 0 ? 1 : 0; // convert to normal
+                    CopySubstringRC(substrings_p, edge_p, offset, num_chars_to_copy, 
+                                    globals.cx1.lv2_num_items_, globals.words_per_edge, globals.words_per_substring);
+
+                    edge_word_t *last_word = substrings_p + int64_t(globals.words_per_substring - 1) * globals.cx1.lv2_num_items_;
+                    *last_word |= int(num_chars_to_copy == globals.kmer_k) << (kBWTCharNumBits + kBitsPerMulti_t);
+                    *last_word |= prev_char << kBitsPerMulti_t;
+                    *last_word |= std::min(counting, kMaxMulti_t);
                 }
                 substrings_p++;
             }

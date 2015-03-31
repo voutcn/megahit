@@ -29,7 +29,10 @@
 #include "kseq.h"
 #include "mem_file_checker-inl.h"
 
+#ifndef KSEQ_INITED
+#define KSEQ_INITED
 KSEQ_INIT(gzFile, gzread)
+#endif
 
 struct ContigPackage {
     const static unsigned kMaxNumChars = (1 << 28); // tunable

@@ -9,6 +9,7 @@
 #include "kmer_uint32.h"
 #include "sdbg_builder_writers.h"
 #include "mem_file_checker-inl.h"
+#include "packed_reads.h"
 
 #ifndef USE_GPU
 #include "lv2_cpu_sort.h"
@@ -29,142 +30,6 @@ typedef CX1<read2sdbg_global_t, kNumBuckets>::outputpartition_data_t outputparti
 inline int64_t EncodeOffset(int64_t read_id, int offset, int strand, int length_num_bits, int edge_type) {
     // edge_type: 0 left $; 1 solid; 2 right $
     return (read_id << (length_num_bits + 3)) | (offset << 3) | (edge_type << 1) | strand;
-}
-
-inline edge_word_t* GetReadPtr(int64_t i, read2sdbg_global_t &globals) {
-	return globals.packed_reads + i * globals.words_per_read;
-}
-
-inline int GetReadLength(edge_word_t* read_p, int words_per_read, int mask) {
-    return *(read_p + words_per_read - 1) & mask;
-}
-
-inline int GetReadLengthByID(int64_t id, read2sdbg_global_t &globals) {
-    return *(globals.packed_reads + (id + 1) * globals.words_per_read - 1) & globals.read_length_mask;
-}
-
-/**
- * @brief extract the nth char in a packed read/edge
- */
-inline int ExtractNthChar(edge_word_t *read_ptr, int n) {
-    int which_word = n / kCharsPerEdgeWord;
-    int index_in_word = n % kCharsPerEdgeWord;
-    return (read_ptr[which_word] >> (kBitsPerEdgeChar * (kCharsPerEdgeWord - 1 - index_in_word))) & kEdgeCharMask;
-}
-
-void CopySubstring(edge_word_t* dest, edge_word_t* src_read, int offset, int num_chars_to_copy, read2sdbg_global_t &globals, uint8_t prev_char = 0) {
-    int64_t spacing = globals.cx1.lv2_num_items_;
-    int words_per_read = globals.words_per_read;
-    int words_per_substring = globals.words_per_substring;
-
-    // copy words of the suffix to the suffix pool
-    int which_word = offset / kCharsPerEdgeWord;
-    int word_offset = offset % kCharsPerEdgeWord;
-    edge_word_t *src_p = src_read + which_word;
-    edge_word_t *dest_p = dest;
-    int num_words_copied = 0;
-    if (!word_offset) { // special case (word aligned), easy
-        while (which_word < words_per_read && num_words_copied < words_per_substring) {
-            *dest_p = *src_p; // write out
-            dest_p += spacing;
-            src_p++;
-            which_word++;
-            num_words_copied++;
-        }
-    } else { // not word-aligned
-        int bit_shift = offset * kBitsPerEdgeChar;
-        edge_word_t s = *src_p;
-        edge_word_t d = s << bit_shift;
-        which_word++;
-        while (which_word < words_per_read) {
-            s = *(++src_p);
-            d |= s >> (kBitsPerEdgeWord - bit_shift);
-            *dest_p = d; // write out
-            if (++num_words_copied >= words_per_substring) goto here;
-            dest_p += spacing;
-            d = s << bit_shift;
-            which_word++;
-        }
-        *dest_p = d; // write last word
- here:
-        ;
-    }
-
-    {
-        // now mask the extra bits (TODO can be optimized)
-        int num_bits_to_copy = num_chars_to_copy * 2;
-        int which_word = num_bits_to_copy / kBitsPerEdgeWord;
-        edge_word_t *p = dest + which_word * spacing;
-        int bits_to_clear = kBitsPerEdgeWord - num_bits_to_copy % kBitsPerEdgeWord;
-        if (bits_to_clear < kBitsPerEdgeWord) {
-            *p >>= bits_to_clear;
-            *p <<= bits_to_clear;
-        } else if (which_word < globals.words_per_substring) {
-            *p = 0;
-        }
-        which_word++;
-        while (which_word < globals.words_per_substring) { // fill zero
-            *(p+=spacing) = 0;
-            which_word++;
-        }
-    }
-
-    edge_word_t *last_word = dest + (words_per_substring - 1) * spacing;
-    *last_word |= int(num_chars_to_copy == globals.kmer_k) << kBWTCharNumBits;
-    *last_word |= prev_char;
-}
-
-void CopySubstringRC(edge_word_t* dest, edge_word_t* src_read, int offset, int num_chars_to_copy, read2sdbg_global_t &globals, uint8_t prev_char = 0) {
-    int spacing = globals.cx1.lv2_num_items_;
-    int which_word = (offset + num_chars_to_copy - 1) / kCharsPerEdgeWord;
-    int word_offset = (offset + num_chars_to_copy - 1) % kCharsPerEdgeWord;
-    edge_word_t *dest_p = dest;
-
-    if (word_offset == kCharsPerEdgeWord - 1) { // edge_word_t aligned
-        for (int i = 0; i < globals.words_per_substring && i <= which_word; ++i) {
-            *dest_p = ~ mirror(src_read[which_word - i]);
-            dest_p += spacing;
-        }
-    } else {
-        int bit_offset = (kCharsPerEdgeWord - 1 - word_offset) * kBitsPerEdgeChar;
-        int i;
-        edge_word_t w;
-        for (i = 0; i < globals.words_per_substring - 1 && i < which_word; ++i) {
-            w = (src_read[which_word - i] >> bit_offset) |
-                                      (src_read[which_word - i - 1] << (kBitsPerEdgeWord - bit_offset));
-            *dest_p = ~ mirror(w);
-            dest_p += spacing;
-        }
-        // last word
-        w = src_read[which_word - i] >> bit_offset;
-        if (which_word >= i + 1) {
-            w |= (src_read[which_word - i - 1] << (kBitsPerEdgeWord - bit_offset));
-        }
-        *dest_p = ~ mirror(w);
-    }
-
-    {
-        // now mask the extra bits (TODO can be optimized)
-        int num_bits_to_copy = num_chars_to_copy * 2;
-        int which_word = num_bits_to_copy / kBitsPerEdgeWord;
-        edge_word_t *p = dest + which_word * spacing;
-        int bits_to_clear = kBitsPerEdgeWord - num_bits_to_copy % kBitsPerEdgeWord;
-        if (bits_to_clear < kBitsPerEdgeWord) {
-            *p >>= bits_to_clear;
-            *p <<= bits_to_clear;
-        } else if (which_word < globals.words_per_substring) {
-            *p = 0;
-        }
-        which_word++;
-        while (which_word < globals.words_per_substring) { // fill zero
-            *(p+=spacing) = 0;
-            which_word++;
-        }
-    }
-
-    edge_word_t *last_word = dest + (globals.words_per_substring - 1) * spacing;
-    *last_word |= int(num_chars_to_copy == globals.kmer_k) << kBWTCharNumBits;
-    *last_word |= prev_char;
 }
 
 // helper: see whether two lv2 items have the same (k-1)-mer
@@ -295,7 +160,7 @@ void s2_read_mercy_prepare(read2sdbg_global_t &globals) {
                 }
                 if (last_0_in < first_0_out) { continue; }
 
-                int read_length = GetReadLengthByID(read_id, globals);
+                int read_length = GetReadLength(GetReadPtr(globals.packed_reads, read_id, globals.words_per_read), globals.words_per_read, globals.read_length_mask);
                 int last_no_out = -1;
 
                 for (int i = 0; i + globals.kmer_k < read_length; ++i) {
@@ -338,7 +203,7 @@ void* s2_lv0_calc_bucket_size(void* _data) {
     read2sdbg_global_t &globals = *(rp.globals);
     int64_t *bucket_sizes = rp.rp_bucket_sizes;
     memset(bucket_sizes, 0, kNumBuckets * sizeof(int64_t));
-    edge_word_t *read_p = GetReadPtr(rp.rp_start_id, globals);
+    edge_word_t *read_p = GetReadPtr(globals.packed_reads, rp.rp_start_id, globals.words_per_read);
     KmerUint32 edge, rev_edge; // (k+1)-mer and its rc
     for (int64_t read_id = rp.rp_start_id; read_id < rp.rp_end_id; ++read_id, read_p += globals.words_per_read) {
         int read_length = GetReadLength(read_p, globals.words_per_read, globals.read_length_mask);
@@ -504,7 +369,7 @@ void* s2_lv1_fill_offset(void* _data) {
     for (int b = globals.cx1.lv1_start_bucket_; b < globals.cx1.lv1_end_bucket_; ++b)
         prev_full_offsets[b] = rp.rp_lv1_differential_base;
     // this loop is VERY similar to that in PreprocessScanToFillBucketSizesThread
-    edge_word_t *read_p = GetReadPtr(rp.rp_start_id, globals);
+    edge_word_t *read_p = GetReadPtr(globals.packed_reads, rp.rp_start_id, globals.words_per_read);
     KmerUint32 edge, rev_edge; // (k+1)-mer and its rc
 
     int key;
@@ -625,19 +490,23 @@ void* s2_lv2_extract_substr(void* _data) {
                       case 0:
                         break;
                       case 1:
-                        prev = ExtractNthChar(GetReadPtr(read_id, globals), offset);
+                        prev = ExtractNthChar(GetReadPtr(globals.packed_reads, read_id, globals.words_per_read), offset);
                         offset++;
                         break;
                       case 2:
-                        prev = ExtractNthChar(GetReadPtr(read_id, globals), offset + 1);
+                        prev = ExtractNthChar(GetReadPtr(globals.packed_reads, read_id, globals.words_per_read), offset + 1);
                         offset += 2;
                         num_chars_to_copy--;
                         break;
                       default:
                         assert(false);
                     }
-
-                    CopySubstring(substrings_p, GetReadPtr(read_id, globals), offset, num_chars_to_copy, globals, prev);
+                    CopySubstring(substrings_p, GetReadPtr(globals.packed_reads, read_id, globals.words_per_read), offset, num_chars_to_copy,
+                                  globals.cx1.lv2_num_items_, globals.words_per_read, globals.words_per_substring);
+                    
+                    edge_word_t *last_word = substrings_p + int64_t(globals.words_per_substring - 1) * globals.cx1.lv2_num_items_;
+                    *last_word |= int(num_chars_to_copy == globals.kmer_k) << kBWTCharNumBits;
+                    *last_word |= prev;
                 } else {
                     int num_chars_to_copy = globals.kmer_k;
                     uint8_t prev = kSentinelValue;
@@ -645,10 +514,10 @@ void* s2_lv2_extract_substr(void* _data) {
                     switch (edge_type) {
                       case 0:
                         num_chars_to_copy--;
-                        prev = 3 - ExtractNthChar(GetReadPtr(read_id, globals), offset + globals.kmer_k - 1);
+                        prev = 3 - ExtractNthChar(GetReadPtr(globals.packed_reads, read_id, globals.words_per_read), offset + globals.kmer_k - 1);
                         break;
                       case 1:
-                        prev = 3 - ExtractNthChar(GetReadPtr(read_id, globals), offset + globals.kmer_k);
+                        prev = 3 - ExtractNthChar(GetReadPtr(globals.packed_reads, read_id, globals.words_per_read), offset + globals.kmer_k);
                         break;
                       case 2:
                         offset++;
@@ -657,7 +526,12 @@ void* s2_lv2_extract_substr(void* _data) {
                         assert(false);
                     }
 
-                    CopySubstringRC(substrings_p, GetReadPtr(read_id, globals), offset, num_chars_to_copy, globals, prev);
+                    CopySubstringRC(substrings_p, GetReadPtr(globals.packed_reads, read_id, globals.words_per_read), offset, num_chars_to_copy, 
+                                    globals.cx1.lv2_num_items_, globals.words_per_read, globals.words_per_substring);
+
+                    edge_word_t *last_word = substrings_p + int64_t(globals.words_per_substring - 1) * globals.cx1.lv2_num_items_;
+                    *last_word |= int(num_chars_to_copy == globals.kmer_k) << kBWTCharNumBits;
+                    *last_word |= prev;
                 }
 
                 substrings_p++;

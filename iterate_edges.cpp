@@ -29,7 +29,7 @@
 #include <algorithm>
 #include <stdexcept>
 #include "definitions.h"
-#include "io-utility.h"
+#include "io_utility.h"
 #include "options_description.h"
 #include "atomic_bit_vector.h"
 #include "utils.h"

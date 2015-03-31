@@ -10,6 +10,7 @@
 #include "kseq.h"
 #include "utils.h"
 #include "kmer_uint32.h"
+#include "packed_reads.h"
 
 #ifndef USE_GPU
 #include "lv2_cpu_sort.h"
@@ -20,7 +21,6 @@
 namespace cx1_kmer_count {
 
 // helpers
-KSEQ_INIT(gzFile, gzread)
 typedef CX1<count_global_t, kNumBuckets> cx1_t;
 typedef CX1<count_global_t, kNumBuckets>::readpartition_data_t readpartition_data_t;
 typedef CX1<count_global_t, kNumBuckets>::bucketpartition_data_t bucketpartition_data_t;
@@ -33,171 +33,6 @@ int dna_map[256];
  */
 inline int64_t EncodeOffset(int64_t read_id, int offset, int strand, int length_num_bits) {
     return (read_id << (length_num_bits + 1)) | (offset << 1) | strand;
-}
-
-/*
- * Packs an ASCII read into 2-bit per base form. The last base goes to the MSB of the first word.
- * -Params-
- * read: the read, in ASCII ACGT
- * p: a pointer to the first edge_word_t of the packed sequence to be written to
- * read_length: number of bases in the read
- * last_word_shift: the number of empty bits in the last word. we need to shift the bits up by this amount. solely determined by read_length.
- */
-inline void PackReadFromAscii(char* read, edge_word_t* p, int read_length, int words_per_read) {
-    // for de Bruijn graph construction, packing the reverse is more convenient
-    edge_word_t w = 0;
-    int i, j;
-    for (i = 0, j = 0; j < read_length; ++j) {
-        if (j % kCharsPerEdgeWord == 0 && j) { // TODO bitwise?
-            *(p++) = w;
-            w = 0;
-            ++i;
-        }
-        while (read[j] == 'N') {
-            break;
-        }
-        w = (w << kBitsPerEdgeChar) | dna_map[ (int)read[ j ] ];
-    }
-
-    int last_word_shift = j % kCharsPerEdgeWord;
-    last_word_shift = last_word_shift ? (kCharsPerEdgeWord - last_word_shift) * kBitsPerEdgeChar : 0;
-    *p = w << last_word_shift;
-
-    while (++i < words_per_read) {
-        *(++p) = 0;
-    }
-
-    *p |= read_length;
-}
-
-inline edge_word_t* GetReadPtr(int64_t i, count_global_t &globals) {
-	return globals.packed_reads + i * globals.words_per_read;
-}
-
-inline int GetReadLength(edge_word_t* read_p, int words_per_read, int mask) {
-    return *(read_p + words_per_read - 1) & mask;
-}
-
-inline int GetReadLengthByID(int64_t id, count_global_t &globals) {
-    return *(globals.packed_reads + (id + 1) * globals.words_per_read - 1) & globals.read_length_mask;
-}
-
-/**
- * @brief extract the nth char in a packed read/edge
- */
-inline int ExtractNthChar(edge_word_t *read_ptr, int n) {
-    int which_word = n / kCharsPerEdgeWord;
-    int index_in_word = n % kCharsPerEdgeWord;
-    return (read_ptr[which_word] >> (kBitsPerEdgeChar * (kCharsPerEdgeWord - 1 - index_in_word))) & kEdgeCharMask;
-}
-
-// 'spacing' is the strip length for read-word "coalescing"
-void CopySubstring(edge_word_t* dest, edge_word_t* src_read, int offset, int num_chars_to_copy, count_global_t &globals) {
-    int64_t spacing = globals.cx1.lv2_num_items_;
-    int words_per_read = globals.words_per_read;
-    int words_per_substring = globals.words_per_substring;
-
-    // copy words of the suffix to the suffix pool
-    int which_word = offset / kCharsPerEdgeWord;
-    int word_offset = offset % kCharsPerEdgeWord;
-    edge_word_t *src_p = src_read + which_word;
-    edge_word_t *dest_p = dest;
-    int num_words_copied = 0;
-    if (!word_offset) { // special case (word aligned), easy
-        while (which_word < words_per_read && num_words_copied < words_per_substring) {
-            *dest_p = *src_p; // write out
-            dest_p += spacing;
-            src_p++;
-            which_word++;
-            num_words_copied++;
-        }
-    } else { // not word-aligned
-        int bit_shift = offset * kBitsPerEdgeChar;
-        edge_word_t s = *src_p;
-        edge_word_t d = s << bit_shift;
-        which_word++;
-        while (which_word < words_per_read) {
-            s = *(++src_p);
-            d |= s >> (kBitsPerEdgeWord - bit_shift);
-            *dest_p = d; // write out
-            if (++num_words_copied >= words_per_substring) goto here;
-            dest_p += spacing;
-            d = s << bit_shift;
-            which_word++;
-        }
-        *dest_p = d; // write last word
-	here:
-        ;
-    }
-
-    {
-        // now mask the extra bits (TODO can be optimized)
-        int num_bits_to_copy = num_chars_to_copy * 2;
-        int which_word = num_bits_to_copy / kBitsPerEdgeWord;
-        edge_word_t *p = dest + which_word * spacing;
-        int bits_to_clear = kBitsPerEdgeWord - num_bits_to_copy % kBitsPerEdgeWord;
-        if (bits_to_clear < kBitsPerEdgeWord) {
-            *p >>= bits_to_clear;
-            *p <<= bits_to_clear;
-        } else if (which_word < globals.words_per_substring) {
-            *p = 0;
-        }
-        which_word++;
-        while (which_word < globals.words_per_substring) { // fill zero
-            *(p+=spacing) = 0;
-            which_word++;
-        }
-    }
-}
-
-void CopySubstringRC(edge_word_t* dest, edge_word_t* src_read, int offset, int num_chars_to_copy, count_global_t &globals) {
-    assert(num_chars_to_copy == globals.kmer_k + 1);
-    int spacing = globals.cx1.lv2_num_items_;
-    int which_word = (offset + num_chars_to_copy - 1) / kCharsPerEdgeWord;
-    int word_offset = (offset + num_chars_to_copy - 1) % kCharsPerEdgeWord;
-    edge_word_t *dest_p = dest;
-
-    if (word_offset == kCharsPerEdgeWord - 1) { // edge_word_t aligned
-        for (int i = 0; i < globals.words_per_substring && i <= which_word; ++i) {
-            *dest_p = ~ mirror(src_read[which_word - i]);
-            dest_p += spacing;
-        }
-    } else {
-        int bit_offset = (kCharsPerEdgeWord - 1 - word_offset) * kBitsPerEdgeChar;
-        int i;
-        edge_word_t w;
-        for (i = 0; i < globals.words_per_substring - 1 && i < which_word; ++i) {
-            w = (src_read[which_word - i] >> bit_offset) |
-                                      (src_read[which_word - i - 1] << (kBitsPerEdgeWord - bit_offset));
-            *dest_p = ~ mirror(w);
-            dest_p += spacing;
-        }
-        // last word
-        w = src_read[which_word - i] >> bit_offset;
-        if (which_word >= i + 1) {
-            w |= (src_read[which_word - i - 1] << (kBitsPerEdgeWord - bit_offset));
-        }
-        *dest_p = ~ mirror(w);
-    }
-
-    {
-        // now mask the extra bits (TODO can be optimized)
-        int num_bits_to_copy = num_chars_to_copy * 2;
-        int which_word = num_bits_to_copy / kBitsPerEdgeWord;
-        edge_word_t *p = dest + which_word * spacing;
-        int bits_to_clear = kBitsPerEdgeWord - num_bits_to_copy % kBitsPerEdgeWord;
-        if (bits_to_clear < kBitsPerEdgeWord) {
-            *p >>= bits_to_clear;
-            *p <<= bits_to_clear;
-        } else if (which_word < globals.words_per_substring) {
-            *p = 0;
-        }
-        which_word++;
-        while (which_word < globals.words_per_substring) { // fill zero
-            *(p+=spacing) = 0;
-            which_word++;
-        }
-    }
 }
 
 inline bool IsDifferentEdges(edge_word_t *item1, edge_word_t* item2, int num_words, int spacing) {
@@ -238,11 +73,7 @@ int64_t encode_lv1_diff_base(int64_t read_id, count_global_t &g) {
 }
 
 void read_input_prepare(count_global_t &globals) { // num_items_, num_cpu_threads_ and num_output_threads_ must be set here
-	for (int i = 0; i < 10; ++i) {
-		dna_map[int("ACGTNacgtn"[i])] = "0123101231"[i] - '0';
-	}
-
-	int64_t num_reads = 0;
+    // calc words_per_xxx
     int bits_read_length = 1; // bit needed to store read_length
     while ((1 << bits_read_length) - 1 < globals.max_read_length) {
         ++bits_read_length;
@@ -260,66 +91,15 @@ void read_input_prepare(count_global_t &globals) { // num_items_, num_cpu_thread
 
     globals.words_per_read = DivCeiling(globals.max_read_length * kBitsPerEdgeChar + bits_read_length, kBitsPerEdgeWord);
     int64_t max_num_reads = globals.host_mem / (sizeof(edge_word_t) * globals.words_per_read) * 3 / 4; //TODO: more accurate
-    int read_length;
-    edge_word_t *packed_reads;
-    edge_word_t *packed_reads_p; // current pointer
-    globals.capacity = std::min(max_num_reads, int64_t(1048576)); // initial capacity 1M
-    gzFile fp = strcmp(globals.input_file, "-") ? gzopen(globals.input_file, "r") : gzdopen(fileno(stdin), "r");
-    kseq_t *seq = kseq_init(fp); // kseq to read files
-    packed_reads_p = packed_reads = (edge_word_t*) MallocAndCheck(globals.capacity * globals.words_per_read * sizeof(edge_word_t), __FILE__, __LINE__);
     if (cx1_t::kCX1Verbose >= 2) {
         log("[C::%s] Max read length is %d; words per read: %d\n", __func__, globals.max_read_length, globals.words_per_read);
     }
 
-    // --- main reading loop ---
-    bool stop_reading = false;
-    while ((read_length = kseq_read(seq)) >= 0 && !stop_reading) {
-        std::reverse(seq->seq.s, seq->seq.s + read_length);
-        char *next_p = seq->seq.s;
-        while (read_length > globals.kmer_k) {
-            int scan_len = 0;
-            while (scan_len < read_length && next_p[scan_len] != 'N') {
-                ++scan_len;
-            }
-
-            if (scan_len > globals.kmer_k && scan_len <= globals.max_read_length) {
-                if (num_reads >= globals.capacity) {
-                    if (globals.capacity == max_num_reads) {
-                        err("[C::%s WRANING] No enough memory to hold all the reads. Only the first %llu reads are kept.\n", __func__, num_reads);
-                        stop_reading = true;
-                        break;
-                    } 
-                    globals.capacity = std::min(globals.capacity * 2, max_num_reads);
-                    edge_word_t *new_ptr = (edge_word_t*) realloc(packed_reads, globals.capacity * globals.words_per_read * sizeof(edge_word_t));
-                    if (new_ptr != NULL) {
-                        packed_reads = new_ptr;
-                        packed_reads_p = packed_reads + globals.words_per_read * num_reads;
-                        globals.capacity = globals.capacity;
-                    } else {
-                        err("[C::%s WRANING] No enough memory to hold all the reads. Only the first %llu reads are kept.\n", __func__, num_reads);
-                        stop_reading = true;
-                        break;
-                    }
-                }
-                // read length is ok! compress and store the packed read
-                PackReadFromAscii(next_p, packed_reads_p, scan_len, globals.words_per_read);
-                packed_reads_p += globals.words_per_read;
-                ++num_reads;
-            } else if (scan_len > globals.max_read_length) { // this read length is wrong
-                err("[C::%s WARNING] Found a read of length %d > max read length = %d\n, it will be discarded.", __func__, scan_len, globals.max_read_length);
-            }
-
-            while (scan_len < read_length && next_p[scan_len] == 'N') {
-                ++scan_len;
-            }
-            read_length -= scan_len;
-            next_p += scan_len;
-        }
-    }
-
-    globals.num_reads = num_reads;
+    // read fastx
+    globals.num_reads = ReadFastxAndPack(globals.packed_reads, globals.input_file, globals.words_per_read,
+                                         globals.kmer_k + 1, globals.max_read_length, max_num_reads);
     globals.mem_packed_reads = globals.num_reads * globals.words_per_read * sizeof(edge_word_t);
-    globals.packed_reads = (edge_word_t*) ReAllocAndCheck(packed_reads, globals.mem_packed_reads, __FILE__, __LINE__);
+    globals.packed_reads = (edge_word_t*) ReAllocAndCheck(globals.packed_reads, globals.mem_packed_reads, __FILE__, __LINE__);
     if (!globals.packed_reads) {
         err("[C::%s ERROR] Cannot reallocate memory for packed reads!\n", __func__);
         exit(1);
@@ -330,17 +110,14 @@ void read_input_prepare(count_global_t &globals) { // num_items_, num_cpu_thread
     globals.cx1.num_cpu_threads_ = globals.num_cpu_threads;
     globals.cx1.num_output_threads_ = globals.num_output_threads;
     globals.cx1.num_items_ = globals.num_reads;
-
-    kseq_destroy(seq);
-    gzclose(fp);
 }
 
 void* lv0_calc_bucket_size(void* _data) {
 	readpartition_data_t &rp = *((readpartition_data_t*) _data);
     count_global_t &globals = *(rp.globals);
     int64_t *bucket_sizes = rp.rp_bucket_sizes;
-    memset(bucket_sizes, 0, kNumBuckets * sizeof(int64_t));
-    edge_word_t *read_p = GetReadPtr(rp.rp_start_id, globals);
+    memset(bucket_sizes, 0, sizeof(bucket_sizes[0]) * kNumBuckets);
+    edge_word_t *read_p = GetReadPtr(globals.packed_reads, rp.rp_start_id, globals.words_per_read);
     KmerUint32 edge, rev_edge; // (k+1)-mer and its rc
     for (int64_t read_id = rp.rp_start_id; read_id < rp.rp_end_id; ++read_id, read_p += globals.words_per_read) {
         int read_length = GetReadLength(read_p, globals.words_per_read, globals.read_length_mask);
@@ -488,7 +265,7 @@ void* lv1_fill_offset(void* _data) {
     for (int b = globals.cx1.lv1_start_bucket_; b < globals.cx1.lv1_end_bucket_; ++b)
         prev_full_offsets[b] = rp.rp_lv1_differential_base;
     // this loop is VERY similar to that in PreprocessScanToFillBucketSizesThread
-    edge_word_t *read_p = GetReadPtr(rp.rp_start_id, globals);
+    edge_word_t *read_p = GetReadPtr(globals.packed_reads, rp.rp_start_id, globals.words_per_read);
     KmerUint32 edge, rev_edge; // (k+1)-mer and its rc
     int key;
     for (int64_t read_id = rp.rp_start_id; read_id < rp.rp_end_id; ++read_id, read_p += globals.words_per_read) {
@@ -573,23 +350,26 @@ void* lv2_extract_substr(void* _data) {
                 int offset = (full_offset >> 1) & offset_mask;
                 int num_chars_to_copy = globals.kmer_k + 1;
                 unsigned char prev, next;
+                edge_word_t *read_p = GetReadPtr(globals.packed_reads, read_id, globals.words_per_read);
                 if (offset > 0) {
-                    prev = ExtractNthChar(GetReadPtr(read_id, globals), offset - 1);
+                    prev = ExtractNthChar(read_p, offset - 1);
                 } else {
                     prev = kSentinelValue;
                 }
 
-                if (offset + globals.kmer_k + 1 < GetReadLengthByID(read_id, globals)) {
-                    next = ExtractNthChar(GetReadPtr(read_id, globals), offset + globals.kmer_k + 1);
+                if (offset + globals.kmer_k + 1 < GetReadLength(read_p, globals.words_per_read, globals.read_length_mask)) {
+                    next = ExtractNthChar(read_p, offset + globals.kmer_k + 1);
                 } else {
                     next = kSentinelValue;
                 }
 
                 if (strand == 0) {
-                    CopySubstring(substrings_p, GetReadPtr(read_id, globals), offset, num_chars_to_copy, globals);
+                    CopySubstring(substrings_p, read_p, offset, num_chars_to_copy,
+                                  globals.cx1.lv2_num_items_, globals.words_per_read, globals.words_per_substring);
                     *read_info_p = (full_offset << 6) | (prev << 3) | next;
                 } else {
-                    CopySubstringRC(substrings_p, GetReadPtr(read_id, globals), offset, num_chars_to_copy, globals);
+                    CopySubstringRC(substrings_p, read_p, offset, num_chars_to_copy, 
+                                    globals.cx1.lv2_num_items_, globals.words_per_read, globals.words_per_substring);
                     *read_info_p = (full_offset << 6) | ((next == kSentinelValue ? kSentinelValue : (3 - next)) << 3)
                                                       | (prev == kSentinelValue ? kSentinelValue : (3 - prev));
                 }
@@ -637,6 +417,23 @@ void lv2_pre_output_partition(count_global_t &globals) {
     std::swap(globals.lv2_substrings_db, globals.lv2_substrings);
     std::swap(globals.permutation_db, globals.permutation);
     std::swap(globals.lv2_read_info_db, globals.lv2_read_info);
+
+    // err("Ha\n");
+    // for (int i = 0; i < globals.lv2_num_items_db; ++i) {
+    //     edge_word_t *item = globals.lv2_substrings_db + globals.permutation_db[i];
+    //     for (int j = 0; j < globals.kmer_k + 1; ++j) {
+    //         err("%c", "ACGT"[ExtractNthChar(item, j % 16)]);
+    //         if (j == 15) { item += globals.lv2_num_items_db; }
+    //     }
+    //     err("\n");
+    //     item = globals.lv2_substrings_db + i;
+    //     for (int j = 0; j < globals.kmer_k + 1; ++j) {
+    //         err("%c", "ACGT"[ExtractNthChar(item, j % 16)]);
+    //         if (j == 15) { item += globals.lv2_num_items_db; }
+    //     }
+    //     err("\n");
+    // }
+    // err("ha\n");
 
     // distribute partition
     int64_t last_end_index = 0;
@@ -814,7 +611,7 @@ void post_proc(count_global_t &globals) {
             ++num_has_tips;
             if (last > first) {
                 ++num_candidate_reads;
-                fwrite(GetReadPtr(i, globals), sizeof(uint32_t), globals.words_per_read, candidate_file);   
+                fwrite(GetReadPtr(globals.packed_reads, i, globals.words_per_read), sizeof(uint32_t), globals.words_per_read, candidate_file);   
             }
         }
     }

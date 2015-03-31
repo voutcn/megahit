@@ -78,6 +78,6 @@ License
 -----------------------
 MEGAHIT is released under GPLv3. Several third-party libs are used, including:
 
-* [CUB](https://github.com/NVlabs/cub) under "New BSD"" license
-* kseq.h in [klib](https://github.com/attractivechaos/klib) under MIT license
-* hash_{table, set, map}.h in [IDBA package](http://i.cs.hku.hk/~alse/hkubrg/projects/idba/) under GPLv2
+* [CUB](https://github.com/NVlabs/cub) under "New BSD" license
+* [klib](https://github.com/attractivechaos/klib) under MIT license
+* [IDBA package](http://i.cs.hku.hk/~alse/hkubrg/projects/idba/) under GPLv2

@@ -169,6 +169,8 @@ endif
 #-------------------------------------------------------------------------------
 %.o: %.cpp %.h $(DEPS)
 	$(CXX) $(CFLAGS) -c $< -o $@
+%.o: %.cpp $(DEPS)
+	$(CXX) $(CFLAGS) -c $< -o $@
 
 #-------------------------------------------------------------------------------
 # CPU Applications
@@ -214,17 +216,11 @@ cx1_read2sdbg_s2_gpu.o: cx1_read2sdbg_s2.cpp $(DEPS)
 cx1_edge2sdbg_gpu.o: cx1_edge2sdbg.cpp $(DEPS)
 	$(CXX) $(CFLAGS) -D USE_GPU -c cx1_edge2sdbg.cpp -o cx1_edge2sdbg_gpu.o
 
-# cx1_functions_1pass_gpu.o: cx1_functions_1pass.cpp $(DEPS)
-# 	$(CXX) $(CFLAGS) -D USE_GPU -c cx1_functions_1pass.cpp -o cx1_functions_1pass_gpu.o
-
 #-------------------------------------------------------------------------------
 # GPU Applications
 #-------------------------------------------------------------------------------
 sdbg_builder_gpu: sdbg_builder.cpp cx1_kmer_count_gpu.o cx1_edge2sdbg_gpu.o cx1_read2sdbg_s1_gpu.o cx1_read2sdbg_s2_gpu.o lv2_gpu_functions_$(SUFFIX).o options_description.o $(DEPS)
 	$(CXX) $(CFLAGS) $(CUDALIBFLAG) -D USE_GPU sdbg_builder.cpp lv2_gpu_functions_$(SUFFIX).o cx1_kmer_count_gpu.o cx1_edge2sdbg_gpu.o cx1_read2sdbg_s1_gpu.o cx1_read2sdbg_s2_gpu.o options_description.o $(LIB) -o sdbg_builder_gpu
-
-# sdbg_builder_gpu_1pass: sdbg_builder_1pass.cpp cx1_functions_1pass_gpu.o lv2_gpu_functions_$(SUFFIX).o options_description.o $(DEPS)
-# 	$(CXX) $(CFLAGS) $(CUDALIBFLAG) -D USE_GPU sdbg_builder_1pass.cpp lv2_gpu_functions_$(SUFFIX).o cx1_functions_1pass_gpu.o options_description.o $(LIB) -o sdbg_builder_gpu_1pass
 
 #-------------------------------------------------------------------------------
 # Build binary directory
@@ -241,6 +237,6 @@ test_gpu: megahit_assemble megahit_iter sdbg_builder_gpu
 
 .PHONY:
 clean:
-	-rm -fr *.i* *.cubin *.cu.c *.cudafe* *.fatbin.c *.ptx *.hash *.cu.cpp *.o .*.cpp \
+	-rm -fr *.i* *.cubin *.cu.c *.cudafe* *.fatbin.c *.ptx *.hash *.cu.cpp *.o .*.o .*.cpp \
 		example/megahit_*out \
 		megahit_assemble megahit_iter sdbg_builder_cpu sdbg_builder_gpu sdbg_builder_cpu_1pass sdbg_builder_gpu_1pass
