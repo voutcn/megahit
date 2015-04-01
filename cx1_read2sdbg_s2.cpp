@@ -149,8 +149,8 @@ void s2_read_mercy_prepare(read2sdbg_global_t &globals) {
             }
 
             uint64_t this_end = std::min(start_idx[tid] + avg, (uint64_t)mercy_cand.size());
-            uint64_t read_id = mercy_cand[this_end] >> (globals.offset_num_bits + 1);
-            while (this_end < mercy_cand.size() && (mercy_cand[this_end] >> (globals.offset_num_bits + 1)) == read_id) {
+            uint64_t read_id = mercy_cand[this_end] >> (globals.offset_num_bits + 2);
+            while (this_end < mercy_cand.size() && (mercy_cand[this_end] >> (globals.offset_num_bits + 2)) == read_id) {
                 ++this_end;
             }
             end_idx[tid] = this_end;
@@ -160,11 +160,12 @@ void s2_read_mercy_prepare(read2sdbg_global_t &globals) {
         for (int tid = 0; tid < globals.num_cpu_threads; ++tid) {
             std::vector<bool> no_in(globals.max_read_length);
             std::vector<bool> no_out(globals.max_read_length);
+            std::vector<bool> has_solid_kmer(globals.max_read_length);
 
             uint64_t i = start_idx[tid];
             // go read by read
             while (i != end_idx[tid]) {
-                uint64_t read_id = mercy_cand[i] >> (globals.offset_num_bits + 1);
+                uint64_t read_id = mercy_cand[i] >> (globals.offset_num_bits + 2);
                 assert(!read_marker.get(read_id));
                 read_marker.set(read_id);
                 int first_0_out = globals.max_read_length + 1;
@@ -172,15 +173,17 @@ void s2_read_mercy_prepare(read2sdbg_global_t &globals) {
 
                 std::fill(no_in.begin(), no_in.end(), false);
                 std::fill(no_out.begin(), no_out.end(), false);
+                std::fill(has_solid_kmer.begin(), has_solid_kmer.end(), false);
 
-                while (i != end_idx[tid] && (mercy_cand[i] >> (globals.offset_num_bits + 1)) == read_id) {
-                    if (mercy_cand[i] & 1) {
-                        no_out[(mercy_cand[i] >> 1) & offset_mask] = true;
-                        first_0_out = std::min(first_0_out, int((mercy_cand[i] >> 1) & offset_mask));
-                    } else {
-                        no_in[(mercy_cand[i] >> 1) & offset_mask] = true;
-                        last_0_in = std::max(last_0_in, int((mercy_cand[i] >> 1) & offset_mask));
+                while (i != end_idx[tid] && (mercy_cand[i] >> (globals.offset_num_bits + 2)) == read_id) {
+                    if ((mercy_cand[i] & 3) == 2) {
+                        no_out[(mercy_cand[i] >> 2) & offset_mask] = true;
+                        first_0_out = std::min(first_0_out, int((mercy_cand[i] >> 2) & offset_mask));
+                    } else if ((mercy_cand[i] & 3) == 1) {
+                        no_in[(mercy_cand[i] >> 2) & offset_mask] = true;
+                        last_0_in = std::max(last_0_in, int((mercy_cand[i] >> 2) & offset_mask));
                     }
+                    has_solid_kmer[int((mercy_cand[i] >> 2) & offset_mask)] = true;
                     ++i;
                 }
                 if (last_0_in < first_0_out) {
@@ -191,18 +194,22 @@ void s2_read_mercy_prepare(read2sdbg_global_t &globals) {
                 int last_no_out = -1;
 
                 for (int i = 0; i + globals.kmer_k < read_length; ++i) {
+                    if (globals.is_solid.get(read_id * globals.num_k1_per_read + i)) {
+                        has_solid_kmer[i] = has_solid_kmer[i + 1] = true;
+                    }
+                }
+
+                for (int i = 0; i + globals.kmer_k <= read_length; ++i) {
                     if (no_in[i] && last_no_out != -1) {
-                        assert(globals.is_solid.get(read_id * globals.num_k1_per_read + i));
-                        for (int j = last_no_out + 1; j < i; ++j) {
+                        for (int j = last_no_out; j < i; ++j) {
                             globals.is_solid.set(read_id * globals.num_k1_per_read + j);
                         }
-                        num_mercy += i - last_no_out - 1;
+                        num_mercy += i - last_no_out;
                     }
-                    if (globals.is_solid.get(read_id * globals.num_k1_per_read + i)) {
+                    if (has_solid_kmer[i]) {
                         last_no_out = -1;
                     }
                     if (no_out[i]) {
-                        assert(globals.is_solid.get(read_id * globals.num_k1_per_read + i));
                         last_no_out = i;
                     }
                 }

@@ -518,18 +518,19 @@ void s1_lv2_pre_output_partition(read2sdbg_global_t &globals) {
 }
 
 void* s1_lv2_output(void* _op) {
+    xtimer_t local_timer;
+    local_timer.start();
+    local_timer.reset();
     outputpartition_data_t *op = (outputpartition_data_t*) _op;
     read2sdbg_global_t &globals = *(op->globals);
     int64_t op_start_index = op->op_start_index;
     int64_t op_end_index = op->op_end_index;
     int thread_id = op->op_id;
-    xtimer_t local_timer;
-    local_timer.start();
-    local_timer.reset();
     int start_idx;
     int end_idx;
     int count_prev_head[5][5];
     int count_tail_next[5][5];
+    int count_head_tail[(1 << 2 * kBWTCharNumBits) - 1];
     int64_t offset_mask = (1 << globals.offset_num_bits) - 1;
     int64_t *thread_edge_counting = globals.thread_edge_counting + thread_id * (kMaxMulti_t + 1);
 
@@ -550,11 +551,13 @@ void* s1_lv2_output(void* _op) {
 
         memset(count_prev_head, 0, sizeof(count_prev_head));
         memset(count_tail_next, 0, sizeof(count_tail_next));
+        memset(count_head_tail, 0, sizeof(count_head_tail));
         for (int j = start_idx; j < end_idx; ++j) {
             uint8_t prev_and_next = ExtractPrevNext(globals.permutation_db[j], globals);
             uint8_t head_and_tail = ExtractHeadTail(globals.lv2_substrings_db + globals.permutation_db[j], globals.lv2_num_items_db, globals.words_per_substring);
             count_prev_head[prev_and_next >> 3][head_and_tail >> 3]++;
             count_tail_next[head_and_tail & 7][prev_and_next & 7]++;
+            count_head_tail[head_and_tail]++;
         }
 
         int has_in = 0, has_out = 0;
@@ -574,48 +577,96 @@ void* s1_lv2_output(void* _op) {
             }
         }
 
+        int l_has_out = 0, r_has_in = 0;
+        for (int j = 0; j < 4; ++j) {
+            for (int x = 0; x < 4; ++x) {
+                if (count_head_tail[(j << kBWTCharNumBits) | x] >= globals.kmer_freq_threshold) {
+                    l_has_out |= 1 << j;
+                    r_has_in |= 1 << x;
+                }
+            }
+        }
+
         while (i < end_idx) {
             uint8_t head_and_tail = ExtractHeadTail(globals.lv2_substrings_db + globals.permutation_db[i], globals.lv2_num_items_db, globals.words_per_substring);
             uint8_t head = head_and_tail >> 3;
             uint8_t tail = head_and_tail & 7;
-            int count = 1;
-            ++i;
             if (head == kSentinelValue || tail == kSentinelValue) {
-                continue;
-            }
-
-            while (i < end_idx && ExtractHeadTail(globals.lv2_substrings_db + globals.permutation_db[i], globals.lv2_num_items_db, globals.words_per_substring) == head_and_tail) {
                 ++i;
-                ++count;
-            }
-
-            ++thread_edge_counting[std::min(count, kMaxMulti_t)];
-            if (count < globals.kmer_freq_threshold) {
                 continue;
             }
 
-            for (int j = i - count; j < i; ++j) {
-                int64_t read_info = globals.lv2_read_info_db[globals.permutation_db[j]] >> 6;
-                int strand = read_info & 1;
-                int offset = ((read_info >> 1) & offset_mask) - 1;
-                int64_t read_id = read_info >> (1 + globals.offset_num_bits);
+            ++thread_edge_counting[count_head_tail[head_and_tail]];
 
-                // mark this is a solid edge
-                globals.is_solid.set(globals.num_k1_per_read * read_id + offset);
+            if (count_head_tail[head_and_tail] >= globals.kmer_freq_threshold) {
+                for (int j = 0; j < count_head_tail[head_and_tail]; ++j, ++i) {
+                    int64_t read_info = globals.lv2_read_info_db[globals.permutation_db[i]] >> 6;
+                    int strand = read_info & 1;
+                    int offset = ((read_info >> 1) & offset_mask) - 1;
+                    int64_t read_id = read_info >> (1 + globals.offset_num_bits);
+                    int l_offset = strand == 0 ? offset : offset + 1;
+                    int r_offset = strand == 0 ? offset + 1 : offset;
 
-                // check if this is a mercy candidate
-                if ((!(has_in & (1 << head)) && strand == 0) || (!(has_out & (1 << tail)) && strand == 1)) {
-                    assert(offset < globals.num_k1_per_read);
-                    // no in
-                    int64_t packed_mercy_cand = (read_id << (globals.offset_num_bits + 1)) | (offset << 1);
-                    fwrite(&packed_mercy_cand, sizeof(packed_mercy_cand), 1, globals.mercy_files[read_id & (globals.num_mercy_files - 1)]);
+                    // mark this is a solid edge
+                    globals.is_solid.set(globals.num_k1_per_read * read_id + offset);
+
+                    if (!(has_in & (1 << head))) {
+                        // no in
+                        int64_t packed_mercy_cand = (read_id << (globals.offset_num_bits + 2)) | (l_offset << 2) | (1 + strand);
+                        fwrite(&packed_mercy_cand, sizeof(packed_mercy_cand), 1, globals.mercy_files[read_id & (globals.num_mercy_files - 1)]);
+                    }
+
+                    if (!(has_out & (1 << tail))) {
+                        // no out
+                        int64_t packed_mercy_cand = (read_id << (globals.offset_num_bits + 2)) | (r_offset << 2) | (2 - strand);
+                        fwrite(&packed_mercy_cand, sizeof(packed_mercy_cand), 1, globals.mercy_files[read_id & (globals.num_mercy_files - 1)]);
+                    }
                 }
+            } else {
+                // not solid, but we still need to tell whether its left/right kmer is solid
+                for (int j = 0; j < count_head_tail[head_and_tail]; ++j, ++i) {
+                    int64_t read_info = globals.lv2_read_info_db[globals.permutation_db[i]] >> 6;
+                    int strand = read_info & 1;
+                    int offset = ((read_info >> 1) & offset_mask) - 1;
+                    int64_t read_id = read_info >> (1 + globals.offset_num_bits);
+                    int l_offset = strand == 0 ? offset : offset + 1;
+                    int r_offset = strand == 0 ? offset + 1 : offset;
+                    
+                    if (l_has_out & (1 << head)) {
+                        if (has_in & (1 << head)) {
+                            // has both in & out
+                            int64_t packed_mercy_cand = (read_id << (globals.offset_num_bits + 2)) | (l_offset << 2) | 0;
+                            fwrite(&packed_mercy_cand, sizeof(packed_mercy_cand), 1, globals.mercy_files[read_id & (globals.num_mercy_files - 1)]);
+                        } else {
+                            // has out but no in
+                            int64_t packed_mercy_cand = (read_id << (globals.offset_num_bits + 2)) | (l_offset << 2) | (1 + strand);
+                            fwrite(&packed_mercy_cand, sizeof(packed_mercy_cand), 1, globals.mercy_files[read_id & (globals.num_mercy_files - 1)]);
+                        }
+                    } else {
+                        if (has_in & (1 << head)) {
+                            // has in but no out
+                            int64_t packed_mercy_cand = (read_id << (globals.offset_num_bits + 2)) | (l_offset << 2) | (2 - strand);
+                            fwrite(&packed_mercy_cand, sizeof(packed_mercy_cand), 1, globals.mercy_files[read_id & (globals.num_mercy_files - 1)]);
+                        }
+                    }
 
-                if ((!(has_in & (1 << head)) && strand == 1) || (!(has_out & (1 << tail)) && strand == 0)) {
-                    assert(offset < globals.num_k1_per_read);
-                    // no out
-                    int64_t packed_mercy_cand = (read_id << (globals.offset_num_bits + 1)) | (offset << 1) | 1;
-                    fwrite(&packed_mercy_cand, sizeof(packed_mercy_cand), 1, globals.mercy_files[read_id & (globals.num_mercy_files - 1)]);
+                    if (r_has_in & (1 << tail)) {
+                        if (has_out & (1 << tail)) {
+                            // has both in & out
+                            int64_t packed_mercy_cand = (read_id << (globals.offset_num_bits + 2)) | (r_offset << 2) | 0;
+                            fwrite(&packed_mercy_cand, sizeof(packed_mercy_cand), 1, globals.mercy_files[read_id & (globals.num_mercy_files - 1)]);
+                        } else {
+                            // has in but no out
+                            int64_t packed_mercy_cand = (read_id << (globals.offset_num_bits + 2)) | (r_offset << 2) | (2 - strand);
+                            fwrite(&packed_mercy_cand, sizeof(packed_mercy_cand), 1, globals.mercy_files[read_id & (globals.num_mercy_files - 1)]);
+                        }
+                    } else {
+                        if (has_out & (1 << tail)) {
+                            // has out but no in
+                            int64_t packed_mercy_cand = (read_id << (globals.offset_num_bits + 2)) | (r_offset << 2) | (1 + strand);
+                            fwrite(&packed_mercy_cand, sizeof(packed_mercy_cand), 1, globals.mercy_files[read_id & (globals.num_mercy_files - 1)]);
+                        }
+                    }
                 }
             }
         }
