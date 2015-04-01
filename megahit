@@ -201,7 +201,8 @@ def parse_opt(argv):
         if option in ("-h", "--help"):
             raise Usage(megahit_version_str + '\n' + usage_message)
         elif option in ("-o", "--out-dir"):
-            opt.out_dir = value + "/"
+            if opt.continue_mode == 0:
+                opt.out_dir = value + "/"
         elif option in ("-r", "--readfile"):
             opt.read_file = value
         elif option == "--input-cmd":
@@ -364,7 +365,9 @@ def prepare_continue():
         for line in f:
             argv.append(line.strip())
         print("Continue with options: " + " ".join(argv), file=sys.stderr)
+        t_dir = opt.out_dir
         opt = Options()
+        opt.out_dir = t_dir
         opt.continue_mode = 1 # avoid dead loop
         parse_opt(argv)
     f.close()
@@ -410,6 +413,7 @@ def delete_temp_files(kmer_k):
 
     delect_file_if_exist(graph_prefix(kmer_k) + ".contigs.fa")
     delect_file_if_exist(graph_prefix(kmer_k) + ".multi")
+    delect_file_if_exist(graph_prefix(kmer_k) + ".multi2")
 
     if kmer_k != opt.k_max and opt.no_low_local == 0:
         delect_file_if_exist(graph_prefix(kmer_k) + ".addi.fa")

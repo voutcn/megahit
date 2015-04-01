@@ -416,7 +416,7 @@ void* s2_lv1_fill_offset(void* _data) {
         }
 
         // ===== this is a macro to save some copy&paste ================
-#define CHECK_AND_SAVE_OFFSET(offset, strand, edge_type)                                   \
+#define CHECK_AND_SAVE_OFFSET(offset, strand, edge_type)                                                             \
     do {                                                                \
       assert(edge_type < 3 && edge_type >= 0 && strand >= 0 && strand <= 1 && offset + globals.kmer_k < read_length); \
       if (((key - globals.cx1.lv1_start_bucket_) ^ (key - globals.cx1.lv1_end_bucket_)) & kSignBitMask) { \
@@ -428,7 +428,10 @@ void* s2_lv1_fill_offset(void* _data) {
           globals.cx1.lv1_items_special_.push_back(full_offset);                  \
           pthread_mutex_unlock(&globals.lv1_items_scanning_lock); \
         } else {                                                              \
-          assert((int) differential >= 0); \
+          if ((int) differential < 0) {                                       \
+            err("%ld, %d, %d, %d: %ld\n", read_id, offset, strand, edge_type, differential); \
+            exit(1);\
+          } \
           globals.lv1_items[ rp.rp_bucket_offsets[key]++ ] = (int) differential; \
         } \
         prev_full_offsets[key] = full_offset;                           \

@@ -50,7 +50,7 @@ struct CX1 {
     static const int kGPUBytePerItem = 16; // key & value, 4 byte each. double for radix sort internal buffer
     static const int kLv1BytePerItem = 4; // 32-bit differatial offset
     static const uint64_t kSpDiffMaxNum = (1ULL << 32) - 1;
-    static const int64_t kDifferentialLimit = (1ULL << 32) - 1;
+    static const int64_t kDifferentialLimit = (1ULL << 31) - 1;
 
     struct readpartition_data_t {
         // local data for each read partition (i.e. a subrange of input reads)
