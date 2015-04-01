@@ -305,23 +305,23 @@ void* lv1_fill_offset(void* _data) {
         }
 
         // ===== this is a macro to save some copy&paste ================
-#define CHECK_AND_SAVE_OFFSET(offset, strand)    \
-    do {                                                                \
-      assert(offset + globals.kmer_k < read_length); \
-      if (((key - globals.cx1.lv1_start_bucket_) ^ (key - globals.cx1.lv1_end_bucket_)) & kSignBitMask) { \
-        int64_t full_offset = EncodeOffset(read_id, offset, strand, globals.offset_num_bits); \
-        int64_t differential = full_offset - prev_full_offsets[key];      \
-        if (differential > cx1_t::kDifferentialLimit) {                      \
-          pthread_mutex_lock(&globals.lv1_items_scanning_lock); \
-          globals.lv1_items[ rp.rp_bucket_offsets[key]++ ] = -globals.cx1.lv1_items_special_.size() - 1; \
-          globals.cx1.lv1_items_special_.push_back(full_offset);                  \
-          pthread_mutex_unlock(&globals.lv1_items_scanning_lock); \
-        } else {                                                              \
-          assert((int) differential >= 0); \
-          globals.lv1_items[ rp.rp_bucket_offsets[key]++ ] = (int) differential; \
-        } \
-        prev_full_offsets[key] = full_offset;                           \
-      }                                                                 \
+#define CHECK_AND_SAVE_OFFSET(offset, strand)                                                                   \
+    do {                                                                                                        \
+        assert(offset + globals.kmer_k < read_length);                                                          \
+        if (((key - globals.cx1.lv1_start_bucket_) ^ (key - globals.cx1.lv1_end_bucket_)) & kSignBitMask) {     \
+            int64_t full_offset = EncodeOffset(read_id, offset, strand, globals.offset_num_bits);               \
+            int64_t differential = full_offset - prev_full_offsets[key];                                        \
+            if (differential > cx1_t::kDifferentialLimit) {                                                     \
+                pthread_mutex_lock(&globals.lv1_items_scanning_lock);                                           \
+                globals.lv1_items[rp.rp_bucket_offsets[key]++] = -globals.cx1.lv1_items_special_.size() - 1;    \
+                globals.cx1.lv1_items_special_.push_back(full_offset);                                          \
+                pthread_mutex_unlock(&globals.lv1_items_scanning_lock);                                         \
+            } else {                                                                                            \
+                assert((int) differential >= 0);                                                                \
+                globals.lv1_items[rp.rp_bucket_offsets[key]++] = (int) differential;                            \
+            }                                                                                                   \
+            prev_full_offsets[key] = full_offset;                                                               \
+        }                                                                                                       \
     } while (0)
         // ^^^^^ why is the macro surrounded by a do-while? please ask Google
         // =========== end macro ==========================
@@ -356,12 +356,12 @@ void* lv1_fill_offset(void* _data) {
 void* lv2_extract_substr(void* _data) {
     bucketpartition_data_t &bp = *((bucketpartition_data_t*) _data);
     count_global_t &globals = *(bp.globals);
-    int *lv1_p = globals.lv1_items + globals.cx1.rp_[0].rp_bucket_offsets[ bp.bp_start_bucket ];
+    int *lv1_p = globals.lv1_items + globals.cx1.rp_[0].rp_bucket_offsets[bp.bp_start_bucket];
     int64_t offset_mask = (1 << globals.offset_num_bits) - 1; // 0000....00011..11
     edge_word_t *substrings_p = globals.lv2_substrings +
-                                (globals.cx1.rp_[0].rp_bucket_offsets[ bp.bp_start_bucket ] - globals.cx1.rp_[0].rp_bucket_offsets[ globals.cx1.lv2_start_bucket_ ]);
+                                (globals.cx1.rp_[0].rp_bucket_offsets[bp.bp_start_bucket] - globals.cx1.rp_[0].rp_bucket_offsets[globals.cx1.lv2_start_bucket_]);
     int64_t *read_info_p = globals.lv2_read_info +
-                           (globals.cx1.rp_[0].rp_bucket_offsets[ bp.bp_start_bucket ] - globals.cx1.rp_[0].rp_bucket_offsets[ globals.cx1.lv2_start_bucket_ ]);
+                           (globals.cx1.rp_[0].rp_bucket_offsets[bp.bp_start_bucket] - globals.cx1.rp_[0].rp_bucket_offsets[globals.cx1.lv2_start_bucket_]);
     for (int b = bp.bp_start_bucket; b < bp.bp_end_bucket; ++b) {
         for (int t = 0; t < globals.num_cpu_threads; ++t) {
             int64_t full_offset = globals.cx1.rp_[t].rp_lv1_differential_base;
