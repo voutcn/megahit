@@ -160,8 +160,7 @@ inline int64_t BinarySearchKmer(uint32_t *packed_edges, int64_t *lookup_table, i
  * @TODO: many hard-code in this function
  */
 void ReadReadsAndGetMercyEdges(edge2sdbg_global_t &globals) {
-    int64_t *edge_lookup;
-    assert((edge_lookup = (int64_t *) MallocAndCheck(kLookUpSize * 2 * sizeof(int64_t), __FILE__, __LINE__)) != NULL);
+    int64_t *edge_lookup = (int64_t *) MallocAndCheck(kLookUpSize * 2 * sizeof(int64_t), __FILE__, __LINE__);
     InitLookupTable(edge_lookup, globals.packed_edges, globals.num_edges, globals.words_per_edge);
 
     uint32_t *packed_edges = globals.packed_edges;

@@ -204,7 +204,6 @@ void s1_init_global_and_set_cx1(read2sdbg_global_t &globals) {
     // bS has in coming: for some a, num of abS >= threshold
     // Sc has outgoing: for some a, num of Scd >= threshold
     globals.words_per_substring = DivCeiling((globals.kmer_k - 1) * kBitsPerEdgeChar + 2 * kBWTCharNumBits, kBitsPerEdgeWord);
-    globals.words_per_edge = DivCeiling((globals.kmer_k + 1) * kBitsPerEdgeChar + kBitsPerMulti_t, kBitsPerEdgeWord);
     // lv2 bytes: substring, permutation, readinfo
     int64_t lv2_bytes_per_item = (globals.words_per_substring) * sizeof(edge_word_t) + sizeof(uint32_t) + sizeof(int64_t);
     lv2_bytes_per_item = lv2_bytes_per_item * 2; // double buffering
@@ -213,7 +212,7 @@ void s1_init_global_and_set_cx1(read2sdbg_global_t &globals) {
 #endif
 
     if (cx1_t::kCX1Verbose >= 2) {
-        log("[B1::%s] %d words per substring, %d words per edge\n", __func__, globals.words_per_substring, globals.words_per_edge);
+        log("[B1::%s] %d words per substring\n", __func__, globals.words_per_substring);
     }
     // --- memory stuff ---
     int64_t mem_remained = globals.host_mem
@@ -519,8 +518,10 @@ void s1_lv2_pre_output_partition(read2sdbg_global_t &globals) {
 
 void* s1_lv2_output(void* _op) {
     xtimer_t local_timer;
-    local_timer.start();
-    local_timer.reset();
+    if (cx1_t::kCX1Verbose >= 4) {
+        local_timer.start();
+        local_timer.reset();
+    }
     outputpartition_data_t *op = (outputpartition_data_t*) _op;
     read2sdbg_global_t &globals = *(op->globals);
     int64_t op_start_index = op->op_start_index;
@@ -591,14 +592,12 @@ void* s1_lv2_output(void* _op) {
             uint8_t head_and_tail = ExtractHeadTail(globals.lv2_substrings_db + globals.permutation_db[i], globals.lv2_num_items_db, globals.words_per_substring);
             uint8_t head = head_and_tail >> 3;
             uint8_t tail = head_and_tail & 7;
-            if (head == kSentinelValue || tail == kSentinelValue) {
-                ++i;
-                continue;
+            if (head != kSentinelValue && tail != kSentinelValue) {
+                ++thread_edge_counting[count_head_tail[head_and_tail]];
             }
 
-            ++thread_edge_counting[count_head_tail[head_and_tail]];
 
-            if (count_head_tail[head_and_tail] >= globals.kmer_freq_threshold) {
+            if (head != kSentinelValue && tail != kSentinelValue && count_head_tail[head_and_tail] >= globals.kmer_freq_threshold) {
                 for (int j = 0; j < count_head_tail[head_and_tail]; ++j, ++i) {
                     int64_t read_info = globals.lv2_read_info_db[globals.permutation_db[i]] >> 6;
                     int strand = read_info & 1;
@@ -671,9 +670,9 @@ void* s1_lv2_output(void* _op) {
             }
         }
     }
-    local_timer.stop();
 
     if (cx1_t::kCX1Verbose >= 4) {
+        local_timer.stop();
         log("[B1::%s] Counting time elapsed: %.4lfs\n", __func__, local_timer.elapsed());
     }
     return NULL;
