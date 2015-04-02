@@ -34,7 +34,7 @@ import multiprocessing
 
 from datetime import datetime, date, time
 
-megahit_version_str = "MEGAHIT v0.2.1-dev-0401-kmin-1pass-mode-mercier"
+megahit_version_str = "MEGAHIT v0.2.1-dev-0402-kmin-1pass-mode-mercier"
 usage_message = '''
 Copyright (c) The University of Hong Kong
 
@@ -68,8 +68,8 @@ Optional Arguments:
     --use-gpu                                   use GPU, will overwrite --cpu-only
     --gpu-mem                      <float>      GPU memory in byte to be used. Default: auto detect to use up all free GPU memory. 
     -t/--num-cpu-threads           <int>        Number of CPU threads, at least 2. Default: auto detect to use all CPU threads.
-    --k-min-1pass                               Use 1pass mode to build SdBG of k_min, which is slower but requires less memory for
-                                                ultra low-depth data (soil)
+    --k-min-1pass                               Use 1pass mode to build SdBG of k_min, which requires less memory for
+                                                ultra low-depth data (e.g. soil)
 
   Output options:
     -o/--out-dir                   <string>     output directory, default: ./megahit_out
@@ -410,10 +410,10 @@ def delete_temp_files(kmer_k):
     delect_file_if_exist(graph_prefix(kmer_k) + ".dn")
     delect_file_if_exist(graph_prefix(kmer_k) + ".f")
     delect_file_if_exist(graph_prefix(kmer_k) + ".mul")
+    delect_file_if_exist(graph_prefix(kmer_k) + ".mul2")
 
     delect_file_if_exist(graph_prefix(kmer_k) + ".contigs.fa")
     delect_file_if_exist(graph_prefix(kmer_k) + ".multi")
-    delect_file_if_exist(graph_prefix(kmer_k) + ".multi2")
 
     if kmer_k != opt.k_max and opt.no_low_local == 0:
         delect_file_if_exist(graph_prefix(kmer_k) + ".addi.fa")
@@ -423,6 +423,8 @@ def delete_temp_files(kmer_k):
         delect_file_if_exist(graph_prefix(kmer_k) + ".rr.pb")
         delect_file_if_exist(graph_prefix(kmer_k) + ".edges.0")
     else:
+        for i in range(0, 64):
+            delect_file_if_exist(graph_prefix(kmer_k) + ".mercy_cand." + str(i))
         for i in range(0, max(1, int(opt.num_cpu_threads / 3))):
             delect_file_if_exist(graph_prefix(kmer_k) + ".edges." + str(i))
         if opt.no_mercy == 0:
