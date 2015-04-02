@@ -188,7 +188,7 @@ int64_t PopBubbles(SuccinctDBG &dbg, int max_bubble_len, double low_depth_ratio)
     return num_bubbles;
 }
 
-void AssembleFromUnitigGraph(SuccinctDBG &dbg, FILE *contigs_file, FILE *multi_file, FILE *final_contig_file, int min_final_contig_len) {
+void AssembleFromUnitigGraph(SuccinctDBG &dbg, FILE *contigs_file, FILE *final_contig_file, int min_final_contig_len) {
     xtimer_t timer;
     timer.reset();
     timer.start();
@@ -201,9 +201,9 @@ void AssembleFromUnitigGraph(SuccinctDBG &dbg, FILE *contigs_file, FILE *multi_f
     timer.start();
     histogram.clear();
     if (final_contig_file == NULL) {
-        unitig_graph.OutputInitUnitigs(contigs_file, multi_file, histogram);
+        unitig_graph.OutputInitUnitigs(contigs_file, histogram);
     } else {
-        unitig_graph.OutputInitUnitigs(contigs_file, multi_file, final_contig_file, histogram, min_final_contig_len);
+        unitig_graph.OutputInitUnitigs(contigs_file, final_contig_file, histogram, min_final_contig_len);
     }
     PrintStat();
     timer.stop();
@@ -228,9 +228,9 @@ void AssembleFinalFromUnitigGraph(SuccinctDBG &dbg, FILE *final_contig_file, int
     printf("Time to output: %lf\n", timer.elapsed());
 }
 
-void RemoveLowLocalAndOutputChanged(SuccinctDBG &dbg, FILE *contigs_file, FILE *multi_file, FILE *final_contig_file,
-                                    FILE *addi_contig_file, FILE *addi_multi_file,
-                                    double min_depth, int min_len, double local_ratio, int min_final_contig_len) {
+void RemoveLowLocalAndOutputChanged(SuccinctDBG &dbg, FILE *contigs_file, FILE *final_contig_file,
+                                    FILE *addi_contig_file, double min_depth, int min_len, 
+                                    double local_ratio, int min_final_contig_len) {
     xtimer_t timer;
     timer.reset();
     timer.start();
@@ -243,9 +243,9 @@ void RemoveLowLocalAndOutputChanged(SuccinctDBG &dbg, FILE *contigs_file, FILE *
     timer.start();
     histogram.clear();
     if (final_contig_file == NULL) {
-        unitig_graph.OutputInitUnitigs(contigs_file, multi_file, histogram);
+        unitig_graph.OutputInitUnitigs(contigs_file, histogram);
     } else {
-        unitig_graph.OutputInitUnitigs(contigs_file, multi_file, final_contig_file, histogram, min_final_contig_len);
+        unitig_graph.OutputInitUnitigs(contigs_file, final_contig_file, histogram, min_final_contig_len);
     }
     PrintStat();
     timer.stop();
@@ -273,7 +273,7 @@ void RemoveLowLocalAndOutputChanged(SuccinctDBG &dbg, FILE *contigs_file, FILE *
     printf("Number of unitigs removed: %lld, time: %lf\n", (long long)num_removed, timer.elapsed());
 
     histogram.clear();
-    unitig_graph.OutputChangedUnitigs(addi_contig_file, addi_multi_file, histogram);
+    unitig_graph.OutputChangedUnitigs(addi_contig_file, histogram);
     PrintStat();
 }
 

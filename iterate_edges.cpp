@@ -45,9 +45,7 @@ static AutoMaxRssRecorder recorder;
 
 struct Options {
     string contigs_file;
-    string contigs_multi_file;
     string addi_contig_file;
-    string addi_multi_file;
     string read_file;
     string read_format;
     int num_cpu_threads;
@@ -77,9 +75,7 @@ static void ParseOptions(int argc, char *argv[]) {
     OptionsDescription desc;
 
     desc.AddOption("contigs_file", "c", options.contigs_file, "(*) contigs file, fasta/fastq format, output by assembler");
-    desc.AddOption("multi_file", "m", options.contigs_multi_file, "(*) contigs's multiplicity file output by assembler");
     desc.AddOption("addi_contig_file", "", options.addi_contig_file, "additional contigs file, fasta/fastq format, output by assembler if remove low local");
-    desc.AddOption("addi_multi_file", "", options.addi_multi_file, "contigs's multiplicity file, output by assembler if remove low local");
     desc.AddOption("read_file", "r", options.read_file, "(*) reads to be aligned. \"-\" for stdin. Can be gzip'ed.");
     desc.AddOption("read_format", "f", options.read_format, "(*) reads' format. fasta, fastq or binary.");
     desc.AddOption("num_cpu_threads", "t", options.num_cpu_threads, "number of cpu threads, at least 2. 0 for auto detect.");
@@ -96,8 +92,6 @@ static void ParseOptions(int argc, char *argv[]) {
             throw std::logic_error(os.str());
         } else if (options.contigs_file == "") {
             throw std::logic_error("No contig file!");
-        } else if (options.contigs_multi_file == "") {
-            throw std::logic_error("No contig's multiplicity file!");
         } else if (options.read_file == "") {
             throw std::logic_error("No reads file!");
         } else if (options.kmer_k <= 0) {
@@ -158,7 +152,6 @@ static void InitGlobalData(IterateGlobalData &globals) {
     }
 
     globals.contigs_file = gzopen(options.contigs_file.c_str(), "r");
-    globals.contigs_multi_file = gzopen(options.contigs_multi_file.c_str(), "r");
 
     if (string(options.read_file) == "-") {
         globals.read_file = gzdopen(fileno(stdin), "r");
@@ -166,17 +159,13 @@ static void InitGlobalData(IterateGlobalData &globals) {
         globals.read_file = gzopen(options.read_file.c_str(), "r");
     }
     assert(globals.contigs_file != NULL);
-    assert(globals.contigs_multi_file != NULL);
     assert(globals.read_file != NULL);
 
     if (options.addi_contig_file != "") {
         globals.addi_contig_file = gzopen(options.addi_contig_file.c_str(), "r");
-        globals.addi_multi_file = gzopen(options.addi_multi_file.c_str(), "r");
-        assert(globals.addi_multi_file != NULL);
         assert(globals.addi_contig_file != NULL);
     } else {
         globals.addi_contig_file = NULL;
-        globals.addi_multi_file = NULL;
     }
 
     globals.output_edge_file = OpenFileAndCheck((string(options.output_prefix) + ".edges.0").c_str(), "wb");
@@ -190,7 +179,6 @@ static void ClearGlobalData(IterateGlobalData &globals) {
     gzclose(globals.read_file);
     if (globals.addi_contig_file != NULL) {
         gzclose(globals.addi_contig_file);
-        gzclose(globals.addi_multi_file);
     }
     fclose(globals.output_edge_file);
     fclose(globals.output_read_file);
@@ -200,19 +188,16 @@ struct ReadContigsThreadData {
     ContigPackage *contig_package;
     kseq_t *seq;
     IterateGlobalData *globals;
-    gzFile *multi_file;
 };
 
 static void* ReadContigsThread(void* data) {
     ContigPackage &package = *(((ReadContigsThreadData*)data)->contig_package);
     kseq_t *seq = ((ReadContigsThreadData*)data)->seq;
     IterateGlobalData &globals = *(((ReadContigsThreadData*)data)->globals);
-    gzFile &multi_file = *(((ReadContigsThreadData*)data)->multi_file);
     char *dna_map = globals.dna_map;
 
     printf("Reading contigs...\n");
     package.ReadContigs(seq, dna_map);
-    package.ReadMultiplicity(multi_file);
     printf("Read %lu contigs, total length: %lu\n", package.size(), package.seqs.length());
     return NULL;
 }
@@ -486,11 +471,6 @@ static void ReadContigsAndBuildHash(IterateGlobalData &globals,
     input_thread_data.contig_package = &packages[input_thread_index];
     input_thread_data.seq = seq;
     input_thread_data.globals = &globals;
-    if (!is_addi_contigs) {
-        input_thread_data.multi_file = &globals.contigs_multi_file;
-    } else {
-        input_thread_data.multi_file = &globals.addi_multi_file;
-    }
 
     pthread_create(&input_thread, NULL, ReadContigsThread, &input_thread_data);
     if (globals.num_cpu_threads == 1) {
@@ -630,7 +610,7 @@ bool IterateToNextK(IterateGlobalData &globals) {
         HashTable<KmerPlus<kNumKmerWord_p, kmer_word_p_t, uint64_t>, Kmer<kNumKmerWord_p, kmer_word_p_t> > crusial_kmers;
         ReadContigsAndBuildHash(globals, crusial_kmers, false);
 
-        if (options.addi_multi_file != "") {
+        if (options.addi_contig_file != "") {
             ReadContigsAndBuildHash(globals, crusial_kmers, true);
         }
         // recorder.watch();

@@ -64,20 +64,12 @@ struct AssemblerOptions {
         return output_prefix + ".contigs.fa";
     }
 
-    string multi_file() {
-        return output_prefix + ".multi";
-    }
-
     string final_contig_file() {
         return output_prefix + ".final.contigs.fa";
     }
 
     string addi_contig_file() {
         return output_prefix + ".addi.fa";
-    }
-
-    string addi_multi_file() {
-        return output_prefix + ".addi.multi";
     }
 
 } options;
@@ -165,11 +157,7 @@ int main(int argc, char **argv) {
 
 
     FILE *out_contig_file = OpenFileAndCheck(options.contig_file().c_str(), "w");
-    FILE *out_multi_file = OpenFileAndCheck(options.multi_file().c_str(), "wb");
     FILE *out_final_contig_file = OpenFileAndCheck(options.final_contig_file().c_str(), "w");
-    assert(out_contig_file != NULL);
-    assert(out_multi_file != NULL);
-    assert(out_final_contig_file != NULL);
 
     if (options.remove_low_local) { // remove local low depth
         timer.reset();
@@ -178,24 +166,18 @@ int main(int argc, char **argv) {
         printf("Removing low local coverage...\n");
         if (!options.is_final_round) {
             FILE *out_addi_contig_file = OpenFileAndCheck(options.addi_contig_file().c_str(), "w");
-            FILE *out_addi_multi_file = OpenFileAndCheck(options.addi_multi_file().c_str(), "w");
-            assert(out_addi_multi_file != NULL);
-            assert(out_addi_contig_file != NULL);
 
             // FILE *out_final_contig_file = NULL; // uncomment to avoid output final contigs
             assembly_algorithms::RemoveLowLocalAndOutputChanged(
                 dbg, out_contig_file,
-                out_multi_file,
                 out_final_contig_file,
                 out_addi_contig_file,
-                out_addi_multi_file,
                 2,
                 dbg.kmer_k * 2,
                 options.low_local_ratio,
                 options.min_final_contig_len);
 
             fclose (out_addi_contig_file);
-            fclose(out_addi_multi_file);
         } else {
             assembly_algorithms::RemoveLowLocalAndOutputFinal(
                 dbg,
@@ -216,7 +198,6 @@ int main(int argc, char **argv) {
             assembly_algorithms::AssembleFromUnitigGraph(
                 dbg,
                 out_contig_file,
-                out_multi_file,
                 out_final_contig_file,
                 options.min_final_contig_len);
         } else {
@@ -231,7 +212,6 @@ int main(int argc, char **argv) {
     }
 
     fclose(out_contig_file);
-    fclose(out_multi_file);
     fclose(out_final_contig_file);
 
     return 0;

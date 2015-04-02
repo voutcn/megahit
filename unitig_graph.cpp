@@ -524,7 +524,7 @@ void UnitigGraph::Refresh_() {
     omp_destroy_lock(&reassemble_lock);
 }
 
-void UnitigGraph::OutputInitUnitigs(FILE *contig_file, FILE *multi_file, std::map<int64_t, int> &histo) {
+void UnitigGraph::OutputInitUnitigs(FILE *contig_file, std::map<int64_t, int> &histo) {
     vertexID_t output_id = 0;
     omp_lock_t output_lock;
     omp_init_lock(&output_lock);
@@ -532,17 +532,16 @@ void UnitigGraph::OutputInitUnitigs(FILE *contig_file, FILE *multi_file, std::ma
 
     #pragma omp parallel for
     for (vertexID_t i = 0; i < vertices_.size(); ++i) {
-        uint16_t multi = std::min(kMaxMulti_t, int((double)vertices_[i].depth / vertices_[i].length + 0.5));
+        double multi = (double)vertices_[i].depth / vertices_[i].length;
         std::string label = VertexToDNAString(sdbg_, vertices_[i]);
 
         if (vertices_[i].is_loop) {
             omp_set_lock(&output_lock);
-            fprintf(contig_file, ">contig%d_length_%ld_multi_%d_loop\n%s\n",
+            fprintf(contig_file, ">contig%d_length_%ld_loop multi=%.6f\n%s\n",
                     output_id,
                     label.length(),
                     multi,
                     label.c_str());
-            fwrite(&multi, sizeof(uint16_t), 1, multi_file);
             ++output_id;
             ++histo[label.length()];
             omp_unset_lock(&output_lock);
@@ -553,14 +552,14 @@ void UnitigGraph::OutputInitUnitigs(FILE *contig_file, FILE *multi_file, std::ma
                 vertices_[i].is_deleted = true;
             }
             omp_set_lock(&output_lock);
-            fprintf(contig_file, ">contig%d_length_%ld_multi_%d_in_%d_out_%d\n%s\n",
+            fprintf(contig_file, ">contig%d_length_%ld_in_%d_out_%d  multi=%.6f\n%s\n",
                     output_id,
                     label.length(),
-                    multi,
                     indegree,
                     outdegree,
+                    multi,
                     label.c_str());
-            fwrite(&multi, sizeof(uint16_t), 1, multi_file);
+            
             ++output_id;
             ++histo[label.length()];
             omp_unset_lock(&output_lock);
@@ -571,7 +570,6 @@ void UnitigGraph::OutputInitUnitigs(FILE *contig_file, FILE *multi_file, std::ma
 }
 
 void UnitigGraph::OutputInitUnitigs(FILE *contig_file,
-                                    FILE *multi_file,
                                     FILE *final_contig_file,
                                     std::map<int64_t, int> &histo,
                                     int min_final_contig_length) {
@@ -582,7 +580,7 @@ void UnitigGraph::OutputInitUnitigs(FILE *contig_file,
 
     #pragma omp parallel for
     for (vertexID_t i = 0; i < vertices_.size(); ++i) {
-        uint16_t multi = std::min(kMaxMulti_t, int((double)vertices_[i].depth / vertices_[i].length + 0.5));
+        double multi = (double)vertices_[i].depth / vertices_[i].length;
         std::string label = VertexToDNAString(sdbg_, vertices_[i]);
 
         if (vertices_[i].is_loop) {
@@ -593,7 +591,7 @@ void UnitigGraph::OutputInitUnitigs(FILE *contig_file,
                 continue;
             }
             omp_set_lock(&output_lock);
-            fprintf(final_contig_file, ">contig_%d_%d_length_%ld_multi_%d_loop\n%s\n",
+            fprintf(final_contig_file, ">contig_%d_%d_length_%ld_loop  multi=%.6f\n%s\n",
                     sdbg_->kmer_k,
                     output_id,
                     label.length(),
@@ -620,17 +618,14 @@ void UnitigGraph::OutputInitUnitigs(FILE *contig_file,
             }
 
             omp_set_lock(&output_lock);
-            fprintf(out_file, ">contig_%d_%d_length_%ld_multi_%d_in_%d_out_%d\n%s\n",
+            fprintf(out_file, ">contig_%d_%d_length_%ld_in_%d_out_%d  multi=%.6f\n%s\n",
                     sdbg_->kmer_k,
                     output_id,
                     label.length(),
-                    multi,
                     indegree,
                     outdegree,
+                    multi,
                     label.c_str());
-            if (out_file == contig_file) {
-                fwrite(&multi, sizeof(uint16_t), 1, multi_file);
-            }
             ++output_id;
             ++histo[label.length()];
             omp_unset_lock(&output_lock);
@@ -640,7 +635,7 @@ void UnitigGraph::OutputInitUnitigs(FILE *contig_file,
     omp_destroy_lock(&output_lock);
 }
 
-void UnitigGraph::OutputChangedUnitigs(FILE *add_contig_file, FILE *addi_multi_file, std::map<int64_t, int> &histo) {
+void UnitigGraph::OutputChangedUnitigs(FILE *add_contig_file, std::map<int64_t, int> &histo) {
     vertexID_t output_id = 0;
     omp_lock_t output_lock;
     omp_lock_t histo_lock;
@@ -654,7 +649,7 @@ void UnitigGraph::OutputChangedUnitigs(FILE *add_contig_file, FILE *addi_multi_f
             continue;
         }
 
-        uint16_t multi = std::min(kMaxMulti_t, int((double)vertices_[i].depth / vertices_[i].length + 0.5));
+        double multi = (double)vertices_[i].depth / vertices_[i].length;
         std::string label = VertexToDNAString(sdbg_, vertices_[i]);
 
         omp_set_lock(&histo_lock);
@@ -682,26 +677,24 @@ void UnitigGraph::OutputChangedUnitigs(FILE *add_contig_file, FILE *addi_multi_f
                 }
             }
             omp_set_lock(&output_lock);
-            fprintf(add_contig_file, ">addi%d_length_%ld_multi_%d_loop\n%s\n",
+            fprintf(add_contig_file, ">addi%d_length_%ld_loop  multi=%.6f\n%s\n",
                     output_id,
                     label.length(),
                     multi,
                     label.c_str());
-            fwrite(&multi, sizeof(uint16_t), 1, addi_multi_file);
             ++output_id;
             omp_unset_lock(&output_lock);
         } else {
             int indegree = sdbg_->Indegree(vertices_[i].start_node);
             int outdegree = sdbg_->Outdegree(vertices_[i].end_node);
             omp_set_lock(&output_lock);
-            fprintf(add_contig_file, ">addi%d_length_%ld_multi_%d_in_%d_out_%d\n%s\n",
+            fprintf(add_contig_file, ">addi%d_length_%ld_in_%d_out_%d  multi=%.6f\n%s\n",
                     output_id,
                     label.length(),
-                    multi,
                     indegree,
                     outdegree,
+                    multi,
                     label.c_str());
-            fwrite(&multi, sizeof(uint16_t), 1, addi_multi_file);
             ++output_id;
             omp_unset_lock(&output_lock);
         }
@@ -727,7 +720,7 @@ void UnitigGraph::OutputFinalUnitigs(FILE *final_contig_file,
             continue;
         }
 
-        uint16_t multi = std::min(kMaxMulti_t, int((double)vertices_[i].depth / vertices_[i].length + 0.5));
+        double multi = (double)vertices_[i].depth / vertices_[i].length;
         std::string label = VertexToDNAString(sdbg_, vertices_[i]);
 
         if (vertices_[i].is_loop) {
@@ -738,7 +731,7 @@ void UnitigGraph::OutputFinalUnitigs(FILE *final_contig_file,
                 continue;
             }
             omp_set_lock(&output_lock);
-            fprintf(final_contig_file, ">contig_%d_%d_length_%ld_multi_%d_loop\n%s\n",
+            fprintf(final_contig_file, ">contig_%d_%d_length_%ld_loop  multi=%.6f\n%s\n",
                     sdbg_->kmer_k,
                     output_id,
                     label.length(),
@@ -755,7 +748,7 @@ void UnitigGraph::OutputFinalUnitigs(FILE *final_contig_file,
                 continue;
             }
             omp_set_lock(&output_lock);
-            fprintf(final_contig_file, ">contig_%d_%d_length_%ld_multi_%d_palindrome\n%s\n",
+            fprintf(final_contig_file, ">contig_%d_%d_length_%ld_palindrome  multi=%.6f\n%s\n",
                     sdbg_->kmer_k,
                     output_id,
                     label.length(),
@@ -771,13 +764,13 @@ void UnitigGraph::OutputFinalUnitigs(FILE *final_contig_file,
                 continue;
             }
             omp_set_lock(&output_lock);
-            fprintf(final_contig_file, ">contig_%d_%d_length_%ld_multi_%d_in_%d_out_%d\n%s\n",
+            fprintf(final_contig_file, ">contig_%d_%d_length_%ld_in_%d_out_%d  multi=%.6f\n%s\n",
                     sdbg_->kmer_k,
                     output_id,
                     label.length(),
-                    multi,
                     indegree,
                     outdegree,
+                    multi,
                     label.c_str());
             ++output_id;
             ++histo[label.length()];

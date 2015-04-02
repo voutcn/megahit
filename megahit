@@ -34,7 +34,7 @@ import multiprocessing
 
 from datetime import datetime, date, time
 
-megahit_version_str = "MEGAHIT v0.2.1-dev-0402-kmin-1pass-mode-mercier"
+megahit_version_str = "MEGAHIT v0.2.1-dev-0402-no_multi_file"
 usage_message = '''
 Copyright (c) The University of Hong Kong
 
@@ -413,11 +413,9 @@ def delete_temp_files(kmer_k):
     delect_file_if_exist(graph_prefix(kmer_k) + ".mul2")
 
     delect_file_if_exist(graph_prefix(kmer_k) + ".contigs.fa")
-    delect_file_if_exist(graph_prefix(kmer_k) + ".multi")
 
     if kmer_k != opt.k_max and opt.no_low_local == 0:
         delect_file_if_exist(graph_prefix(kmer_k) + ".addi.fa")
-        delect_file_if_exist(graph_prefix(kmer_k) + ".addi.multi")
 
     if kmer_k != opt.k_min:
         delect_file_if_exist(graph_prefix(kmer_k) + ".rr.pb")
@@ -549,7 +547,6 @@ def iterate(cur_k, step):
 
         iterate_cmd = [iterator,
                        "-c", graph_prefix(cur_k) + ".contigs.fa",
-                       "-m", graph_prefix(cur_k) + ".multi",
                        "-t", str(opt.num_cpu_threads),
                        "-k", str(cur_k),
                        "-s", str(step),
@@ -559,8 +556,6 @@ def iterate(cur_k, step):
         if opt.no_low_local == 0:
             iterate_cmd.append("--addi_contig_file")
             iterate_cmd.append(graph_prefix(cur_k) + ".addi.fa")
-            iterate_cmd.append("--addi_multi_file")
-            iterate_cmd.append(graph_prefix(cur_k) + ".addi.multi")
 
         if cur_k == opt.k_min:
             if opt.read_file == "":

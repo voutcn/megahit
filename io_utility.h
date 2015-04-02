@@ -21,6 +21,7 @@
 #ifndef IO_UTILITY_H_
 #define IO_UTILITY_H_
 
+#include <stdlib.h>
 #include <assert.h>
 #include <string>
 #include <vector>
@@ -40,7 +41,7 @@ struct ContigPackage {
     std::string seqs;
     std::vector<int> seq_lengths;
     std::vector<int> start_pos;
-    std::vector<multi_t> multiplicity;
+    std::vector<double> multiplicity;
     int cur_pos;
 
     void ReadContigs(kseq_t *seq, char *dna_map) {
@@ -56,6 +57,8 @@ struct ContigPackage {
                 seqs.push_back(dna_map[uint8_t(seq->seq.s[i])]);
             }
 
+            multiplicity.push_back(atof(seq->comment.s + 7)); // +6 to skip " multi="
+
             seq_lengths.push_back(seq->seq.l);
             if (seqs.length() >= kMaxNumChars) {
                 break;
@@ -63,16 +66,11 @@ struct ContigPackage {
         }
     }
 
-    void ReadMultiplicity(gzFile multi_file) {
-        multiplicity.resize(size());
-        int num_bytes = gzread(multi_file, &multiplicity[0], sizeof(multi_t) * size());
-        assert((unsigned)num_bytes == sizeof(multi_t) * size());
-    }
-
     void clear() {
         seqs.clear();
         seq_lengths.clear();
         start_pos.clear();
+        multiplicity.clear();
     }
 
     size_t size() {
