@@ -485,6 +485,19 @@ void s1_lv2_pre_output_partition(read2sdbg_global_t &globals) {
     std::swap(globals.permutation_db, globals.permutation);
     std::swap(globals.lv2_read_info_db, globals.lv2_read_info);
 
+    // err("Ha\n");
+    // for (int i = 0; i < globals.lv2_num_items_db; ++i) {
+    //     edge_word_t *item = globals.lv2_substrings_db + globals.permutation_db[i];
+    //     uint8_t head_and_tail = ExtractHeadTail(item, globals.lv2_num_items_db, globals.words_per_substring);
+    //     err("%c %c ", "ACGT$"[head_and_tail >> 3], "ACGT$"[head_and_tail & 7]);
+    //     for (int j = 0; j < globals.kmer_k - 1; ++j) {
+    //         err("%c", "ACGT"[ExtractNthChar(item, j % 16)]);
+    //         if (j == 15) { item += globals.lv2_num_items_db; }
+    //     }
+    //     err("\n");
+    // }
+    // err("ha\n");
+
     int64_t last_end_index = 0;
     int64_t items_per_thread = globals.lv2_num_items_db / globals.num_output_threads;
 
@@ -496,8 +509,8 @@ void s1_lv2_pre_output_partition(read2sdbg_global_t &globals) {
         }
         if (this_end_index > 0) {
             while (this_end_index < globals.lv2_num_items_db) {
-                edge_word_t *prev_item = globals.lv2_substrings_db + (globals.permutation_db[this_end_index - 1]);
-                edge_word_t *item = globals.lv2_substrings_db + (globals.permutation_db[this_end_index]);
+                edge_word_t *prev_item = globals.lv2_substrings_db + globals.permutation_db[this_end_index - 1];
+                edge_word_t *item = globals.lv2_substrings_db + globals.permutation_db[this_end_index];
                 if (IsDiffKMinusOneMer(prev_item, item, globals.lv2_num_items_db, globals.kmer_k)) {
                     break;
                 }
@@ -539,6 +552,17 @@ void* s1_lv2_output(void* _op) {
         start_idx = i;
         end_idx = i + 1;
         edge_word_t *first_item = globals.lv2_substrings_db + (globals.permutation_db[i]);
+        memset(count_prev_head, 0, sizeof(count_prev_head));
+        memset(count_tail_next, 0, sizeof(count_tail_next));
+        memset(count_head_tail, 0, sizeof(count_head_tail));
+
+        {
+            uint8_t prev_and_next = ExtractPrevNext(globals.permutation_db[i], globals);
+            uint8_t head_and_tail = ExtractHeadTail(globals.lv2_substrings_db + globals.permutation_db[i], globals.lv2_num_items_db, globals.words_per_substring);
+            count_prev_head[prev_and_next >> 3][head_and_tail >> 3]++;
+            count_tail_next[head_and_tail & 7][prev_and_next & 7]++;
+            count_head_tail[head_and_tail]++;
+        }
 
         while (end_idx < op_end_index) {
             if (IsDiffKMinusOneMer(first_item,
@@ -547,18 +571,14 @@ void* s1_lv2_output(void* _op) {
                                    globals.kmer_k)) {
                 break;
             }
-            ++end_idx;
-        }
 
-        memset(count_prev_head, 0, sizeof(count_prev_head));
-        memset(count_tail_next, 0, sizeof(count_tail_next));
-        memset(count_head_tail, 0, sizeof(count_head_tail));
-        for (int j = start_idx; j < end_idx; ++j) {
-            uint8_t prev_and_next = ExtractPrevNext(globals.permutation_db[j], globals);
-            uint8_t head_and_tail = ExtractHeadTail(globals.lv2_substrings_db + globals.permutation_db[j], globals.lv2_num_items_db, globals.words_per_substring);
+            uint8_t prev_and_next = ExtractPrevNext(globals.permutation_db[end_idx], globals);
+            uint8_t head_and_tail = ExtractHeadTail(globals.lv2_substrings_db + globals.permutation_db[end_idx], globals.lv2_num_items_db, globals.words_per_substring);
             count_prev_head[prev_and_next >> 3][head_and_tail >> 3]++;
             count_tail_next[head_and_tail & 7][prev_and_next & 7]++;
             count_head_tail[head_and_tail]++;
+
+            ++end_idx;
         }
 
         int has_in = 0, has_out = 0;
@@ -593,9 +613,8 @@ void* s1_lv2_output(void* _op) {
             uint8_t head = head_and_tail >> 3;
             uint8_t tail = head_and_tail & 7;
             if (head != kSentinelValue && tail != kSentinelValue) {
-                ++thread_edge_counting[count_head_tail[head_and_tail]];
+                ++thread_edge_counting[std::min(kMaxMulti_t, count_head_tail[head_and_tail])];
             }
-
 
             if (head != kSentinelValue && tail != kSentinelValue && count_head_tail[head_and_tail] >= globals.kmer_freq_threshold) {
                 for (int j = 0; j < count_head_tail[head_and_tail]; ++j, ++i) {
@@ -668,6 +687,10 @@ void* s1_lv2_output(void* _op) {
                     }
                 }
             }
+        }
+
+        if (i != end_idx) {
+            err("%d %d %d %d\n", i, end_idx, op_start_index, op_end_index);
         }
     }
 
