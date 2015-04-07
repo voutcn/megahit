@@ -181,8 +181,8 @@ sdbg_builder_cpu: sdbg_builder.cpp cx1.h lv2_cpu_sort.h cx1_kmer_count.o cx1_edg
 # sdbg_builder_cpu_1pass: sdbg_builder_1pass.cpp cx1_functions_1pass.o lv2_cpu_sort.h options_description.o $(DEPS)
 # 	$(CXX) $(CFLAGS) sdbg_builder_1pass.cpp cx1_functions_1pass.o options_description.o $(LIB) -o sdbg_builder_cpu_1pass
 
-megahit_assemble: assembler.cpp succinct_dbg.o rank_and_select.o assembly_algorithms.o branch_group.o options_description.o unitig_graph.o $(DEPS)
-	$(CXX) $(CFLAGS) assembler.cpp rank_and_select.o succinct_dbg.o assembly_algorithms.o branch_group.o options_description.o unitig_graph.o $(LIB) -o megahit_assemble
+megahit_assemble: assembler.cpp succinct_dbg.o rank_and_select.h assembly_algorithms.o branch_group.o options_description.o unitig_graph.o $(DEPS)
+	$(CXX) $(CFLAGS) assembler.cpp succinct_dbg.o assembly_algorithms.o branch_group.o options_description.o unitig_graph.o $(LIB) -o megahit_assemble
 
 megahit_iter: iterate_edges.cpp iterate_edges.h options_description.o city.o $(DEPS)
 	$(CXX) $(CFLAGS) iterate_edges.cpp options_description.o city.o $(LIB) -o megahit_iter
@@ -190,8 +190,8 @@ megahit_iter: iterate_edges.cpp iterate_edges.h options_description.o city.o $(D
 #-------------------------------------------------------------------------------
 # Applications for debug usage
 #-------------------------------------------------------------------------------
-query_sdbg: query_sdbg.cpp succinct_dbg.o rank_and_select.o assembly_algorithms.o branch_group.o unitig_graph.o $(DEPS)
-	$(CXX) $(CFLAGS) query_sdbg.cpp rank_and_select.o succinct_dbg.o assembly_algorithms.o branch_group.o unitig_graph.o -o query_sdbg
+query_sdbg: query_sdbg.cpp succinct_dbg.o rank_and_select.h assembly_algorithms.o branch_group.o unitig_graph.o $(DEPS)
+	$(CXX) $(CFLAGS) query_sdbg.cpp succinct_dbg.o assembly_algorithms.o branch_group.o unitig_graph.o -o query_sdbg
 
 #-------------------------------------------------------------------------------
 # GPU objectives

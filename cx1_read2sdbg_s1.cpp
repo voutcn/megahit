@@ -344,6 +344,7 @@ void* s1_lv1_fill_offset(void* _data) {
                 key = k_minus1_mer.data_[0] >> (kCharsPerEdgeWord - kBucketPrefixLength) * kBitsPerEdgeChar;
                 CHECK_AND_SAVE_OFFSET(last_char_offset - globals.kmer_k + 2, 0);
             } else {
+                // a not-that-math-correct solution if the edge is palindrome, but works well enough
                 int prev = ExtractNthChar(read_p, last_char_offset - (globals.kmer_k - 1));
                 int next = ExtractNthChar(read_p, last_char_offset + 1);
                 if (prev <= 3 - next) {

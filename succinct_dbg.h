@@ -194,8 +194,8 @@ class SuccinctDBG {
 
     // auxiliary memory
     RankAndSelect4Bits rs_w_;
-    RankAndSelect1Bit rs_last_;
-    RankAndSelect1Bit rs_is_dollar_;
+    RankAndSelect1Bit<false> rs_last_;
+    RankAndSelect1Bit<true> rs_is_dollar_;
     bool need_to_free_;
     bool need_to_free_mul_;
 
