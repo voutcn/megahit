@@ -34,7 +34,7 @@ import multiprocessing
 
 from datetime import datetime, date, time
 
-megahit_version_str = "MEGAHIT v0.2.1-dev-0406-rs-inline"
+megahit_version_str = "MEGAHIT v0.2.1-dev-0409--del-tmp-file"
 usage_message = '''
 Copyright (c) The University of Hong Kong
 
@@ -68,7 +68,7 @@ Optional Arguments:
     --use-gpu                                   use GPU, will overwrite --cpu-only
     --gpu-mem                      <float>      GPU memory in byte to be used. Default: auto detect to use up all free GPU memory. 
     -t/--num-cpu-threads           <int>        Number of CPU threads, at least 2. Default: auto detect to use all CPU threads.
-    --k-min-1pass                               Use 1pass mode to build SdBG of k_min, which requires less memory for
+    --kmin-1pass                                Use 1pass mode to build SdBG of k_min, which requires less memory for
                                                 ultra low-depth data (e.g. soil)
 
   Output options:
@@ -135,7 +135,7 @@ class Options():
         self.continue_mode = 0;
         self.last_cp = -1;
         self.out_prefix = ""
-        self.k_min_1pass = 0
+        self.kmin_1pass = 0
 
 opt = Options()
 cp = 0
@@ -174,7 +174,7 @@ def parse_opt(argv):
                                      "use-gpu",
                                      "num-cpu-threads=",
                                      "gpu-mem=",
-                                     "k-min-1pass",
+                                     "kmin-1pass",
                                      "k-min=",
                                      "k-max=",
                                      "k-step=",
@@ -217,8 +217,8 @@ def parse_opt(argv):
             opt.min_contig_len = int(value)
         elif option in ("-t", "--num-cpu-threads"):
             opt.num_cpu_threads = int(value)
-        elif option == "--k-min-1pass":
-            opt.k_min_1pass = 1
+        elif option == "--kmin-1pass":
+            opt.kmin_1pass = 1
         elif option == "--k-min":
             opt.k_min = int(value)
         elif option == "--k-max":
@@ -403,7 +403,16 @@ def delect_file_if_exist(file_name):
     if os.path.exists(file_name):
         os.remove(file_name)
 
-def delete_temp_files(kmer_k):
+def delete_tmp_after_build(kmer_k):
+    for i in range(0, max(1, int(opt.num_cpu_threads / 3))):
+        delect_file_if_exist(graph_prefix(kmer_k) + ".edges." + str(i))
+    for i in range(0, 64):
+        delect_file_if_exist(graph_prefix(kmer_k) + ".mercy_cand." + str(i))
+    for i in range(0, opt.num_cpu_threads - 1):
+        delect_file_if_exist(graph_prefix(kmer_k) + ".mercy." + str(i))
+    delect_file_if_exist(graph_prefix(kmer_k) + ".cand")
+
+def delete_tmp_after_assemble(kmer_k):
     delect_file_if_exist(graph_prefix(kmer_k) + ".w")
     delect_file_if_exist(graph_prefix(kmer_k) + ".last")
     delect_file_if_exist(graph_prefix(kmer_k) + ".isd")
@@ -411,20 +420,11 @@ def delete_temp_files(kmer_k):
     delect_file_if_exist(graph_prefix(kmer_k) + ".f")
     delect_file_if_exist(graph_prefix(kmer_k) + ".mul")
     delect_file_if_exist(graph_prefix(kmer_k) + ".mul2")
+
+def delete_tmp_after_iter(kmer_k):
+    delect_file_if_exist(graph_prefix(kmer_k) + ".rr.pb")
     delect_file_if_exist(graph_prefix(kmer_k) + ".contigs.fa")
     delect_file_if_exist(graph_prefix(kmer_k) + ".addi.fa")
-
-    if kmer_k != opt.k_min:
-        delect_file_if_exist(graph_prefix(kmer_k) + ".rr.pb")
-        delect_file_if_exist(graph_prefix(kmer_k) + ".edges.0")
-    else:
-        for i in range(0, 64):
-            delect_file_if_exist(graph_prefix(kmer_k) + ".mercy_cand." + str(i))
-        for i in range(0, max(1, int(opt.num_cpu_threads / 3))):
-            delect_file_if_exist(graph_prefix(kmer_k) + ".edges." + str(i))
-        for i in range(0, opt.num_cpu_threads - 1):
-            delect_file_if_exist(graph_prefix(kmer_k) + ".mercy." + str(i))
-        delect_file_if_exist(graph_prefix(kmer_k) + ".cand")
 
 def write_cp(cp):
     cpf = open(opt.temp_dir + "cp.txt", "a")
@@ -454,7 +454,7 @@ def build_first_graph():
             count_opt.append("-")
 
         cmd = []
-        if opt.k_min_1pass == 1:
+        if opt.kmin_1pass == 1:
             cmd = [opt.bin_dir + opt.builder, "read2sdbg"] + count_opt
             if opt.no_mercy == 0:
                 cmd.append("--need_mercy")
@@ -465,7 +465,7 @@ def build_first_graph():
             log_file = open(log_file_name(), "a")
             start_time = datetime.now()
             print("%s" % (" ").join(cmd), file=log_file)
-            if opt.k_min_1pass == 1:
+            if opt.kmin_1pass == 1:
                 print("[%s] Extracting solid (k+1)-mers and building sdbg for k = %d" % (start_time.strftime("%c"), opt.k_min), file=sys.stderr)
                 print("[%s] Extracting solid (k+1)-mers and building sdbg k = %d" % (start_time.strftime("%c"), opt.k_min), file=log_file)
             else:
@@ -493,8 +493,10 @@ def build_first_graph():
 
     write_cp(cp)
     cp = cp + 1
-    if opt.k_min_1pass != 1:
-         build_graph(opt.k_min, phase1_out_threads)
+    if opt.kmin_1pass != 1:
+        build_graph(opt.k_min, phase1_out_threads)
+    elif opt.keep_tmp_files != 1:
+        delete_tmp_after_build(opt.k_min)
 
 def build_graph(kmer_k, num_edge_files):
     global cp
@@ -533,6 +535,8 @@ def build_graph(kmer_k, num_edge_files):
 
     write_cp(cp)
     cp = cp + 1
+    if opt.keep_tmp_files != 1:
+        delete_tmp_after_build(kmer_k)
     return True
 
 def iterate(cur_k, step):
@@ -599,6 +603,8 @@ def iterate(cur_k, step):
             exit(1)
     write_cp(cp)
     cp = cp + 1
+    if opt.keep_tmp_files != 1:
+        delete_tmp_after_iter(cur_k)
 
 def assemble(cur_k):
     global cp
@@ -640,6 +646,8 @@ def assemble(cur_k):
             exit(1)
     write_cp(cp)
     cp = cp + 1
+    if opt.keep_tmp_files != 1 and cur_k != opt.k_max:
+        delete_tmp_after_assemble(cur_k)
 
 def merge_final():
     log_file = open(log_file_name(), "a")
@@ -687,14 +695,8 @@ def main(argv = None):
                 cur_k = next_k
                 break
             assemble(next_k)
-
-            if opt.keep_tmp_files == 0:
-                delete_temp_files(cur_k)
             cur_k = next_k
         # end while
-
-        if opt.keep_tmp_files == 0:
-            delete_temp_files(cur_k)
 
         merge_final()
 
