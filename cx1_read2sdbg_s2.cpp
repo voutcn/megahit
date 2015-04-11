@@ -666,6 +666,7 @@ void* s2_lv2_output(void* _op) {
     int last_a[4], outputed_b;
 
     globals.lv2_output_items[thread_id].clear();
+    // err("%d %d %d\n", thread_id, op_start_index, op_end_index);
 
     for (start_idx = op_start_index; start_idx < op_end_index; start_idx = end_idx) {
         end_idx = start_idx + 1;
@@ -714,7 +715,7 @@ void* s2_lv2_output(void* _op) {
             }
 
             int w, last, is_dollar = 0;
-            int count = std::min(j - i, kMaxMulti_t);
+            uint64_t count = std::min(j - i, kMaxMulti_t);
 
             if (a == kSentinelValue) {
                 assert(b != kSentinelValue);
@@ -738,7 +739,8 @@ void* s2_lv2_output(void* _op) {
             last = (a == kSentinelValue) ? 0 : ((last_a[a] == j - 1) ? 1 : 0);
 
             // save this item to the out_item array
-            uint64_t out_item = (uint64_t(i) << 32) | (count << 16) | (is_dollar << 5) | (last << 4) | w;
+            assert(i >= 0 && i < (1 << 30) - 1);
+            uint64_t out_item = (uint64_t(i) << 32ULL) | (count << 16ULL) | (is_dollar << 5ULL) | (last << 4ULL) | w;
             globals.lv2_output_items[thread_id].push_back(out_item);
         }
     }
