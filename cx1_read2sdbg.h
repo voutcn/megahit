@@ -55,7 +55,7 @@ struct read2sdbg_opt_t {
         input_file = "";
         output_prefix = "out";
         mem_flag = 1;
-        need_mercy = true;
+        need_mercy = false;
     }
 };
 
