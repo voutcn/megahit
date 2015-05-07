@@ -232,11 +232,6 @@ endif
 .PHONY:
 test: megahit_assemble megahit_iter_all sdbg_builder_cpu
 	-rm -fr example/megahit_out
-	./megahit -m 0.9 -l 100 -r example/readsInterleaved.fa -o example/megahit_out
-
-test_gpu: megahit_assemble megahit_iter_all sdbg_builder_gpu
-	-rm -fr example/megahit_gpu_out
-	./megahit -m 0.9 -l 100 -r example/readsInterleaved.fa --use-gpu -o example/megahit_gpu_out
 
 .PHONY:
 clean:
