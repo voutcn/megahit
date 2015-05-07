@@ -189,6 +189,9 @@ struct global_data_t {
     // for lookup binary search on sorted edges
     int64_t *edge_lookup;
     bool need_mercy;
+
+    // for output sorted edges
+    FILE* f_sorted_edges;
     //---------------end-of-phase2-------------------
 };
 

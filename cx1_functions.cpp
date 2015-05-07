@@ -31,7 +31,6 @@
 #include "helper_functions-inl.h"
 #include "mem_file_checker-inl.h"
 #include "sdbg_builder_util.h"
-#include "sdbg_builder_writers.h"
 #include "kmer_uint32.h"
 #include "lv2_cpu_sort.h"
 #include "MAC_pthread_barrier.h"
@@ -1528,12 +1527,9 @@ void PreprocessScanToFillBucketSizes(struct global_data_t &globals) {
 
 void InitGlobalData(global_data_t &globals) {
     // --- init output ---
-    globals.sdbg_writer.init((std::string(globals.output_prefix)+".w").c_str(),
-        (std::string(globals.output_prefix)+".last").c_str(),
-        (std::string(globals.output_prefix)+".isd").c_str());
-    globals.dummy_nodes_writer.init((std::string(globals.output_prefix)+".dn").c_str());
-    globals.output_f_file = OpenFileAndCheck((std::string(globals.output_prefix)+".f").c_str(), "w");
-    globals.output_multiplicity_file = OpenFileAndCheck((std::string(globals.output_prefix)+".mul").c_str(), "wb");
+    globals.f_sorted_edges = OpenFileAndCheck((std::string(globals.output_prefix)+".sortedEdges").c_str(), "wb");
+    globals.phase2_num_output_threads = 1; // must be 1 for outputting sorted edges
+    globals.need_mercy = false; // no mercy if output sorted edges
 
     // --- compute k_num_bits ---
     {
@@ -1544,14 +1540,6 @@ void InitGlobalData(global_data_t &globals) {
             len *= 2;
         }
     }
-
-    // --- init stat ---
-    globals.cur_prefix = -1;
-    globals.cur_suffix_first_char = -1;
-    globals.num_ones_in_last = 0;
-    globals.total_number_edges = 0;
-    globals.num_dollar_nodes = 0;
-    memset(globals.num_chars_in_w, 0, sizeof(globals.num_chars_in_w));
 
     // --- fill bucket size ---
     xtimer_t timer;
@@ -1639,364 +1627,6 @@ void InitGlobalData(global_data_t &globals) {
 #ifdef DISABLE_GPU
     globals.cpu_sort_space = (uint64_t*) MallocAndCheck(sizeof(uint64_t) * globals.max_lv2_items, __FILE__, __LINE__); // simulate GPU
 #endif
-
-    // --- write header ---
-    fprintf(globals.output_f_file, "-1\n");
-    globals.dummy_nodes_writer.output(globals.words_per_dummy_node);
-}
-
-struct ReadReadsThreadData {
-    ReadPackage *read_package;
-    gzFile *read_file;
-};
-
-static void* ReadReadsThread(void* data) {
-    ReadPackage &package = *(((ReadReadsThreadData*)data)->read_package);
-    gzFile &read_file = *(((ReadReadsThreadData*)data)->read_file);
-    package.ReadBinaryReads(read_file);
-    return NULL;
-}
-
-/**
- * @brief search mercy kmer
- */
-inline int64_t BinarySearchKmer(uint32_t *packed_edges, int64_t *lookup_table, int words_per_edge, 
-    int words_per_kmer, int last_shift, uint32_t *kmer) {
-    // --- first look up ---
-    int64_t l = lookup_table[(*kmer >> kLookUpShift) * 2];
-    if (l == -1) { return -1; }
-    int64_t r = lookup_table[(*kmer >> kLookUpShift) * 2 + 1];
-    int64_t mid;
-
-    // --- search the words before the last word ---
-    for (int i = 0; i < words_per_kmer - 1; ++i) {
-        while (l <= r) {
-            mid = (l + r) / 2;
-            if (packed_edges[mid * words_per_edge + i] < kmer[i]) {
-                l = mid + 1;
-            } else if (packed_edges[mid * words_per_edge + i] > kmer[i]) {
-                r = mid - 1;
-            } else {
-                int64_t ll = l, rr = mid, mm;
-                while (ll < rr) {
-                    mm = (ll + rr) / 2;
-                    if (packed_edges[mm * words_per_edge + i] < kmer[i]) {
-                        ll = mm + 1;
-                    } else {
-                        rr = mm;
-                    }
-                }
-                l = ll;
-
-                ll = mid, rr = r;
-                while (ll < rr) {
-                    mm = (ll + rr + 1) / 2;
-                    if (packed_edges[mm * words_per_edge + i] > kmer[i]) {
-                        rr = mm - 1;
-                    } else {
-                        ll = mm;
-                    }
-                }
-                r = rr;
-                break;
-            }
-        }
-        if (l > r) { return -1; }
-    }
-
-    // --- search the last word ---
-    while (l <= r) {
-        mid = (l + r) / 2;
-        if ((packed_edges[mid * words_per_edge + words_per_kmer - 1] >> last_shift) ==
-            (kmer[words_per_kmer - 1] >> last_shift)) {
-            return mid;
-        } else if ((packed_edges[mid * words_per_edge + words_per_kmer - 1] >> last_shift) > 
-            (kmer[words_per_kmer - 1] >> last_shift)) {
-            r = mid - 1;
-        } else {
-            l = mid + 1;
-        }
-    }
-    return -1;
-}
-
-//TODO: many hard-code in this function, feel tired to love...
-/**
- * @brief read candidate reads and search mercy kmer
- */
-void ReadReadsAndGetMercyEdges(global_data_t &globals) {
-    assert((globals.edge_lookup = (int64_t *) MallocAndCheck(kLookUpSize * 2 * sizeof(int64_t), __FILE__, __LINE__)) != NULL);
-    InitLookupTable(globals.edge_lookup, globals.packed_edges, globals.num_edges, globals.words_per_edge);
-
-    uint32_t *packed_edges = globals.packed_edges;
-    int64_t *lookup_table = globals.edge_lookup;
-    int kmer_k = globals.kmer_k;
-    int words_per_edge = globals.words_per_edge;
-    const char *edge_file_prefix = globals.phase2_input_prefix;
-
-    gzFile candidate_file = gzopen((std::string(globals.phase2_input_prefix)+".cand").c_str(), "r");
-    ReadPackage read_package[2];
-    read_package[0].init(globals.max_read_length);
-    read_package[1].init(globals.max_read_length);
-
-    ReadReadsThreadData input_thread_data;
-    input_thread_data.read_package = &read_package[0];
-    input_thread_data.read_file = &candidate_file;
-    int input_thread_idx = 0;
-    pthread_t input_thread;
-
-    pthread_create(&input_thread, NULL, ReadReadsThread, &input_thread_data);
-    int num_threads = globals.num_cpu_threads - 1;
-    omp_set_num_threads(num_threads);
-
-    std::vector<FILE*> out_files;
-    for (int i = 0; i < num_threads; ++i) {
-        char file_name[10240];
-        sprintf(file_name, "%s.mercy.%d", edge_file_prefix, i);
-        out_files.push_back(OpenFileAndCheck(file_name, "wb"));
-        assert(out_files.back() != NULL);
-    }
-
-    // parameters for binary search
-    int words_per_kmer = DivCeiling(kmer_k * kBitsPerEdgeChar, kBitsPerEdgeWord);
-    int last_shift_k = (kmer_k * kBitsPerEdgeChar) % kBitsPerEdgeWord;
-    if (last_shift_k > 0) {
-        last_shift_k = kBitsPerEdgeWord - last_shift_k;
-    }
-    int words_per_k_plus_one = DivCeiling((kmer_k + 1) * kBitsPerEdgeChar, kBitsPerEdgeWord);
-    int last_shift_k_plus_one = ((kmer_k + 1) * kBitsPerEdgeChar) % kBitsPerEdgeWord;
-    if (last_shift_k_plus_one > 0) {
-        last_shift_k_plus_one = kBitsPerEdgeWord - last_shift_k_plus_one;
-    }
-    // log("%d %d %d %d\n", words_per_kmer, words_per_k_plus_one, last_shift_k, last_shift_k_plus_one);
-    uint32_t *kmers = (uint32_t *) MallocAndCheck(sizeof(uint32_t) * (omp_get_max_threads()) * words_per_edge, __FILE__, __LINE__);
-    uint32_t *rev_kmers = (uint32_t *) MallocAndCheck(sizeof(uint32_t) * (omp_get_max_threads()) * words_per_edge, __FILE__, __LINE__);
-    bool *has_ins = (bool*) MallocAndCheck(sizeof(uint32_t) * (omp_get_max_threads()) * read_package[0].max_read_len, __FILE__, __LINE__);
-    bool *has_outs = (bool*) MallocAndCheck(sizeof(uint32_t) * (omp_get_max_threads()) * read_package[0].max_read_len, __FILE__, __LINE__);
-    assert(kmers != NULL);
-    assert(rev_kmers != NULL);
-    assert(has_ins != NULL);
-    assert(has_outs != NULL);
-
-    int64_t num_mercy_edges = 0;
-    int64_t num_reads = 0;
-
-    while (true) {
-        pthread_join(input_thread, NULL);
-        ReadPackage &package = read_package[input_thread_idx];
-        if (package.num_of_reads == 0) {
-            break;
-        }
-
-        input_thread_idx ^= 1;
-        input_thread_data.read_package = &read_package[input_thread_idx];
-        pthread_create(&input_thread, NULL, ReadReadsThread, &input_thread_data);
-
-        num_reads += package.num_of_reads;
-
-#pragma omp parallel for reduction(+:num_mercy_edges)
-        for (int read_id = 0; read_id < package.num_of_reads; ++read_id) {
-            int read_length = package.length(read_id);
-            if (read_length < kmer_k + 2) { continue; }
-            bool *has_in = has_ins + omp_get_thread_num() * package.max_read_len;
-            bool *has_out = has_outs + omp_get_thread_num() * package.max_read_len;
-            memset(has_in, 0, sizeof(bool) * (read_length - kmer_k + 1));
-            memset(has_out, 0, sizeof(bool) * (read_length - kmer_k + 1));
-            // construct the first kmer
-            uint32_t *kmer = kmers + words_per_edge * omp_get_thread_num();
-            uint32_t *rev_kmer = rev_kmers + words_per_edge * omp_get_thread_num();
-            memcpy(kmer, package.GetReadPtr(read_id), sizeof(uint32_t) * words_per_k_plus_one);
-            // construct the rev_kmer
-            for (int i = 0; i < words_per_kmer; ++i) {
-                rev_kmer[words_per_kmer - 1 - i] = ~ mirror(kmer[i]);
-            }
-            for (int i = 0; i < words_per_kmer; ++i) {
-                rev_kmer[i] <<= last_shift_k;
-                rev_kmer[i] |= (i == words_per_kmer - 1) ? 0 : (rev_kmer[i + 1] >> (kBitsPerEdgeWord - last_shift_k));
-            }
-
-            int last_index = std::min(read_length - 1, kCharsPerEdgeWord * words_per_k_plus_one - 1);
-
-            // first determine which kmer has in or out
-            for (int first_index = 0; first_index + kmer_k <= read_length; ++first_index) {
-                if (!has_in[first_index]) {
-                    // search the reverse complement
-                    if (BinarySearchKmer(packed_edges, lookup_table, words_per_edge, 
-                            words_per_kmer, last_shift_k, rev_kmer) != -1) {
-                        has_in[first_index] = true;
-                    } else {
-                        // check whether it has incomings
-                        int last_char = kmer[words_per_k_plus_one - 1] & 3;
-                        for (int i = words_per_k_plus_one - 1; i > 0; --i) {
-                            kmer[i] = (kmer[i] >> 2) | (kmer[i - 1] << 30);
-                        }
-                        kmer[0] >>= 2;
-                        // set the highest char to c
-                        for (int c = 0; c < 4; ++c) {
-                            kmer[0] &= 0x3FFFFFFF;
-                            kmer[0] |= c << 30;
-                            if (kmer[0] > rev_kmer[0]) {
-                                break;
-                            }
-                            if (BinarySearchKmer(packed_edges, lookup_table, words_per_edge, 
-                                     words_per_k_plus_one, last_shift_k_plus_one, kmer) != -1) {
-                                has_in[first_index] = true;
-                                break;
-                            }
-                        }
-                        for (int i = 0; i < words_per_k_plus_one - 1; ++i) {
-                            kmer[i] = (kmer[i] << 2) | (kmer[i + 1] >> 30);
-                        }
-                        kmer[words_per_k_plus_one - 1] = (kmer[words_per_k_plus_one - 1] << 2) | last_char;
-                    }
-                }
-
-                if (true) {
-                    // check whether it has outgoing
-                    int64_t search_idx = BinarySearchKmer(packed_edges, lookup_table, words_per_edge, 
-                                                          words_per_kmer, last_shift_k, kmer);
-                    if (search_idx != -1) {
-                        has_out[first_index] = true;
-                        // a quick check whether next has in
-                        if (first_index + kmer_k < read_length && 
-                            (packed_edges[search_idx * words_per_edge + words_per_k_plus_one - 1] >> last_shift_k_plus_one) ==
-                            (kmer[words_per_k_plus_one - 1] >> last_shift_k_plus_one)) {
-                            has_in[first_index + 1] = true;
-                        }
-                    } else {
-                        // search the rc
-                        int rc_last_char = rev_kmer[words_per_k_plus_one - 1] & 3;
-                        for (int i = words_per_k_plus_one - 1; i > 0; --i) {
-                            rev_kmer[i] = (rev_kmer[i] >> 2) | (rev_kmer[i - 1] << 30);
-                        }
-                        rev_kmer[0] >>= 2;
-                        int next_c = first_index + kmer_k < read_length ?
-                                     (3 - package.CharAt(read_id, first_index + kmer_k)) :
-                                     3;
-                        rev_kmer[0] &= 0x3FFFFFFF;
-                        rev_kmer[0] |= next_c << 30;
-                        if (rev_kmer[0] <= kmer[0] &&
-                            BinarySearchKmer(packed_edges, lookup_table, words_per_edge, 
-                                words_per_k_plus_one, last_shift_k_plus_one, rev_kmer) != -1) {
-                            has_out[first_index] = true;
-                            has_in[first_index + 1] = true;
-                        }
-
-                        for (int c = 0; !has_out[first_index] && c < 4; ++c) {
-                            if (c == next_c) { continue; }
-                            rev_kmer[0] &= 0x3FFFFFFF;
-                            rev_kmer[0] |= c << 30;
-                            if (rev_kmer[0] > kmer[0]) {
-                                break;
-                            }
-                            if (BinarySearchKmer(packed_edges, lookup_table, words_per_edge, 
-                                    words_per_k_plus_one, last_shift_k_plus_one, rev_kmer) != -1) {
-                                has_out[first_index] = true;
-                                break;
-                            }
-                        }
-                        for (int i = 0; i < words_per_k_plus_one - 1; ++i) {
-                            rev_kmer[i] = (rev_kmer[i] << 2) | (rev_kmer[i + 1] >> 30);
-                        }
-                        rev_kmer[words_per_k_plus_one - 1] = (rev_kmer[words_per_k_plus_one - 1] << 2) | rc_last_char;
-                    }
-                }
-
-                // shift kmer and rev_kmer
-                for (int i = 0; i < words_per_k_plus_one - 1; ++i) {
-                    kmer[i] = (kmer[i] << 2) | (kmer[i + 1] >> 30);
-                }
-                kmer[words_per_k_plus_one - 1] <<= 2;
-                if (++last_index < read_length) {
-                    kmer[words_per_k_plus_one - 1] |= package.CharAt(read_id, last_index);
-                }
-
-                for (int i = words_per_k_plus_one - 1; i > 0; --i) {
-                    rev_kmer[i] = (rev_kmer[i] >> 2) | (rev_kmer[i - 1] << 30);
-                }
-                rev_kmer[0] = (rev_kmer[0] >> 2) | ((3 - package.CharAt(read_id, first_index + kmer_k)) << 30);
-            }
-
-            // adding mercy edges
-            int last_no_out = -1;
-            std::vector<bool> is_mercy_edges(read_length - kmer_k, false);
-            for (int i = 0; i + kmer_k <= read_length; ++i) {
-                switch (has_in[i] | (int(has_out[i]) << 1)) {
-                    case 1: { // has incoming only
-                        last_no_out = i;
-                        break;
-                    }
-                    case 2: { // has outgoing only
-                        if (last_no_out >= 0) {
-                            for (int j = last_no_out; j < i; ++j) {
-                                is_mercy_edges[j] = true;
-                            }
-                            num_mercy_edges += i - last_no_out;
-                        }
-                        last_no_out = -1;
-                        break;
-                    }
-                    case 3: { // has in and out
-                        last_no_out = -1;
-                        break;
-                    }
-                    default: {
-                        // do nothing
-                        break;
-                    }
-                }
-            }
-            
-            memcpy(kmer, package.GetReadPtr(read_id), sizeof(uint32_t) * words_per_k_plus_one);
-            last_index = std::min(read_length - 1, kCharsPerEdgeWord * words_per_k_plus_one - 1);
-            for (int i = 0; i + kmer_k < read_length; ++i) {
-                if (is_mercy_edges[i]) {
-                    uint32_t last_word = kmer[words_per_k_plus_one - 1];
-                    kmer[words_per_k_plus_one - 1] >>= last_shift_k_plus_one;
-                    kmer[words_per_k_plus_one - 1] <<= last_shift_k_plus_one;
-                    for (int j = words_per_k_plus_one; j < words_per_edge; ++j) {
-                        kmer[j] = 0;
-                    }
-                    if (globals.mult_mem_type == 0) {
-                        kmer[words_per_edge - 1] |= 1; // WARNING: only accurate when m=2, but I think doesn't matter a lot
-                    }
-                    fwrite(kmer, sizeof(uint32_t), words_per_edge, out_files[omp_get_thread_num()]);
-                    if (globals.mult_mem_type > 0) {
-                        uint32_t kMercyMult = 1;
-                        fwrite(&kMercyMult, sizeof(uint32_t), 1, out_files[omp_get_thread_num()]);
-                    }
-                    kmer[words_per_k_plus_one - 1] = last_word;
-                }
-
-                for (int i = 0; i < words_per_k_plus_one - 1; ++i) {
-                    kmer[i] = (kmer[i] << 2) | (kmer[i + 1] >> 30);
-                }
-                kmer[words_per_k_plus_one - 1] <<= 2;
-                if (++last_index < read_length) {
-                    kmer[words_per_k_plus_one - 1] |= package.CharAt(read_id, last_index);
-                }
-            }
-        }
-        if (num_reads % (16 * package.kMaxNumReads) == 0) {
-            if (sdbg_builder_verbose >= 4) {
-                log("[B::%s] Number of reads: %ld, Number of mercy edges: %ld\n", __func__, num_reads, num_mercy_edges);
-            }
-        }
-    }
-
-
-    if (sdbg_builder_verbose >= 2) {
-        log("[B::%s] Number of reads: %ld, Number of mercy edges: %ld\n", __func__, num_reads, num_mercy_edges);
-    }
-
-    free(kmers);
-    free(rev_kmers);
-    free(has_ins);
-    free(has_outs);
-    free(globals.edge_lookup);
-    for (unsigned i = 0; i < out_files.size(); ++i) {
-        fclose(out_files[i]);
-    }
 }
 
 /**
@@ -2333,11 +1963,6 @@ inline bool IsDiffKMinusOneMer(edge_word_t *item1, edge_word_t *item2, int64_t s
     return false;
 }
 
-// helper
-inline int ExtractFirstChar(edge_word_t *item) {
-    return *item >> kTopCharShift;
-}
-
 // bS'a
 inline int Extract_a(edge_word_t *item, int num_words, int64_t spacing, int kmer_k) {
     int non_dollar = (item[(num_words - 1) * spacing] >> (kBWTCharNumBits + kBitsPerMulti_t)) & 1;
@@ -2354,17 +1979,6 @@ inline int Extract_b(edge_word_t *item, int num_words, int64_t spacing) {
     return (item[(num_words - 1) * spacing] >> kBitsPerMulti_t) & ((1 << kBWTCharNumBits) - 1);
 }
 
-inline int ExtractCounting(edge_word_t *item, int num_words, int64_t spacing) {
-    return item[(num_words - 1) * spacing] & kMaxMulti_t; 
-}
-
-inline int Extract_a_aux(unsigned char aux) {
-    return (aux >> kBWTCharNumBits) & ((1 << kBWTCharNumBits) - 1);
-}
-
-inline int Extract_b_aux(unsigned char aux) {
-    return aux & ((1 << kBWTCharNumBits) - 1);
-}
 
 void *Lv2OutputThread(void *_op) {
     struct outputpartition_data_t *op = (struct outputpartition_data_t*) _op;
@@ -2448,51 +2062,40 @@ void *Lv2OutputThread(void *_op) {
         }
     }
 
-    pthread_barrier_wait(&globals.output_barrier);
+    // output sorted edges for Alex
+    // 2 bits per char, and 1 bit to mark starting $, 1 bit to mark ending $
+    int words_per_output_edge = DivCeiling((globals.kmer_k + 1) * 2 + 2, 32);
+    // edge_word_t == uint32_t
+    uint32_t* output_edges = (uint32_t*) malloc(sizeof(uint32_t) * words_per_output_edge);
+    assert(output_edges != NULL);
 
-    if (op_start_index == 0) {
-        xtimer_t local_timer;
-        local_timer.reset();
-        local_timer.start();
-        for (int i = 0; i < globals.lv2_num_items_to_output; ++i) {
-            if (globals.lv2_aux[i] & (1 << 7)) {
-                edge_word_t *item = globals.lv2_substrings_to_output + globals.permutation_to_output[i];
-                while (ExtractFirstChar(item) > globals.cur_suffix_first_char) {
-                    ++globals.cur_suffix_first_char;
-                    fprintf(globals.output_f_file, "%lld\n", (long long)globals.total_number_edges);
-                }
+    for (int i = 0; i < globals.lv2_num_items_to_output; ++i) {
+        if (globals.lv2_aux[i] & (1 << 7)) {
+            uint32_t *item = globals.lv2_substrings_to_output + globals.permutation_to_output[i];
+            // for (int64_t j = 0; j < globals.kmer_k; ++j) {
+            //     putchar("ACGT"[ExtractNthChar(item + (j/16) * globals.lv2_num_items_to_output, j % 16)]);
+            // }
+            // putchar(' ');
+            // putchar("$ACGTacgt"[globals.lv2_aux[i] & 0xF]);
+            // puts("");
 
-                multi_t counting_to_output = std::min(kMaxMulti_t, 
-                    ExtractCounting(item, globals.words_per_substring, globals.lv2_num_items_to_output));
-                // output
-                globals.sdbg_writer.outputW(globals.lv2_aux[i] & 0xF);
-                globals.sdbg_writer.outputLast((globals.lv2_aux[i] >> 4) & 1);
-                globals.sdbg_writer.outputIsDollar((globals.lv2_aux[i] >> 5) & 1);
-                fwrite(&counting_to_output, sizeof(multi_t), 1, globals.output_multiplicity_file);
-
-                globals.total_number_edges++;
-                globals.num_chars_in_w[globals.lv2_aux[i] & 0xF]++;
-                globals.num_ones_in_last += (globals.lv2_aux[i] >> 4) & 1;
-
-                if ((globals.lv2_aux[i] >> 5) & 1) {
-                    globals.num_dollar_nodes++;
-                    if (globals.num_dollar_nodes >= phase2::kMaxDummyEdges) {
-                        err("[ERROR B::%s] Too many dummy nodes (>= %lld)! The graph contains too many tips!\n", __func__, (long long)phase2::kMaxDummyEdges);
-                        exit(1);
-                    }
-                    for (int64_t i = 0; i < globals.words_per_dummy_node; ++i) {
-                        globals.dummy_nodes_writer.output(item[i * globals.lv2_num_items_to_output]);
-                    }
-                }
-                if ((globals.lv2_aux[i] & 0xF) == 0) {
-                    globals.num_dummy_edges++;
-                }
+            // reverse the sequence then output
+            memset(output_edges, 0, sizeof(uint32_t) * words_per_output_edge);
+            for (int64_t j = 0; j < globals.kmer_k; ++j) {
+                int64_t rj = globals.kmer_k - 1 - j;
+                output_edges[j/16] |= ExtractNthChar(item + (rj/16) * globals.lv2_num_items_to_output, rj % 16) << (j % 16 * 2);
             }
-        }
-        local_timer.stop();
 
-        if (sdbg_builder_verbose >= 4) {
-            log("[B::%s] Linear part: %lf\n", __func__, local_timer.elapsed());
+            // append outgoing label of the edge
+            uint32_t w = globals.lv2_aux[i] & 0xF;
+            if (w > 4) { w -= 5; }
+            else if (w > 0) { w--; }
+            output_edges[globals.kmer_k/16] |= w << (globals.kmer_k % 16 * 2);
+
+            // set $ flag 
+            output_edges[(globals.kmer_k + 1)/16] |= ((globals.lv2_aux[i] >> 5) & 1) << ((globals.kmer_k + 1) % 16 * 2);
+            output_edges[(globals.kmer_k + 1)/16] |= uint32_t((globals.lv2_aux[i] & 0xF) == 0) << ((globals.kmer_k + 1) % 16 * 2 + 1);
+            fwrite(output_edges, sizeof(uint32_t), words_per_output_edge, globals.f_sorted_edges);
         }
     }
     return NULL;
@@ -2556,14 +2159,12 @@ void Phase2Clean(struct global_data_t &globals) {
     free(globals.lv2_substrings_to_output);
     free(globals.permutation_to_output);
     free(globals.lv2_aux);
-    fclose(globals.output_f_file);
-    fclose(globals.output_multiplicity_file);
+    fclose(globals.f_sorted_edges);
     if (globals.mult_mem_type == 1) {
         free(globals.multiplicity8);
     } else if (globals.mult_mem_type == 2) {
         free(globals.multiplicity16);
     }
-    globals.dummy_nodes_writer.destroy();
     for (int t = 0; t < globals.num_cpu_threads; ++t) {
         free(globals.readpartitions[t].rp_bucket_sizes);
         free(globals.readpartitions[t].rp_bucket_offsets);
@@ -2588,21 +2189,6 @@ void Phase2Entry(struct global_data_t &globals) {
 
     if (sdbg_builder_verbose >= 3) {
         log("[B::%s] Done. Time elapsed: %.4lfs\n", __func__, timer.elapsed());
-    }
-
-    if (globals.need_mercy) {
-        timer.reset();
-        timer.start();
-        if (sdbg_builder_verbose >= 3) {
-            log("[B::%s] Adding mercy edges...\n", __func__);
-        }
-        ReadReadsAndGetMercyEdges(globals);
-        ReadMercyEdges(globals);
-        timer.stop();
-
-        if (sdbg_builder_verbose >= 3) {
-            log("[B::%s] Done. Time elapsed: %.4lfs\n", __func__, timer.elapsed());
-        }
     }
 
     // --- init global data ---
@@ -2732,25 +2318,6 @@ void Phase2Entry(struct global_data_t &globals) {
 
     if (sdbg_builder_verbose >= 3) {
         log("[B::%s] Done sorting! Time elapsed: %.4lf\n", __func__, timer.elapsed());
-        log("[B::%s] Number of $ A C G T A- C- G- T-:\n", __func__);
-    }
-
-    for (int i = 0; i < 9; ++i) {
-        log("%lld ", globals.num_chars_in_w[i]);
-    }
-    log("\n");
-
-    // --- write tails ---
-    fprintf(globals.output_f_file, "%lld\n", (long long)globals.total_number_edges);
-    fprintf(globals.output_f_file, "%d\n", globals.kmer_k);
-    fprintf(globals.output_f_file, "%lld\n", (long long)globals.num_dollar_nodes);
-
-
-    if (sdbg_builder_verbose >= 2) {
-        log("[B::%s] Total number of edges: %llu\n", __func__, globals.total_number_edges);
-        log("[B::%s] Total number of ONEs: %llu\n", __func__, globals.num_ones_in_last);
-        log("[B::%s] Total number of v$ edges: %llu\n", __func__, globals.num_dummy_edges);
-        log("[B::%s] Total number of $v edges: %llu\n", __func__, globals.num_dollar_nodes);
     }
 
     ////////////////////////////////// Cleaning up... /////////////////////////////////

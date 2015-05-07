@@ -200,6 +200,9 @@ megahit_iter_k124: iterate_edges.cpp iterate_edges.h options_description.o $(DEP
 query_sdbg: query_sdbg.cpp succinct_dbg.o rank_and_select.o assembly_algorithms.o branch_group.o unitig_graph.o $(DEPS)
 	$(CXX) $(CFLAGS) query_sdbg.cpp rank_and_select.o succinct_dbg.o assembly_algorithms.o branch_group.o unitig_graph.o -o query_sdbg
 
+edge_reader: edge_reader.cpp
+	$(CXX) $(CFLAGS) edge_reader.cpp -o edge_reader
+
 ifeq ($(use_gpu), 1)
 #-------------------------------------------------------------------------------
 # GPU objectives
