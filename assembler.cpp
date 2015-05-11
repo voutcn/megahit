@@ -40,7 +40,7 @@ struct AssemblerOptions {
     int max_tip_len;
     int min_final_contig_len;
     double min_depth;
-    bool is_first_round;
+    bool is_final_round;
     bool no_bubble;
     double bubble_remove_ratio;
     bool remove_low_local;
@@ -57,7 +57,7 @@ struct AssemblerOptions {
         remove_low_local = false;
         low_local_ratio = 0.2;
         min_depth = 1.5;
-        is_first_round = false;
+        is_final_round = false;
     }
 
     string contig_file() {
