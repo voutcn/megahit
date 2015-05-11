@@ -220,7 +220,7 @@ void AssembleFinalFromUnitigGraph(SuccinctDBG &dbg, FILE *final_contig_file, int
     timer.reset();
     timer.start();
     histogram.clear();
-    unitig_graph.OutputFinalUnitigs(final_contig_file, histogram, min_final_contig_len);
+    unitig_graph.OutputFinalUnitigs(final_contig_file, histogram, min_final_contig_len, true);
     PrintStat();
     timer.stop();
     printf("Time to output: %lf\n", timer.elapsed());
@@ -229,6 +229,11 @@ void AssembleFinalFromUnitigGraph(SuccinctDBG &dbg, FILE *final_contig_file, int
 void RemoveLowLocalAndOutputChanged(SuccinctDBG &dbg, FILE *contigs_file, FILE *multi_file, FILE *final_contig_file, 
                                     FILE *addi_contig_file, FILE *addi_multi_file, 
                                     double min_depth, int min_len, double local_ratio, int min_final_contig_len) {
+    
+    const double kMaxDepth = 65535;
+    const int kLocalWidth = 1000;
+    int64_t num_removed = 0;
+
     xtimer_t timer;
     timer.reset();
     timer.start();
@@ -236,6 +241,12 @@ void RemoveLowLocalAndOutputChanged(SuccinctDBG &dbg, FILE *contigs_file, FILE *
     unitig_graph.InitFromSdBG();
     timer.stop();
     printf("Simple path graph size: %u, time for building: %lf\n", unitig_graph.size(), timer.elapsed());
+
+    timer.reset();
+    timer.start();
+    unitig_graph.RemoveLocalLowDepth(min_depth, min_len, kLocalWidth, local_ratio, num_removed);
+    timer.stop();
+    printf("Low local unitigs removed: %lld, time: %lf\n", (long long)num_removed, timer.elapsed());
 
     timer.reset();
     timer.start();
@@ -249,9 +260,6 @@ void RemoveLowLocalAndOutputChanged(SuccinctDBG &dbg, FILE *contigs_file, FILE *
     timer.stop();
     printf("Time to output: %lf\n", timer.elapsed());
 
-    const double kMaxDepth = 65535;
-    const int kLocalWidth = 1000;
-    int64_t num_removed = 0;
     
     timer.reset();
     timer.start();
@@ -292,7 +300,7 @@ void RemoveLowLocalAndOutputFinal(SuccinctDBG &dbg, FILE *final_contig_file,
     printf("Number of unitigs removed: %lld\n", (long long)num_removed);
 
     histogram.clear();
-    unitig_graph.OutputFinalUnitigs(final_contig_file, histogram, min_final_contig_len);
+    unitig_graph.OutputFinalUnitigs(final_contig_file, histogram, min_final_contig_len, true);
     PrintStat();
 }
 

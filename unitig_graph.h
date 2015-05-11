@@ -59,18 +59,18 @@ public:
 
     void InitFromSdBG();
     uint32_t size() { return vertices_.size(); }
-    bool RemoveLocalLowDepth(int min_depth, int min_len, int local_width, double local_ratio, int64_t &num_removed);
+    bool RemoveLocalLowDepth(double min_depth, int min_len, int local_width, double local_ratio, int64_t &num_removed, bool permanent_rm = false);
 
     // output
     void OutputInitUnitigs(FILE *contig_file, FILE *multi_file, std::map<int64_t, int> &histo);
     void OutputChangedUnitigs(FILE *addi_contig_file, FILE *addi_multi_file, std::map<int64_t, int> &histo);
     void OutputInitUnitigs(FILE *contig_file, FILE *multi_file, FILE *final_contig_file, std::map<int64_t, int> &histo, int min_final_contig_len);
-    void OutputFinalUnitigs(FILE *final_contig_file, std::map<int64_t, int> &histo, int min_final_contig_len);
+    void OutputFinalUnitigs(FILE *final_contig_file, std::map<int64_t, int> &histo, int min_final_contig_len, bool keep_short_for_fastg = false);
 
 private:
     // functions
     double LocalDepth_(UnitigGraphVertex &path, int local_width);
-    void Refresh_();
+    void Refresh_(bool set_changed = true);
 
 private:
     // data

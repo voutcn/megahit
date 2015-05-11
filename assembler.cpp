@@ -39,7 +39,8 @@ struct AssemblerOptions {
 
     int max_tip_len;
     int min_final_contig_len;
-    bool is_final_round;
+    double min_depth;
+    bool is_first_round;
     bool no_bubble;
     double bubble_remove_ratio;
     bool remove_low_local;
@@ -55,7 +56,8 @@ struct AssemblerOptions {
         bubble_remove_ratio = 1;
         remove_low_local = false;
         low_local_ratio = 0.2;
-        is_final_round = false;
+        min_depth = 1.5;
+        is_first_round = false;
     }
 
     string contig_file() {
@@ -92,6 +94,7 @@ void ParseOption(int argc, char *argv[]) {
     desc.AddOption("bubble_remove_ratio", "", options.bubble_remove_ratio, "bubbles with multiplicities lower than this ratio times to highest of its group will be removed");
     desc.AddOption("remove_low_local", "", options.remove_low_local, "remove low local depth contigs progressively");
     desc.AddOption("low_local_ratio", "", options.low_local_ratio, "ratio to define low depth contigs");
+    desc.AddOption("min_depth", "", options.min_depth, "permanently remove low local coverage unitigs under this threshold");
     desc.AddOption("is_final_round", "", options.is_final_round, "this is the last iteration");
 
     try {
@@ -185,8 +188,8 @@ int main(int argc, char **argv) {
                 out_final_contig_file,
                 out_addi_contig_file,
                 out_addi_multi_file, 
-                2, 
-                dbg.kmer_k * 2, 
+                options.min_depth, // warning hardcode 
+                options.max_tip_len, 
                 options.low_local_ratio,
                 options.min_final_contig_len);
             
@@ -196,8 +199,8 @@ int main(int argc, char **argv) {
             assembly_algorithms::RemoveLowLocalAndOutputFinal(
                 dbg, 
                 out_final_contig_file, 
-                2, 
-                dbg.kmer_k * 2, 
+                options.min_depth,  
+                options.max_tip_len, 
                 options.low_local_ratio,
                 options.min_final_contig_len);
         }
