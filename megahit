@@ -34,7 +34,7 @@ import multiprocessing
 
 from datetime import datetime, date, time
 
-megahit_version_str = "MEGAHIT v0.2.1-0511-dirty"
+megahit_version_str = "MEGAHIT v0.2.2-beta-dev0518"
 usage_message = '''
 Copyright (c) The University of Hong Kong
 
@@ -73,6 +73,7 @@ Optional Arguments:
     -o/--out-dir                   <string>     output directory, default: ./megahit_out
     --out-prefix                   <string>     output prefix (the contig file will be OUT_DIR/OUT_PREFIX.contigs.fa)
     --min-contig-len               <int>        minimum length of contigs to output, default: 200
+    --need-fastg                   <int>        output short contigs to generate fastg file
     --keep-tmp-files                            keep all temporary files
 
   Basic assembly options:
@@ -88,6 +89,7 @@ Optional Arguments:
     --no-mercy                                  do not add mercy (k+1)-mer for k=k_min, default: off
     --no-low-local                              do not progressively remove low local coverage contigs, default: off
     --low-local-ratio              <float>      ratio threshold to define low local coverage contigs. Default: 0.2
+    --excessive-prune                           remove low local coverage contigs more aggresively
     --max-tip-len                  <int>        tips with length less than this value will be removed.
                                                 Default: 2*k for iteration of kmer_size=k
     --no-bubble                                 do not remove bubbles, default: off
@@ -122,11 +124,13 @@ class Options():
         self.max_tip_len = -1
         self.no_mercy = 0
         self.no_low_local = 0
+        self.excessive_prune = 0
         self.no_bubble = 0
         self.num_cpu_threads = 0
         self.low_local_ratio = 0.2
         self.temp_dir = self.out_dir + "tmp/"
         self.keep_tmp_files = 0
+        self.need_fastg = 0
         self.builder = "sdbg_builder_cpu"
         self.use_gpu = 0
         self.mem_flag = 1
@@ -178,13 +182,15 @@ def parse_opt(argv):
                                      "min-count=",
                                      "no-mercy",
                                      "no-low-local",
+                                     "excessive-prune",
                                      "max-tip-len=",
                                      "no-bubble",
                                      "low-local-ratio=",
                                      "keep-tmp-files",
                                      "mem-flag=",
                                      "continue",
-                                     "out-prefix="])
+                                     "out-prefix=",
+                                     "need-fastg"])
     except getopt.error as msg:
         raise Usage(megahit_version_str + '\n' + str(msg))
     if len(opts) == 0:
@@ -228,6 +234,8 @@ def parse_opt(argv):
             opt.no_mercy = 1
         elif option == "--no-low-local":
             opt.no_low_local = 1
+        elif option == "--excessive-prune":
+            opt.excessive_prune = 1;
         elif option == "--keep-tmp-files":
             opt.keep_tmp_files = 1
         elif option == "--cpu-only":
@@ -242,6 +250,8 @@ def parse_opt(argv):
                 need_continue = True
         elif option == "--out-prefix":
             opt.out_prefix = value
+        elif option == "--need-fastg":
+            opt.need_fastg = 1
         else:
             print("Invalid option %s", option, file=sys.stderr)
             exit(1)
@@ -612,11 +622,15 @@ def assemble(cur_k):
             assembly_cmd.append("--remove_low_local")
             assembly_cmd.append("--low_local_ratio")
             assembly_cmd.append(str(opt.low_local_ratio))
+        if opt.excessive_prune == 1:
+            assembly_cmd.append("--excessive_prune")
         if cur_k == opt.k_min:
             assembly_cmd.append("--min_depth")
             assembly_cmd.append(str(opt.min_count))
         if cur_k == opt.k_max:
             assembly_cmd.append("--is_final_round")
+            if opt.need_fastg:
+                assembly_cmd.append("--need_fastg")
 
         try:
             log_file = open(log_file_name(), "a")

@@ -44,8 +44,9 @@ struct AssemblerOptions {
     bool no_bubble;
     double bubble_remove_ratio;
     bool remove_low_local;
+    bool excessive_prune;
     double low_local_ratio;
-    int mercy_threshold;
+    bool need_fastg;
 
     AssemblerOptions() {
         output_prefix = "out";
@@ -93,9 +94,11 @@ void ParseOption(int argc, char *argv[]) {
     desc.AddOption("no_bubble", "", options.no_bubble, "do not remove bubbles");
     desc.AddOption("bubble_remove_ratio", "", options.bubble_remove_ratio, "bubbles with multiplicities lower than this ratio times to highest of its group will be removed");
     desc.AddOption("remove_low_local", "", options.remove_low_local, "remove low local depth contigs progressively");
+    desc.AddOption("excessive_prune", "", options.excessive_prune, "permanently remove low local depth contigs whose absolute depth is low");
     desc.AddOption("low_local_ratio", "", options.low_local_ratio, "ratio to define low depth contigs");
     desc.AddOption("min_depth", "", options.min_depth, "permanently remove low local coverage unitigs under this threshold");
     desc.AddOption("is_final_round", "", options.is_final_round, "this is the last iteration");
+    desc.AddOption("need_fastg", "", options.need_fastg, "keep short branching contigs to generate fastg file");
 
     try {
         desc.Parse(argc, argv);
@@ -162,7 +165,6 @@ int main(int argc, char **argv) {
         printf("Number of bubbles: %lld. Time elapsed: %lf\n", (long long)num_bubbles, timer.elapsed());
     }
 
-
     FILE *out_contig_file = OpenFileAndCheck(options.contig_file().c_str(), "w");
     FILE *out_multi_file = OpenFileAndCheck(options.multi_file().c_str(), "wb");
     FILE *out_final_contig_file = OpenFileAndCheck(options.final_contig_file().c_str(), "w");
@@ -191,7 +193,8 @@ int main(int argc, char **argv) {
                 options.min_depth, // warning hardcode 
                 options.max_tip_len, 
                 options.low_local_ratio,
-                options.min_final_contig_len);
+                options.min_final_contig_len,
+                options.excessive_prune);
             
             fclose (out_addi_contig_file);
             fclose(out_addi_multi_file);
@@ -202,7 +205,8 @@ int main(int argc, char **argv) {
                 options.min_depth,  
                 options.max_tip_len, 
                 options.low_local_ratio,
-                options.min_final_contig_len);
+                options.min_final_contig_len,
+                options.need_fastg);
         }
         timer.stop();
         printf("Done! Time elapsed(sec.): %lf\n", timer.elapsed());
@@ -222,7 +226,8 @@ int main(int argc, char **argv) {
             assembly_algorithms::AssembleFinalFromUnitigGraph(
                 dbg, 
                 out_final_contig_file, 
-                options.min_final_contig_len);
+                options.min_final_contig_len,
+                options.need_fastg);
         }
 
         timer.stop();

@@ -208,7 +208,7 @@ void AssembleFromUnitigGraph(SuccinctDBG &dbg, FILE *contigs_file, FILE *multi_f
     printf("Time to output: %lf\n", timer.elapsed());
 }
 
-void AssembleFinalFromUnitigGraph(SuccinctDBG &dbg, FILE *final_contig_file, int min_final_contig_len) {
+void AssembleFinalFromUnitigGraph(SuccinctDBG &dbg, FILE *final_contig_file, int min_final_contig_len, bool need_fastg) {
     xtimer_t timer;
     timer.reset();
     timer.start();
@@ -220,7 +220,7 @@ void AssembleFinalFromUnitigGraph(SuccinctDBG &dbg, FILE *final_contig_file, int
     timer.reset();
     timer.start();
     histogram.clear();
-    unitig_graph.OutputFinalUnitigs(final_contig_file, histogram, min_final_contig_len, true);
+    unitig_graph.OutputFinalUnitigs(final_contig_file, histogram, min_final_contig_len, need_fastg);
     PrintStat();
     timer.stop();
     printf("Time to output: %lf\n", timer.elapsed());
@@ -228,7 +228,7 @@ void AssembleFinalFromUnitigGraph(SuccinctDBG &dbg, FILE *final_contig_file, int
 
 void RemoveLowLocalAndOutputChanged(SuccinctDBG &dbg, FILE *contigs_file, FILE *multi_file, FILE *final_contig_file, 
                                     FILE *addi_contig_file, FILE *addi_multi_file, 
-                                    double min_depth, int min_len, double local_ratio, int min_final_contig_len) {
+                                    double min_depth, int min_len, double local_ratio, int min_final_contig_len, bool excessive_prune) {
     
     const double kMaxDepth = 65535;
     const int kLocalWidth = 1000;
@@ -240,13 +240,15 @@ void RemoveLowLocalAndOutputChanged(SuccinctDBG &dbg, FILE *contigs_file, FILE *
     UnitigGraph unitig_graph(&dbg);
     unitig_graph.InitFromSdBG();
     timer.stop();
-    printf("Simple path graph size: %u, time for building: %lf\n", unitig_graph.size(), timer.elapsed());
+    printf("Unitig graph size: %u, time for building: %lf\n", unitig_graph.size(), timer.elapsed());
 
-    timer.reset();
-    timer.start();
-    unitig_graph.RemoveLocalLowDepth(min_depth, min_len, kLocalWidth, local_ratio, num_removed);
-    timer.stop();
-    printf("Low local unitigs removed: %lld, time: %lf\n", (long long)num_removed, timer.elapsed());
+    if (excessive_prune) {
+        timer.reset();
+        timer.start();
+        unitig_graph.RemoveLocalLowDepth(min_depth, min_len, kLocalWidth, local_ratio, num_removed);
+        timer.stop();
+        printf("Unitigs removed in excessive pruning: %lld, time: %lf\n", (long long)num_removed, timer.elapsed());   
+    }
 
     timer.reset();
     timer.start();
@@ -259,7 +261,6 @@ void RemoveLowLocalAndOutputChanged(SuccinctDBG &dbg, FILE *contigs_file, FILE *
     PrintStat();
     timer.stop();
     printf("Time to output: %lf\n", timer.elapsed());
-
     
     timer.reset();
     timer.start();
@@ -284,10 +285,10 @@ void RemoveLowLocalAndOutputChanged(SuccinctDBG &dbg, FILE *contigs_file, FILE *
 }
 
 void RemoveLowLocalAndOutputFinal(SuccinctDBG &dbg, FILE *final_contig_file, 
-                                  double min_depth, int min_len, double local_ratio, int min_final_contig_len) {
+                                  double min_depth, int min_len, double local_ratio, int min_final_contig_len, bool need_fastg) {
     UnitigGraph unitig_graph(&dbg);
     unitig_graph.InitFromSdBG();
-    printf("Simple path graph size: %u\n", unitig_graph.size());
+    printf("Unitig graph size: %u\n", unitig_graph.size());
 
     const double kMaxDepth = 65535;
     const int kLocalWidth = 1000;
@@ -300,7 +301,7 @@ void RemoveLowLocalAndOutputFinal(SuccinctDBG &dbg, FILE *final_contig_file,
     printf("Number of unitigs removed: %lld\n", (long long)num_removed);
 
     histogram.clear();
-    unitig_graph.OutputFinalUnitigs(final_contig_file, histogram, min_final_contig_len, true);
+    unitig_graph.OutputFinalUnitigs(final_contig_file, histogram, min_final_contig_len, need_fastg);
     PrintStat();
 }
 
