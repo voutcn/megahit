@@ -614,7 +614,7 @@ def assemble(cur_k):
             assembly_cmd.append(str(opt.low_local_ratio))
         if cur_k == opt.k_min:
             assembly_cmd.append("--min_depth")
-            assembly_cmd.append(str(min_count))
+            assembly_cmd.append(str(opt.min_count))
         if cur_k == opt.k_max:
             assembly_cmd.append("--is_final_round")
 
