@@ -190,7 +190,7 @@ int main(int argc, char **argv) {
                 out_final_contig_file,
                 out_addi_contig_file,
                 out_addi_multi_file, 
-                options.min_depth, // warning hardcode 
+                options.min_depth,
                 options.max_tip_len, 
                 options.low_local_ratio,
                 options.min_final_contig_len,
