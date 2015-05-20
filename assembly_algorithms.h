@@ -42,11 +42,11 @@ int64_t PopBubbles(SuccinctDBG &dbg, int max_bubble_len, double low_depth_ratio 
 // assembly
 
 void AssembleFromUnitigGraph(SuccinctDBG &dbg, FILE *contigs_file, FILE *final_contig_file, int min_final_contig_len);
-void AssembleFinalFromUnitigGraph(SuccinctDBG &dbg, FILE *final_contig_file, int min_final_contig_len);
+void AssembleFinalFromUnitigGraph(SuccinctDBG &dbg, FILE *final_contig_file, int min_final_contig_len, bool need_fastg);
 void RemoveLowLocalAndOutputChanged(SuccinctDBG &dbg, FILE *contigs_file, FILE *final_contig_file, FILE *addi_contig_file,
-                                    double min_depth, int min_len, double local_ratio, int min_final_contig_len);
-void RemoveLowLocalAndOutputFinal(SuccinctDBG &dbg, FILE *final_contig_file,
-                                  double min_depth, int min_len, double local_ratio, int min_final_contig_len);
+                                    double min_depth, int min_len, double local_ratio, int min_final_contig_len, bool excessive_prune);
+void RemoveLowLocalAndOutputFinal(SuccinctDBG &dbg, FILE *final_contig_file, 
+                                  double min_depth, int min_len, double local_ratio, int min_final_contig_len, bool need_fastg);
 
 // print stat
 void PrintStat(long long genome_size = 0);

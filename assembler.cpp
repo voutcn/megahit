@@ -16,8 +16,6 @@
  *  along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-/* contact: Dinghua Li <dhli@cs.hku.hk> */
-
 #include <omp.h>
 #include <assert.h>
 #include <string>
@@ -41,12 +39,14 @@ struct AssemblerOptions {
 
     int max_tip_len;
     int min_final_contig_len;
+    double min_depth;
     bool is_final_round;
     bool no_bubble;
     double bubble_remove_ratio;
     bool remove_low_local;
+    bool excessive_prune;
     double low_local_ratio;
-    int mercy_threshold;
+    bool need_fastg;
 
     AssemblerOptions() {
         output_prefix = "out";
@@ -57,6 +57,7 @@ struct AssemblerOptions {
         bubble_remove_ratio = 1;
         remove_low_local = false;
         low_local_ratio = 0.2;
+        min_depth = 1.5;
         is_final_round = false;
     }
 
@@ -85,8 +86,11 @@ void ParseOption(int argc, char *argv[]) {
     desc.AddOption("no_bubble", "", options.no_bubble, "do not remove bubbles");
     desc.AddOption("bubble_remove_ratio", "", options.bubble_remove_ratio, "bubbles with multiplicities lower than this ratio times to highest of its group will be removed");
     desc.AddOption("remove_low_local", "", options.remove_low_local, "remove low local depth contigs progressively");
+    desc.AddOption("excessive_prune", "", options.excessive_prune, "permanently remove low local depth contigs whose absolute depth is low");
     desc.AddOption("low_local_ratio", "", options.low_local_ratio, "ratio to define low depth contigs");
+    desc.AddOption("min_depth", "", options.min_depth, "permanently remove low local coverage unitigs under this threshold");
     desc.AddOption("is_final_round", "", options.is_final_round, "this is the last iteration");
+    desc.AddOption("need_fastg", "", options.need_fastg, "keep short branching contigs to generate fastg file");
 
     try {
         desc.Parse(argc, argv);
@@ -111,11 +115,10 @@ int main(int argc, char **argv) {
 
     ParseOption(argc, argv);
 
-    SuccinctDBG dbg;
+    SuccinctDBG dbg;  
     xtimer_t timer;
 
-    {
-        // graph loading
+    { // graph loading
         timer.reset();
         timer.start();
         printf("Loading succinct de Bruijn graph: %s\n", options.sdbg_name.c_str());
@@ -126,8 +129,7 @@ int main(int argc, char **argv) {
         printf("K value: %d\n", dbg.kmer_k);
     }
 
-    {
-        // set parameters
+    { // set parameters
         if (options.num_cpu_threads == 0) {
             options.num_cpu_threads = omp_get_max_threads();
         }
@@ -155,9 +157,10 @@ int main(int argc, char **argv) {
         printf("Number of bubbles: %lld. Time elapsed: %lf\n", (long long)num_bubbles, timer.elapsed());
     }
 
-
     FILE *out_contig_file = OpenFileAndCheck(options.contig_file().c_str(), "w");
     FILE *out_final_contig_file = OpenFileAndCheck(options.final_contig_file().c_str(), "w");
+    assert(out_contig_file != NULL);
+    assert(out_final_contig_file != NULL);
 
     if (options.remove_low_local) { // remove local low depth
         timer.reset();
@@ -166,26 +169,29 @@ int main(int argc, char **argv) {
         printf("Removing low local coverage...\n");
         if (!options.is_final_round) {
             FILE *out_addi_contig_file = OpenFileAndCheck(options.addi_contig_file().c_str(), "w");
+            assert(out_addi_contig_file != NULL);
 
             // FILE *out_final_contig_file = NULL; // uncomment to avoid output final contigs
             assembly_algorithms::RemoveLowLocalAndOutputChanged(
-                dbg, out_contig_file,
+                dbg, out_contig_file, 
                 out_final_contig_file,
                 out_addi_contig_file,
-                2,
-                dbg.kmer_k * 2,
+                options.min_depth,
+                options.max_tip_len, 
                 options.low_local_ratio,
-                options.min_final_contig_len);
-
+                options.min_final_contig_len,
+                options.excessive_prune);
+            
             fclose (out_addi_contig_file);
         } else {
             assembly_algorithms::RemoveLowLocalAndOutputFinal(
-                dbg,
-                out_final_contig_file,
-                2,
-                dbg.kmer_k * 2,
+                dbg, 
+                out_final_contig_file, 
+                options.min_depth,  
+                options.max_tip_len, 
                 options.low_local_ratio,
-                options.min_final_contig_len);
+                options.min_final_contig_len,
+                options.need_fastg);
         }
         timer.stop();
         printf("Done! Time elapsed(sec.): %lf\n", timer.elapsed());
@@ -196,15 +202,16 @@ int main(int argc, char **argv) {
         if (!options.is_final_round) {
             // FILE *out_final_contig_file = NULL; // uncomment to avoid output final contigs
             assembly_algorithms::AssembleFromUnitigGraph(
-                dbg,
-                out_contig_file,
+                dbg, 
+                out_contig_file, 
                 out_final_contig_file,
                 options.min_final_contig_len);
         } else {
             assembly_algorithms::AssembleFinalFromUnitigGraph(
-                dbg,
-                out_final_contig_file,
-                options.min_final_contig_len);
+                dbg, 
+                out_final_contig_file, 
+                options.min_final_contig_len,
+                options.need_fastg);
         }
 
         timer.stop();
