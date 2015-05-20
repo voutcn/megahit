@@ -193,7 +193,7 @@ def parse_opt(argv):
                                      "mem-flag=",
                                      "continue",
                                      "excessive-prune",
-                                     "need-fastg"
+                                     "need-fastg",
                                      "out-prefix="])
     except getopt.error as msg:
         raise Usage(megahit_version_str + '\n' + str(msg))
