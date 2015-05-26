@@ -1,0 +1,118 @@
+#ifndef CONTIG_PACKAGE_H__
+#define CONTIG_PACKAGE_H__
+
+#include <stdint.h>
+#include <vector>
+
+/**
+ * @brief hold a set of sequences
+ */
+
+template <class WordType = uint32_t>
+struct SequencePackage {
+
+	typedef WordType word_t;
+	const static unsigned kBitsPerWord = 8 * sizeof(word_t);
+	const static unsigned kCharsPerWord = kBitsPerWord / 2;
+	char dna_map_[256];
+
+	std::vector<word_t> packed_seq; // packed all 
+	std::vector<uint64_t> start_idx; // the index of the starting position of a sequence
+
+	uint8_t unused_bits_; // the number of unused bits in the last word
+
+	SequencePackage() {
+		start_idx.push_back(0);
+		packed_seq.push_back(word_t(0));
+		unused_bits_ = kBitsPerWord;
+		for (int i = 0; i < 10; ++i) {
+			dna_map_["ACGTNacgtn"[i]] = "0123201232"[i] - '0';
+		}
+	}
+
+	~SequencePackage() {}
+
+	void clear() {
+		packed_seq.clear();
+		packed_seq.push_back(word_t(0));
+		start_idx.clear();
+		start_idx.push_back(word_t(0));
+		unused_bits_ = kBitsPerWord;
+	}
+
+	size_t size() {
+		return start_idx.size() - 1;
+	}
+
+	size_t base_size() {
+		return start_idx.back();
+	}
+
+	void shrink_to_fit() {
+		packed_seq.shrink_to_fit();
+		start_idx.shrink_to_fit();
+	}
+
+	size_t length(size_t seq_idx) {
+		return start_idx[seq_idx + 1] - start_idx[seq_idx];
+	}
+
+	uint8_t get_base(size_t seq_idx, size_t offset) {
+		uint64_t where = start_idx[seq_idx] + offset;
+		return packed_seq[where / kCharsPerWord] >> (kCharsPerWord - 1 - where % kCharsPerWord) * 2 & 3;
+	}
+
+	void AppendSeq(const char *s, unsigned len) {
+		for (unsigned i = 0; i < len; ++i) {
+			unused_bits_ -= 2;
+			packed_seq.back() |= dna_map_[s[i]] << unused_bits_;
+			if (unused_bits_ == 0) {
+				unused_bits_ = kBitsPerWord;
+				packed_seq.push_back(word_t(0));
+			}
+		}
+		uint64_t end = start_idx.back() + len;
+		start_idx.push_back(end);
+	}
+
+	void AppendSeq(word_t *s, unsigned len) {
+		uint64_t end = start_idx.back() + len;
+		start_idx.push_back(end);
+
+		if (len * 2 <= unused_bits_) {
+			unused_bits_ -= len * 2;
+			packed_seq.back() |= s[0] >> (kCharsPerWord - len) * 2 << unused_bits_;
+			if (unused_bits_ == 0) {
+				unused_bits_ = kBitsPerWord;
+				packed_seq.push_back(word_t(0));
+			}
+		} else {
+			unsigned num_words = (len + kCharsPerWord - 1) / kCharsPerWord;
+			unsigned bits_in_last_word = len * 2 % kBitsPerWord;
+
+			// clear last word
+			s[num_words-1] >>= kBitsPerWord - bits_in_last_word;
+
+			// append to unused bits
+			packed_seq.back() |= s[0] >> (kBitsPerWord - unused_bits_);
+
+			for (unsigned i = 0; i + 1 < num_words; ++i) {
+				s[i] = (s[i] << unused_bits_) | (s[i+1] >> (kBitsPerWord - unused_bits_));
+			}
+			s[num_words-1] <<= unused_bits_;
+
+			unsigned num_words_to_append = (len - unused_bits_ / 2 + kCharsPerWord - 1) / kCharsPerWord;
+			for (unsigned i = 0; i < num_words_to_append; ++i) {
+				packed_seq.push_back(s[i]);
+			}
+
+			bits_in_last_word = end % kCharsPerWord * 2;
+			unused_bits_ = kBitsPerWord - bits_in_last_word;
+			if (unused_bits_ == kBitsPerWord) {
+				packed_seq.push_back(word_t(0));
+			}
+		}
+	}
+};
+
+#endif
