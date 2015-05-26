@@ -1,5 +1,5 @@
-#ifndef CONTIG_PACKAGE_H__
-#define CONTIG_PACKAGE_H__
+#ifndef SEQUENCE_PACKAGE_H__
+#define SEQUENCE_PACKAGE_H__
 
 #include <stdint.h>
 #include <vector>
@@ -8,10 +8,9 @@
  * @brief hold a set of sequences
  */
 
-template <class WordType = uint32_t>
 struct SequencePackage {
 
-	typedef WordType word_t;
+	typedef uint32_t word_t;	// do not change
 	const static unsigned kBitsPerWord = 8 * sizeof(word_t);
 	const static unsigned kCharsPerWord = kBitsPerWord / 2;
 	char dna_map_[256];
@@ -112,6 +111,26 @@ struct SequencePackage {
 				packed_seq.push_back(word_t(0));
 			}
 		}
+	}
+
+	void get_seq(std::vector<word_t> &s, size_t seq_idx, int begin, int end = -1) {
+		if (end == -1) {
+			end = begin() + length(seq_idx) - 1;
+		}
+
+		size_t first_word = (start_idx[seq_idx] + begin) / kCharsPerWord;
+		size_t last_word = (start_idx[seq_idx+1] + end) / kCharsPerWord;
+		int first_shift = start_idx[seq_idx] % kCharsPerWord * 2;
+
+		s.clear();
+
+		for (size_t i = first_word; i < last_word; ++i) {
+			s.push_back((packed_seq[i] << first_shift) | (packed_seq[i+1] >> (kBitsPerWord - first_shift)));
+		}
+
+		int shift_clean = kBitsPerWord - (end - start + 1) * 2 % kBitsPerWord;
+		s.back() >>= shift_clean;
+		s.back() <<= shift_clean;
 	}
 };
 
