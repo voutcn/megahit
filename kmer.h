@@ -25,8 +25,7 @@
  * The value of k is not stored, many functions require a explict parameter k to work
  */
 template <unsigned kNumWords = 4, typename T = uint64_t>
-class Kmer {
-  public:
+struct Kmer {
     typedef T word_t;
 
     Kmer() {
@@ -37,6 +36,26 @@ class Kmer {
         std::memcpy(data_, kmer.data_, sizeof(word_t) * kNumWords);
     }
 
+    void init(word_t *seq, int offset, int k) {
+        int used_words = (k + kCharsPerWord - 1) / kCharsPerWord;
+        offset <<= 1;
+        for (int i = 0; i < used_words-1; ++i) {
+            data_[i] = (seq[i] << offset) | (seq[i+1] >> (kBitsPerWord - offset));
+        }
+
+        data_[used_words-1] = seq[used_words-1] << offset;
+        if (offset + k * 2 > (int)kBitsPerWord * used_words) {
+            data_[used_words-1] |= seq[used_words] >> (kBitsPerWord - offset);
+        }
+
+        if (k % kCharsPerWord != 0) {
+            uint32_t clean_shift = (kCharsPerWord - k % kCharsPerWord) << 1;
+            data_[used_words-1] = data_[used_words-1] >> clean_shift << clean_shift;
+        }
+
+        memset(data_ + used_words, 0, sizeof(word_t) * (kNumWords - used_words));
+    }
+
     ~Kmer() {}
 
     const Kmer &operator = (const Kmer &kmer) {
@@ -45,7 +64,7 @@ class Kmer {
     }
 
     bool operator <(const Kmer &kmer) const {
-        for (int i = kNumWords-1; i >= 0; --i) {
+        for (unsigned i = 0; i < kNumWords; --i) {
             if (data_[i] != kmer.data_[i])
                 return data_[i] < kmer.data_[i];
         }
@@ -53,7 +72,7 @@ class Kmer {
     }
 
     bool operator >(const Kmer &kmer) const {
-        for (int i = kNumWords-1; i >= 0; --i) {
+        for (unsigned i = 0; i < kNumWords; --i) {
             if (data_[i] != kmer.data_[i])
                 return data_[i] > kmer.data_[i];
         }
@@ -76,6 +95,18 @@ class Kmer {
         return false;
     }
 
+    int cmp(const Kmer& kmer, int k) const {
+        int used_words = (k + kCharsPerWord - 1) / kCharsPerWord;
+        for (int i = 0; i < used_words; ++i) {
+            if (data_[i] < kmer.data_[i]) {
+                return -1;
+            } else if (data_[i] > kmer.data_[i]) {
+                return 1;
+            }
+        }
+        return 0;
+    }
+
     const Kmer &ReverseComplement(int k) {
         uint32_t used_words = (k + kCharsPerWord - 1) / kCharsPerWord;
 
@@ -88,8 +119,8 @@ class Kmer {
         if ((k % kCharsPerWord) != 0) {
             unsigned offset = (kCharsPerWord - k % kCharsPerWord) << 1;
             for (unsigned i = 0; i+1 < used_words; ++i)
-                data_[i] = (data_[i] >> offset) | data_[i+1] << (kBitsPerWord - offset);
-            data_[used_words-1] >>= offset;
+                data_[i] = (data_[i] << offset) | (data_[i+1] >> (kBitsPerWord - offset));
+            data_[used_words-1] <<= offset;
         }
         return *this;
     }
@@ -98,19 +129,21 @@ class Kmer {
         ch &= 3;
         uint32_t used_words = (k + kCharsPerWord - 1) / kCharsPerWord;
         for (unsigned i = 0; i+1 < used_words ; ++i)
-            data_[i] = (data_[i] >> 2) | (data_[i+1] << (kBitsPerWord - 2));
-        data_[used_words-1] = (data_[used_words-1] >> 2) | (word_t(ch) << ((k - 1) % kCharsPerWord << 1));
+            data_[i] = (data_[i] << 2) | (data_[i+1] >> (kBitsPerWord - 2));
+        data_[used_words-1] = (data_[used_words-1] << 2) | (word_t(ch) << ((kCharsPerWord - 1 - (k - 1) % kCharsPerWord) << 1));
     }
 
     void ShiftPreappend(uint8_t ch, int k) {
         ch &= 3;
         uint32_t used_words = (k + kCharsPerWord - 1) / kCharsPerWord;
         for (int i = used_words-1; i > 0; --i)
-            data_[i] = (data_[i] << 2) | (data_[i-1] >> (kBitsPerWord - 2));
-        data_[0] = (data_[0] << 2) | ch;
+            data_[i] = (data_[i] >> 2) | (data_[i-1] << (kBitsPerWord - 2));
+        data_[0] = (data_[0] >> 2) | (word_t(ch) << (kBitsPerWord - 2));
 
-        if (k % kCharsPerWord != 0)
-            data_[used_words-1] &= (word_t(1) << (k % kCharsPerWord << 1)) - 1;
+        if (k % kCharsPerWord != 0) {
+            uint32_t clean_shift = (kCharsPerWord - k % kCharsPerWord) << 1;
+            data_[used_words-1] = data_[used_words-1] >> clean_shift << clean_shift;
+        }
     }
 
     bool IsPalindrome(int k) const {
@@ -129,16 +162,16 @@ class Kmer {
     }
 
     uint8_t operator [] (uint32_t index) const {
-        return (data_[index / kCharsPerWord] >> ((index % kCharsPerWord) << 1)) & 3;
+        return (data_[index / kCharsPerWord] >> ((kCharsPerWord - 1 - index % kCharsPerWord) << 1)) & 3;
     }
 
     uint8_t get_base(uint32_t index) const {
-        return (data_[index / kCharsPerWord] >> ((index % kCharsPerWord) << 1)) & 3;
+        return (data_[index / kCharsPerWord] >> ((kCharsPerWord - 1 - index % kCharsPerWord) << 1)) & 3;
     }
 
     void set_base(uint32_t index, uint8_t ch) {
         ch &= 3;
-        unsigned offset = (index % kCharsPerWord) << 1;
+        unsigned offset = (kCharsPerWord - 1 - index % kCharsPerWord) << 1;
         data_[index / kCharsPerWord] = (data_[index / kCharsPerWord] & ~(word_t(3) << offset)) | (word_t(ch) << offset);
     }
 

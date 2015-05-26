@@ -28,7 +28,7 @@
 #include "mem_file_checker-inl.h"
 #include "kseq.h"
 #include "utils.h"
-#include "kmer_uint32.h"
+#include "kmer.h"
 #include "packed_reads.h"
 
 #ifndef USE_GPU
@@ -139,17 +139,15 @@ void* s1_lv0_calc_bucket_size(void* _data) {
     int64_t *bucket_sizes = rp.rp_bucket_sizes;
     memset(bucket_sizes, 0, kNumBuckets * sizeof(int64_t));
     edge_word_t *read_p = GetReadPtr(globals.packed_reads, rp.rp_start_id, globals.words_per_read);
-    KmerUint32 k_minus1_mer, rev_k_minus1_mer; // (k-1)-mer and its rc
+    Kmer<6, uint32_t> k_minus1_mer, rev_k_minus1_mer; // (k-1)-mer and its rc
     for (int64_t read_id = rp.rp_start_id; read_id < rp.rp_end_id; ++read_id, read_p += globals.words_per_read) {
         int read_length = GetReadLength(read_p, globals.words_per_read, globals.read_length_mask);
         if (read_length < globals.kmer_k + 1) {
             continue;
         }
-        k_minus1_mer.init(read_p, globals.kmer_k - 1);
-        rev_k_minus1_mer.clean();
-        for (int i = 0; i < globals.kmer_k - 1; ++i) {
-            rev_k_minus1_mer.Append(3 - ExtractNthChar(read_p, globals.kmer_k - 2 - i));
-        }
+        k_minus1_mer.init(read_p, 0, globals.kmer_k - 1);
+        rev_k_minus1_mer = k_minus1_mer;
+        rev_k_minus1_mer.ReverseComplement(globals.kmer_k - 1);
 
         // the first one special handling
         bucket_sizes[k_minus1_mer.data_[0] >> (kCharsPerEdgeWord - kBucketPrefixLength) * kBitsPerEdgeChar]++;
@@ -157,11 +155,11 @@ void* s1_lv0_calc_bucket_size(void* _data) {
 
         int last_char_offset = globals.kmer_k - 1;
         int c = ExtractNthChar(read_p, last_char_offset);
-        k_minus1_mer.ShiftLeftAppend(c);
-        rev_k_minus1_mer.ShiftRightAppend(3 - c);
+        k_minus1_mer.ShiftAppend(c, globals.kmer_k - 1);
+        rev_k_minus1_mer.ShiftPreappend(3 - c, globals.kmer_k - 1);
 
         while (last_char_offset < read_length - 1) {
-            int cmp = k_minus1_mer.cmp(rev_k_minus1_mer);
+            int cmp = k_minus1_mer.cmp(rev_k_minus1_mer, globals.kmer_k - 1);
             if (cmp > 0) {
                 bucket_sizes[rev_k_minus1_mer.data_[0] >> (kCharsPerEdgeWord - kBucketPrefixLength) * kBitsPerEdgeChar]++;
             } else {
@@ -169,8 +167,8 @@ void* s1_lv0_calc_bucket_size(void* _data) {
             }
 
             int c = ExtractNthChar(read_p, ++last_char_offset);
-            k_minus1_mer.ShiftLeftAppend(c);
-            rev_k_minus1_mer.ShiftRightAppend(3 - c);
+            k_minus1_mer.ShiftAppend(c, globals.kmer_k - 1);
+            rev_k_minus1_mer.ShiftPreappend(3 - c, globals.kmer_k - 1);
         }
 
         // last one special handling
@@ -288,18 +286,16 @@ void* s1_lv1_fill_offset(void* _data) {
         prev_full_offsets[b] = rp.rp_lv1_differential_base;
     // this loop is VERY similar to that in PreprocessScanToFillBucketSizesThread
     edge_word_t *read_p = GetReadPtr(globals.packed_reads, rp.rp_start_id, globals.words_per_read);
-    KmerUint32 k_minus1_mer, rev_k_minus1_mer; // (k+1)-mer and its rc
+    Kmer<6, uint32_t> k_minus1_mer, rev_k_minus1_mer; // (k+1)-mer and its rc
     int key;
     for (int64_t read_id = rp.rp_start_id; read_id < rp.rp_end_id; ++read_id, read_p += globals.words_per_read) {
         int read_length = GetReadLength(read_p, globals.words_per_read, globals.read_length_mask);
         if (read_length < globals.kmer_k + 1) {
             continue;
         }
-        k_minus1_mer.init(read_p, globals.kmer_k - 1);
-        rev_k_minus1_mer.clean();
-        for (int i = 0; i < globals.kmer_k - 1; ++i) {
-            rev_k_minus1_mer.Append(3 - ExtractNthChar(read_p, globals.kmer_k - 2 - i));
-        }
+        k_minus1_mer.init(read_p, 0, globals.kmer_k - 1);
+        rev_k_minus1_mer = k_minus1_mer;
+        rev_k_minus1_mer.ReverseComplement(globals.kmer_k - 1);
 
         // ===== this is a macro to save some copy&paste ================
 #define CHECK_AND_SAVE_OFFSET(offset, strand)                                                                      \
@@ -331,12 +327,12 @@ void* s1_lv1_fill_offset(void* _data) {
 
         int last_char_offset = globals.kmer_k - 1;
         int c = ExtractNthChar(read_p, last_char_offset);
-        k_minus1_mer.ShiftLeftAppend(c);
-        rev_k_minus1_mer.ShiftRightAppend(3 - c);
+        k_minus1_mer.ShiftAppend(c, globals.kmer_k - 1);
+        rev_k_minus1_mer.ShiftPreappend(3 - c, globals.kmer_k - 1);
 
         // shift the key char by char
         while (last_char_offset < read_length - 1) {
-            int cmp = k_minus1_mer.cmp(rev_k_minus1_mer);
+            int cmp = k_minus1_mer.cmp(rev_k_minus1_mer, globals.kmer_k - 1);
             if (cmp > 0) {
                 key = rev_k_minus1_mer.data_[0] >> (kCharsPerEdgeWord - kBucketPrefixLength) * kBitsPerEdgeChar;
                 CHECK_AND_SAVE_OFFSET(last_char_offset - globals.kmer_k + 2, 1);
@@ -357,8 +353,8 @@ void* s1_lv1_fill_offset(void* _data) {
             }
 
             int c = ExtractNthChar(read_p, ++last_char_offset);
-            k_minus1_mer.ShiftLeftAppend(c);
-            rev_k_minus1_mer.ShiftRightAppend(3 - c);
+            k_minus1_mer.ShiftAppend(c, globals.kmer_k - 1);
+            rev_k_minus1_mer.ShiftPreappend(3 - c, globals.kmer_k - 1);
         }
 
         // the last one special handling
