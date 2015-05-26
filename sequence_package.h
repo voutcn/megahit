@@ -25,7 +25,7 @@ struct SequencePackage {
 		packed_seq.push_back(word_t(0));
 		unused_bits_ = kBitsPerWord;
 		for (int i = 0; i < 10; ++i) {
-			dna_map_["ACGTNacgtn"[i]] = "0123201232"[i] - '0';
+			dna_map_[(int)("ACGTNacgtn"[i])] = "0123201232"[i] - '0';
 		}
 	}
 
@@ -47,10 +47,10 @@ struct SequencePackage {
 		return start_idx.back();
 	}
 
-	void shrink_to_fit() {
-		packed_seq.shrink_to_fit();
-		start_idx.shrink_to_fit();
-	}
+	// void shrink_to_fit() {
+	// 	packed_seq.shrink_to_fit();
+	// 	start_idx.shrink_to_fit();
+	// }
 
 	size_t length(size_t seq_idx) {
 		return start_idx[seq_idx + 1] - start_idx[seq_idx];
@@ -64,7 +64,7 @@ struct SequencePackage {
 	void AppendSeq(const char *s, unsigned len) {
 		for (unsigned i = 0; i < len; ++i) {
 			unused_bits_ -= 2;
-			packed_seq.back() |= dna_map_[s[i]] << unused_bits_;
+			packed_seq.back() |= dna_map_[(int)s[i]] << unused_bits_;
 			if (unused_bits_ == 0) {
 				unused_bits_ = kBitsPerWord;
 				packed_seq.push_back(word_t(0));
@@ -115,7 +115,7 @@ struct SequencePackage {
 
 	void get_seq(std::vector<word_t> &s, size_t seq_idx, int begin, int end = -1) {
 		if (end == -1) {
-			end = begin() + length(seq_idx) - 1;
+			end = begin + length(seq_idx) - 1;
 		}
 
 		size_t first_word = (start_idx[seq_idx] + begin) / kCharsPerWord;
@@ -128,7 +128,7 @@ struct SequencePackage {
 			s.push_back((packed_seq[i] << first_shift) | (packed_seq[i+1] >> (kBitsPerWord - first_shift)));
 		}
 
-		int shift_clean = kBitsPerWord - (end - start + 1) * 2 % kBitsPerWord;
+		int shift_clean = kBitsPerWord - (end - begin + 1) * 2 % kBitsPerWord;
 		s.back() >>= shift_clean;
 		s.back() <<= shift_clean;
 	}

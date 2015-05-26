@@ -65,11 +65,11 @@ inline unsigned int mirror(unsigned int v) {
     return v;
 }
 
-inline char* FormatString(const char *fmt) {
+inline char* FormatString(const char *fmt, ...) {
     static char buffer[1 << 20];
     va_list args;
     va_start(args, fmt);
-    vsprintf(buffer, fmt, ap);
+    vsprintf(buffer, fmt, args);
     va_end(args);
     return buffer;
 }
