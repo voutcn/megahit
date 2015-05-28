@@ -374,6 +374,19 @@ class HashTable {
         return iterator();
     }
 
+    iterator find_with_lock(const key_type &key) {
+        uint64_t hash_value = hash_key(key);
+        lock_bucket(hash_value);
+        uint64_t index = bucket_index_key(key);
+        for (node_type *node = buckets_[index]; node; node = node->next) {
+            if (key_equal_(key, get_key_(node->value))) {
+                unlock_bucket(hash_value);
+                return iterator(this, node);
+            }
+        }
+        return iterator();   
+    }
+
     const_iterator find(const key_type &key) const {
         uint64_t index = bucket_index_key(key);
         for (node_type *node = buckets_[index]; node; node = node->next) {

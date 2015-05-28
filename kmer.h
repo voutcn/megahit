@@ -36,6 +36,10 @@ struct Kmer {
         std::memcpy(data_, kmer.data_, sizeof(word_t) * kNumWords);
     }
 
+    Kmer(word_t *seq, int offset, int k) {
+        init(seq, offset, k);
+    }
+
     void init(word_t *seq, int offset, int k) {
         int used_words = (k + kCharsPerWord - 1) / kCharsPerWord;
         offset <<= 1;
@@ -158,7 +162,7 @@ struct Kmer {
     Kmer unique_format(int k) const {
         Kmer rev_comp = *this;
         rev_comp.ReverseComplement(k);
-        return (*this < rev_comp ? *this : rev_comp);
+        return (this->cmp(rev_comp, k) <= 0 ? *this : rev_comp);
     }
 
     uint8_t operator [] (uint32_t index) const {
