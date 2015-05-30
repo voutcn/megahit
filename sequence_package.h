@@ -19,11 +19,13 @@ struct SequencePackage {
 	std::vector<uint64_t> start_idx; // the index of the starting position of a sequence
 
 	uint8_t unused_bits_; // the number of unused bits in the last word
+	uint32_t max_read_len_;
 
 	SequencePackage() {
 		start_idx.push_back(0);
 		packed_seq.push_back(word_t(0));
 		unused_bits_ = kBitsPerWord;
+		max_read_len_ = 0;
 		for (int i = 0; i < 10; ++i) {
 			dna_map_[(int)("ACGTNacgtn"[i])] = "0123201232"[i] - '0';
 		}
@@ -45,6 +47,10 @@ struct SequencePackage {
 
 	size_t base_size() {
 		return start_idx.back();
+	}
+
+	size_t max_read_len() {
+		return max_read_len_;
 	}
 
 	// void shrink_to_fit() {
@@ -70,11 +76,13 @@ struct SequencePackage {
 				packed_seq.push_back(word_t(0));
 			}
 		}
+		if (len > max_read_len_) { max_read_len_ = len; }
 		uint64_t end = start_idx.back() + len;
 		start_idx.push_back(end);
 	}
 
 	void AppendSeq(word_t *s, unsigned len) {
+		if (len > max_read_len_) { max_read_len_ = len; }
 		uint64_t end = start_idx.back() + len;
 		start_idx.push_back(end);
 

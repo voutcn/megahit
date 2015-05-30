@@ -13,6 +13,7 @@
 #include "kseq.h"
 #include "histgram.h"
 #include "bit_operation.h"
+#include "atomic_bit_vector.h"
 
 #ifndef KSEQ_INITED
 #define KSEQ_INITED
@@ -37,6 +38,26 @@ void LocalAssembler::ReadContigs(const char *fastx_file_name) {
 
 	kseq_destroy(seq);
 	gzclose(fp);
+}
+
+void LocalAssembler::BuildHashMapper(bool show_stat) {
+    size_t sz = contigs_->size();
+	size_t estimate_num_kmer = 0;
+
+#pragma omp parallel for reduction(+: estimate_num_kmer)
+	for (size_t i = 0; i < sz; ++i) {
+		estimate_num_kmer += (contigs_->length(i) - seed_kmer_ + sparcity_) / sparcity_;
+	}
+	mapper_.reserve(estimate_num_kmer);
+
+#pragma omp parallel for
+    for (size_t i = 0; i < sz; ++i) {
+    	AddToHashMapper_(mapper_, i, sparcity_);
+    }
+
+    if (show_stat) {
+    	fprintf(stderr, "Mapper size :%lu\n", mapper_.size());
+    }
 }
 
 void LocalAssembler::AddReadLib(const char *file_name, int file_type, bool is_paired) {
@@ -139,7 +160,7 @@ inline int Mismatch(uint32_t x, uint32_t y) {
 	return __builtin_popcount(x);
 }
 
-bool LocalAssembler::Match_(SequencePackage *read_lib, size_t read_id, int query_from, int query_to,
+int LocalAssembler::Match_(SequencePackage *read_lib, size_t read_id, int query_from, int query_to,
 							size_t contig_id, int ref_from, int ref_to, bool strand) {
 	uint32_t *query_first_word = &read_lib->packed_seq[read_lib->start_idx[read_id] / 16];
 	int query_shift = read_lib->start_idx[read_id] % 16;
@@ -157,11 +178,11 @@ bool LocalAssembler::Match_(SequencePackage *read_lib, size_t read_id, int query
 
 		match_len -= Mismatch(qw, rw);
 		if (match_len < threshold) {
-			return false;
+			return 0;
 		}
 	}
 
-	return true;
+	return match_len;
 }
 
 bool LocalAssembler::MapToHashMapper_(const mapper_t &mapper, SequencePackage *read_lib, size_t read_id, MappingRecord &rec) {
@@ -236,11 +257,13 @@ bool LocalAssembler::MapToHashMapper_(const mapper_t &mapper, SequencePackage *r
 			++tested;
 		}
 
-		if (Match_(read_lib, read_id, query_from, query_to, contig_id, contig_from, contig_to, mapping_strand)) {
+		int match_bases = Match_(read_lib, read_id, query_from, query_to, contig_id, contig_from, contig_to, mapping_strand);
+		if (match_bases > 0) {
 			if (num_mapped > 0) {
 				return false;
 			} else {
 				rec = tested_rec[tested-1];
+				rec.mismatch = query_to - query_from + 1 - match_bases;
 				num_mapped = 1;
 			}
 		}
@@ -250,61 +273,142 @@ bool LocalAssembler::MapToHashMapper_(const mapper_t &mapper, SequencePackage *r
 }
 
 void LocalAssembler::EstimateInsertSize(bool show_stat) {
-	// first select the longest reads totaling ~1Mbp
-	Histgram<int> contig_hist;
-	for (size_t i = 0, sz = contigs_->size(); i < sz; ++i) {
-		contig_hist.insert(contigs_->length(i));
-	}
-
-	int cutoff_len = 0; //contig_hist.Nx(kSizeToEstimateInsert);
-	mapper_t mapper;
-
-	if (show_stat) {
-		fprintf(stderr, "Total contig size %lubp\n", contigs_->base_size());
-    	fprintf(stderr, "Building hash mapper from contigs >= %dbp\n", cutoff_len);
-    }
-
-    size_t sz = contigs_->size();
-#pragma omp parallel for
-    for (size_t i = 0; i < sz; ++i) {
-    	if (contigs_->length(i) >= (unsigned)cutoff_len) {
-    		AddToHashMapper_(mapper, i, sparcity_);
-    	}
-    }
-
-    if (show_stat) {
-    	fprintf(stderr, "Mapper size :%lu\n", mapper.size());
-    }
-
     for (unsigned lib_id = 0; lib_id < read_libs_.size(); ++lib_id) {
-    	size_t sz = read_libs_[lib_id]->size();
+    	if (insert_sizes_[lib_id].first < -0.5) { continue; }
     	MappingRecord rec1, rec2;
     	Histgram<int> insert_hist;
+    	size_t start_read_id = 0, end_read_id = 0;
 
+    	while (insert_hist.size() < (1 << 20) && end_read_id < read_libs_[lib_id]->size()) {
+    		start_read_id = end_read_id;
+    		end_read_id = std::min(read_libs_[lib_id]->size(), start_read_id + size_t(2 << 20));
 #pragma omp parallel for private(rec1, rec2)
-    	for (size_t i = 0; i < std::min(sz, size_t(1 << 20)); i += 2) {
-    		if (MapToHashMapper_(mapper, read_libs_[lib_id], i, rec1) &&
-    			MapToHashMapper_(mapper, read_libs_[lib_id], i^1, rec2)) {
-    			if (rec1.contig_id == rec2.contig_id && rec1.strand != rec2.strand) {
-    				int insert_size = -1;
-    				if (rec1.strand == 0) {
-    					insert_size = rec2.contig_to + read_libs_[lib_id]->length(i^1) - rec2.query_to - (rec1.contig_from - rec1.query_from);
-    				} else {
-    					insert_size = rec1.contig_to + read_libs_[lib_id]->length(i) - rec1.query_to - (rec2.contig_from - rec2.query_from);
-    				}
+	    	for (size_t i = start_read_id; i < end_read_id; i += 2) {
+	    		if (MapToHashMapper_(mapper_, read_libs_[lib_id], i, rec1) &&
+	    			MapToHashMapper_(mapper_, read_libs_[lib_id], i^1, rec2)) {
+	    			if (rec1.contig_id == rec2.contig_id && rec1.strand != rec2.strand) {
+	    				int insert_size = -1;
+	    				if (rec1.strand == 0) {
+	    					insert_size = rec2.contig_to + read_libs_[lib_id]->length(i^1) - rec2.query_to - (rec1.contig_from - rec1.query_from);
+	    				} else {
+	    					insert_size = rec1.contig_to + read_libs_[lib_id]->length(i) - rec1.query_to - (rec2.contig_from - rec2.query_from);
+	    				}
 
-    				if (insert_size >= (int)read_libs_[lib_id]->length(i) &&
-    					insert_size >= (int)read_libs_[lib_id]->length(i^1)) {
-    					insert_hist.insert(insert_size);
-    				}
-    			}
-    		}
+	    				if (insert_size >= (int)read_libs_[lib_id]->length(i) &&
+	    					insert_size >= (int)read_libs_[lib_id]->length(i^1)) {
+	    					insert_hist.insert(insert_size);
+	    				}
+	    			}
+	    		}
+	    	}	
     	}
     	insert_hist.Trim(0.01);
+    	insert_sizes_[lib_id] = tlen_t(insert_hist.mean(), insert_hist.sd());
 
     	if (show_stat) {
 	    	fprintf(stderr, "Lib %d, mapped pairs: %u\n", lib_id, insert_hist.size());
 	    	fprintf(stderr, "insert size: %.2lf sd: %.2lf\n", insert_hist.mean(), insert_hist.sd());
 	    }
     }
+}
+
+int LocalAssembler::LocalRange_(int lib_id) {
+	int local_range = read_libs_[lib_id]->max_read_len() - 1;
+	if (insert_sizes_[lib_id].first >= read_libs_[lib_id]->max_read_len()) {
+		local_range = std::min(2 * insert_sizes_[lib_id].first,
+			                   insert_sizes_[lib_id].first + 3 * insert_sizes_[lib_id].second);
+	}
+
+	return local_range;
+}
+
+bool LocalAssembler::AddToMappingDeque_(int lib_id, size_t read_id, const MappingRecord &rec, int local_range) {
+	assert(read_id < read_libs_[lib_id]->size());
+	assert(rec.contig_id < contigs_->size());
+
+	int contig_len = contigs_->length(rec.contig_id);
+	int read_len = read_libs_[lib_id]->length(read_id);
+	if (rec.contig_to < local_range && rec.query_from != 0) {
+		while (!locks_.lock(rec.contig_id)) {
+			continue;
+		}
+		mapped_f[rec.contig_id].push_back((uint64_t(read_id) << 20) | (std::min(15, rec.mismatch) << 16) | (rec.contig_to << 2) | rec.strand);
+		locks_.unset(rec.contig_id);
+		return true;
+	} else if (rec.contig_from + local_range >= contig_len && rec.query_to < read_len) {
+		while (!locks_.lock(rec.contig_id)) {
+			continue;
+		}
+		mapped_r[rec.contig_id].push_back((uint64_t(read_id) << 20) | (std::min(15, rec.mismatch) << 16) | ((contig_len - 1 - rec.contig_from) << 2) | rec.strand);
+		locks_.unset(rec.contig_id);
+		return true;
+	}
+
+	return false;
+}
+
+bool LocalAssembler::AddMateToMappingDeque_(int lib_id, size_t read_id, const MappingRecord &rec1, const MappingRecord &rec2, bool mapped2, int local_range) {
+	assert(read_id < read_libs_[lib_id]->size());
+	assert((read_id ^ 1) < read_libs_[lib_id]->size());
+	assert(rec1.contig_id < contigs_->size());
+	assert(!mapped2 || rec2.contig_id < contigs_->size());
+
+	if (mapped2 && rec2.contig_id != rec1.contig_id)
+		return false;
+
+	int contig_len = contigs_->length(rec1.contig_id);
+	int read_len = read_libs_[lib_id]->length(read_id);
+
+	if (rec1.contig_to < local_range && rec1.query_from != 0) {
+		while (!locks_.lock(rec1.contig_id)) {
+			continue;
+		}
+		mapped_f[rec1.contig_id].push_back((uint64_t(read_id ^ 1) << 20) | (std::min(15, rec1.mismatch) << 16) | (rec1.contig_to << 2) | 2 | (rec1.strand ^ 1));
+		locks_.unset(rec1.contig_id);	
+		return true;
+	} else if (rec1.contig_from + local_range >= contig_len && rec1.query_to < read_len) {
+		while (!locks_.lock(rec1.contig_id)) {
+			continue;
+		}
+		mapped_r[rec1.contig_id].push_back((uint64_t(read_id ^ 1) << 20) | (std::min(15, rec1.mismatch) << 16) | ((contig_len - 1 - rec1.contig_from) << 2) | 2 | (rec1.strand ^ 1));
+		locks_.unset(rec1.contig_id);
+		return true;
+	}
+
+	return false;
+}
+
+void LocalAssembler::MapToContigs() {
+	mapped_f.resize(contigs_->size());
+	mapped_r.resize(contigs_->size());
+	locks_.reset(contigs_->size());
+
+	for (unsigned lib_id = 0; lib_id < read_libs_.size(); ++lib_id) {
+		int local_range = LocalRange_(lib_id);
+		bool is_paired = insert_sizes_[lib_id].first >= read_libs_[lib_id]->max_read_len();
+    	size_t sz = read_libs_[lib_id]->size();
+    	MappingRecord rec1, rec2;
+    	size_t num_added = 0;
+
+#pragma omp parallel for private(rec1, rec2) reduction(+: num_added)
+    	for (size_t i = 0; i < sz; i += 2) {
+    		bool map1 = MapToHashMapper_(mapper_, read_libs_[lib_id], i, rec1);
+    		bool map2 = (i^1) < sz ? MapToHashMapper_(mapper_, read_libs_[lib_id], i^1, rec2) : false;
+
+    		if (map1) {
+    			num_added += AddToMappingDeque_(lib_id, i, rec1, local_range);
+    			if (is_paired) {
+    				num_added += AddMateToMappingDeque_(lib_id, i, rec1, rec2, map2, local_range);
+    			}
+    		}
+    		if (map2) {
+    			num_added += AddToMappingDeque_(lib_id, i^1, rec2, local_range);
+    			if (is_paired) {
+    				num_added += AddMateToMappingDeque_(lib_id, i^1, rec2, rec1, map1, local_range);
+    			}
+    		}
+    	}
+	    fprintf(stderr, "Lib %d: added %lu reads for local assembly\n", lib_id, num_added);
+    }
+
 }

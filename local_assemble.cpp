@@ -35,8 +35,10 @@ int main(int argc, char **argv) {
 	LocalAssembler la(200, 31);
 	ParseOption(argc, argv);
 	la.ReadContigs(opt.contig_file.c_str());
+    la.BuildHashMapper();
 	la.AddReadLib(opt.read_file.c_str(), LocalAssembler::kFastx, true);
 	la.EstimateInsertSize();
+    la.MapToContigs();
 
 	return 0;
 }

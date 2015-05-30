@@ -5,17 +5,19 @@
 #include <vector>
 #include <deque>
 
+#include "atomic_bit_vector.h"
 #include "hash_table.h"
 #include "sequence_package.h"
 #include "kmer_plus.h"
 
 struct MappingRecord {
 	uint32_t contig_id;
-	int contig_from;
-	int contig_to;
-	int16_t query_from;
+	int32_t contig_from : 28;
+	int32_t contig_to : 28;
+	int16_t query_from : 15;
 	int16_t query_to : 15;
 	bool strand : 1;
+	int mismatch: 9;
 };
 
 struct LocalAssembler {
@@ -36,8 +38,10 @@ struct LocalAssembler {
 	int min_mapped_len_;
 
 	SequencePackage *contigs_;
+	mapper_t mapper_;
 	std::vector<SequencePackage*> read_libs_;
 	std::vector<tlen_t> insert_sizes_;
+	AtomicBitVector locks_;
 
 	std::vector<std::deque<uint64_t> > mapped_f, mapped_r;
 
@@ -57,14 +61,17 @@ struct LocalAssembler {
 	}
 
 	void ReadContigs(const char *fastx_file_name);
-	void BuildHashMapper();
+	void BuildHashMapper(bool show_stat = true);
 	void AddReadLib(const char *file_name, int file_type, bool is_paired);
 	void EstimateInsertSize(bool show_stat = true);
 	void MapToContigs();
 	void LocalAssemble();
 
 	void AddToHashMapper_(mapper_t &mapper, unsigned contig_id, int sparcity);
-	bool Match_(SequencePackage *read_lib, size_t read_id, int query_from, int query_to, size_t contig_id, int ref_from, int ref_to, bool strand);
+	int Match_(SequencePackage *read_lib, size_t read_id, int query_from, int query_to, size_t contig_id, int ref_from, int ref_to, bool strand);
+	int LocalRange_(int lib_id);
+	bool AddToMappingDeque_(int lib_id, size_t read_id, const MappingRecord &rec, int local_range);
+	bool AddMateToMappingDeque_(int lib_id, size_t read_id, const MappingRecord &rec1, const MappingRecord &rec2, bool mapped2, int local_range); 
 	bool MapToHashMapper_(const mapper_t &mapper, SequencePackage *read_lib, size_t read_id, MappingRecord &rec);
 };
 

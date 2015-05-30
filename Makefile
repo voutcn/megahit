@@ -145,7 +145,7 @@ DEPS =   ./Makefile \
 # g++ and its options
 #-------------------------------------------------------------------------------
 CUDALIBFLAG = -L/usr/local/cuda/lib64/ -lcuda -lcudart
-CFLAGS = -O3 -Wall -funroll-loops -fprefetch-loop-arrays -fopenmp -std=c++0x -static-libgcc
+CFLAGS = -O2 -Wall -funroll-loops -fprefetch-loop-arrays -fopenmp -std=c++0x -static-libgcc
 LIB = -lpthread -lm -lz
 ifneq ($(disablempopcnt), 1)
 	CFLAGS += -mpopcnt
