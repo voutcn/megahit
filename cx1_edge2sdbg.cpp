@@ -958,7 +958,7 @@ void* lv2_extract_substr(void* _data) {
                     edge_word_t *last_word = substrings_p + int64_t(globals.words_per_substring - 1) * globals.cx1.lv2_num_items_;
                     *last_word |= int(num_chars_to_copy == globals.kmer_k) << (kBWTCharNumBits + kBitsPerMulti_t);
                     *last_word |= prev_char << kBitsPerMulti_t;
-                    *last_word |= std::min(counting, kMaxMulti_t);
+                    *last_word |= std::max(0, kMaxMulti_t - counting); // then larger counting come first after sorting
                 } else {
                     int prev_char;
                     if (offset == 0) {
@@ -975,7 +975,7 @@ void* lv2_extract_substr(void* _data) {
                     edge_word_t *last_word = substrings_p + int64_t(globals.words_per_substring - 1) * globals.cx1.lv2_num_items_;
                     *last_word |= int(num_chars_to_copy == globals.kmer_k) << (kBWTCharNumBits + kBitsPerMulti_t);
                     *last_word |= prev_char << kBitsPerMulti_t;
-                    *last_word |= std::min(counting, kMaxMulti_t);
+                    *last_word |= std::max(0, kMaxMulti_t - counting);
                 }
                 substrings_p++;
             }
@@ -1149,7 +1149,7 @@ void* lv2_output(void* _op) {
                     fprintf(globals.output_f_file, "%lld\n", (long long)globals.total_number_edges);
                 }
 
-                multi_t counting_db = std::min(kMaxMulti_t,
+                multi_t counting_db = kMaxMulti_t - std::min(kMaxMulti_t,
                                                ExtractCounting(item, globals.words_per_substring, globals.lv2_num_items_db));
                 // output
                 globals.sdbg_writer.outputW(globals.lv2_aux[i] & 0xF);

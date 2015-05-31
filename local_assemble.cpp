@@ -4,6 +4,7 @@
 
 #include "options_description.h"
 #include "local_assembler.h"
+#include "utils.h"
 
 struct local_asm_opt_t {
 	std::string contig_file;
@@ -22,7 +23,7 @@ struct local_asm_opt_t {
     int num_threads;
 
     local_asm_opt_t() {
-        kmin = 21;
+        kmin = 11;
         kmax = 41;
         step = 6;
         seed_kmer = 31;
@@ -68,6 +69,8 @@ void ParseOption(int argc, char *argv[]) {
         exit(1);
     }
 }
+
+static AutoMaxRssRecorder recorder;
 
 int main(int argc, char **argv) {
 	ParseOption(argc, argv);

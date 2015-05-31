@@ -62,7 +62,7 @@ struct LocalAssembler {
 		:min_contig_len_(min_contig_len), seed_kmer_(seed_kmer), sparcity_(sparcity),
 		 contigs_(NULL) {
 		similarity_ = 0.95;
-		min_mapped_len_ = 75;
+		min_mapped_len_ = 100;
 		num_threads_ = omp_get_max_threads();
 
 		local_kmin_ = 21;

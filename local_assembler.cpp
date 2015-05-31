@@ -193,7 +193,7 @@ int LocalAssembler::Match_(SequencePackage *read_lib, size_t read_id, int query_
 
 bool LocalAssembler::MapToHashMapper_(const mapper_t &mapper, SequencePackage *read_lib, size_t read_id, MappingRecord &rec) {
 	int len = read_lib->length(read_id);
-	if (len < seed_kmer_) return false;
+	if (len < seed_kmer_ || len < 50) return false; // too short reads not reliable
 
 	int tested = 0;
 	MappingRecord tested_rec[3];
@@ -231,7 +231,7 @@ bool LocalAssembler::MapToHashMapper_(const mapper_t &mapper, SequencePackage *r
 		contig_from = std::max(contig_from, 0);
 		contig_to = std::min((int)contigs_->length(contig_id) - 1, contig_to);
 
-		if (contig_to - contig_from + 1 < min_mapped_len_) { continue; }
+		if (contig_to - contig_from + 1 < len && contig_to - contig_from + 1 < min_mapped_len_) { continue; } // clipped alignment is considered iff its length >= min_mapped_len_
 
 		int query_from = mapping_strand == 0 ? i - (seed_kmer_ - 1) - (contig_offset - contig_from) : i - (contig_to - contig_offset);
 		int query_to = mapping_strand == 0 ? i - (seed_kmer_ - 1) + (contig_to - contig_offset) : i + (contig_offset - contig_from);
@@ -285,7 +285,7 @@ void LocalAssembler::EstimateInsertSize(bool show_stat) {
     	Histgram<int> insert_hist;
     	size_t start_read_id = 0, end_read_id = 0;
 
-    	while (insert_hist.size() < (1 << 20) && end_read_id < read_libs_[lib_id]->size()) {
+    	while (insert_hist.size() < (1 << 18) && end_read_id < read_libs_[lib_id]->size()) {
     		start_read_id = end_read_id;
     		end_read_id = std::min(read_libs_[lib_id]->size(), start_read_id + size_t(2 << 20));
 #pragma omp parallel for private(rec1, rec2)
@@ -312,8 +312,7 @@ void LocalAssembler::EstimateInsertSize(bool show_stat) {
     	insert_sizes_[lib_id] = tlen_t(insert_hist.mean(), insert_hist.sd());
 
     	if (show_stat) {
-	    	fprintf(stderr, "Lib %d, mapped pairs: %u\n", lib_id, insert_hist.size());
-	    	fprintf(stderr, "insert size: %.2lf sd: %.2lf\n", insert_hist.mean(), insert_hist.sd());
+	    	fprintf(stderr, "Lib %d, insert size: %.2lf sd: %.2lf\n", lib_id, insert_hist.mean(), insert_hist.sd());
 	    }
     }
 }
@@ -412,27 +411,29 @@ void LocalAssembler::MapToContigs() {
 
     	size_t sz = read_libs_[lib_id]->size();
     	MappingRecord rec1, rec2;
-    	size_t num_added = 0;
+    	size_t num_added = 0, num_mapped = 0;
 
-#pragma omp parallel for private(rec1, rec2) reduction(+: num_added)
+#pragma omp parallel for private(rec1, rec2) reduction(+: num_added, num_mapped)
     	for (size_t i = 0; i < sz; i += 2) {
     		bool map1 = MapToHashMapper_(mapper_, read_libs_[lib_id], i, rec1);
     		bool map2 = (i^1) < sz ? MapToHashMapper_(mapper_, read_libs_[lib_id], i^1, rec2) : false;
 
     		if (map1) {
     			num_added += AddToMappingDeque_(lib_id, i, rec1, local_range);
+    			++num_mapped;
     			if (is_paired) {
     				num_added += AddMateToMappingDeque_(lib_id, i, rec1, rec2, map2, local_range);
     			}
     		}
     		if (map2) {
+    			++num_mapped;
     			num_added += AddToMappingDeque_(lib_id, i^1, rec2, local_range);
     			if (is_paired) {
     				num_added += AddMateToMappingDeque_(lib_id, i^1, rec2, rec1, map1, local_range);
     			}
     		}
     	}
-	    fprintf(stderr, "Lib %d: total %lu reads, added %lu reads for local assembly\n", lib_id, read_libs_[lib_id]->size(), num_added);
+	    fprintf(stderr, "Lib %d: total %lu reads, aligned %lu, added %lu reads for local assembly\n", lib_id, read_libs_[lib_id]->size(), num_mapped, num_added);
     }
 }
 
@@ -519,6 +520,8 @@ void* LocalAssembler::LocalAssembleThread_(void *data) {
 	std::deque<Sequence> out_contigs;
 
 	for (size_t i = task->tid, csz = la->contigs_->size(); i < csz; i += la->num_threads_) {
+		int cl = la->contigs_->length(i);
+
 		for (int strand = 0; strand < 2; ++strand) {
 			std::deque<uint64_t> &mapped_reads = strand == 0 ? la->mapped_f_[i] : la->mapped_r_[i];
 			if ((int)mapped_reads.size() <= min_num_reads) {
@@ -556,7 +559,6 @@ void* LocalAssembler::LocalAssembleThread_(void *data) {
 			}
 
 			contig_end.clear();
-			int cl = la->contigs_->length(i);
 			if (strand == 0) {
 				for (int j = 0, e = std::min(la->local_range_, cl); j < e; ++j) {
 					contig_end.Append(la->contigs_->get_base(i, j));

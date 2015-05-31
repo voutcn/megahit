@@ -171,7 +171,7 @@ int main(int argc, char **argv) {
             FILE *out_addi_contig_file = OpenFileAndCheck(options.addi_contig_file().c_str(), "w");
             assert(out_addi_contig_file != NULL);
 
-            // FILE *out_final_contig_file = NULL; // uncomment to avoid output final contigs
+            FILE *out_final_contig_file = NULL; // uncomment to avoid output final contigs
             assembly_algorithms::RemoveLowLocalAndOutputChanged(
                 dbg, out_contig_file, 
                 out_final_contig_file,
@@ -200,7 +200,7 @@ int main(int argc, char **argv) {
         timer.reset();
         timer.start();
         if (!options.is_final_round) {
-            // FILE *out_final_contig_file = NULL; // uncomment to avoid output final contigs
+            FILE *out_final_contig_file = NULL; // uncomment to avoid output final contigs
             assembly_algorithms::AssembleFromUnitigGraph(
                 dbg, 
                 out_contig_file, 

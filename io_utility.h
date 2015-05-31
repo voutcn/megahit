@@ -57,7 +57,11 @@ struct ContigPackage {
                 seqs.push_back(dna_map[uint8_t(seq->seq.s[i])]);
             }
 
-            multiplicity.push_back(atof(seq->comment.s + 6)); // +6 to skip " multi="
+            if (seq->comment.s && std::string(seq->comment.s).substr(0, 6) == "multi=") {
+                multiplicity.push_back(atof(seq->comment.s + 6)); // +6 to skip " multi="
+            } else {
+                multiplicity.push_back(1);
+            }
 
             seq_lengths.push_back(seq->seq.l);
             if (seqs.length() >= kMaxNumChars) {

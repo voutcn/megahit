@@ -664,7 +664,7 @@ void UnitigGraph::OutputChangedUnitigs(FILE *add_contig_file, std::map<int64_t, 
                 }
             }
             omp_set_lock(&output_lock);
-            fprintf(add_contig_file, ">addi%d_length_%ld_loop multi=%d\n%s\n", 
+            fprintf(add_contig_file, ">addi%d_length_%ld_loop_multi=%d\n%s\n", 
                                  output_id, 
                                  label.length(),
                                  multi, 
@@ -675,7 +675,7 @@ void UnitigGraph::OutputChangedUnitigs(FILE *add_contig_file, std::map<int64_t, 
             int indegree = sdbg_->Indegree(vertices_[i].start_node);
             int outdegree = sdbg_->Outdegree(vertices_[i].end_node);
             omp_set_lock(&output_lock);
-            fprintf(add_contig_file, ">addi%d_length_%ld_in_%d_out_%d multi=%d\n%s\n", 
+            fprintf(add_contig_file, ">addi%d_length_%ld_in_%d_out_%d_multi=%d\n%s\n", 
                                  output_id, 
                                  label.length(), 
                                  indegree,

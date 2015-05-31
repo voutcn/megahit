@@ -156,10 +156,10 @@ DEPS = Makefile
 # CPU & GPU version
 #-------------------------------------------------------------------------------
 ifeq ($(use_gpu), 1)
-all:  megahit_assemble megahit_iter sdbg_builder_gpu sdbg_builder_cpu
+all:  megahit_assemble megahit_iter sdbg_builder_gpu sdbg_builder_cpu megahit_local_asm
 	chmod +x ./megahit
 else
-all:  megahit_assemble megahit_iter sdbg_builder_cpu
+all:  megahit_assemble megahit_iter sdbg_builder_cpu megahit_local_asm
 	chmod +x ./megahit
 endif
 

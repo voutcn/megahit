@@ -34,7 +34,7 @@ import multiprocessing
 
 from datetime import datetime, date, time
 
-megahit_version_str = "MEGAHIT v0.2.2-dev0520"
+megahit_version_str = "MEGAHIT v0.2.2-dev0531"
 usage_message = '''
 Copyright (c) The University of Hong Kong
 
@@ -567,7 +567,7 @@ def iterate(cur_k, step):
             iterate_cmd.append("--addi_contig_file")
             iterate_cmd.append(graph_prefix(cur_k) + ".addi.fa")
 
-        if cur_k == opt.k_min:
+        if True:
             if opt.read_file == "":
                 iterate_cmd.append("-r")
                 iterate_cmd.append("-")
@@ -666,6 +666,41 @@ def assemble(cur_k):
     if opt.keep_tmp_files != 1 and cur_k != opt.k_max:
         delete_tmp_after_assemble(cur_k)
 
+def local_assemble(cur_k):
+    global cp
+    if (not opt.continue_mode) or (cp > opt.last_cp):
+        la_cmd = [opt.bin_dir + "megahit_local_asm",
+                        "-c", graph_prefix(cur_k) + ".contigs.fa",
+                        "-r", opt.read_file,
+                        "-t", str(opt.num_cpu_threads),
+                        # "--sparsity", "1",
+                        "--kmax", str(min(cur_k + opt.k_step, opt.k_max))]
+        try:
+            log_file = open(log_file_name(), "a")
+            start_time = datetime.now()
+            print("%s" % (" ").join(la_cmd), file=log_file)
+            print("[%s] Local assembling k = %d" % (start_time.strftime("%c"), cur_k), file=sys.stderr)
+            print("[%s] Local assembling k = %d" % (start_time.strftime("%c"), cur_k), file=log_file)
+            log_file.flush()
+
+            addi_contig_file = open(graph_prefix(cur_k) + ".addi.fa", "a")
+            ret_code = subprocess.call(la_cmd, stdout = addi_contig_file)
+            if ret_code != 0:
+                print("Error occurs when running local assembly for k = %d to k = %d " % (cur_k, next_k), file=sys.stderr)
+                print("[Exit code %d]" % ret_code, file=sys.stderr)
+                exit(ret_code)
+
+            addi_contig_file.close();
+            log_file.close()
+
+        except OSError as o:
+            if o.errno == errno.ENOTDIR or o.errno == errno.ENOENT:
+                print("Error: sub-program megahit_local_asm not found, please recompile MEGAHIT", file=sys.stderr)
+            exit(1)
+
+    write_cp(cp)
+    cp = cp + 1
+
 def merge_final():
     log_file = open(log_file_name(), "a")
     start_time = datetime.now()
@@ -701,6 +736,7 @@ def main(argv = None):
         k_step = opt.k_step
         cur_k = opt.k_min
         while cur_k < opt.k_max:
+            local_assemble(cur_k)
             next_k = min(cur_k + k_step, opt.k_max)
             if next_k > opt.k_max:
                 k_step = opt.k_max - cur_k
