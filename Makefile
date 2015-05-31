@@ -145,7 +145,7 @@ DEPS =   ./Makefile \
 # g++ and its options
 #-------------------------------------------------------------------------------
 CUDALIBFLAG = -L/usr/local/cuda/lib64/ -lcuda -lcudart
-CFLAGS = -O2 -Wall -funroll-loops -fprefetch-loop-arrays -fopenmp -std=c++0x -static-libgcc
+CFLAGS = -I. -O2 -Wall -funroll-loops -fprefetch-loop-arrays -fopenmp -std=c++0x -static-libgcc
 LIB = -lpthread -lm -lz
 ifneq ($(disablempopcnt), 1)
 	CFLAGS += -mpopcnt
@@ -155,7 +155,6 @@ DEPS = Makefile
 #-------------------------------------------------------------------------------
 # CPU & GPU version
 #-------------------------------------------------------------------------------
-
 ifeq ($(use_gpu), 1)
 all:  megahit_assemble megahit_iter sdbg_builder_gpu sdbg_builder_cpu
 	chmod +x ./megahit
@@ -163,6 +162,16 @@ else
 all:  megahit_assemble megahit_iter sdbg_builder_cpu
 	chmod +x ./megahit
 endif
+
+#-------------------------------------------------------------------------------
+# IDBA library
+#-------------------------------------------------------------------------------
+LIB_IDBA_DIR = lib_idba
+LIB_IDBA = $(LIB_IDBA_DIR)/contig_graph.o
+LIB_IDBA += $(LIB_IDBA_DIR)/contig_graph_branch_group.o
+LIB_IDBA += $(LIB_IDBA_DIR)/contig_info.o
+LIB_IDBA += $(LIB_IDBA_DIR)/hash_graph.o
+LIB_IDBA += $(LIB_IDBA_DIR)/sequence.o
 
 #-------------------------------------------------------------------------------
 # CPU objectives
@@ -187,8 +196,8 @@ megahit_assemble: assembler.cpp succinct_dbg.o rank_and_select.h assembly_algori
 megahit_iter: iterate_edges.cpp iterate_edges.h options_description.o city.o $(DEPS)
 	$(CXX) $(CFLAGS) iterate_edges.cpp options_description.o city.o $(LIB) -o megahit_iter
 
-megahit_local_asm: local_assembler.o local_assemble.cpp city.o options_description.o $(DEPS)
-	$(CXX) $(CFLAGS) local_assemble.cpp local_assembler.o options_description.o city.o $(LIB) -o megahit_local_asm	
+megahit_local_asm: local_assembler.o local_assemble.cpp city.o options_description.o $(LIB_IDBA) $(DEPS)
+	$(CXX) $(CFLAGS) local_assemble.cpp local_assembler.o options_description.o city.o $(LIB_IDBA) $(LIB) -o megahit_local_asm
 
 #-------------------------------------------------------------------------------
 # Applications for debug usage
@@ -241,5 +250,6 @@ test_gpu: megahit_assemble megahit_iter sdbg_builder_gpu
 .PHONY:
 clean:
 	-rm -fr *.i* *.cubin *.cu.c *.cudafe* *.fatbin.c *.ptx *.hash *.cu.cpp *.o .*.o .*.cpp \
+		$(LIB_IDBA) \
 		example/megahit_*out \
 		megahit_assemble megahit_iter sdbg_builder_cpu sdbg_builder_gpu sdbg_builder_cpu_1pass sdbg_builder_gpu_1pass

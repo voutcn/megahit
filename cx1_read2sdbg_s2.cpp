@@ -26,7 +26,7 @@
 #include <parallel/algorithm>
 
 #include "utils.h"
-#include "kmer_uint32.h"
+#include "kmer.h"
 #include "sdbg_builder_writers.h"
 #include "mem_file_checker-inl.h"
 #include "packed_reads.h"
@@ -238,23 +238,21 @@ void* s2_lv0_calc_bucket_size(void* _data) {
     int64_t *bucket_sizes = rp.rp_bucket_sizes;
     memset(bucket_sizes, 0, kNumBuckets * sizeof(int64_t));
     edge_word_t *read_p = GetReadPtr(globals.packed_reads, rp.rp_start_id, globals.words_per_read);
-    KmerUint32 edge, rev_edge; // (k+1)-mer and its rc
+    Kmer<6, uint32_t> edge, rev_edge; // (k+1)-mer and its rc
     for (int64_t read_id = rp.rp_start_id; read_id < rp.rp_end_id; ++read_id, read_p += globals.words_per_read) {
         int read_length = GetReadLength(read_p, globals.words_per_read, globals.read_length_mask);
         if (read_length < globals.kmer_k + 1) {
             continue;
         }
-        edge.init(read_p, globals.kmer_k + 1);
-        rev_edge.clean();
-        for (int i = 0; i <= globals.kmer_k; ++i) {
-            rev_edge.Append(3 - ExtractNthChar(read_p, globals.kmer_k - i));
-        }
+        edge.init(read_p, 0, globals.kmer_k + 1);
+        rev_edge = edge;
+        rev_edge.ReverseComplement(globals.kmer_k + 1);
 
         int last_char_offset = globals.kmer_k;
         int64_t full_offset = globals.num_k1_per_read * read_id;
         while (true) {
             if (globals.is_solid.get(full_offset)) {
-                bool is_palindrome = (rev_edge == edge);
+                bool is_palindrome = rev_edge.cmp(edge, globals.kmer_k + 1) == 0;
                 bucket_sizes[(edge.data_[0] << 2) >> (kCharsPerEdgeWord - kBucketPrefixLength) * kBitsPerEdgeChar]++;
                 if (!is_palindrome)
                     bucket_sizes[(rev_edge.data_[0] << 2) >> (kCharsPerEdgeWord - kBucketPrefixLength) * kBitsPerEdgeChar]++;
@@ -278,8 +276,8 @@ void* s2_lv0_calc_bucket_size(void* _data) {
                 break;
             } else {
                 int c = ExtractNthChar(read_p, last_char_offset);
-                edge.ShiftLeftAppend(c);
-                rev_edge.ShiftRightAppend(3 - c);
+                edge.ShiftAppend(c, globals.kmer_k + 1);
+                rev_edge.ShiftPreappend(3 - c, globals.kmer_k + 1);
             }
         }
     }
@@ -408,7 +406,7 @@ void* s2_lv1_fill_offset(void* _data) {
         prev_full_offsets[b] = rp.rp_lv1_differential_base;
     // this loop is VERY similar to that in PreprocessScanToFillBucketSizesThread
     edge_word_t *read_p = GetReadPtr(globals.packed_reads, rp.rp_start_id, globals.words_per_read);
-    KmerUint32 edge, rev_edge; // (k+1)-mer and its rc
+    Kmer<6, uint32_t> edge, rev_edge; // (k+1)-mer and its rc
 
     int key;
     for (int64_t read_id = rp.rp_start_id; read_id < rp.rp_end_id; ++read_id, read_p += globals.words_per_read) {
@@ -416,11 +414,9 @@ void* s2_lv1_fill_offset(void* _data) {
         if (read_length < globals.kmer_k + 1) {
             continue;
         }
-        edge.init(read_p, globals.kmer_k + 1);
-        rev_edge.clean();
-        for (int i = 0; i <= globals.kmer_k; ++i) {
-            rev_edge.Append(3 - ExtractNthChar(read_p, globals.kmer_k - i));
-        }
+        edge.init(read_p, 0, globals.kmer_k + 1);
+        rev_edge = edge;
+        rev_edge.ReverseComplement(globals.kmer_k + 1);
 
         // ===== this is a macro to save some copy&paste ================
 #define CHECK_AND_SAVE_OFFSET(offset, strand, edge_type)                                                                    \
@@ -449,7 +445,7 @@ void* s2_lv1_fill_offset(void* _data) {
         int64_t full_offset = globals.num_k1_per_read * read_id;
         while (true) {
             if (globals.is_solid.get(full_offset)) {
-                bool is_palindrome = (rev_edge == edge);
+                bool is_palindrome = rev_edge.cmp(edge, globals.kmer_k + 1) == 0;
 
                 // left $
                 if (last_char_offset == globals.kmer_k || !globals.is_solid.get(full_offset - 1)) {
@@ -487,8 +483,8 @@ void* s2_lv1_fill_offset(void* _data) {
                 break;
             } else {
                 int c = ExtractNthChar(read_p, last_char_offset);
-                edge.ShiftLeftAppend(c);
-                rev_edge.ShiftRightAppend(3 - c);
+                edge.ShiftAppend(c, globals.kmer_k + 1);
+                rev_edge.ShiftPreappend(3 - c, globals.kmer_k + 1);
             }
         }
     }

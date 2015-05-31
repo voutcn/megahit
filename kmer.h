@@ -7,9 +7,9 @@
  * @modified by Dinghua Li
  */
 
-#ifndef __BASIC_KMER_H_
+#ifndef KMER_H__
 
-#define __BASIC_KMER_H_
+#define KMER_H__
 
 #include <stdint.h>
 

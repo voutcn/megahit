@@ -3,10 +3,16 @@
 #include <string.h>
 #include <assert.h>
 #include <stdlib.h>
-#include <zlib.h>
 #include <vector>
 #include <string>
 #include <algorithm>
+#include <iostream>
+
+#include <zlib.h>
+#include <pthread.h>
+#include "lib_idba/sequence.h"
+#include "lib_idba/hash_graph.h"
+#include "lib_idba/contig_graph.h"
 
 #include "utils.h"
 #include "mem_file_checker-inl.h"
@@ -322,6 +328,13 @@ int LocalAssembler::LocalRange_(int lib_id) {
 	return local_range;
 }
 
+inline uint64_t PackMappingResult(uint64_t contig_offset, uint64_t is_mate, uint64_t mismatch,
+								  uint64_t strand, uint64_t read_id, uint64_t lib_id, uint64_t num_libs) {
+	assert(contig_offset < (1ULL << 14));
+	return (contig_offset << 50) | (is_mate << 49) | (std::min(uint64_t(15), mismatch) << 45) |
+		   (strand << 44) | (read_id * num_libs + lib_id);
+}
+
 bool LocalAssembler::AddToMappingDeque_(int lib_id, size_t read_id, const MappingRecord &rec, int local_range) {
 	assert(read_id < read_libs_[lib_id]->size());
 	assert(rec.contig_id < contigs_->size());
@@ -329,17 +342,19 @@ bool LocalAssembler::AddToMappingDeque_(int lib_id, size_t read_id, const Mappin
 	int contig_len = contigs_->length(rec.contig_id);
 	int read_len = read_libs_[lib_id]->length(read_id);
 	if (rec.contig_to < local_range && rec.query_from != 0) {
+		uint64_t res = PackMappingResult(rec.contig_to, 0, rec.mismatch, rec.strand, read_id, lib_id, read_libs_.size());
 		while (!locks_.lock(rec.contig_id)) {
 			continue;
 		}
-		mapped_f[rec.contig_id].push_back((uint64_t(read_id) << 20) | (std::min(15, rec.mismatch) << 16) | (rec.contig_to << 2) | rec.strand);
+		mapped_f_[rec.contig_id].push_back(res);
 		locks_.unset(rec.contig_id);
 		return true;
-	} else if (rec.contig_from + local_range >= contig_len && rec.query_to < read_len) {
+	} else if (rec.contig_from + local_range >= contig_len && rec.query_to < read_len - 1) {
+		uint64_t res = PackMappingResult(contig_len - 1 - rec.contig_from, 0, rec.mismatch, rec.strand, read_id, lib_id, read_libs_.size());
 		while (!locks_.lock(rec.contig_id)) {
 			continue;
 		}
-		mapped_r[rec.contig_id].push_back((uint64_t(read_id) << 20) | (std::min(15, rec.mismatch) << 16) | ((contig_len - 1 - rec.contig_from) << 2) | rec.strand);
+		mapped_r_[rec.contig_id].push_back(res);
 		locks_.unset(rec.contig_id);
 		return true;
 	}
@@ -348,29 +363,31 @@ bool LocalAssembler::AddToMappingDeque_(int lib_id, size_t read_id, const Mappin
 }
 
 bool LocalAssembler::AddMateToMappingDeque_(int lib_id, size_t read_id, const MappingRecord &rec1, const MappingRecord &rec2, bool mapped2, int local_range) {
-	assert(read_id < read_libs_[lib_id]->size());
-	assert((read_id ^ 1) < read_libs_[lib_id]->size());
-	assert(rec1.contig_id < contigs_->size());
-	assert(!mapped2 || rec2.contig_id < contigs_->size());
+	// assert(read_id < read_libs_[lib_id]->size());
+	// assert((read_id ^ 1) < read_libs_[lib_id]->size());
+	// assert(rec1.contig_id < contigs_->size());
+	// assert(!mapped2 || rec2.contig_id < contigs_->size());
 
-	if (mapped2 && rec2.contig_id != rec1.contig_id)
+	if (mapped2 && rec2.contig_id == rec1.contig_id)
 		return false;
 
 	int contig_len = contigs_->length(rec1.contig_id);
 	int read_len = read_libs_[lib_id]->length(read_id);
 
-	if (rec1.contig_to < local_range && rec1.query_from != 0) {
+	if (rec1.contig_to < local_range && rec1.strand == 1) {
+		uint64_t res = PackMappingResult(rec1.contig_to, 1, rec1.mismatch, rec1.strand, read_id^1, lib_id, read_libs_.size());
 		while (!locks_.lock(rec1.contig_id)) {
 			continue;
 		}
-		mapped_f[rec1.contig_id].push_back((uint64_t(read_id ^ 1) << 20) | (std::min(15, rec1.mismatch) << 16) | (rec1.contig_to << 2) | 2 | (rec1.strand ^ 1));
+		mapped_f_[rec1.contig_id].push_back(res);
 		locks_.unset(rec1.contig_id);	
 		return true;
-	} else if (rec1.contig_from + local_range >= contig_len && rec1.query_to < read_len) {
+	} else if (rec1.contig_from + local_range >= contig_len && rec1.strand == 0) {
+		uint64_t res = PackMappingResult(contig_len - 1 - rec1.contig_from, 1, rec1.mismatch, rec1.strand, read_id^1, lib_id, read_libs_.size());
 		while (!locks_.lock(rec1.contig_id)) {
 			continue;
 		}
-		mapped_r[rec1.contig_id].push_back((uint64_t(read_id ^ 1) << 20) | (std::min(15, rec1.mismatch) << 16) | ((contig_len - 1 - rec1.contig_from) << 2) | 2 | (rec1.strand ^ 1));
+		mapped_r_[rec1.contig_id].push_back(res);
 		locks_.unset(rec1.contig_id);
 		return true;
 	}
@@ -379,13 +396,20 @@ bool LocalAssembler::AddMateToMappingDeque_(int lib_id, size_t read_id, const Ma
 }
 
 void LocalAssembler::MapToContigs() {
-	mapped_f.resize(contigs_->size());
-	mapped_r.resize(contigs_->size());
+	mapped_f_.resize(contigs_->size());
+	mapped_r_.resize(contigs_->size());
 	locks_.reset(contigs_->size());
+
+	max_read_len_ = 1;
+	local_range_ = 0;
 
 	for (unsigned lib_id = 0; lib_id < read_libs_.size(); ++lib_id) {
 		int local_range = LocalRange_(lib_id);
 		bool is_paired = insert_sizes_[lib_id].first >= read_libs_[lib_id]->max_read_len();
+
+		local_range_ = std::max(local_range, local_range_);
+		max_read_len_ = std::max(max_read_len_, (int)read_libs_[lib_id]->max_read_len());
+
     	size_t sz = read_libs_[lib_id]->size();
     	MappingRecord rec1, rec2;
     	size_t num_added = 0;
@@ -408,7 +432,153 @@ void LocalAssembler::MapToContigs() {
     			}
     		}
     	}
-	    fprintf(stderr, "Lib %d: added %lu reads for local assembly\n", lib_id, num_added);
+	    fprintf(stderr, "Lib %d: total %lu reads, added %lu reads for local assembly\n", lib_id, read_libs_[lib_id]->size(), num_added);
     }
+}
 
+void LocalAssembler::LocalAssemble() {
+	omp_set_num_threads(1);
+
+	std::vector<pthread_t> threads(num_threads_);
+	std::vector<AssembleTask> tasks(num_threads_);
+	for (int tid = 0; tid < num_threads_; ++tid) {
+		tasks[tid].tid = tid;
+		tasks[tid].local_assembler = this;
+        pthread_create(&threads[tid], NULL, LocalAssembleThread_, (void *)&tasks[tid]);
+	}
+
+	for (int tid = 0; tid < num_threads_; ++tid) {
+		pthread_join(threads[tid], NULL);
+	}
+
+	omp_set_num_threads(num_threads_);	
+}
+
+inline void LaunchIDBA(std::deque<Sequence> &reads, Sequence &contig_end,
+					   std::deque<Sequence> &out_contigs,
+					   int mink, int maxk, int step) {
+	int local_range = contig_end.size();
+	HashGraph hash_graph;
+	hash_graph.reserve(4 * local_range);
+
+	ContigGraph contig_graph;
+	std::deque<ContigInfo> contig_infos;
+	out_contigs.clear();
+
+	int max_read_len = 0;
+	for (unsigned i = 0; i < reads.size(); ++i) {
+		max_read_len = std::max(max_read_len, (int)reads[i].size());
+	}
+
+    for (int kmer_size = mink; kmer_size <= std::min(maxk, max_read_len); kmer_size = std::min(kmer_size + step, max_read_len))
+    {
+        int64_t sum = 0;
+        hash_graph.set_kmer_size(kmer_size);
+        hash_graph.clear();
+        for (int64_t i = 0; i < (int64_t)reads.size(); ++i)
+        {
+            if ((int)reads[i].size() < kmer_size)
+                continue;
+
+            Sequence seq(reads[i]);
+            hash_graph.InsertKmers(seq);
+            sum += seq.size() - kmer_size + 1;
+        }
+
+        Histgram<int> histgram = hash_graph.coverage_histgram();
+        double mean = histgram.percentile(1 - 1.0 * local_range / hash_graph.num_vertices());
+        double threshold = mean;
+
+        hash_graph.InsertKmers(contig_end);
+        for (int64_t i = 0; i < (int64_t)out_contigs.size(); ++i)
+            hash_graph.InsertUncountKmers(out_contigs[i]);
+
+        hash_graph.Assemble(out_contigs, contig_infos);
+        contig_graph.set_kmer_size(kmer_size);
+        contig_graph.Initialize(out_contigs, contig_infos);
+        contig_graph.RemoveDeadEnd(kmer_size*2);
+        
+        contig_graph.RemoveBubble();
+        contig_graph.IterateCoverage(kmer_size*2, 1, threshold);
+        contig_graph.Assemble(out_contigs, contig_infos);
+
+        if (out_contigs.size() == 1)
+            break;
+    }
+}
+
+void* LocalAssembler::LocalAssembleThread_(void *data) {
+	omp_set_num_threads(1);
+
+	AssembleTask *task = (AssembleTask*)data;
+	LocalAssembler *la = task->local_assembler;
+	int min_num_reads = la->local_range_ / la->max_read_len_;
+
+	Sequence seq, contig_end;
+	std::deque<Sequence> reads;
+	std::deque<Sequence> out_contigs;
+
+	for (size_t i = task->tid, csz = la->contigs_->size(); i < csz; i += la->num_threads_) {
+		for (int strand = 0; strand < 2; ++strand) {
+			std::deque<uint64_t> &mapped_reads = strand == 0 ? la->mapped_f_[i] : la->mapped_r_[i];
+			if ((int)mapped_reads.size() <= min_num_reads) {
+				continue;
+			}
+
+			// collect local reads, convert them into Sequence
+			reads.clear();
+
+			std::sort(mapped_reads.begin(), mapped_reads.end());
+			int last_mapping_pos = -1;
+			int pos_count = 0;
+
+			for (size_t j = 0; j < mapped_reads.size(); ++j) {
+				int pos = mapped_reads[j] >> 49;
+				assert((pos >> 1) < la->contigs_->length(i));
+				pos_count = pos == last_mapping_pos ? pos_count + 1 : 1;
+				last_mapping_pos = pos;
+
+				if (pos_count <= 3) {
+					seq.clear();
+					int lib_id = (mapped_reads[j] & ((1ULL << 44) - 1)) % la->read_libs_.size();
+					uint64_t read_id = (mapped_reads[j] & ((1ULL << 44) - 1)) / la->read_libs_.size();
+					assert(read_id < la->read_libs_[lib_id]->size());
+					for (unsigned ri = 0, rsz = la->read_libs_[lib_id]->length(read_id); ri < rsz; ++ri) {
+						seq.Append(la->read_libs_[lib_id]->get_base(read_id, ri));
+					}
+					reads.push_back(seq);
+					// if (i == 0 && strand == 0) {
+					// 	while (!la->locks_.lock(1)) {}
+					// 	WriteFasta(std::cerr, seq, FormatString("read_%d", read_id));
+					// 	la->locks_.unset(1);
+					// }
+				}
+			}
+
+			contig_end.clear();
+			int cl = la->contigs_->length(i);
+			if (strand == 0) {
+				for (int j = 0, e = std::min(la->local_range_, cl); j < e; ++j) {
+					contig_end.Append(la->contigs_->get_base(i, j));
+				}
+			} else {
+				for (int j = std::max(0,  cl - la->local_range_); j < cl; ++j) {
+					contig_end.Append(la->contigs_->get_base(i, j));
+				}
+			}
+
+			out_contigs.clear();
+			LaunchIDBA(reads, contig_end, out_contigs, la->local_kmin_, la->local_kmax_, la->local_step_);
+
+			for (size_t j = 0; j < out_contigs.size(); ++j) {
+				if (out_contigs[j].size() > la->min_contig_len_) {
+					while (!la->locks_.lock(1)) {}
+					WriteFasta(std::cout, out_contigs[j], FormatString("localcontig_%llu_strand_%d_id_%lu", i, strand, j));
+					la->locks_.unset(1);
+				}
+			}
+		}
+	}
+
+	return NULL;
 }
