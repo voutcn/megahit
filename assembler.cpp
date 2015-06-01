@@ -196,7 +196,7 @@ int main(int argc, char **argv) {
         timer.stop();
         printf("Done! Time elapsed(sec.): %lf\n", timer.elapsed());
     } else {
-        printf("Assembly after bubble merging...\n");
+        printf("Assembling unitigs...\n");
         timer.reset();
         timer.start();
         if (!options.is_final_round) {

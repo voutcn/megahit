@@ -241,6 +241,8 @@ def parse_opt(argv):
             opt.no_mercy = 1
         elif option == "--no-low-local":
             opt.no_low_local = 1
+        elif option == "--low-local-ratio":
+            opt.low_local_ratio = float(value)
         elif option == "--keep-tmp-files":
             opt.keep_tmp_files = 1
         elif option == "--cpu-only":
