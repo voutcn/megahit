@@ -565,9 +565,9 @@ def iterate(cur_k, step):
                        "-o", graph_prefix(next_k),
                        "-l", str(opt.max_read_len)]
 
-        if opt.no_low_local == 0:
-            iterate_cmd.append("--addi_contig_file")
-            iterate_cmd.append(graph_prefix(cur_k) + ".addi.fa")
+        # if opt.no_low_local == 0:
+        iterate_cmd.append("--addi_contig_file")
+        iterate_cmd.append(graph_prefix(cur_k) + ".addi.fa")
 
         if True:
             if opt.read_file == "":

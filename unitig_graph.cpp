@@ -111,6 +111,9 @@ void FoldPalindrome(std::string &s, int kmer_k, bool is_loop) {
         }
     } else {
         int num_kmer = s.length() - kmer_k + 1;
+        if (num_kmer % 2 != 0) {
+            fprintf(stderr, "ERR: %s\n", s.c_str());
+        }
         assert(num_kmer % 2 == 0);
         s.resize(num_kmer / 2 + (kmer_k - 1));
     }
@@ -277,7 +280,7 @@ bool UnitigGraph::RemoveLocalLowDepth(double min_depth, int min_len, int local_w
             if (is_changed && depth > min_depth)
                 continue;
             
-            double mean = LocalDepth_(vertices_[i], local_width);
+            double mean = LocalDepth_(i, local_width);
             double threshold = min_depth;
             if (min_depth < mean * local_ratio)
                 is_changed = true;
@@ -302,13 +305,16 @@ bool UnitigGraph::RemoveLocalLowDepth(double min_depth, int min_len, int local_w
     return is_changed;
 }
 
-double UnitigGraph::LocalDepth_(UnitigGraphVertex &vertex, int local_width) {
+// #define FAST_LOCAL_DEPTH
+#ifdef FAST_LOCAL_DEPTH
+
+double UnitigGraph::LocalDepth_(vertexID_t id, int local_width) {
     double total_depth = 0;
     double num_added_kmer = 0;
 
     for (int dir = 0; dir < 2; ++dir) {
         int64_t outgoings[4];
-        int outdegree = sdbg_->Outgoings(dir == 1 ? vertex.rev_end_node : vertex.end_node, outgoings);
+        int outdegree = sdbg_->Outgoings(dir == 1 ? vertices_[id].rev_end_node : vertices_[id].end_node, outgoings);
         for (int i = 0; i < outdegree; ++i) {
             auto next_vertex_iter = start_node_map_.find(outgoings[i]);
             assert(next_vertex_iter != start_node_map_.end());
@@ -328,6 +334,66 @@ double UnitigGraph::LocalDepth_(UnitigGraphVertex &vertex, int local_width) {
     if (num_added_kmer == 0) { return 0; }
     else { return total_depth / num_added_kmer; }
 }
+
+#else
+
+double UnitigGraph::LocalDepth_(vertexID_t id, int local_width) {
+    std::map<vertexID_t, int> visited;
+    std::vector<std::pair<vertexID_t, int> > q;
+    int64_t outgoings[4];
+
+    int num_added_kmer = 0;
+    double total_depth = 0;
+
+    for (int dir = 0; dir < 2; ++dir) {
+        visited.clear();
+        q.clear();
+        q.push_back(std::make_pair(id, dir));
+        visited[id] = 0;
+
+        int num_added_this_dir = 0;
+        int q_idx = 0;
+
+        while (q_idx < (int)q.size()) {
+            vertexID_t id = q[q_idx].first;
+            int cur_dir = q[q_idx++].second;
+            UnitigGraphVertex &cur_v = vertices_[id];
+
+            if (num_added_this_dir >= 4 * local_width || visited.size() > 32) { break; }
+
+            int d = visited[id];
+            if (visited[id] >= local_width) { continue; }
+
+            int outdegree = sdbg_->Outgoings(cur_dir == 0 ? cur_v.end_node : cur_v.rev_end_node, outgoings);
+            for (int i = 0; i < outdegree; ++i) {
+                auto next_vertex_iter = start_node_map_.find(outgoings[i]);
+                assert(next_vertex_iter != start_node_map_.end());
+                if (visited.count(next_vertex_iter->second)) { continue; }
+
+                UnitigGraphVertex &next_vertex = vertices_[next_vertex_iter->second];
+                assert(!next_vertex.is_deleted);
+
+                visited[next_vertex_iter->second] = d + next_vertex.length;
+                q.push_back(std::make_pair(next_vertex_iter->second, outgoings[i] == next_vertex.start_node ? 0 : 1));
+
+                if (d + next_vertex.length <= local_width) {
+                    num_added_kmer += next_vertex.length;
+                    num_added_this_dir += next_vertex.length;
+                    total_depth += next_vertex.depth;
+                } else {
+                    num_added_kmer += local_width - d;
+                    num_added_this_dir += local_width - d;
+                    total_depth += (double)next_vertex.depth * (local_width - d) / next_vertex.length;
+                }
+            }
+        }
+    }
+
+    if (num_added_kmer == 0) { return 0; }
+    else { return total_depth / num_added_kmer; }
+}
+
+#endif
 
 void UnitigGraph::Refresh_(bool set_changed) {
     omp_lock_t reassemble_lock;
@@ -640,6 +706,7 @@ void UnitigGraph::OutputChangedUnitigs(FILE *add_contig_file, std::map<int64_t, 
 
         uint16_t multi = std::min(kMaxMulti_t, int((double)vertices_[i].depth / vertices_[i].length + 0.5));
         std::string label = VertexToDNAString(sdbg_, vertices_[i]);
+        assert(label.length() - (sdbg_->kmer_k - 1) == vertices_[i].length);
 
         omp_set_lock(&histo_lock);
         ++histo[label.length()];

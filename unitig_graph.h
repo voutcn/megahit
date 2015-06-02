@@ -69,7 +69,7 @@ public:
 
 private:
     // functions
-    double LocalDepth_(UnitigGraphVertex &path, int local_width);
+    double LocalDepth_(vertexID_t id, int local_width);
     void Refresh_(bool set_changed = true);
 
 private:

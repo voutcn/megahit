@@ -76,7 +76,7 @@ int64_t Trim(SuccinctDBG &dbg, int len, int min_final_contig_len) {
             for (int i = 1; i < len; ++i) {
                 prev_node = dbg.UniqueIncoming(cur_node);
                 if (prev_node == -1) {
-                    is_tip = dbg.IndegreeZero(cur_node) && (i + dbg.kmer_k - 1 < min_final_contig_len);
+                    is_tip = dbg.IndegreeZero(cur_node); // && (i + dbg.kmer_k - 1 < min_final_contig_len);
                     break;
                 } else if (dbg.UniqueOutgoing(prev_node) == -1) {
                     is_tip = true;
@@ -106,7 +106,7 @@ int64_t Trim(SuccinctDBG &dbg, int len, int min_final_contig_len) {
             for (int i = 1; i < len; ++i) {
                 next_node = dbg.UniqueOutgoing(cur_node);
                 if (next_node == -1) {
-                    is_tip = dbg.OutdegreeZero(cur_node) && (i + dbg.kmer_k - 1 < min_final_contig_len);
+                    is_tip = dbg.OutdegreeZero(cur_node); // && (i + dbg.kmer_k - 1 < min_final_contig_len);
                     break;
                 } else if (dbg.UniqueIncoming(next_node) == -1) {
                     is_tip = true;
@@ -244,7 +244,7 @@ void RemoveLowLocalAndOutputChanged(SuccinctDBG &dbg, FILE *contigs_file, FILE *
     if (excessive_prune) {
         timer.reset();
         timer.start();
-        unitig_graph.RemoveLocalLowDepth(min_depth, min_len, kLocalWidth, local_ratio, num_removed, true);
+        unitig_graph.RemoveLocalLowDepth(min_depth, min_len, kLocalWidth, 0.1, num_removed, true);
         timer.stop();
         printf("Unitigs removed in excessive pruning: %lld, time: %lf\n", (long long)num_removed, timer.elapsed());   
     }
