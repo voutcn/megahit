@@ -34,7 +34,8 @@ import multiprocessing
 
 from datetime import datetime, date, time
 
-megahit_version_str = "MEGAHIT v0.2.1"
+megahit_version = '0.2.1-a'
+megahit_version_str = "MEGAHIT v" + megahit_version
 usage_message = '''
 Copyright (c) The University of Hong Kong
 
@@ -96,6 +97,7 @@ Other Arguments:
     --continue                                  continue a MEGAHIT run from its last available check point.
                                                 please set the output directory correctly when using this option.
     -h/--help                                   print the usage message
+    -v/--version                                show version
 '''
 
 if sys.version > '3':
@@ -159,7 +161,7 @@ def make_out_dir():
 
 def parse_opt(argv):
     try:
-        opts, args = getopt.getopt(argv, "hm:l:o:r:t:", 
+        opts, args = getopt.getopt(argv, "hm:l:o:r:t:v", 
                                     ["help",  
                                      "memory=",
                                      "max-read-len=",
@@ -184,6 +186,7 @@ def parse_opt(argv):
                                      "keep-tmp-files",
                                      "mem-flag=",
                                      "continue",
+                                     "version",
                                      "out-prefix="])
     except getopt.error as msg:
         raise Usage(megahit_version_str + '\n' + str(msg))
@@ -212,6 +215,9 @@ def parse_opt(argv):
             opt.min_contig_len = int(value)
         elif option in ("-t", "--num-cpu-threads"):
             opt.num_cpu_threads = int(value)
+        elif option in ("-v", "--version"):
+            print(megahit_version)
+            exit(0)
         elif option == "--k-min":
             opt.k_min = int(value)
         elif option == "--k-max":
@@ -228,6 +234,8 @@ def parse_opt(argv):
             opt.no_mercy = 1
         elif option == "--no-low-local":
             opt.no_low_local = 1
+        elif option == "--low-local-ratio":
+            opt.low_local_ratio = float(value)
         elif option == "--keep-tmp-files":
             opt.keep_tmp_files = 1
         elif option == "--cpu-only":
