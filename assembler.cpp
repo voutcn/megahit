@@ -150,11 +150,11 @@ int main(int argc, char **argv) {
     }
 
     if (!options.no_bubble) { // merge bubbles
-        timer.reset();
-        timer.start();
-        int64_t num_bubbles = assembly_algorithms::PopBubbles(dbg, dbg.kmer_k + 2, options.bubble_remove_ratio);
-        timer.stop();
-        printf("Number of bubbles: %lld. Time elapsed: %lf\n", (long long)num_bubbles, timer.elapsed());
+        // timer.reset();
+        // timer.start();
+        // int64_t num_bubbles = assembly_algorithms::PopBubbles(dbg, dbg.kmer_k + 2, options.bubble_remove_ratio);
+        // timer.stop();
+        // printf("Number of bubbles: %lld. Time elapsed: %lf\n", (long long)num_bubbles, timer.elapsed());
     }
 
     FILE *out_contig_file = OpenFileAndCheck(options.contig_file().c_str(), "w");

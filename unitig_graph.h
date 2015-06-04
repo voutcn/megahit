@@ -48,6 +48,20 @@ struct UnitigGraphVertex {
     bool is_loop: 1;
     uint32_t length: 31;
     bool is_palindrome: 1;
+
+    UnitigGraphVertex ReverseComplement() {
+        UnitigGraphVertex ret = *this;
+        std::swap(ret.start_node, ret.rev_start_node);
+        std::swap(ret.end_node, ret.rev_end_node);
+        return ret;
+    }
+
+    int64_t Representation() {
+        int64_t ret = std::max(start_node, end_node);
+        ret = std::max(rev_start_node, ret);
+        ret = std::max(rev_end_node, ret);
+        return ret;
+    }
 };
 
 class UnitigGraph {
@@ -60,6 +74,8 @@ public:
     void InitFromSdBG();
     uint32_t size() { return vertices_.size(); }
     bool RemoveLocalLowDepth(double min_depth, int min_len, int local_width, double local_ratio, int64_t &num_removed, bool permanent_rm = false);
+    uint32_t MergeBubbles(bool permanent_rm);
+    uint32_t MergeComplexBubbles(double similarity, bool permanent_rm);
 
     // output
     void OutputInitUnitigs(FILE *contig_file, std::map<int64_t, int> &histo);

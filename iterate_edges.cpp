@@ -302,11 +302,11 @@ static bool ReadReadsAndProcessKernel(IterateGlobalData &globals,
                         auto iter = crusial_kmers.find(kmer);
                         if (iter != crusial_kmers.end()) {
                             kmer_exist[cur_pos] = true;
-                            int64_t s_seq = iter->ann;
+                            uint64_t s_seq = iter->ann;
                             int s_seq_length = s_seq & 63;
                             int j;
                             for (j = 0; j < s_seq_length && cur_pos + globals.kmer_k + j < length; ++j) {
-                                if (cur_package.CharAt(i, cur_pos + globals.kmer_k + j) == ((s_seq >> (31 - j) * 2) & 3)) {
+                                if (cur_package.CharAt(i, cur_pos + globals.kmer_k + j) == int((s_seq >> (31 - j) * 2) & 3)) {
                                     kmer_exist[cur_pos + j + 1] = true;
                                 } else {
                                     break;
@@ -317,11 +317,11 @@ static bool ReadReadsAndProcessKernel(IterateGlobalData &globals,
                             next_pos = last_marked_pos + 1;
                         } else if ((iter = crusial_kmers.find(rev_kmer)) != crusial_kmers.end()) {
                             kmer_exist[cur_pos] = true;
-                            int64_t s_seq = iter->ann;
+                            uint64_t s_seq = iter->ann;
                             int s_seq_length = s_seq & 63;
                             int j;
-                            for (j = 0; j < s_seq_length && cur_pos - 1 - j > last_marked_pos; ++j) {
-                                if (3 - cur_package.CharAt(i, cur_pos - 1 - j) == ((s_seq >> (31 - j) * 2) & 3)) {
+                            for (j = 0; j < s_seq_length && cur_pos - 1 - j >= 0; ++j) {
+                                if (3 - cur_package.CharAt(i, cur_pos - 1 - j) == int((s_seq >> (31 - j) * 2) & 3)) {
                                     kmer_exist[cur_pos - 1 - j] = true;
                                 } else {
                                     break;
@@ -343,10 +343,11 @@ static bool ReadReadsAndProcessKernel(IterateGlobalData &globals,
                 }
 
                 bool aligned = false;
+                int acc_exist = 0;
                 KmerPlus<kNumKmerWord_n, kmer_word_n_t, uint16_t> kmer_p;
                 KmerPlus<kNumKmerWord_n, kmer_word_n_t, uint16_t> rev_kmer_p;
 
-                for (int j = 0, last_j = -globals.kmer_k, acc_exist = 0; j + globals.kmer_k <= length; ++j) {
+                for (int j = 0, last_j = -globals.kmer_k; j + globals.kmer_k <= length; ++j) {
                     acc_exist = kmer_exist[j] ? acc_exist + 1 : 0;
 
                     if (acc_exist >= globals.step + 2) {

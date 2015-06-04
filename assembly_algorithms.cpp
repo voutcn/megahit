@@ -192,6 +192,8 @@ void AssembleFromUnitigGraph(SuccinctDBG &dbg, FILE *contigs_file, FILE *final_c
     timer.start();
     UnitigGraph unitig_graph(&dbg);
     unitig_graph.InitFromSdBG();
+    unitig_graph.MergeBubbles(true);
+    unitig_graph.MergeComplexBubbles(0.98, false);
     timer.stop();
     printf("unitig graph size: %u, time for building: %lf\n", unitig_graph.size(), timer.elapsed());
     
@@ -214,6 +216,8 @@ void AssembleFinalFromUnitigGraph(SuccinctDBG &dbg, FILE *final_contig_file, int
     timer.start();
     UnitigGraph unitig_graph(&dbg);
     unitig_graph.InitFromSdBG();
+    unitig_graph.MergeBubbles(true);
+    unitig_graph.MergeComplexBubbles(0.98, false);
     timer.stop();
     printf("unitig graph size: %u, time for building: %lf\n", unitig_graph.size(), timer.elapsed());
     
@@ -238,6 +242,8 @@ void RemoveLowLocalAndOutputChanged(SuccinctDBG &dbg, FILE *contigs_file, FILE *
     timer.start();
     UnitigGraph unitig_graph(&dbg);
     unitig_graph.InitFromSdBG();
+    unitig_graph.MergeBubbles(true);
+    unitig_graph.MergeComplexBubbles(0.98, true);
     timer.stop();
     printf("Unitig graph size: %u, time for building: %lf\n", unitig_graph.size(), timer.elapsed());
 
@@ -275,6 +281,7 @@ void RemoveLowLocalAndOutputChanged(SuccinctDBG &dbg, FILE *contigs_file, FILE *
         // local_timer.stop();
         // printf("depth: %lf, num: %ld, time: %lf\n", min_depth, num_removed, local_timer.elapsed());
     }
+    unitig_graph.MergeComplexBubbles(0.98, false);
     timer.stop();
     printf("Number of unitigs removed: %lld, time: %lf\n", (long long)num_removed, timer.elapsed());
 
@@ -287,6 +294,8 @@ void RemoveLowLocalAndOutputFinal(SuccinctDBG &dbg, FILE *final_contig_file,
                                   double min_depth, int min_len, double local_ratio, int min_final_contig_len, bool need_fastg) {
     UnitigGraph unitig_graph(&dbg);
     unitig_graph.InitFromSdBG();
+    unitig_graph.MergeBubbles(true);
+    unitig_graph.MergeComplexBubbles(0.98, true);
     printf("Unitig graph size: %u\n", unitig_graph.size());
 
     const double kMaxDepth = 65535;
@@ -297,6 +306,7 @@ void RemoveLowLocalAndOutputFinal(SuccinctDBG &dbg, FILE *final_contig_file,
            unitig_graph.RemoveLocalLowDepth(min_depth, min_len, kLocalWidth, local_ratio, num_removed)) {
         min_depth *= 1.1;
     }
+    unitig_graph.MergeComplexBubbles(0.98, false);
     printf("Number of unitigs removed: %lld\n", (long long)num_removed);
 
     histogram.clear();

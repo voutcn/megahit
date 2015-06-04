@@ -26,6 +26,8 @@
 #include <vector>
 #include <algorithm>
 #include <string>
+#include <utility>
+
 #include "definitions.h"
 #include "succinct_dbg.h"
 #include "assembly_algorithms.h"
@@ -66,7 +68,7 @@ static inline void ReverseComplement(std::string &s) {
     if (i == j) { s[i] = Complement(s[i]); }
 }
 
-std::string VertexToDNAString(SuccinctDBG *sdbg_, UnitigGraphVertex &v) {
+std::string VertexToDNAString(SuccinctDBG *sdbg_, const UnitigGraphVertex &v) {
     static char acgt[] = "ACGT";
     std::string label;
     int64_t cur_node = v.end_node;
@@ -259,6 +261,201 @@ void UnitigGraph::InitFromSdBG() {
     }
 
     omp_destroy_lock(&path_lock);
+}
+
+double GetSimilarity(std::string &a, std::string &b, int max_indel, double min_similar) {
+    int n = a.length();
+    int m = b.length();
+    int max_mm = std::max(n, m) * (1 - min_similar);
+    max_indel = std::min(max_indel, max_mm);
+    if (abs(n - m) > max_indel) { return 0; }
+    if (max_indel < 1) { return 0; }
+
+    std::vector<int> dp[2];
+    for (int i = 0; i < 2; ++i) {
+        dp[i].resize(max_indel * 2 + 1, 0);
+    }
+
+#define IDX(j, i) ((j) - (i) + max_indel)
+    for (int j = 0; j <= max_indel; ++j) {
+        dp[0][IDX(j,0)] = j;
+    }
+
+    for (int i = 1; i <= n; ++i) {
+        std::fill(dp[i&1].begin(), dp[i&1].end(), 99999999);
+        if (i - max_indel <= 0) {
+            dp[i&1][IDX(0, i)] = i;
+        }
+
+        for (int j = std::max(i - max_indel, 1); j <= m && j <= i + max_indel; ++j) {
+            // assert(IDX(j,i) >= 0 && IDX(j,i) < max_indel * 2 + 1);
+            dp[i&1][IDX(j,i)] = std::min(dp[i&1][IDX(j,i)], dp[(i^1)&1][IDX(j-1,i-1)] + (a[i-1] != b[j-1]));
+            if (j > i - max_indel) {
+                // assert(IDX(j-1,i) >= 0 && IDX(j-1,i) < max_indel * 2 + 1);
+                dp[i&1][IDX(j,i)] = std::min(dp[i&1][IDX(j,i)], dp[i&1][IDX(j-1,i)] + 1);
+            }
+            if (j < i + max_indel) {
+                // assert(IDX(j,i-1) >= 0 && IDX(j,i-1) < max_indel * 2 + 1);
+                dp[i&1][IDX(j,i)] = std::min(dp[i&1][IDX(j,i)], dp[(i^1)&1][IDX(j,i-1)] + 1);
+            }
+        }
+    }
+
+    return 1 - dp[n&1][IDX(m,n)] * 1.0 / std::max(n, m);
+#undef IDX
+}
+
+uint32_t UnitigGraph::MergeBubbles(bool permanent_rm) {
+    int max_bubble_len = sdbg_->kmer_k + 1; // allow 1 indel
+    uint32_t num_removed = 0;
+
+    std::vector<std::tuple<double, int64_t, vertexID_t, int64_t> > branches; // depth, representative id, id, out_id
+
+#pragma omp parallel for private(branches) reduction(+: num_removed)
+    for (vertexID_t i = 0; i < vertices_.size(); ++i) {
+        if (vertices_[i].is_deleted || vertices_[i].length == 1) { continue; }
+        for (int strand = 0; strand < 2; ++strand) {
+            int64_t outgoings[4];
+            int outdegree = sdbg_->Outgoings(strand == 0 ? vertices_[i].end_node : vertices_[i].rev_end_node, outgoings);
+            if (outdegree <= 1) { continue; }
+
+            branches.clear();
+            bool converged = true;
+            int max_len = -1, min_len = 99999999;
+            int64_t next_outgoings[4];
+
+            for (int j = 0; j < outdegree; ++j) {
+                auto next_vertex_iter = start_node_map_.find(outgoings[j]);
+                assert(next_vertex_iter != start_node_map_.end());
+                UnitigGraphVertex &next_vertex = vertices_[next_vertex_iter->second];
+                assert(!next_vertex.is_deleted);
+
+                if (next_vertex.length > max_bubble_len) {
+                    converged = false;
+                    break;
+                }
+
+                if (next_vertex.start_node == outgoings[j] && sdbg_->Outdegree(next_vertex.rev_end_node) != 1) {
+                    converged = false;
+                    break;
+                }
+
+                if (next_vertex.rev_start_node == outgoings[j] && sdbg_->Outdegree(next_vertex.end_node) != 1) {
+                    converged = false;
+                    break;
+                }
+
+                if (sdbg_->Outgoings(outgoings[j] == next_vertex.start_node ? next_vertex.end_node : next_vertex.rev_end_node, next_outgoings) != 1 ||
+                    vertices_[start_node_map_[next_outgoings[0]]].length == 1) {
+                    converged = false;
+                    break;
+                }
+
+                max_len = std::max(max_len, (int)next_vertex.length);
+                min_len = std::min(min_len, (int)next_vertex.length);
+
+                if (max_len - min_len > 2) {
+                    converged = false;
+                    break;
+                }
+
+                branches.push_back(std::make_tuple(-next_vertex.depth * 1.0 / next_vertex.length, next_vertex.Representation(),
+                                                   next_vertex_iter->second, next_outgoings[0]));
+            }
+
+            for (int j = 1; converged && j < outdegree; ++j) {
+                if (std::get<3>(branches[j]) != std::get<3>(branches[0])) {
+                    converged = false;
+                    break;
+                }
+            }
+
+            if (!converged) {
+                continue;
+            }
+
+            std::sort(branches.begin(), branches.end());
+
+            for (int j = 1; j < outdegree; ++j) {
+                UnitigGraphVertex &vj = vertices_[std::get<2>(branches[j])];
+                vj.is_dead = true;
+            }
+            num_removed += outdegree - 1;
+        }
+    }
+    printf("Number bubbles removed: %u\n", num_removed);
+    Refresh_(!permanent_rm);
+    return num_removed;
+}
+
+uint32_t UnitigGraph::MergeComplexBubbles(double similarity, bool permanent_rm) {
+    int max_indel_allowed = 20;
+    int max_bubble_len = sdbg_->kmer_k * 20 / similarity + 0.5;
+    uint32_t num_removed = 0;
+
+    std::vector<std::tuple<double, int64_t, vertexID_t, std::vector<int64_t>, bool> > branches; // depth, representative id, id, in_out_ids, strand
+    std::vector<std::string> vertex_labels;
+
+#pragma omp parallel for private(branches, vertex_labels) reduction(+: num_removed)
+    for (vertexID_t i = 0; i < vertices_.size(); ++i) {
+        if (vertices_[i].is_deleted) { continue; }
+        for (int strand = 0; strand < 2; ++strand) {
+            int64_t outgoings[4];
+            int outdegree = sdbg_->Outgoings(strand == 0 ? vertices_[i].end_node : vertices_[i].rev_end_node, outgoings);
+            if (outdegree <= 1) { continue; }
+
+            branches.clear();
+            vertex_labels.resize(outdegree, "");
+
+            for (int j = 0; j < outdegree; ++j) {
+                auto next_vertex_iter = start_node_map_.find(outgoings[j]);
+                assert(next_vertex_iter != start_node_map_.end());
+                UnitigGraphVertex &next_vertex = vertices_[next_vertex_iter->second];
+                assert(!next_vertex.is_deleted);
+
+                vector<int64_t> next_outgoings(8, -1);
+                sdbg_->Outgoings(outgoings[j] == next_vertex.start_node ? next_vertex.end_node : next_vertex.rev_end_node, &next_outgoings[0]);
+                sdbg_->Outgoings(outgoings[j] == next_vertex.start_node ? next_vertex.rev_end_node : next_vertex.end_node, &next_outgoings[4]);
+
+                branches.push_back(std::make_tuple(-next_vertex.depth * 1.0 / next_vertex.length, next_vertex.Representation(),
+                                                   next_vertex_iter->second, next_outgoings, outgoings[j] == next_vertex.start_node));
+            }
+
+            std::sort(branches.begin(), branches.end());
+
+            for (int j = 0; j < outdegree; ++j) {
+                UnitigGraphVertex &vj = vertices_[std::get<2>(branches[j])];
+                if (vj.is_dead) { continue; }
+                if (vj.length > max_bubble_len) { continue; }
+
+                for (int k = j + 1; k < outdegree; ++k) {
+                    UnitigGraphVertex &vk = vertices_[std::get<2>(branches[k])];
+                    if (vk.is_dead) { continue; }
+                    if (vk.length > max_bubble_len) { continue; }
+                    if (std::get<3>(branches[j]) != std::get<3>(branches[k])) { continue; }
+
+                    if ((vk.length + sdbg_->kmer_k - 1) * similarity <= (vj.length + sdbg_->kmer_k - 1) &&
+                        (vj.length + sdbg_->kmer_k - 1) * similarity <= (vk.length + sdbg_->kmer_k - 1)) {
+                        if (vertex_labels[j] == "") {
+                            vertex_labels[j] = VertexToDNAString(sdbg_, std::get<4>(branches[j]) ? vj.ReverseComplement() : vj);
+                        }
+                        if (vertex_labels[k] == "") {
+                            vertex_labels[k] = VertexToDNAString(sdbg_, std::get<4>(branches[k]) ? vk.ReverseComplement() : vk);
+                        }
+
+                        // fprintf(stderr, "%s\n%s\n%lf\n", a.c_str(), b.c_str(), GetSimilarity(a, b, max_indel_allowed, similarity));
+                        if (GetSimilarity(vertex_labels[j], vertex_labels[k], max_indel_allowed, similarity) >= similarity) {
+                            ++num_removed;
+                            vk.is_dead = true;
+                        }
+                    }
+                }
+            }
+        }
+    }
+    printf("Number complex bubbles removed: %u\n", num_removed);
+    Refresh_(!permanent_rm);
+    return num_removed;
 }
 
 bool UnitigGraph::RemoveLocalLowDepth(double min_depth, int min_len, int local_width, double local_ratio, int64_t &num_removed, bool permanent_rm) {
@@ -507,7 +704,7 @@ void UnitigGraph::Refresh_(bool set_changed) {
         vertices_[i].end_node = new_end;
         vertices_[i].rev_start_node = new_rc_start;
         vertices_[i].rev_end_node = new_rc_end;
-        vertices_[i].is_changed = set_changed;
+        vertices_[i].is_changed |= set_changed;
         if (i == linear_path.back().first) {
             vertices_[i].is_deleted = false;
         }
@@ -522,7 +719,7 @@ void UnitigGraph::Refresh_(bool set_changed) {
                 uint32_t length = vertices_[i].length;
                 int64_t depth = vertices_[i].depth;
 
-                vertices_[i].is_changed = set_changed;
+                vertices_[i].is_changed |= set_changed;
                 vertices_[i].is_loop = true;
                 vertices_[i].is_deleted = true;
                 bool is_palindrome = false;

@@ -129,38 +129,38 @@ bool BranchGroup::RemoveErrorBranches(double cutoff_ratio) {
         }
     }
 
-/*
-    if (not_removed.size() > 1) {
-        int64_t biggest_id = -1;
-        unsigned remain_branch = 0;
-        for (unsigned i = 0; i < not_removed.size(); ++i) {
-            int j = not_removed[i];
-            int64_t b = -1;
+    // if (not_removed.size() > 1) {
+    //     int64_t biggest_id = -1;
+    //     unsigned remain_branch = 0;
+    //     for (unsigned i = 0; i < not_removed.size(); ++i) {
+    //         int j = not_removed[i];
+    //         int64_t b = -1;
 
-            for (int x = 1; x < branches_[j].size() - 1; ++x) {
-                int64_t node = branches_[j][x];
-                b = std::max(std::max(b, node), sdbg_->ReverseComplement(node));
-            }
+    //         int64_t node = branches_[j][1];
+    //         b = std::max(std::max(b, node), sdbg_->ReverseComplement(node));
 
-            if (b > biggest_id) {
-                biggest_id = b;
-                remain_branch = i;
-            }
-        }
+    //         node = branches_[j][branches_[j].size() - 2];
+    //         b = std::max(std::max(b, node), sdbg_->ReverseComplement(node));
 
-        for (unsigned i = 0; i < not_removed.size(); ++i) {
-            if (i == remain_branch) {
-                continue;
-            }
-            for (unsigned j = 1; j + 1 < branches_[not_removed[i]].size(); ++j) {
-                sdbg_->SetInvalid(branches_[not_removed[i]][j]);
-            }
-        }
+    //         if (b > biggest_id) {
+    //             biggest_id = b;
+    //             remain_branch = i;
+    //         }
+    //     }
 
-        not_removed[0] = not_removed[remain_branch];
-        not_removed.resize(1);        
-    }
-*/
+    //     for (unsigned i = 0; i < not_removed.size(); ++i) {
+    //         if (i == remain_branch) {
+    //             continue;
+    //         }
+    //         for (unsigned j = 1; j + 1 < branches_[not_removed[i]].size(); ++j) {
+    //             sdbg_->SetInvalid(branches_[not_removed[i]][j]);
+    //         }
+    //     }
+
+    //     not_removed[0] = not_removed[remain_branch];
+    //     not_removed.resize(1);        
+    // }
+
     unsigned num_remained = 0;
     for (unsigned i = 0; i < not_removed.size(); ++i) {
         if (num_remained != not_removed[i]) {
