@@ -99,10 +99,266 @@ int64_t encode_lv1_diff_base(int64_t read_id, sequences2sdbg_global_t &g) {
     return EncodeEdgeOffset(read_id, 0, 0, g.bits_for_offset);
 }
 
+
+/**
+ * @brief build lkt for faster binary search for mercy
+ */
+void InitLookupTable(int64_t *lookup_table, SequencePackage &p) {
+    memset(lookup_table, 0xFF, sizeof(int64_t) * kLookUpSize * 2);
+    if (p.size() == 0) { return; }
+
+    Kmer<1, uint32_t> kmer;
+    kmer.init(&p.packed_seq[0], 0, 16);
+
+    uint32_t cur_prefix = kmer.data_[0] >> kLookUpShift;
+    lookup_table[cur_prefix * 2] = 0;
+
+    for (int64_t i = 1, num_edges = p.size(); i < num_edges; ++i) {
+        kmer.init(&p.packed_seq[p.start_idx[i] / 16], p.start_idx[i] % 16, 16);
+        if ((kmer.data_[0] >> kLookUpShift) > cur_prefix) {
+            lookup_table[cur_prefix * 2 + 1] = i - 1;
+            cur_prefix = kmer.data_[0] >> kLookUpShift;
+            lookup_table[cur_prefix * 2] = i;
+        } else {
+            assert(cur_prefix == kmer.data_[0] >> kLookUpShift);
+        }
+    }
+    lookup_table[cur_prefix * 2 + 1] = p.size() - 1;
+}
+
+/**
+ * @brief search mercy kmer
+ */
+inline int64_t BinarySearchKmer(Kmer<6, uint32_t> &kmer, int64_t *lookup_table, SequencePackage &p, int kmer_size) {
+    // --- first look up ---
+    int64_t l = lookup_table[(kmer.data_[0] >> kLookUpShift) * 2];
+    if (l == -1) {
+        return -1;
+    }
+    int64_t r = lookup_table[(kmer.data_[0] >> kLookUpShift) * 2 + 1];
+    int64_t mid;
+    Kmer<6, uint32_t> mid_kmer;
+
+    while (l <= r) {
+        mid = (l + r) / 2;
+        mid_kmer.init(&p.packed_seq[p.start_idx[mid] / 16], p.start_idx[mid] % 16, kmer_size);
+        int cmp = kmer.cmp(mid_kmer, kmer_size);
+        if (cmp > 0) {
+            l = mid + 1;
+        } else if (cmp < 0) {
+            r = mid - 1;
+        } else {
+            return mid;
+        }
+    }
+
+    return -1;
+}
+
+static void* MercyInputThread(void* seq_manager) {
+    SequenceManager *sm = (SequenceManager*)seq_manager;
+    int64_t kMaxReads = 1 << 22;
+    int64_t kMaxBases = 1 << 28;
+    bool append = false;
+    bool reverse = false;
+    sm->ReadShortReads(kMaxReads, kMaxBases, append, reverse);
+    return NULL;
+}
+
+inline void GenMercyEdges(sequences2sdbg_global_t &globals) {
+    int64_t *edge_lookup = (int64_t *) MallocAndCheck(kLookUpSize * 2 * sizeof(int64_t), __FILE__, __LINE__);
+    InitLookupTable(edge_lookup, globals.package);
+
+    std::vector<Kmer<6, uint32_t> > mercy_edges;
+
+    SequencePackage read_package[2];
+    SequenceManager seq_manager;
+    seq_manager.set_file_type(SequenceManager::kBinaryReads);
+    seq_manager.set_file(globals.input_prefix + ".cand");
+    int thread_index = 0;
+    seq_manager.set_package(&read_package[0]);
+
+    pthread_t input_thread;
+    pthread_create(&input_thread, NULL, MercyInputThread, &seq_manager);
+    int num_threads = globals.num_cpu_threads - 1;
+    omp_set_num_threads(num_threads);
+    omp_lock_t mercy_lock;
+    omp_init_lock(&mercy_lock);
+
+    int64_t num_mercy_edges = 0;
+    int64_t num_mercy_reads = 0;
+
+    std::vector<bool> has_in, has_out;
+    Kmer<6, uint32_t> kmer, rev_kmer;
+
+    while (true) {
+        pthread_join(input_thread, NULL);
+        SequencePackage &rp = read_package[thread_index];
+        if (rp.size() == 0) {
+            break;
+        }
+
+        thread_index ^= 1;
+        seq_manager.set_package(&read_package[thread_index]);
+        pthread_create(&input_thread, NULL, MercyInputThread, &seq_manager);
+
+        num_mercy_reads += rp.size();
+        mercy_edges.clear();
+
+#pragma omp parallel for reduction(+:num_mercy_edges) private(has_in, has_out, kmer, rev_kmer)
+        for (unsigned read_id = 0; read_id < rp.size(); ++read_id) {
+            int read_len = rp.length(read_id);
+            if (read_len < globals.kmer_k + 2) { continue; }
+
+            has_in.resize(read_len, false);
+            has_out.resize(read_len, false);
+
+            kmer.init(&rp.packed_seq[rp.start_idx[read_id]], rp.start_idx[read_id] % 16, globals.kmer_k);
+            rev_kmer = kmer;
+            rev_kmer.ReverseComplement(globals.kmer_k);
+
+            // mark those positions with in/out
+            for (int i = 0; i + globals.kmer_k <= read_len; ++i) {
+                if (!has_in[i]) {
+                    // search rc
+                    if (BinarySearchKmer(rev_kmer, edge_lookup, globals.package, globals.kmer_k) != -1) {
+                        has_in[i] = true;
+                    } else {
+                        // left append ACGT to kmer, if the (k+1)-mer exist, the kmer has in
+                        rev_kmer.set_base(globals.kmer_k, 3); // rev kmer is used to compare to kmer, if it's smaller, kmer would not exist in the table
+                        for (int c = 0; c < 4; ++c) {
+                            kmer.ShiftPreappend(c, globals.kmer_k + 1);
+                            if (kmer.cmp(rev_kmer, globals.kmer_k + 1) > 0) {
+                                break;
+                            }
+
+                            if (BinarySearchKmer(kmer, edge_lookup, globals.package, globals.kmer_k + 1) != -1) {
+                                has_in[i] = true;
+                                break;
+                            }
+                        }
+                        rev_kmer.set_base(globals.kmer_k, 0);
+                        kmer.ShiftAppend(0, globals.kmer_k + 1); // clean the k+1-th char
+                    }
+                }
+
+                // check whether has out
+                int64_t edge_id = BinarySearchKmer(kmer, edge_lookup, globals.package, globals.kmer_k);
+                if (edge_id != -1) {
+                    has_out[i] = true;
+                    // BWT see whether the next has in too
+                    if (i + globals.kmer_k < read_len &&
+                        globals.package.get_base(edge_id, globals.kmer_k) == rp.get_base(read_id, i + globals.kmer_k)) {
+                        has_in[i + 1] = true;
+                    }
+                } else {
+                    // search the rc
+                    kmer.set_base(globals.kmer_k, 3);
+                    int next_char = i + globals.kmer_k < read_len ? 3 - rp.get_base(read_id, i + globals.kmer_k) : 3;
+                    rev_kmer.ShiftPreappend(next_char, globals.kmer_k + 1);
+
+                    if (rev_kmer.cmp(kmer, globals.kmer_k + 1) <= 0 && BinarySearchKmer(rev_kmer, edge_lookup, globals.package, globals.kmer_k + 1) != -1) {
+                        has_out[i] = true;
+                        has_in[i + 1] = true;
+                    } else {
+                        for (int c = 0; c < 4; ++c) {
+                            if (c == next_char) { continue; }
+                            rev_kmer.set_base(0, c);
+                            if (rev_kmer.cmp(kmer, globals.kmer_k + 1) > 0) {
+                                break;
+                            }
+
+                            if (BinarySearchKmer(rev_kmer, edge_lookup, globals.package, globals.kmer_k + 1) != -1) {
+                                has_out[i] = true;
+                                break;
+                            }
+                        }
+                    }
+
+                    kmer.set_base(globals.kmer_k, 0);
+                    rev_kmer.ShiftAppend(0, globals.kmer_k + 1);
+                }
+
+                // shift kmer and rev_kmer
+                if (i + globals.kmer_k < read_len) {
+                    int next_char = rp.get_base(read_id, i + globals.kmer_k);
+                    kmer.ShiftAppend(next_char, globals.kmer_k);
+                    rev_kmer.ShiftPreappend(next_char, globals.kmer_k);
+                }
+            }
+
+            // adding mercy edges
+            int last_no_out = -1;
+
+            for (int i = 0; i + globals.kmer_k <= read_len; ++i) {
+                switch (has_in[i] | (int(has_out[i]) << 1)) {
+                case 1: { // has incoming only
+                    last_no_out = i;
+                    break;
+                }
+                case 2: { // has outgoing only
+                    if (last_no_out >= 0) {
+                        for (int j = last_no_out; j < i; ++j) {
+                            omp_set_lock(&mercy_lock);
+                            mercy_edges.push_back(Kmer<6, uint32_t>(&rp.packed_seq[rp.start_idx[read_id] / 16], rp.start_idx[read_id] % 16, globals.kmer_k + 1));
+                            omp_unset_lock(&mercy_lock);
+                        }
+                        num_mercy_edges += i - last_no_out;
+                    }
+                    last_no_out = -1;
+                    break;
+                }
+                case 3: { // has in and out
+                    last_no_out = -1;
+                    break;
+                }
+                default: {
+                    // do nothing
+                    break;
+                }
+                }
+            }
+        }
+
+        for (unsigned i = 0; i < mercy_edges.size(); ++i) {
+            globals.package.AppendSeq(mercy_edges[i].data_, globals.kmer_k + 1);
+        }
+    }
+
+    globals.multiplicity.insert(globals.multiplicity.end(), num_mercy_edges, 1);
+
+    if (cx1_t::kCX1Verbose >= 2) {
+        log("[B::%s] Number of reads: %ld, Number of mercy edges: %ld\n", __func__, num_mercy_reads, num_mercy_edges);
+    }
+}
+
 void read_seq_and_prepare(sequences2sdbg_global_t &globals) {
     // --- init reader ---
     SequenceManager seq_manager(&globals.package);
     seq_manager.set_multiplicity_vector(&globals.multiplicity);
+
+    if (globals.input_prefix != "") {
+        seq_manager.set_file_type(SequenceManager::kMegahitEdges);
+        seq_manager.set_edge_files(globals.input_prefix + ".edges", 1);
+        seq_manager.ReadEdges(1LL << 60, true);
+        seq_manager.clear();
+    }
+
+    if (globals.need_mercy) {
+        xtimer_t timer;
+        if (cx1_t::kCX1Verbose >= 3) {
+            timer.reset();
+            timer.start();
+            log("[B::%s] Adding mercy edges...\n", __func__);
+        }
+
+        GenMercyEdges(globals);
+
+        if (cx1_t::kCX1Verbose >= 3) {
+            timer.stop();
+            log("[B::%s] Done. Time elapsed: %.4lf\n", __func__, timer.elapsed());
+        }
+    }
 
     if (globals.contig_file_name != "") {
         seq_manager.set_file_type(SequenceManager::kMegahitContigs);
@@ -115,13 +371,6 @@ void read_seq_and_prepare(sequences2sdbg_global_t &globals) {
         seq_manager.set_file_type(SequenceManager::kMegahitContigs);
         seq_manager.set_file(globals.add_contig_file_name);
         seq_manager.ReadMegahitContigs(1LL << 60, 1LL << 60, true, true, globals.kmer_from, globals.kmer_k, false, false);
-        seq_manager.clear();
-    }
-
-    if (globals.input_prefix != "") {
-        seq_manager.set_file_type(SequenceManager::kMegahitEdges);
-        seq_manager.set_edge_files(globals.input_prefix + ".edges", 1);
-        seq_manager.ReadEdges(1LL << 60, true);
         seq_manager.clear();
     }
 

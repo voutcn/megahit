@@ -327,7 +327,9 @@ int main_seq2sdbg(int argc, char **argv) {
     desc.AddOption("contig_file_name", "", opt.contig_file_name, "contigs from previous k");
     desc.AddOption("add_contig_file_name", "", opt.add_contig_file_name, "additional contigs from previous k");
     desc.AddOption("input_prefix", "", opt.input_prefix, "files input_prefix.edges.* output by count module, can be gzip'ed.");
+    desc.AddOption("num_edge_files", "", opt.num_edge_files, "the number of files with name input_prefix.edges.*");
     desc.AddOption("output_prefix", "o", opt.output_prefix, "output prefix");
+    desc.AddOption("need_mercy", "", opt.need_mercy, "to add mercy edges. The file input_prefix.cand output by count module should exist.");
     desc.AddOption("mem_flag", "", opt.mem_flag, "memory options. 0: minimize memory usage; 1: automatically use moderate memory; other: use all available mem specified by '--host_mem'");
 
     try {
@@ -342,6 +344,10 @@ int main_seq2sdbg(int argc, char **argv) {
 
         if (opt.num_output_threads == 0) {
             opt.num_output_threads = std::max(1, opt.num_cpu_threads / 3);
+        }
+
+        if (opt.num_edge_files == 0) {
+            throw std::logic_error("num edges files cannot be 0!");
         }
 
         if (opt.kmer_k < 15) {
@@ -386,6 +392,7 @@ int main_seq2sdbg(int argc, char **argv) {
     globals.num_cpu_threads = opt.num_cpu_threads;
     globals.num_output_threads = opt.num_output_threads;
     globals.input_prefix = opt.input_prefix;
+    globals.num_edge_files = opt.num_edge_files;
     globals.output_prefix = opt.output_prefix;
     globals.contig_file_name = opt.contig_file_name;
     globals.add_contig_file_name = opt.add_contig_file_name;

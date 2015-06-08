@@ -153,6 +153,9 @@ struct SequencePackage {
 		int first_shift = (start_idx[seq_id] + begin) % kCharsPerWord * 2;
 
 		s.clear();
+		if (end < begin) {
+			return;
+		}
 
 		if (first_shift == 0) {
 			for (size_t i = first_word; i <= last_word; ++i) {
@@ -162,20 +165,20 @@ struct SequencePackage {
 			for (size_t i = first_word; i < last_word; ++i) {
 				s.push_back((packed_seq[i] << first_shift) | (packed_seq[i+1] >> (kBitsPerWord - first_shift)));
 			}
-			if (kCharsPerWord * s.size() < end - begin + 1) {
+			if (kCharsPerWord * s.size() < (unsigned)end - begin + 1) {
 				s.push_back(packed_seq[last_word] << first_shift);
 			}
 		}
 
 		int shift_clean = kBitsPerWord - (end - begin + 1) * 2 % kBitsPerWord;
-		if (shift_clean != kBitsPerWord) {
+		if (shift_clean != (int)kBitsPerWord) {
 			s.back() >>= shift_clean;
 			s.back() <<= shift_clean;	
 		}
 
-		for (int j = 0; j < end - begin + 1; ++j) {
-			assert((s[j/16] >> (15-j%16) * 2) == get_base(seq_id, j));
-		}
+		// for (int j = 0; j < end - begin + 1; ++j) {
+		// 	assert((s[j/16] >> (15-j%16) * 2) == get_base(seq_id, j));
+		// }
 	}
 };
 

@@ -42,14 +42,17 @@ struct sequences2sdbg_opt_t {
     std::string contig_file_name;
     std::string add_contig_file_name;
     std::string input_prefix;
+    int num_edge_files;
     std::string output_prefix;
     int mem_flag;
+    bool need_mercy;
 
     sequences2sdbg_opt_t() {
         host_mem = 0;
         gpu_mem = 0;
         num_cpu_threads = 0;
         num_output_threads = 0;
+        num_edge_files = 0;
         kmer_k = 0;
         kmer_from = 0;
         mem_flag = 1;
@@ -57,6 +60,7 @@ struct sequences2sdbg_opt_t {
         add_contig_file_name = "";
         input_prefix = "";
         output_prefix = "out";
+        need_mercy = false;
     }
 };
 
@@ -91,11 +95,13 @@ struct sequences2sdbg_global_t {
     int64_t host_mem;
     int64_t gpu_mem;
     int mem_flag;
+    bool need_mercy;
 
     std::string contig_file_name;
     std::string add_contig_file_name;
     std::string input_prefix;
     std::string output_prefix;
+    int num_edge_files;
 
     int64_t num_seq;
     int64_t words_per_substring; // substrings to be sorted by GPU
