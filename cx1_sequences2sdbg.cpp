@@ -101,31 +101,29 @@ int64_t encode_lv1_diff_base(int64_t read_id, sequences2sdbg_global_t &g) {
 
 void read_seq_and_prepare(sequences2sdbg_global_t &globals) {
     // --- init reader ---
-    globals.seq_manager.set_package(&globals.package);
+    SequenceManager seq_manager(&globals.package);
+    seq_manager.set_multiplicity_vector(&globals.multiplicity);
 
     if (globals.contig_file_name != "") {
-        globals.seq_manager.set_file_type(SequenceManager::kMegahitContigs);
-        globals.seq_manager.set_file(globals.contig_file_name);
-        globals.seq_manager.ReadMegahitContigs(1LL << 60, 1LL << 60, true, true, globals.kmer_from, globals.kmer_k, false, true);
-        globals.seq_manager.clear();
+        seq_manager.set_file_type(SequenceManager::kMegahitContigs);
+        seq_manager.set_file(globals.contig_file_name);
+        seq_manager.ReadMegahitContigs(1LL << 60, 1LL << 60, true, true, globals.kmer_from, globals.kmer_k, false, true);
+        seq_manager.clear();
     }
-    printf("%lu\n", globals.package.size());
 
     if (globals.add_contig_file_name != "") {
-        globals.seq_manager.set_file_type(SequenceManager::kMegahitContigs);
-        globals.seq_manager.set_file(globals.add_contig_file_name);
-        globals.seq_manager.ReadMegahitContigs(1LL << 60, 1LL << 60, true, true, globals.kmer_from, globals.kmer_k, false, false);
-        globals.seq_manager.clear();
+        seq_manager.set_file_type(SequenceManager::kMegahitContigs);
+        seq_manager.set_file(globals.add_contig_file_name);
+        seq_manager.ReadMegahitContigs(1LL << 60, 1LL << 60, true, true, globals.kmer_from, globals.kmer_k, false, false);
+        seq_manager.clear();
     }
-    printf("%lu\n", globals.package.size());
 
     if (globals.input_prefix != "") {
-        globals.seq_manager.set_file_type(SequenceManager::kMegahitEdges);
-        globals.seq_manager.set_edge_files(globals.input_prefix + ".edges", 1);
-        globals.seq_manager.ReadEdges(1LL << 60, true);
-        globals.seq_manager.clear();
+        seq_manager.set_file_type(SequenceManager::kMegahitEdges);
+        seq_manager.set_edge_files(globals.input_prefix + ".edges", 1);
+        seq_manager.ReadEdges(1LL << 60, true);
+        seq_manager.clear();
     }
-    printf("%lu\n", globals.package.size());
 
     // --- compute bits_for_offset ---
     {
@@ -212,7 +210,7 @@ void init_global_and_set_cx1(sequences2sdbg_global_t &globals) {
     }
 
     // --- memory stuff ---
-    globals.mem_packed_seq = DivCeiling(globals.package.base_size(), 16) * sizeof(uint32_t) + (globals.package.size() + 1) * sizeof(uint64_t);
+    globals.mem_packed_seq = globals.package.size_in_byte();
     int64_t mem_remained = globals.host_mem
                            - globals.mem_packed_seq
                            - kNumBuckets * sizeof(int64_t) * (globals.num_cpu_threads * 3 + 1);
@@ -384,7 +382,7 @@ void* lv2_extract_substr(void* _data) {
                 int num_chars_to_copy = globals.kmer_k - (offset + globals.kmer_k > seq_len);
                 int counting = 0;
                 if (offset > 0 && offset + globals.kmer_k <= seq_len) {
-                    counting = globals.seq_manager.multiplicity(seq_id);
+                    counting = globals.multiplicity[seq_id];
                 }
 
                 int64_t which_word = globals.package.start_idx[seq_id] / 16;

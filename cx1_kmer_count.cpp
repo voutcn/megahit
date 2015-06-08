@@ -32,6 +32,7 @@
 #include "utils.h"
 #include "kmer.h"
 #include "packed_reads.h"
+#include "read_lib_functions-inl.h"
 
 #ifndef USE_GPU
 #include "lv2_cpu_sort.h"
@@ -56,7 +57,7 @@ inline int64_t EncodeOffset(int64_t read_id, int offset, int strand, int length_
     return (read_id << (length_num_bits + 1)) | (offset << 1) | strand;
 }
 
-inline bool IsDifferentEdges(edge_word_t *item1, edge_word_t* item2, int num_words, int spacing) {
+inline bool IsDifferentEdges(uint32_t *item1, uint32_t* item2, int num_words, int spacing) {
     for (int i = num_words - 1; i >= 0; --i) {
         if (*(item1 + (int64_t)i * spacing) != *(item2 + (int64_t)i * spacing)) {
             return true;
@@ -68,7 +69,7 @@ inline bool IsDifferentEdges(edge_word_t *item1, edge_word_t* item2, int num_wor
 /**
  * @brief pack an edge and its multiplicity to word-aligned spaces
  */
-inline void PackEdge(edge_word_t *dest, edge_word_t *item, int counting, struct count_global_t &globals) {
+inline void PackEdge(uint32_t *dest, uint32_t *item, int counting, struct count_global_t &globals) {
     for (int i = 0; i < globals.words_per_edge && i < globals.words_per_substring; ++i) {
         dest[i] = *(item + (int64_t)i * globals.lv2_num_items_db);
     }
@@ -94,38 +95,22 @@ int64_t encode_lv1_diff_base(int64_t read_id, count_global_t &g) {
 }
 
 void read_input_prepare(count_global_t &globals) { // num_items_, num_cpu_threads_ and num_output_threads_ must be set here
+    bool is_reverse = true;
+    ReadMultipleLibs(globals.read_lib_file, globals.package, globals.lib_se, is_reverse);
+    globals.max_read_length = globals.package.max_read_len();
+    globals.num_reads = globals.package.size();
+    
+    log("[C::%s] %ld reads, %d max read length\n", __func__, globals.num_reads, globals.max_read_length);
+
     // calc words_per_xxx
     int bits_read_length = 1; // bit needed to store read_length
     while ((1 << bits_read_length) - 1 < globals.max_read_length) {
         ++bits_read_length;
     }
+    globals.offset_num_bits = bits_read_length;
     globals.read_length_mask = (1 << bits_read_length) - 1;
 
-    {
-        globals.offset_num_bits = 0;
-        int len = 1;
-        while (len - 1 < globals.max_read_length) {
-            globals.offset_num_bits++;
-            len *= 2;
-        }
-    }
-
-    globals.words_per_read = DivCeiling(globals.max_read_length * kBitsPerEdgeChar + bits_read_length, kBitsPerEdgeWord);
-    int64_t max_num_reads = globals.host_mem / (sizeof(edge_word_t) * globals.words_per_read) * 3 / 4; //TODO: more accurate
-    if (cx1_t::kCX1Verbose >= 2) {
-        log("[C::%s] Max read length is %d; words per read: %d\n", __func__, globals.max_read_length, globals.words_per_read);
-    }
-
-    // read fastx
-    globals.num_reads = ReadFastxAndPack(globals.packed_reads, globals.input_file, globals.words_per_read,
-                                         globals.kmer_k + 1, globals.max_read_length, max_num_reads);
-    globals.mem_packed_reads = globals.num_reads * globals.words_per_read * sizeof(edge_word_t);
-    globals.packed_reads = (edge_word_t*) ReAllocAndCheck(globals.packed_reads, globals.mem_packed_reads, __FILE__, __LINE__);
-    if (!globals.packed_reads) {
-        err("[C::%s ERROR] Cannot reallocate memory for packed reads!\n", __func__);
-        exit(1);
-    }
-    log("[C::%s] Total number of reads: %lld\n", __func__, (long long)globals.num_reads);
+    globals.mem_packed_reads = globals.package.size_in_byte();
 
     // set cx1 param
     globals.cx1.num_cpu_threads_ = globals.num_cpu_threads;
@@ -138,14 +123,16 @@ void* lv0_calc_bucket_size(void* _data) {
     count_global_t &globals = *(rp.globals);
     int64_t *bucket_sizes = rp.rp_bucket_sizes;
     memset(bucket_sizes, 0, sizeof(bucket_sizes[0]) * kNumBuckets);
-    edge_word_t *read_p = GetReadPtr(globals.packed_reads, rp.rp_start_id, globals.words_per_read);
     Kmer<6, uint32_t> edge, rev_edge; // (k+1)-mer and its rc
-    for (int64_t read_id = rp.rp_start_id; read_id < rp.rp_end_id; ++read_id, read_p += globals.words_per_read) {
-        int read_length = GetReadLength(read_p, globals.words_per_read, globals.read_length_mask);
+
+    for (int64_t read_id = rp.rp_start_id; read_id < rp.rp_end_id; ++read_id) {
+        int read_length = globals.package.length(read_id);
         if (read_length < globals.kmer_k + 1) {
             continue;
         }
-        edge.init(read_p, 0, globals.kmer_k + 1);
+
+        uint32_t *read_p = &globals.package.packed_seq[globals.package.start_idx[read_id] / 16];
+        edge.init(read_p, globals.package.start_idx[read_id] % 16, globals.kmer_k + 1);
         rev_edge = edge;
         rev_edge.ReverseComplement(globals.kmer_k + 1);
 
@@ -160,7 +147,7 @@ void* lv0_calc_bucket_size(void* _data) {
             if (++last_char_offset >= read_length) {
                 break;
             } else {
-                int c = ExtractNthChar(read_p, last_char_offset);
+                int c = globals.package.get_base(read_id, last_char_offset);
                 edge.ShiftAppend(c, globals.kmer_k + 1);
                 rev_edge.ShiftPreappend(3 - c, globals.kmer_k + 1);
             }
@@ -191,7 +178,7 @@ void init_global_and_set_cx1(count_global_t &globals) {
     globals.words_per_substring = DivCeiling((globals.kmer_k + 1) * kBitsPerEdgeChar, kBitsPerEdgeWord);
     globals.words_per_edge = DivCeiling((globals.kmer_k + 1) * kBitsPerEdgeChar + kBitsPerMulti_t, kBitsPerEdgeWord);
     // lv2 bytes: substring, permutation, readinfo
-    int64_t lv2_bytes_per_item = (globals.words_per_substring) * sizeof(edge_word_t) + sizeof(uint32_t) + sizeof(int64_t);
+    int64_t lv2_bytes_per_item = (globals.words_per_substring) * sizeof(uint32_t) + sizeof(uint32_t) + sizeof(int64_t);
     lv2_bytes_per_item = lv2_bytes_per_item * 2; // double buffering
 #ifndef USE_GPU
     lv2_bytes_per_item += sizeof(uint64_t) * 2; // CPU memory is used to simulate GPU
@@ -238,8 +225,8 @@ void init_global_and_set_cx1(count_global_t &globals) {
 
     // --- alloc memory ---
     globals.lv1_items = (int*) MallocAndCheck(globals.cx1.max_lv1_items_ * sizeof(int), __FILE__, __LINE__);
-    globals.lv2_substrings = (edge_word_t*) MallocAndCheck(globals.cx1.max_lv2_items_ * globals.words_per_substring * sizeof(edge_word_t), __FILE__, __LINE__);
-    globals.lv2_substrings_db = (edge_word_t*) MallocAndCheck(globals.cx1.max_lv2_items_ * globals.words_per_substring * sizeof(edge_word_t), __FILE__, __LINE__);
+    globals.lv2_substrings = (uint32_t*) MallocAndCheck(globals.cx1.max_lv2_items_ * globals.words_per_substring * sizeof(uint32_t), __FILE__, __LINE__);
+    globals.lv2_substrings_db = (uint32_t*) MallocAndCheck(globals.cx1.max_lv2_items_ * globals.words_per_substring * sizeof(uint32_t), __FILE__, __LINE__);
     globals.permutation = (uint32_t *) MallocAndCheck(globals.cx1.max_lv2_items_ * sizeof(uint32_t), __FILE__, __LINE__);
     globals.permutation_db = (uint32_t *) MallocAndCheck(globals.cx1.max_lv2_items_ * sizeof(uint32_t), __FILE__, __LINE__);
     globals.lv2_read_info = (int64_t *) MallocAndCheck(globals.cx1.max_lv2_items_ * sizeof(int64_t), __FILE__, __LINE__);
@@ -270,9 +257,7 @@ void init_global_and_set_cx1(count_global_t &globals) {
     // --- initialize writer ---
     globals.word_writer = (WordWriter*) MallocAndCheck(globals.num_output_threads * sizeof(WordWriter), __FILE__, __LINE__);
     for (int t = 0; t < globals.num_output_threads; ++t) {
-        char edges_file_name[10240];
-        sprintf(edges_file_name, "%s.edges.%d", globals.output_prefix, t);
-        globals.word_writer[t].init(edges_file_name);
+        globals.word_writer[t].init(FormatString("%s.edges.%d", globals.output_prefix.c_str(), t));
     }
 
     // --- write the edge file header ---
@@ -288,15 +273,17 @@ void* lv1_fill_offset(void* _data) {
     for (int b = globals.cx1.lv1_start_bucket_; b < globals.cx1.lv1_end_bucket_; ++b)
         prev_full_offsets[b] = rp.rp_lv1_differential_base;
     // this loop is VERY similar to that in PreprocessScanToFillBucketSizesThread
-    edge_word_t *read_p = GetReadPtr(globals.packed_reads, rp.rp_start_id, globals.words_per_read);
     Kmer<6, uint32_t> edge, rev_edge; // (k+1)-mer and its rc
     int key;
-    for (int64_t read_id = rp.rp_start_id; read_id < rp.rp_end_id; ++read_id, read_p += globals.words_per_read) {
-        int read_length = GetReadLength(read_p, globals.words_per_read, globals.read_length_mask);
+
+    for (int64_t read_id = rp.rp_start_id; read_id < rp.rp_end_id; ++read_id) {
+        int read_length = globals.package.length(read_id);
         if (read_length < globals.kmer_k + 1) {
             continue;
         }
-        edge.init(read_p, 0, globals.kmer_k + 1);
+
+        uint32_t *read_p = &globals.package.packed_seq[globals.package.start_idx[read_id] / 16];
+        edge.init(read_p, globals.package.start_idx[read_id] % 16, globals.kmer_k + 1);
         rev_edge = edge;
         rev_edge.ReverseComplement(globals.kmer_k + 1);
 
@@ -336,7 +323,7 @@ void* lv1_fill_offset(void* _data) {
             if (++last_char_offset >= read_length) {
                 break;
             } else {
-                int c = ExtractNthChar(read_p, last_char_offset);
+                int c = globals.package.get_base(read_id, last_char_offset);
                 edge.ShiftAppend(c, globals.kmer_k + 1);
                 rev_edge.ShiftPreappend(3 - c, globals.kmer_k + 1);
             }
@@ -354,10 +341,11 @@ void* lv2_extract_substr(void* _data) {
     count_global_t &globals = *(bp.globals);
     int *lv1_p = globals.lv1_items + globals.cx1.rp_[0].rp_bucket_offsets[bp.bp_start_bucket];
     int64_t offset_mask = (1 << globals.offset_num_bits) - 1; // 0000....00011..11
-    edge_word_t *substrings_p = globals.lv2_substrings +
+    uint32_t *substrings_p = globals.lv2_substrings +
                                 (globals.cx1.rp_[0].rp_bucket_offsets[bp.bp_start_bucket] - globals.cx1.rp_[0].rp_bucket_offsets[globals.cx1.lv2_start_bucket_]);
     int64_t *read_info_p = globals.lv2_read_info +
                            (globals.cx1.rp_[0].rp_bucket_offsets[bp.bp_start_bucket] - globals.cx1.rp_[0].rp_bucket_offsets[globals.cx1.lv2_start_bucket_]);
+
     for (int b = bp.bp_start_bucket; b < bp.bp_end_bucket; ++b) {
         for (int t = 0; t < globals.num_cpu_threads; ++t) {
             int64_t full_offset = globals.cx1.rp_[t].rp_lv1_differential_base;
@@ -368,34 +356,43 @@ void* lv2_extract_substr(void* _data) {
                 } else {
                     full_offset = globals.cx1.lv1_items_special_[-1 - *(lv1_p++)];
                 }
+
                 int64_t read_id = full_offset >> (globals.offset_num_bits + 1);
                 int strand = full_offset & 1;
                 int offset = (full_offset >> 1) & offset_mask;
                 int num_chars_to_copy = globals.kmer_k + 1;
+
+                int read_length = globals.package.length(read_id);
+                int64_t which_word = globals.package.start_idx[read_id] / 16;
+                int start_offset = globals.package.start_idx[read_id] % 16;
+                int words_this_seq = DivCeiling(start_offset + read_length, 16);
+                uint32_t *read_p = &globals.package.packed_seq[which_word];
+
                 unsigned char prev, next;
-                edge_word_t *read_p = GetReadPtr(globals.packed_reads, read_id, globals.words_per_read);
+
                 if (offset > 0) {
-                    prev = ExtractNthChar(read_p, offset - 1);
+                    prev = globals.package.get_base(read_id, offset - 1);
                 } else {
                     prev = kSentinelValue;
                 }
 
-                if (offset + globals.kmer_k + 1 < GetReadLength(read_p, globals.words_per_read, globals.read_length_mask)) {
-                    next = ExtractNthChar(read_p, offset + globals.kmer_k + 1);
+                if (offset + globals.kmer_k + 1 < read_length) {
+                    next = globals.package.get_base(read_id, offset + globals.kmer_k + 1);
                 } else {
                     next = kSentinelValue;
                 }
 
                 if (strand == 0) {
-                    CopySubstring(substrings_p, read_p, offset, num_chars_to_copy,
-                                  globals.cx1.lv2_num_items_, globals.words_per_read, globals.words_per_substring);
+                    CopySubstring(substrings_p, read_p, offset + start_offset, num_chars_to_copy,
+                                  globals.cx1.lv2_num_items_, words_this_seq, globals.words_per_substring);
                     *read_info_p = (full_offset << 6) | (prev << 3) | next;
                 } else {
-                    CopySubstringRC(substrings_p, read_p, offset, num_chars_to_copy,
-                                    globals.cx1.lv2_num_items_, globals.words_per_read, globals.words_per_substring);
+                    CopySubstringRC(substrings_p, read_p, offset + start_offset, num_chars_to_copy,
+                                    globals.cx1.lv2_num_items_, words_this_seq, globals.words_per_substring);
                     *read_info_p = (full_offset << 6) | ((next == kSentinelValue ? kSentinelValue : (3 - next)) << 3)
                                    | (prev == kSentinelValue ? kSentinelValue : (3 - prev));
                 }
+
                 substrings_p++;
                 read_info_p++;
             }
@@ -443,7 +440,7 @@ void lv2_pre_output_partition(count_global_t &globals) {
 
     // err("Ha\n");
     // for (int i = 0; i < globals.lv2_num_items_db; ++i) {
-    //     edge_word_t *item = globals.lv2_substrings_db + globals.permutation_db[i];
+    //     uint32_t *item = globals.lv2_substrings_db + globals.permutation_db[i];
     //     for (int j = 0; j < globals.kmer_k + 1; ++j) {
     //         err("%c", "ACGT"[ExtractNthChar(item, j % 16)]);
     //         if (j == 15) { item += globals.lv2_num_items_db; }
@@ -470,8 +467,8 @@ void lv2_pre_output_partition(count_global_t &globals) {
         }
         if (this_end_index > 0) {
             while (this_end_index < globals.lv2_num_items_db) {
-                edge_word_t *prev_item = globals.lv2_substrings_db + (globals.permutation_db[this_end_index - 1]);
-                edge_word_t *item = globals.lv2_substrings_db + (globals.permutation_db[this_end_index]);
+                uint32_t *prev_item = globals.lv2_substrings_db + (globals.permutation_db[this_end_index - 1]);
+                uint32_t *item = globals.lv2_substrings_db + (globals.permutation_db[this_end_index]);
                 if (IsDifferentEdges(prev_item, item, globals.words_per_substring, globals.lv2_num_items_db)) {
                     break;
                 }
@@ -504,7 +501,7 @@ void* lv2_output(void* _op) {
     int thread_id = op->op_id;
     int start_idx;
     int end_idx;
-    edge_word_t packed_edge[32];
+    uint32_t packed_edge[32];
     int count_prev[5], count_next[5];
     int64_t offset_mask = (1 << globals.offset_num_bits) - 1;
     int64_t *thread_edge_counting = globals.thread_edge_counting + thread_id * (kMaxMulti_t + 1);
@@ -512,7 +509,7 @@ void* lv2_output(void* _op) {
     for (int i = op_start_index; i < op_end_index; i = end_idx) {
         start_idx = i;
         end_idx = i + 1;
-        edge_word_t *first_item = globals.lv2_substrings_db + (globals.permutation_db[i]);
+        uint32_t *first_item = globals.lv2_substrings_db + (globals.permutation_db[i]);
         while (end_idx < op_end_index) {
             if (IsDifferentEdges(first_item,
                                  globals.lv2_substrings_db + globals.permutation_db[end_idx],
@@ -640,7 +637,8 @@ void post_proc(count_global_t &globals) {
     // --- output reads for mercy ---
     int64_t num_candidate_reads = 0;
     int64_t num_has_tips = 0;
-    FILE *candidate_file = OpenFileAndCheck((std::string(globals.output_prefix) + ".cand").c_str(), "wb");
+    FILE *candidate_file = OpenFileAndCheck((globals.output_prefix + ".cand").c_str(), "wb");
+    SequenceManager seq_manager(&globals.package);
     for (int64_t i = 0; i < globals.num_reads; ++i) {
         auto first = globals.first_0_out[i];
         auto last = globals.last_0_in[i];
@@ -648,7 +646,7 @@ void post_proc(count_global_t &globals) {
             ++num_has_tips;
             if (last > first) {
                 ++num_candidate_reads;
-                fwrite(GetReadPtr(globals.packed_reads, i, globals.words_per_read), sizeof(uint32_t), globals.words_per_read, candidate_file);
+                seq_manager.WriteBinarySequences(candidate_file, false, i, i);
             }
         }
     }
@@ -677,7 +675,6 @@ void post_proc(count_global_t &globals) {
 
     // --- cleaning ---
     pthread_mutex_destroy(&globals.lv1_items_scanning_lock);
-    free(globals.packed_reads);
     free(globals.lv1_items);
     free(globals.lv2_substrings);
     free(globals.permutation);

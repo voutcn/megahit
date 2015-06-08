@@ -38,7 +38,7 @@ struct SequenceManager {
 	} r_type;
 
 	SequencePackage *package_;
-	std::vector<multi_t> multi_; // edges or contigs' multiplicity
+	std::vector<multi_t> *multi_; // edges or contigs' multiplicity
 	std::vector<gzFile> files_; // for reading sorted edges
 	std::vector<kseq_t*> kseq_readers_; // for paired reading
 	EdgeReader2 edge_reader_;
@@ -48,7 +48,7 @@ struct SequenceManager {
 	std::vector<uint32_t> buf_;		// for reading binary reads
 
 	SequenceManager(SequencePackage *package = NULL): package_(package) {
-		multi_.clear();
+		multi_ = NULL;
 		files_.clear();
 		kseq_readers_.clear();
 		edge_reader_inited_ = false;
@@ -78,9 +78,8 @@ struct SequenceManager {
 	void set_package(SequencePackage *package) {
 		package_ = package;
 	}
-
-	int multiplicity(int64_t seq_id) {
-		return multi_[seq_id];
+	void set_multiplicity_vector(std::vector<multi_t> *v) {
+		multi_ = v;
 	}
 
 	void set_file(const std::string &file_name);
@@ -92,7 +91,7 @@ struct SequenceManager {
 	int64_t ReadShortedEdges(int64_t max_num, int kmer_size, bool append);
 	int64_t ReadMegahitContigs(int64_t max_num, int64_t max_num_bases, bool append, bool reverse, int kmer_from, int kmer_to,
 							   bool discard_loop, bool calc_depth);
-	void WriteBinarySequences(FILE *file, bool reverse);
+	void WriteBinarySequences(FILE *file, bool reverse, int64_t from = 0, int64_t to = -1);
 };
 
 #endif

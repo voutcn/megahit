@@ -41,15 +41,23 @@ struct Kmer {
     }
 
     void init(word_t *seq, int offset, int k) {
-        int used_words = (k + kCharsPerWord - 1) / kCharsPerWord;
+        seq += offset / kCharsPerWord;
+        offset %= kCharsPerWord;
         offset <<= 1;
-        for (int i = 0; i < used_words-1; ++i) {
-            data_[i] = (seq[i] << offset) | (seq[i+1] >> (kBitsPerWord - offset));
-        }
 
-        data_[used_words-1] = seq[used_words-1] << offset;
-        if (offset + k * 2 > (int)kBitsPerWord * used_words) {
-            data_[used_words-1] |= seq[used_words] >> (kBitsPerWord - offset);
+        int used_words = (k + kCharsPerWord - 1) / kCharsPerWord;
+
+        if (offset == 0) {
+            std::memcpy(data_, seq, sizeof(word_t) * used_words);
+        } else {
+            for (int i = 0; i < used_words-1; ++i) {
+                data_[i] = (seq[i] << offset) | (seq[i+1] >> (kBitsPerWord - offset));
+            }
+
+            data_[used_words-1] = seq[used_words-1] << offset;
+            if (offset + k * 2 > (int)kBitsPerWord * used_words) {
+                data_[used_words-1] |= seq[used_words] >> (kBitsPerWord - offset) % kBitsPerWord;
+            }
         }
 
         if (k % kCharsPerWord != 0) {

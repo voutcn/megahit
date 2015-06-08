@@ -49,6 +49,10 @@ struct SequencePackage {
 		return start_idx.back();
 	}
 
+	size_t size_in_byte() {
+		return sizeof(uint32_t) * packed_seq.size() + sizeof(uint64_t) * start_idx.size();
+	}
+
 	size_t max_read_len() {
 		return max_read_len_;
 	}
@@ -58,12 +62,12 @@ struct SequencePackage {
 		// start_idx.shrink_to_fit();
 	}
 
-	size_t length(size_t seq_idx) {
-		return start_idx[seq_idx + 1] - start_idx[seq_idx];
+	size_t length(size_t seq_id) {
+		return start_idx[seq_id + 1] - start_idx[seq_id];
 	}
 
-	uint8_t get_base(size_t seq_idx, size_t offset) {
-		uint64_t where = start_idx[seq_idx] + offset;
+	uint8_t get_base(size_t seq_id, size_t offset) {
+		uint64_t where = start_idx[seq_id] + offset;
 		return packed_seq[where / kCharsPerWord] >> (kCharsPerWord - 1 - where % kCharsPerWord) * 2 & 3;
 	}
 
@@ -139,24 +143,39 @@ struct SequencePackage {
 		}
 	}
 
-	void get_seq(std::vector<word_t> &s, size_t seq_idx, int begin = 0, int end = -1) {
+	void get_seq(std::vector<word_t> &s, size_t seq_id, int begin = 0, int end = -1) {
 		if (end == -1) {
-			end = length(seq_idx) - 1;
+			end = length(seq_id) - 1;
 		}
 
-		size_t first_word = (start_idx[seq_idx] + begin) / kCharsPerWord;
-		size_t last_word = (start_idx[seq_idx] + end) / kCharsPerWord;
-		int first_shift = start_idx[seq_idx] % kCharsPerWord * 2;
+		size_t first_word = (start_idx[seq_id] + begin) / kCharsPerWord;
+		size_t last_word = (start_idx[seq_id] + end) / kCharsPerWord;
+		int first_shift = (start_idx[seq_id] + begin) % kCharsPerWord * 2;
 
 		s.clear();
 
-		for (size_t i = first_word; i < last_word; ++i) {
-			s.push_back((packed_seq[i] << first_shift) | (packed_seq[i+1] >> (kBitsPerWord - first_shift)));
+		if (first_shift == 0) {
+			for (size_t i = first_word; i <= last_word; ++i) {
+				s.push_back(packed_seq[i]);
+			}
+		} else {
+			for (size_t i = first_word; i < last_word; ++i) {
+				s.push_back((packed_seq[i] << first_shift) | (packed_seq[i+1] >> (kBitsPerWord - first_shift)));
+			}
+			if (kCharsPerWord * s.size() < end - begin + 1) {
+				s.push_back(packed_seq[last_word] << first_shift);
+			}
 		}
 
 		int shift_clean = kBitsPerWord - (end - begin + 1) * 2 % kBitsPerWord;
-		s.back() >>= shift_clean;
-		s.back() <<= shift_clean;
+		if (shift_clean != kBitsPerWord) {
+			s.back() >>= shift_clean;
+			s.back() <<= shift_clean;	
+		}
+
+		for (int j = 0; j < end - begin + 1; ++j) {
+			assert((s[j/16] >> (15-j%16) * 2) == get_base(seq_id, j));
+		}
 	}
 };
 

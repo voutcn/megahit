@@ -28,16 +28,16 @@
 #include "definitions.h"
 #include "cx1.h"
 #include "sdbg_builder_writers.h"
+#include "sequence_package.h"
 
 struct count_opt_t {
     int kmer_k;
     int kmer_freq_threshold;
     double host_mem;
     double gpu_mem;
-    int max_read_length;
     int num_cpu_threads;
     int num_output_threads;
-    std::string input_file;
+    std::string read_lib_file;
     std::string output_prefix;
     int mem_flag;
     bool need_mercy;
@@ -47,10 +47,9 @@ struct count_opt_t {
         kmer_freq_threshold = 2;
         host_mem = 0;
         gpu_mem = 0;
-        max_read_length = 120;
         num_cpu_threads = 0;
         num_output_threads = 0;
-        input_file = "";
+        read_lib_file = "";
         output_prefix = "out";
         mem_flag = 1;
         need_mercy = true;
@@ -87,21 +86,21 @@ struct count_global_t {
     int64_t host_mem;
     int64_t gpu_mem;
     int mem_flag;
-    const char *input_file;
-    const char *output_prefix;
+    std::string read_lib_file;
+    std::string output_prefix;
 
     int words_per_edge; // number of (32-bit) words needed to represent a (k+1)-mer
     int64_t words_per_substring; // substrings to be sorted by GPU
     int offset_num_bits; // the number of bits needed to store the offset of a base in the read/(k+1)-mer (i.e. log(read_length))
-    int64_t capacity;
     int64_t max_bucket_size;
     int64_t tot_bucket_size;
-    int words_per_read; // number of (32-bit) words needed to represent a read in 2-bit-per-char format
     int read_length_mask;
     int64_t num_reads; // total number of reads
 
     // big arrays
-    edge_word_t* packed_reads;
+    SequencePackage package;
+    std::vector<std::pair<int64_t, int64_t> > lib_se;
+
 #ifndef LONG_READS
     unsigned char *first_0_out;
     unsigned char *last_0_in; // first potential 0-out-degree k-mer and last potential 0-in-degree k-mer
@@ -113,8 +112,8 @@ struct count_global_t {
 
     int64_t *lv2_read_info; // to store where this lv2_item (k+1)-mer come from
     int64_t *lv2_read_info_db; // double buffer
-    edge_word_t* lv2_substrings; // stripped format
-    edge_word_t* lv2_substrings_db; // double buffer
+    uint32_t* lv2_substrings; // stripped format
+    uint32_t* lv2_substrings_db; // double buffer
     uint32_t* permutation; // permutation of { 1, ..., lv2_num_items }. for sorting (as value in a key-value pair)
     uint32_t* permutation_db;    // double buffer
 

@@ -37,6 +37,8 @@
 #include "utils.h"
 #include "kmer_plus.h"
 #include "hash_table.h"
+#include "sequence_manager.h"
+#include "sequence_package.h"
 
 using std::string;
 using std::vector;
@@ -204,6 +206,7 @@ static void* ReadContigsThread(void* data) {
 
 struct ReadReadsThreadData {
     ReadPackage *read_package;
+    SequenceManager *seq_manager;
     kseq_t *seq;
     IterateGlobalData *globals;
 };
@@ -465,7 +468,6 @@ static void ReadContigsAndBuildHash(IterateGlobalData &globals,
     int input_thread_index = 0;
     bool is_first_round = !is_addi_contigs;
     static const int kWordsPerEdge = ((globals.kmer_k + globals.step + 1) * kBitsPerEdgeChar + kBitsPerMulti_t + 31) / 32;
-    uint32_t packed_edge[kWordsPerEdge];
 
     pthread_t input_thread;
     ReadContigsThreadData input_thread_data;
@@ -540,64 +542,65 @@ static void ReadContigsAndBuildHash(IterateGlobalData &globals,
             is_first_round = false;
         }
 
-        // write to disk
-        int next_k = globals.kmer_k + globals.step;
-        int last_shift = (globals.next_k1) % 16;
-        last_shift = (last_shift == 0 ? 0 : 16 - last_shift) * 2;
+        // // write to disk
+        // uint32_t packed_edge[kWordsPerEdge];
+        // int next_k = globals.kmer_k + globals.step;
+        // int last_shift = (globals.next_k1) % 16;
+        // last_shift = (last_shift == 0 ? 0 : 16 - last_shift) * 2;
 
-        for (unsigned i = 0; i < cur_package.size(); ++i) {
-            if (cur_package.seq_lengths[i] < globals.next_k1) {
-                continue;
-            }
+        // for (unsigned i = 0; i < cur_package.size(); ++i) {
+        //     if (cur_package.seq_lengths[i] < globals.next_k1) {
+        //         continue;
+        //     }
 
-            double multiplicity_prev = cur_package.multiplicity[i];
-            uint16_t multiplicity;
-            // convert the multiplicity from k to k+s+1
-            {
-                int num_kmer = cur_package.seq_lengths[i] - globals.kmer_k + 1;
-                int num_nextk1 = cur_package.seq_lengths[i] - (globals.next_k1) + 1;
-                int internal_max = std::min(globals.next_k1 - globals.kmer_k + 1, num_nextk1);
-                int num_external = internal_max - 1;
-                int num_internal = num_kmer - num_external * 2;
+        //     double multiplicity_prev = cur_package.multiplicity[i];
+        //     uint16_t multiplicity;
+        //     // convert the multiplicity from k to k+s+1
+        //     {
+        //         int num_kmer = cur_package.seq_lengths[i] - globals.kmer_k + 1;
+        //         int num_nextk1 = cur_package.seq_lengths[i] - (globals.next_k1) + 1;
+        //         int internal_max = std::min(globals.next_k1 - globals.kmer_k + 1, num_nextk1);
+        //         int num_external = internal_max - 1;
+        //         int num_internal = num_kmer - num_external * 2;
 
-                double exp_num_kmer = (double)num_external * (num_external + 1) / (globals.next_k1 - globals.kmer_k + 1)
-                                      + (double)internal_max / (globals.next_k1 - globals.kmer_k + 1) * num_internal;
-                exp_num_kmer *= multiplicity_prev;
-                multiplicity = std::min(int(exp_num_kmer * globals.kmer_k / (globals.next_k1) / num_nextk1 + 0.5), kMaxMulti_t);
-            }
+        //         double exp_num_kmer = (double)num_external * (num_external + 1) / (globals.next_k1 - globals.kmer_k + 1)
+        //                               + (double)internal_max / (globals.next_k1 - globals.kmer_k + 1) * num_internal;
+        //         exp_num_kmer *= multiplicity_prev;
+        //         multiplicity = std::min(int(exp_num_kmer * globals.kmer_k / (globals.next_k1) / num_nextk1 + 0.5), kMaxMulti_t);
+        //     }
 
-            memset(packed_edge, 0, sizeof(uint32_t) * kWordsPerEdge);
+        //     memset(packed_edge, 0, sizeof(uint32_t) * kWordsPerEdge);
 
-            int w = 0;
-            int end_word = 0;
-            for (int j = 0; j < globals.next_k1; ) {
-                w = (w << 2) | cur_package.CharAt(i, next_k - j);
-                ++j;
-                if (j % 16 == 0) {
-                    packed_edge[end_word] = w;
-                    w = 0;
-                    end_word++;
-                }
-            }
-            packed_edge[end_word] = (w << last_shift);
-            packed_edge[kWordsPerEdge - 1] |= multiplicity;
+        //     int w = 0;
+        //     int end_word = 0;
+        //     for (int j = 0; j < globals.next_k1; ) {
+        //         w = (w << 2) | cur_package.CharAt(i, next_k - j);
+        //         ++j;
+        //         if (j % 16 == 0) {
+        //             packed_edge[end_word] = w;
+        //             w = 0;
+        //             end_word++;
+        //         }
+        //     }
+        //     packed_edge[end_word] = (w << last_shift);
+        //     packed_edge[kWordsPerEdge - 1] |= multiplicity;
 
-            fwrite(packed_edge, sizeof(uint32_t), kWordsPerEdge, globals.output_edge_file);
+        //     fwrite(packed_edge, sizeof(uint32_t), kWordsPerEdge, globals.output_edge_file);
 
-            for (int j = globals.next_k1; j < cur_package.seq_lengths[i]; ++j) {
-                packed_edge[kWordsPerEdge - 1] ^= multiplicity;
-                packed_edge[next_k / 16] &= ~(3 << (15 - next_k % 16) * 2);
-                for (int k = kWordsPerEdge - 1; k > 0; --k) {
-                    packed_edge[k] >>= 2;
-                    packed_edge[k] |= packed_edge[k - 1] << 30;
-                }
-                packed_edge[0] >>= 2;
-                packed_edge[0] |= cur_package.CharAt(i, j) << 30;
-                assert((packed_edge[kWordsPerEdge - 1] & kMaxMulti_t) == 0);
-                packed_edge[kWordsPerEdge - 1] |= multiplicity;
-                fwrite(packed_edge, sizeof(uint32_t), kWordsPerEdge, globals.output_edge_file);
-            }
-        }
+        //     for (int j = globals.next_k1; j < cur_package.seq_lengths[i]; ++j) {
+        //         packed_edge[kWordsPerEdge - 1] ^= multiplicity;
+        //         packed_edge[next_k / 16] &= ~(3 << (15 - next_k % 16) * 2);
+        //         for (int k = kWordsPerEdge - 1; k > 0; --k) {
+        //             packed_edge[k] >>= 2;
+        //             packed_edge[k] |= packed_edge[k - 1] << 30;
+        //         }
+        //         packed_edge[0] >>= 2;
+        //         packed_edge[0] |= cur_package.CharAt(i, j) << 30;
+        //         assert((packed_edge[kWordsPerEdge - 1] & kMaxMulti_t) == 0);
+        //         packed_edge[kWordsPerEdge - 1] |= multiplicity;
+        //         fwrite(packed_edge, sizeof(uint32_t), kWordsPerEdge, globals.output_edge_file);
+        //     }
+        // }
     }
     printf("Number of crusial kmers: %lu\n", crusial_kmers.size());
 

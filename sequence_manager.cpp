@@ -127,7 +127,7 @@ int64_t SequenceManager::ReadShortReads(int64_t max_num, int64_t max_num_bases, 
 
 int64_t SequenceManager::ReadEdges(int64_t max_num, bool append) {
 	if (!append) {
-		multi_.clear();
+		multi_->clear();
 		package_->clear();
 	}
 
@@ -136,7 +136,7 @@ int64_t SequenceManager::ReadEdges(int64_t max_num, bool append) {
 			uint32_t *next_edge = edge_reader_.NextUnsortedEdge();
 			if (next_edge == NULL) { return i; }
 			package_->AppendSeq(next_edge, edge_reader_.kmer_k + 1);
-			multi_.push_back(next_edge[edge_reader_.words_per_edge - 1] & kMaxMulti_t);
+			multi_->push_back(next_edge[edge_reader_.words_per_edge - 1] & kMaxMulti_t);
 		}
 		return max_num;
 	} else if (f_type == kSortedEdges) {
@@ -144,7 +144,7 @@ int64_t SequenceManager::ReadEdges(int64_t max_num, bool append) {
 			uint32_t *next_edge = edge_reader_.NextSortedEdge();
 			if (next_edge == NULL) { return i; }
 			package_->AppendSeq(next_edge, edge_reader_.kmer_k + 1);
-			multi_.push_back(next_edge[edge_reader_.words_per_edge - 1] & kMaxMulti_t);
+			multi_->push_back(next_edge[edge_reader_.words_per_edge - 1] & kMaxMulti_t);
 		}
 		return max_num;
 	}
@@ -156,7 +156,7 @@ int64_t SequenceManager::ReadMegahitContigs(int64_t max_num, int64_t max_num_bas
 										    int kmer_from, int kmer_to, bool discard_loop, bool calc_depth) {
 	assert(f_type == kMegahitContigs);
 	if (!append) {
-		multi_.clear();
+		multi_->clear();
 		package_->clear();
 	}
 
@@ -188,9 +188,9 @@ int64_t SequenceManager::ReadMegahitContigs(int64_t max_num, int64_t max_num_bas
                 double exp_num_kmer = (double)num_external * (num_external + 1) / (kmer_to + 1 - kmer_from + 1)
                                       + (double)internal_max / (kmer_to + 1 - kmer_from + 1) * num_internal;
                 exp_num_kmer *= depth_from;
-                multi_.push_back(std::min(int(exp_num_kmer * kmer_from / (kmer_to + 1) / num_nextk1 + 0.5), kMaxMulti_t));
+                multi_->push_back(std::min(int(exp_num_kmer * kmer_from / (kmer_to + 1) / num_nextk1 + 0.5), kMaxMulti_t));
 			} else {
-				multi_.push_back(1);
+				multi_->push_back(1);
 			}
 
 			num_bases += kseq_readers_[0]->seq.l;
@@ -205,12 +205,14 @@ int64_t SequenceManager::ReadMegahitContigs(int64_t max_num, int64_t max_num_bas
 	return max_num;
 }
 
-void SequenceManager::WriteBinarySequences(FILE *file, bool reverse) {
-	int64_t p_size = package_->size();
+void SequenceManager::WriteBinarySequences(FILE *file, bool reverse, int64_t from, int64_t to) {
+	if (to == -1) {
+		to = package_->size() - 1;
+	}
 	uint32_t len;
 	std::vector<uint32_t> s;
 
-	for (int64_t i = 0; i < p_size; ++i) {
+	for (int64_t i = from; i <= to; ++i) {
 		len = package_->length(i);
 		package_->get_seq(s, i);
 

@@ -107,7 +107,7 @@ struct sequences2sdbg_global_t {
 
     // big arrays
     SequencePackage package;
-    SequenceManager seq_manager;
+    std::vector<multi_t> multiplicity;
 
     int32_t* lv1_items; // each item is an offset (read ID and position) in differential representation
     uint32_t* lv2_substrings; // stripped format
