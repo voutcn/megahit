@@ -19,7 +19,7 @@ struct SequencePackage {
 	std::vector<uint64_t> start_idx; // the index of the starting position of a sequence
 
 	uint8_t unused_bits_; // the number of unused bits in the last word
-	uint32_t max_read_len_;
+	int max_read_len_;
 
 	SequencePackage() {
 		start_idx.push_back(0);
@@ -53,10 +53,10 @@ struct SequencePackage {
 		return max_read_len_;
 	}
 
-	// void shrink_to_fit() {
-	// 	packed_seq.shrink_to_fit();
-	// 	start_idx.shrink_to_fit();
-	// }
+	void shrink_to_fit() {
+		// packed_seq.shrink_to_fit();
+		// start_idx.shrink_to_fit();
+	}
 
 	size_t length(size_t seq_idx) {
 		return start_idx[seq_idx + 1] - start_idx[seq_idx];
@@ -67,8 +67,8 @@ struct SequencePackage {
 		return packed_seq[where / kCharsPerWord] >> (kCharsPerWord - 1 - where % kCharsPerWord) * 2 & 3;
 	}
 
-	void AppendSeq(const char *s, unsigned len) {
-		for (unsigned i = 0; i < len; ++i) {
+	void AppendSeq(const char *s, int len) {
+		for (int i = 0; i < len; ++i) {
 			unused_bits_ -= 2;
 			packed_seq.back() |= dna_map_[(int)s[i]] << unused_bits_;
 			if (unused_bits_ == 0) {
@@ -81,7 +81,21 @@ struct SequencePackage {
 		start_idx.push_back(end);
 	}
 
-	void AppendSeq(word_t *s, unsigned len) {
+	void AppendReverseSeq(const char *s, int len) {
+		for (int i = len - 1; i >= 0; --i) {
+			unused_bits_ -= 2;
+			packed_seq.back() |= dna_map_[(int)s[i]] << unused_bits_;
+			if (unused_bits_ == 0) {
+				unused_bits_ = kBitsPerWord;
+				packed_seq.push_back(word_t(0));
+			}
+		}
+		if (len > max_read_len_) { max_read_len_ = len; }
+		uint64_t end = start_idx.back() + len;
+		start_idx.push_back(end);
+	}
+
+	void AppendSeq(const word_t *s, int len) {
 		if (len > max_read_len_) { max_read_len_ = len; }
 		uint64_t end = start_idx.back() + len;
 		start_idx.push_back(end);
@@ -94,40 +108,44 @@ struct SequencePackage {
 				packed_seq.push_back(word_t(0));
 			}
 		} else {
-			unsigned num_words = (len + kCharsPerWord - 1) / kCharsPerWord;
-			unsigned bits_in_last_word = len * 2 % kBitsPerWord;
-
-			// clear last word
-			s[num_words-1] >>= kBitsPerWord - bits_in_last_word;
+			int num_words = (len + kCharsPerWord - 1) / kCharsPerWord;
 
 			// append to unused bits
 			packed_seq.back() |= s[0] >> (kBitsPerWord - unused_bits_);
 
-			for (unsigned i = 0; i + 1 < num_words; ++i) {
-				s[i] = (s[i] << unused_bits_) | (s[i+1] >> (kBitsPerWord - unused_bits_));
+			if (unused_bits_ == kBitsPerWord) {
+				packed_seq.back() = s[0];
+				for (int i = 1; i < num_words; ++i) {
+					packed_seq.push_back(s[i]);
+				}
+			} else {
+				int num_words_to_append = (len - unused_bits_ / 2 + kCharsPerWord - 1) / kCharsPerWord;
+				for (int i = 0; i < num_words_to_append; ++i) {
+					if (i + 1 < num_words)
+						packed_seq.push_back((s[i] << unused_bits_) | (s[i+1] >> (kBitsPerWord - unused_bits_)));
+					else
+						packed_seq.push_back(s[i] << unused_bits_);
+				}
 			}
-			s[num_words-1] <<= unused_bits_;
 
-			unsigned num_words_to_append = (len - unused_bits_ / 2 + kCharsPerWord - 1) / kCharsPerWord;
-			for (unsigned i = 0; i < num_words_to_append; ++i) {
-				packed_seq.push_back(s[i]);
-			}
-
-			bits_in_last_word = end % kCharsPerWord * 2;
+			int bits_in_last_word = end % kCharsPerWord * 2;
 			unused_bits_ = kBitsPerWord - bits_in_last_word;
 			if (unused_bits_ == kBitsPerWord) {
 				packed_seq.push_back(word_t(0));
+			} else {
+				packed_seq.back() >>= unused_bits_;
+				packed_seq.back() <<= unused_bits_;
 			}
 		}
 	}
 
-	void get_seq(std::vector<word_t> &s, size_t seq_idx, int begin, int end = -1) {
+	void get_seq(std::vector<word_t> &s, size_t seq_idx, int begin = 0, int end = -1) {
 		if (end == -1) {
-			end = begin + length(seq_idx) - 1;
+			end = length(seq_idx) - 1;
 		}
 
 		size_t first_word = (start_idx[seq_idx] + begin) / kCharsPerWord;
-		size_t last_word = (start_idx[seq_idx+1] + end) / kCharsPerWord;
+		size_t last_word = (start_idx[seq_idx] + end) / kCharsPerWord;
 		int first_shift = start_idx[seq_idx] % kCharsPerWord * 2;
 
 		s.clear();

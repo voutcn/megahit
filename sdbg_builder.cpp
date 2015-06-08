@@ -28,6 +28,7 @@
 #include "cx1_kmer_count.h"
 #include "cx1_edge2sdbg.h"
 #include "cx1_read2sdbg.h"
+#include "cx1_sequences2sdbg.h"
 #include "lv2_gpu_functions.h"
 #include "options_description.h"
 #include "utils.h"
@@ -176,7 +177,7 @@ int main_edge2sdbg(int argc, char **argv) {
         }
     } catch (std::exception &e) {
         std::cerr << e.what() << std::endl;
-        std::cerr << "Usage: sdbg_builder build --input_prefix input --num_edge_files num -o out" << std::endl;
+        std::cerr << "Usage: sdbg_builder edge2sdbg --input_prefix input --num_edge_files num -o out" << std::endl;
         std::cerr << "Options:" << std::endl;
         std::cerr << desc << std::endl;
         exit(1);
@@ -315,6 +316,106 @@ int main_read2sdbg(int argc, char **argv) {
     return 0;
 }
 
+int main_seq2sdbg(int argc, char **argv) {
+    OptionsDescription desc;
+    sequences2sdbg_opt_t opt;
+
+    desc.AddOption("host_mem", "", opt.host_mem, "memory to be used. No more than 95% of the free memory is recommended. 0 for auto detect.");
+    desc.AddOption("gpu_mem", "", opt.gpu_mem, "gpu memory to be used. 0 for auto detect.");
+    desc.AddOption("kmer_size", "k", opt.kmer_k, "kmer size");
+    desc.AddOption("kmer_from", "", opt.kmer_from, "previous k");
+    desc.AddOption("num_cpu_threads", "t", opt.num_cpu_threads, "number of CPU threads. At least 2.");
+    desc.AddOption("num_output_threads", "", opt.num_output_threads, "number of threads for output. Must be less than num_cpu_threads");
+    desc.AddOption("contig_file_name", "", opt.contig_file_name, "contigs from previous k");
+    desc.AddOption("add_contig_file_name", "", opt.add_contig_file_name, "additional contigs from previous k");
+    desc.AddOption("input_prefix", "", opt.input_prefix, "files input_prefix.edges.* output by count module, can be gzip'ed.");
+    desc.AddOption("output_prefix", "o", opt.output_prefix, "output prefix");
+    desc.AddOption("mem_flag", "", opt.mem_flag, "memory options. 0: minimize memory usage; 1: automatically use moderate memory; other: use all available mem specified by '--host_mem'");
+
+    try {
+        desc.Parse(argc, argv);
+        if (opt.input_prefix == "" && opt.contig_file_name == "" && opt.add_contig_file_name == "") {
+            throw std::logic_error("No input files!");
+        }
+
+        if (opt.num_cpu_threads == 0) {
+            opt.num_cpu_threads = omp_get_max_threads();
+        }
+
+        if (opt.num_output_threads == 0) {
+            opt.num_output_threads = std::max(1, opt.num_cpu_threads / 3);
+        }
+
+        if (opt.kmer_k < 15) {
+            throw std::logic_error("kmer size must be >= 15!");
+        }
+
+        if (opt.kmer_from < 15) {
+            throw std::logic_error("previous kmer size must be >= 15!");
+        }
+
+        if (opt.host_mem == 0) {
+            throw std::logic_error("Please specify the host memory!");
+        }
+
+        if (opt.gpu_mem == 0) {
+#ifdef USE_GPU
+            size_t free_gpu_mem, total_gpu_mem;
+            get_cuda_memory(free_gpu_mem, total_gpu_mem);
+            opt.gpu_mem = free_gpu_mem;
+#else
+            opt.gpu_mem = 0;
+#endif
+        }
+
+        if (opt.num_cpu_threads == 1) {
+            throw std::logic_error("Number of CPU threads is at least 2!");
+        }
+        if (opt.num_output_threads >= opt.num_cpu_threads) {
+            throw std::logic_error("Number of output threads must be less than number of CPU threads!");
+        }
+    } catch (std::exception &e) {
+        std::cerr << e.what() << std::endl;
+        std::cerr << "Usage: sdbg_builder seq2sdbg -k kmer_size --contig_file_name contigs.fa [--add_contig_file_name add.fa] [--input_prefix input] -o out" << std::endl;
+        std::cerr << "Options:" << std::endl;
+        std::cerr << desc << std::endl;
+        exit(1);
+    }
+
+    cx1_sequences2sdbg::sequences2sdbg_global_t globals;
+    globals.host_mem = opt.host_mem;
+    globals.gpu_mem = opt.gpu_mem;
+    globals.num_cpu_threads = opt.num_cpu_threads;
+    globals.num_output_threads = opt.num_output_threads;
+    globals.input_prefix = opt.input_prefix;
+    globals.output_prefix = opt.output_prefix;
+    globals.contig_file_name = opt.contig_file_name;
+    globals.add_contig_file_name = opt.add_contig_file_name;
+    globals.mem_flag = opt.mem_flag;
+    globals.kmer_k = opt.kmer_k;
+    globals.kmer_from = opt.kmer_from;
+
+    log("[B::%s] Host memory to be used: %lld\n", __func__, (long long)globals.host_mem);
+    log("[B::%s] Number CPU threads: %d\n", __func__, globals.num_cpu_threads);
+
+    // set & run cx1
+    globals.cx1.g_ = &globals;
+    globals.cx1.encode_lv1_diff_base_func_ = cx1_sequences2sdbg::encode_lv1_diff_base;
+    globals.cx1.prepare_func_ = cx1_sequences2sdbg::read_seq_and_prepare;
+    globals.cx1.lv0_calc_bucket_size_func_ = cx1_sequences2sdbg::lv0_calc_bucket_size;
+    globals.cx1.init_global_and_set_cx1_func_ = cx1_sequences2sdbg::init_global_and_set_cx1;
+    globals.cx1.lv1_fill_offset_func_ = cx1_sequences2sdbg::lv1_fill_offset;
+    globals.cx1.lv2_extract_substr_func_ = cx1_sequences2sdbg::lv2_extract_substr;
+    globals.cx1.lv2_sort_func_ = cx1_sequences2sdbg::lv2_sort;
+    globals.cx1.lv2_pre_output_partition_func_ = cx1_sequences2sdbg::lv2_pre_output_partition;
+    globals.cx1.lv2_output_func_ = cx1_sequences2sdbg::lv2_output;
+    globals.cx1.lv2_post_output_func_ = cx1_sequences2sdbg::lv2_post_output;
+    globals.cx1.post_proc_func_ = cx1_sequences2sdbg::post_proc;
+
+    globals.cx1.run();
+    return 0;
+}
+
 void DisplayHelp(char *program_name) {
     fprintf(stderr, "Usage: \n");
     fprintf(stderr, "    1. Counting & output solid edges: \n");
@@ -323,20 +424,27 @@ void DisplayHelp(char *program_name) {
     fprintf(stderr, "       type \"%s edge2sdbg\" for help.\n", program_name);
     fprintf(stderr, "    3. read2sdbg count & build Succinct dBG: \n");
     fprintf(stderr, "       type \"%s read2sdbg\" for help.\n", program_name);
+    fprintf(stderr, "    4. seq2sdbg build sdbg from contigs + edges: \n");
+    fprintf(stderr, "       type \"%s read2sdbg\" for help.\n", program_name);
 }
 
 int main(int argc, char** argv) {
-    if (argc < 2 || (std::string(argv[1]) != "count" && std::string(argv[1]) != "edge2sdbg" && std::string(argv[1]) != "read2sdbg")) {
+    if (argc < 2) {
         DisplayHelp(argv[0]);
         exit(1);
     }
 
-    if (std::string(argv[1]) == "count") {
+    if (std::string(argv[1]) == "count")
         return main_kmer_count(argc - 1, argv + 1);
-    } else if (std::string(argv[1]) == "edge2sdbg") {
+    if (std::string(argv[1]) == "edge2sdbg")
         return main_edge2sdbg(argc - 1, argv + 1);
-    } else if (std::string(argv[1]) == "read2sdbg") {
+    if (std::string(argv[1]) == "read2sdbg")
         return main_read2sdbg(argc - 1, argv + 1);
+    if (std::string(argv[1]) == "seq2sdbg")
+        return main_seq2sdbg(argc - 1, argv + 1);
+    else {
+        DisplayHelp(argv[0]);
+        exit(1);
     }
 
     return 0;

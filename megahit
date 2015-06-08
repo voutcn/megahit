@@ -435,8 +435,8 @@ def delete_tmp_after_assemble(kmer_k):
 
 def delete_tmp_after_iter(kmer_k):
     delect_file_if_exist(graph_prefix(kmer_k) + ".rr.pb")
-    delect_file_if_exist(graph_prefix(kmer_k) + ".contigs.fa")
-    delect_file_if_exist(graph_prefix(kmer_k) + ".addi.fa")
+    # delect_file_if_exist(graph_prefix(kmer_k) + ".contigs.fa")
+    # delect_file_if_exist(graph_prefix(kmer_k) + ".addi.fa")
 
 def write_cp(cp):
     cpf = open(opt.temp_dir + "cp.txt", "a")
@@ -506,26 +506,36 @@ def build_first_graph():
     write_cp(cp)
     cp = cp + 1
     if opt.kmin_1pass != 1:
-        build_graph(opt.k_min, phase1_out_threads)
+        build_graph(opt.k_min, 0, phase1_out_threads)
     elif opt.keep_tmp_files != 1:
         delete_tmp_after_build(opt.k_min)
 
-def build_graph(kmer_k, num_edge_files):
+def build_graph(kmer_k, kmer_from, num_edge_files):
     global cp
     if (not opt.continue_mode) or (cp > opt.last_cp):
         if os.path.getsize(graph_prefix(kmer_k) + ".edges.0") == 0:
             return False # not build
-        build_cmd = [opt.bin_dir + opt.builder, "edge2sdbg",
-                       "--host_mem", str(opt.host_mem),
-                       "--mem_flag", str(opt.mem_flag),
-                       "--gpu_mem", str(opt.gpu_mem),
-                       "--input_prefix", graph_prefix(kmer_k),
-                       "--output_prefix", graph_prefix(kmer_k),
-                       "--max_read_len", str(opt.max_read_len),
-                       "--num_cpu_threads", str(opt.num_cpu_threads),
-                       "--num_edge_files", str(num_edge_files)]
-        if opt.no_mercy == 0 and kmer_k == opt.k_min:
-            build_cmd.append("--need_mercy")
+        build_comm_opt = ["--host_mem", str(opt.host_mem),
+                             "--mem_flag", str(opt.mem_flag),
+                             "--gpu_mem", str(opt.gpu_mem),
+                             "--input_prefix", graph_prefix(kmer_k),
+                             "--output_prefix", graph_prefix(kmer_k),
+                             "--num_cpu_threads", str(opt.num_cpu_threads)]
+
+        build_cmd = []
+        if kmer_k == opt.k_min:
+            build_cmd = [opt.bin_dir + opt.builder, "edge2sdbg"] + build_comm_opt
+            if kmer_k == opt.k_min:
+                if opt.no_mercy == 0:
+                    build_cmd.append("--need_mercy")
+                build_cmd = build_cmd + ["--max_read_len", str(opt.max_read_len),
+                                         "--num_edge_files", str(num_edge_files)]
+        else:
+            build_cmd = [opt.bin_dir + opt.builder, "seq2sdbg"] + build_comm_opt + \
+                        ["-k", str(kmer_k), 
+                         "--kmer_from", str(kmer_from),
+                         "--contig_file_name", graph_prefix(kmer_from) + ".contigs.fa",
+                         "--add_contig_file_name", graph_prefix(kmer_from) + ".addi.fa"]
 
         try:
             log_file = open(log_file_name(), "a")
@@ -746,7 +756,7 @@ def main(argv = None):
 
             iterate(cur_k, next_k - cur_k)
 
-            if not build_graph(next_k, 1):
+            if not build_graph(next_k, cur_k, 1):
                 cur_k = next_k
                 break
             assemble(next_k)

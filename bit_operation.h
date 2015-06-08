@@ -64,6 +64,14 @@ inline uint8_t ReverseComplement(uint8_t value) {
     return ~value;
 }
 
+inline uint32_t Reverse(uint32_t value) {
+    value = ((value & kSwap64Mask16) << 16) | ((value & ~kSwap64Mask16) >> 16);
+    value = ((value & kSwap64Mask8) << 8) | ((value & ~kSwap64Mask8) >> 8);
+    value = ((value & kSwap64Mask4) << 4) | ((value & ~kSwap64Mask4) >> 4);
+    value = ((value & kSwap64Mask2) << 2) | ((value & ~kSwap64Mask2) >> 2);
+    return value;
+}
+
 inline uint8_t Reverse(uint8_t value) {
     value = ((value & kSwap8Mask4) << 4) | ((value & ~kSwap8Mask4) >> 4);
     value = ((value & kSwap8Mask2) << 2) | ((value & ~kSwap8Mask2) >> 2);

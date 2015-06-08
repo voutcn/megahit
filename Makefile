@@ -184,8 +184,8 @@ LIB_IDBA += $(LIB_IDBA_DIR)/sequence.o
 #-------------------------------------------------------------------------------
 # CPU Applications
 #-------------------------------------------------------------------------------
-sdbg_builder_cpu: sdbg_builder.cpp cx1.h lv2_cpu_sort.h cx1_kmer_count.o cx1_edge2sdbg.o cx1_read2sdbg_s1.o cx1_read2sdbg_s2.o options_description.o $(DEPS)
-	$(CXX) $(CFLAGS) sdbg_builder.cpp cx1_kmer_count.o options_description.o cx1_edge2sdbg.o cx1_read2sdbg_s1.o cx1_read2sdbg_s2.o $(LIB) -o sdbg_builder_cpu
+sdbg_builder_cpu: sdbg_builder.cpp cx1.h lv2_cpu_sort.h cx1_kmer_count.o cx1_edge2sdbg.o cx1_read2sdbg_s1.o cx1_read2sdbg_s2.o cx1_sequences2sdbg.o options_description.o sequence_manager.o $(DEPS)
+	$(CXX) $(CFLAGS) sdbg_builder.cpp cx1_kmer_count.o options_description.o cx1_edge2sdbg.o cx1_read2sdbg_s1.o cx1_read2sdbg_s2.o cx1_sequences2sdbg.o sequence_manager.o $(LIB) -o sdbg_builder_cpu
 
 # sdbg_builder_cpu_1pass: sdbg_builder_1pass.cpp cx1_functions_1pass.o lv2_cpu_sort.h options_description.o $(DEPS)
 # 	$(CXX) $(CFLAGS) sdbg_builder_1pass.cpp cx1_functions_1pass.o options_description.o $(LIB) -o sdbg_builder_cpu_1pass
@@ -228,11 +228,14 @@ cx1_read2sdbg_s2_gpu.o: cx1_read2sdbg_s2.cpp $(DEPS)
 cx1_edge2sdbg_gpu.o: cx1_edge2sdbg.cpp $(DEPS)
 	$(CXX) $(CFLAGS) -D USE_GPU -c cx1_edge2sdbg.cpp -o cx1_edge2sdbg_gpu.o
 
+cx1_sequences2sdbg_gpu.o: cx1_edge2sdbg.cpp $(DEPS)
+	$(CXX) $(CFLAGS) -D USE_GPU -c cx1_sequences2sdbg.cpp -o cx1_sequences2sdbg_gpu.o
+
 #-------------------------------------------------------------------------------
 # GPU Applications
 #-------------------------------------------------------------------------------
-sdbg_builder_gpu: sdbg_builder.cpp cx1_kmer_count_gpu.o cx1_edge2sdbg_gpu.o cx1_read2sdbg_s1_gpu.o cx1_read2sdbg_s2_gpu.o lv2_gpu_functions_$(SUFFIX).o options_description.o $(DEPS)
-	$(CXX) $(CFLAGS) $(CUDALIBFLAG) -D USE_GPU sdbg_builder.cpp lv2_gpu_functions_$(SUFFIX).o cx1_kmer_count_gpu.o cx1_edge2sdbg_gpu.o cx1_read2sdbg_s1_gpu.o cx1_read2sdbg_s2_gpu.o options_description.o $(LIB) -o sdbg_builder_gpu
+sdbg_builder_gpu: sdbg_builder.cpp cx1_kmer_count_gpu.o cx1_edge2sdbg_gpu.o cx1_read2sdbg_s1_gpu.o cx1_read2sdbg_s2_gpu.o cx1_sequences2sdbg_gpu.o lv2_gpu_functions_$(SUFFIX).o options_description.o sequence_manager.o $(DEPS)
+	$(CXX) $(CFLAGS) $(CUDALIBFLAG) -D USE_GPU sdbg_builder.cpp lv2_gpu_functions_$(SUFFIX).o cx1_kmer_count_gpu.o cx1_edge2sdbg_gpu.o cx1_read2sdbg_s1_gpu.o cx1_read2sdbg_s2_gpu.o cx1_sequences2sdbg_gpu.o options_description.o sequence_manager.o $(LIB) -o sdbg_builder_gpu
 
 #-------------------------------------------------------------------------------
 # Build binary directory
