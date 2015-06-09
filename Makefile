@@ -193,8 +193,8 @@ sdbg_builder_cpu: sdbg_builder.cpp cx1.h lv2_cpu_sort.h cx1_kmer_count.o cx1_edg
 megahit_assemble: assembler.cpp succinct_dbg.o rank_and_select.h assembly_algorithms.o branch_group.o options_description.o unitig_graph.o $(DEPS)
 	$(CXX) $(CFLAGS) assembler.cpp succinct_dbg.o assembly_algorithms.o branch_group.o options_description.o unitig_graph.o $(LIB) -o megahit_assemble
 
-megahit_iter: iterate_edges.cpp iterate_edges.h options_description.o city.o $(DEPS)
-	$(CXX) $(CFLAGS) iterate_edges.cpp options_description.o city.o $(LIB) -o megahit_iter
+megahit_iter: iterate_edges.cpp iterate_edges.h options_description.o city.o sequence_manager.o $(DEPS)
+	$(CXX) $(CFLAGS) iterate_edges.cpp options_description.o city.o sequence_manager.o $(LIB) -o megahit_iter
 
 megahit_local_asm: local_assembler.o local_assemble.cpp city.o options_description.o $(LIB_IDBA) $(DEPS)
 	$(CXX) $(CFLAGS) local_assemble.cpp local_assembler.o options_description.o city.o $(LIB_IDBA) $(LIB) -o megahit_local_asm

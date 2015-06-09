@@ -32,22 +32,14 @@
 struct IterateGlobalData {
     char dna_map[256];
 
-    gzFile contigs_file;
-    gzFile contigs_multi_file;
-    gzFile addi_contig_file;
-    gzFile addi_multi_file;
-    gzFile read_file;
-    FILE *output_edge_file;
-    FILE *output_read_file;
-
-    enum ReadFormats {
-        kFastx,
-        kBinary,
-    } read_format;
+    std::string contig_file;
+    std::string read_file;
+    std::string read_format;
+    std::string output_prefix;
 
     int kmer_k;
     int step;
-    int next_k1;
+    int next_k1; // = next_k + 1
     int max_read_len;
     int num_cpu_threads;
 

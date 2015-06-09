@@ -431,7 +431,7 @@ void DisplayHelp(char *program_name) {
     fprintf(stderr, "    3. read2sdbg count & build Succinct dBG: \n");
     fprintf(stderr, "       type \"%s read2sdbg\" for help.\n", program_name);
     fprintf(stderr, "    4. seq2sdbg build sdbg from contigs + edges: \n");
-    fprintf(stderr, "       type \"%s read2sdbg\" for help.\n", program_name);
+    fprintf(stderr, "       type \"%s seq2sdbg\" for help.\n", program_name);
 }
 
 int main(int argc, char** argv) {

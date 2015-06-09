@@ -75,7 +75,6 @@ Optional Arguments:
     -o/--out-dir                   <string>     output directory, default: ./megahit_out
     --out-prefix                   <string>     output prefix (the contig file will be OUT_DIR/OUT_PREFIX.contigs.fa)
     --min-contig-len               <int>        minimum length of contigs to output, default: 200
-    --need-fastg                   <int>        output short contigs to generate fastg file
     --keep-tmp-files                            keep all temporary files
 
   Basic assembly options:
