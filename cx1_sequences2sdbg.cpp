@@ -389,7 +389,14 @@ void read_seq_and_prepare(sequences2sdbg_global_t &globals) {
         seq_manager.set_file(globals.contig_file_name);
         seq_manager.set_kmer_size(globals.kmer_from, globals.kmer_k);
         seq_manager.set_min_len(globals.kmer_k + 1);
-        seq_manager.ReadMegahitContigs(1LL << 60, 1LL << 60, true, true, false, true);
+
+        bool contig_reverse = false;
+        bool append_to_package = true;
+        int discard_flag = 0;
+        bool extend_loop = true;
+        bool calc_depth = true;
+
+        seq_manager.ReadMegahitContigs(1LL << 60, 1LL << 60, append_to_package, contig_reverse, discard_flag, extend_loop, calc_depth);
         seq_manager.clear();
     }
 
@@ -398,7 +405,14 @@ void read_seq_and_prepare(sequences2sdbg_global_t &globals) {
         seq_manager.set_file(globals.add_contig_file_name);
         seq_manager.set_kmer_size(globals.kmer_from, globals.kmer_k);
         seq_manager.set_min_len(globals.kmer_k + 1);
-        seq_manager.ReadMegahitContigs(1LL << 60, 1LL << 60, true, true, false, false);
+
+        bool contig_reverse = false;
+        bool append_to_package = true;
+        int discard_flag = 0;
+        bool extend_loop = true;
+        bool calc_depth = false;
+
+        seq_manager.ReadMegahitContigs(1LL << 60, 1LL << 60, append_to_package, contig_reverse, discard_flag, extend_loop, calc_depth);
         seq_manager.clear();
     }
 

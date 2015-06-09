@@ -10,6 +10,7 @@
 #include "hash_table.h"
 #include "sequence_package.h"
 #include "kmer_plus.h"
+#include "lib_info.h"
 
 struct LocalAssembler {
 	typedef std::pair<double, double> tlen_t;
@@ -51,8 +52,9 @@ struct LocalAssembler {
 	int max_read_len_;
 
 	SequencePackage *contigs_;
+	SequencePackage *reads_;
 	mapper_t mapper_;
-	std::vector<SequencePackage*> read_libs_;
+	std::vector<lib_info_t> lib_info_;
 	std::vector<tlen_t> insert_sizes_;
 	AtomicBitVector locks_;
 

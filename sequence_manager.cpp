@@ -154,10 +154,13 @@ int64_t SequenceManager::ReadEdges(int64_t max_num, bool append) {
 }
 
 int64_t SequenceManager::ReadMegahitContigs(int64_t max_num, int64_t max_num_bases, bool append, bool reverse, 
-										    bool discard_loop, bool calc_depth) {
+										    int discard_flag, bool extend_loop, bool calc_depth) {
 	assert(f_type == kMegahitContigs);
+	assert(!(calc_depth && multi_ == NULL));
+	assert(!((discard_flag & (contig_flag::kLoop | contig_flag::kIsolated)) && extend_loop)); // loop must be isolated
+
 	if (!append) {
-		multi_->clear();
+		if (multi_ != NULL) { multi_->clear(); }
 		package_->clear();
 	}
 
@@ -167,31 +170,50 @@ int64_t SequenceManager::ReadMegahitContigs(int64_t max_num, int64_t max_num_bas
 		if (kseq_read(kseq_readers_[0]) >= 0) {
 			if ((int)kseq_readers_[0]->seq.l < min_len_ ) { --i; continue; }
 
-			if (discard_loop && kseq_readers_[0]->comment.s[5] == '1') {
-				--i; continue;
+			// comment = "flag=x multi=xx.xxxx"
+			if (discard_flag & (kseq_readers_[0]->comment.s[5] - '0')) {
+				--i;
+				continue;
 			}
 
-			if (reverse) {
-				package_->AppendReverseSeq(kseq_readers_[0]->seq.s, kseq_readers_[0]->seq.l);
+			if (extend_loop && kseq_readers_[0]->seq.l >= k_to_ + 1U &&
+				((kseq_readers_[0]->comment.s[5] - '0') & contig_flag::kLoop)) {
+
+				std::string ss(kseq_readers_[0]->seq.s);
+				for (int i = 0; i < k_to_ + 1 - k_from_; ++i) {
+					ss.push_back(ss[i + k_from_]);
+				}
+
+				if (reverse) {
+					package_->AppendReverseSeq(ss.c_str(), kseq_readers_[0]->seq.l);
+				} else {
+					package_->AppendSeq(ss.c_str(), kseq_readers_[0]->seq.l);
+				}
 			} else {
-				package_->AppendSeq(kseq_readers_[0]->seq.s, kseq_readers_[0]->seq.l);
+				if (reverse) {
+					package_->AppendReverseSeq(kseq_readers_[0]->seq.s, kseq_readers_[0]->seq.l);
+				} else {
+					package_->AppendSeq(kseq_readers_[0]->seq.s, kseq_readers_[0]->seq.l);
+				}
 			}
 
-			if (calc_depth) {
-				double depth_from = atof(kseq_readers_[0]->comment.s + 6);
+			if (multi_ != NULL) {
+				if (calc_depth) {
+					double depth_from = atof(kseq_readers_[0]->comment.s + 13);
 
-				int num_kmer = kseq_readers_[0]->seq.l - k_from_ + 1;
-                int num_nextk1 = kseq_readers_[0]->seq.l - (k_to_ + 1) + 1;
-                int internal_max = std::min(k_to_ + 1 - k_from_ + 1, num_nextk1);
-                int num_external = internal_max - 1;
-                int num_internal = num_kmer - num_external * 2;
+					int num_kmer = kseq_readers_[0]->seq.l - k_from_ + 1;
+	                int num_nextk1 = kseq_readers_[0]->seq.l - (k_to_ + 1) + 1;
+	                int internal_max = std::min(k_to_ + 1 - k_from_ + 1, num_nextk1);
+	                int num_external = internal_max - 1;
+	                int num_internal = num_kmer - num_external * 2;
 
-                double exp_num_kmer = (double)num_external * (num_external + 1) / (k_to_ + 1 - k_from_ + 1)
-                                      + (double)internal_max / (k_to_ + 1 - k_from_ + 1) * num_internal;
-                exp_num_kmer *= depth_from;
-                multi_->push_back(std::min(int(exp_num_kmer * k_from_ / (k_to_ + 1) / num_nextk1 + 0.5), kMaxMulti_t));
-			} else {
-				multi_->push_back(1);
+	                double exp_num_kmer = (double)num_external * (num_external + 1) / (k_to_ + 1 - k_from_ + 1)
+	                                      + (double)internal_max / (k_to_ + 1 - k_from_ + 1) * num_internal;
+	                exp_num_kmer *= depth_from;
+	                multi_->push_back(std::min(int(exp_num_kmer * k_from_ / (k_to_ + 1) / num_nextk1 + 0.5), kMaxMulti_t));
+				} else {
+					multi_->push_back(1);
+				}
 			}
 
 			num_bases += kseq_readers_[0]->seq.l;

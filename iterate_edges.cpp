@@ -137,9 +137,10 @@ static void* ReadContigsThread(void* seq_manager) {
     int64_t kMaxNumBases = 1 << 28;
     bool append = false;
     bool reverse = false;
-    bool discard_loop = false; // FIXME, turn to false
+    int discard_flag = contig_flag::kLoop | contig_flag::kIsolated;
+    bool extend_loop = false;
     bool calc_depth = false;
-    sm->ReadMegahitContigs(kMaxNumContigs, kMaxNumBases, append, reverse, discard_loop, calc_depth);
+    sm->ReadMegahitContigs(kMaxNumContigs, kMaxNumBases, append, reverse, discard_flag, extend_loop, calc_depth);
 
     return NULL;
 }
@@ -382,12 +383,10 @@ static void ReadContigsAndBuildHash(IterateGlobalData &globals,
     SequenceManager seq_manager;
     int input_thread_index = 0;
     pthread_t input_thread;
-    std::vector<multi_t> dummy_multiplicity_v;
 
     seq_manager.set_file_type(SequenceManager::kMegahitContigs);
     seq_manager.set_package(&packages[input_thread_index]);
     seq_manager.set_file(globals.contig_file);
-    seq_manager.set_multiplicity_vector(&dummy_multiplicity_v);
 
     pthread_create(&input_thread, NULL, ReadContigsThread, &seq_manager);
 

@@ -520,7 +520,7 @@ bool UnitigGraph::RemoveLocalLowDepth(double min_depth, int min_len, int local_w
     return is_changed;
 }
 
-// #define FAST_LOCAL_DEPTH
+#define FAST_LOCAL_DEPTH
 #ifdef FAST_LOCAL_DEPTH
 
 double UnitigGraph::LocalDepth_(vertexID_t id, int local_width) {
