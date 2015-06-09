@@ -446,12 +446,12 @@ void lv2_pre_output_partition(count_global_t &globals) {
     //         if (j == 15) { item += globals.lv2_num_items_db; }
     //     }
     //     err("\n");
-    //     item = globals.lv2_substrings_db + i;
-    //     for (int j = 0; j < globals.kmer_k + 1; ++j) {
-    //         err("%c", "ACGT"[ExtractNthChar(item, j % 16)]);
-    //         if (j == 15) { item += globals.lv2_num_items_db; }
-    //     }
-    //     err("\n");
+    //     // item = globals.lv2_substrings_db + i;
+    //     // for (int j = 0; j < globals.kmer_k + 1; ++j) {
+    //     //     err("%c", "ACGT"[ExtractNthChar(item, j % 16)]);
+    //     //     if (j == 15) { item += globals.lv2_num_items_db; }
+    //     // }
+    //     // err("\n");
     // }
     // err("ha\n");
 

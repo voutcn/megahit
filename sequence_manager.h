@@ -44,14 +44,18 @@ struct SequenceManager {
 	EdgeReader2 edge_reader_;
 	bool edge_reader_inited_;
 
-	int cur_fileno_;				// for reading multiple edge files
 	std::vector<uint32_t> buf_;		// for reading binary reads
+	int min_len_;
+	int k_from_, k_to_;
 
 	SequenceManager(SequencePackage *package = NULL): package_(package) {
 		multi_ = NULL;
 		files_.clear();
 		kseq_readers_.clear();
 		edge_reader_inited_ = false;
+		min_len_ = 0;
+		k_from_ = 1;
+		k_to_ = 1;
 	};
 
 	~SequenceManager() {
@@ -85,11 +89,13 @@ struct SequenceManager {
 	void set_file(const std::string &file_name);
 	void set_pe_files(const std::string &file_name1, const std::string &file_name2);
 	void set_edge_files(const std::string &file_prefix, int num);
+	void set_kmer_size(int kmer_from, int kmer_to) { k_from_ = kmer_from; k_to_ = kmer_to; } // only apply to reading megahit contigs
+	void set_min_len(int min_len) { min_len_ = min_len; } // only apply to megahit contigs
 
 	int64_t ReadShortReads(int64_t max_num, int64_t max_num_bases, bool append, bool reverse);
 	int64_t ReadEdges(int64_t max_num, bool append);
 	int64_t ReadShortedEdges(int64_t max_num, int kmer_size, bool append);
-	int64_t ReadMegahitContigs(int64_t max_num, int64_t max_num_bases, bool append, bool reverse, int kmer_from, int kmer_to,
+	int64_t ReadMegahitContigs(int64_t max_num, int64_t max_num_bases, bool append, bool reverse,
 							   bool discard_loop, bool calc_depth);
 	void WriteBinarySequences(FILE *file, bool reverse, int64_t from = 0, int64_t to = -1);
 };

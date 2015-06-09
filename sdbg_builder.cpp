@@ -399,6 +399,7 @@ int main_seq2sdbg(int argc, char **argv) {
     globals.mem_flag = opt.mem_flag;
     globals.kmer_k = opt.kmer_k;
     globals.kmer_from = opt.kmer_from;
+    globals.need_mercy = opt.need_mercy;
 
     log("[B::%s] Host memory to be used: %lld\n", __func__, (long long)globals.host_mem);
     log("[B::%s] Number CPU threads: %d\n", __func__, globals.num_cpu_threads);

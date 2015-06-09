@@ -45,35 +45,6 @@ struct EdgeReader2 {
         min_idx_ = -1;
     }
 
-    void InitUnsorted(const std::string &prefix, int num_files, int kmer_k, int words_per_edge) {
-        edges_files.resize(num_files);
-        cur_p.resize(num_files);
-        num_edges_in_buffer.resize(num_files);
-        edge_idx.resize(num_files);
-
-        this->words_per_edge = words_per_edge;
-        this->kmer_k = kmer_k;
-
-        for (int i = 0; i < (int)edges_files.size(); ++i) {
-            static char file_name[10240];
-            sprintf(file_name, "%s.%d", prefix.c_str(), i);
-            edges_files[i] = gzopen(file_name, "r");
-            assert(edges_files[i] != NULL);
-        }
-
-        words_per_true_edge = ((kmer_k + 1) * 2 + 31) / 32;
-
-        buffer = (uint32_t*) MallocAndCheck(sizeof(uint32_t) * kBufferSize * words_per_edge * num_files, __FILE__, __LINE__);
-        assert(buffer != NULL);
-
-        for (int i = 0; i < (int)edges_files.size(); ++i) {
-            if (!Refill_(i)) {
-                --i;
-            }
-        }
-        min_idx_ = -1;
-    }
-
     void destroy() {
         for (int i = 0; i < (int)edges_files.size(); ++i) {
             gzclose(edges_files[i]);
@@ -124,6 +95,7 @@ struct EdgeReader2 {
             return NULL;
         }
 
+        min_idx_ = 0;
         for (int i = 1; i < (int)edges_files.size(); ++i) {
             if (compare_(i, min_idx_)) {
                 min_idx_ = i;

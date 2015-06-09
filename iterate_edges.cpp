@@ -31,7 +31,6 @@
 #include <algorithm>
 #include <stdexcept>
 #include "definitions.h"
-#include "io_utility.h"
 #include "options_description.h"
 #include "atomic_bit_vector.h"
 #include "utils.h"
@@ -192,15 +191,12 @@ struct ReadContigsThreadData {
     IterateGlobalData *globals;
 };
 
-static void* ReadContigsThread(void* data) {
-    ContigPackage &package = *(((ReadContigsThreadData*)data)->contig_package);
-    kseq_t *seq = ((ReadContigsThreadData*)data)->seq;
-    IterateGlobalData &globals = *(((ReadContigsThreadData*)data)->globals);
-    char *dna_map = globals.dna_map;
+static void* ReadContigsThread(void* seq_manager) {
+    SequenceManager *sm = (SequenceManager*)seq_manager;
 
-    printf("Reading contigs...\n");
-    package.ReadContigs(seq, dna_map);
-    printf("Read %lu contigs, total length: %lu\n", package.size(), package.seqs.length());
+    printf("[I] Reading contigs...\n");
+    int64_t ReadMegahitContigs(int64_t max_num, int64_t max_num_bases, bool append, bool reverse, int kmer_from, int kmer_to,
+    printf("[i] Read %lu contigs, total length: %lu\n", package.size(), package.seqs.length());
     return NULL;
 }
 

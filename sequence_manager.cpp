@@ -48,6 +48,7 @@ void SequenceManager::set_edge_files(const std::string &file_prefix, int num_fil
 	assert(files_.size() == 0);
 	assert(kseq_readers_.size() == 0);
 
+	assert(!edge_reader_inited_);
 	edge_reader_.init(file_prefix, num_files);
 	edge_reader_inited_ = true;
 }
@@ -153,7 +154,7 @@ int64_t SequenceManager::ReadEdges(int64_t max_num, bool append) {
 }
 
 int64_t SequenceManager::ReadMegahitContigs(int64_t max_num, int64_t max_num_bases, bool append, bool reverse, 
-										    int kmer_from, int kmer_to, bool discard_loop, bool calc_depth) {
+										    bool discard_loop, bool calc_depth) {
 	assert(f_type == kMegahitContigs);
 	if (!append) {
 		multi_->clear();
@@ -164,7 +165,7 @@ int64_t SequenceManager::ReadMegahitContigs(int64_t max_num, int64_t max_num_bas
 
 	for (int64_t i = 0; i < max_num; ++i) {
 		if (kseq_read(kseq_readers_[0]) >= 0) {
-			if ((int)kseq_readers_[0]->seq.l < kmer_to + 1) { --i; continue; }
+			if ((int)kseq_readers_[0]->seq.l < min_len_ ) { --i; continue; }
 
 			if (discard_loop && kseq_readers_[0]->comment.s[5] == '1') {
 				--i; continue;
@@ -179,16 +180,16 @@ int64_t SequenceManager::ReadMegahitContigs(int64_t max_num, int64_t max_num_bas
 			if (calc_depth) {
 				double depth_from = atof(kseq_readers_[0]->comment.s + 6);
 
-				int num_kmer = kseq_readers_[0]->seq.l - kmer_from + 1;
-                int num_nextk1 = kseq_readers_[0]->seq.l - (kmer_to + 1) + 1;
-                int internal_max = std::min(kmer_to + 1 - kmer_from + 1, num_nextk1);
+				int num_kmer = kseq_readers_[0]->seq.l - k_from_ + 1;
+                int num_nextk1 = kseq_readers_[0]->seq.l - (k_to_ + 1) + 1;
+                int internal_max = std::min(k_to_ + 1 - k_from_ + 1, num_nextk1);
                 int num_external = internal_max - 1;
                 int num_internal = num_kmer - num_external * 2;
 
-                double exp_num_kmer = (double)num_external * (num_external + 1) / (kmer_to + 1 - kmer_from + 1)
-                                      + (double)internal_max / (kmer_to + 1 - kmer_from + 1) * num_internal;
+                double exp_num_kmer = (double)num_external * (num_external + 1) / (k_to_ + 1 - k_from_ + 1)
+                                      + (double)internal_max / (k_to_ + 1 - k_from_ + 1) * num_internal;
                 exp_num_kmer *= depth_from;
-                multi_->push_back(std::min(int(exp_num_kmer * kmer_from / (kmer_to + 1) / num_nextk1 + 0.5), kMaxMulti_t));
+                multi_->push_back(std::min(int(exp_num_kmer * k_from_ / (k_to_ + 1) / num_nextk1 + 0.5), kMaxMulti_t));
 			} else {
 				multi_->push_back(1);
 			}
