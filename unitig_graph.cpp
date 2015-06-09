@@ -128,7 +128,7 @@ void WriteContig(const std::string &label, int k_size, long long &id, int flag, 
     omp_set_lock(lock);
 
     ++id;
-    fprintf(file, ">k%d_%lld flag=%d multi=%.4lf\n%s",
+    fprintf(file, ">k%d_%lld flag=%d multi=%.4lf\n%s\n",
             k_size,
             id,
             flag,
@@ -803,7 +803,7 @@ void UnitigGraph::OutputContigs(FILE *contig_file, FILE *final_file, std::map<in
     for (vertexID_t i = 0; i < vertices_.size(); ++i) {
         if (vertices_[i].is_deleted && !vertices_[i].is_loop) { continue; }
 
-        double multi = std::min(kMaxMulti_t, int((double)vertices_[i].depth / vertices_[i].length + 0.5));
+        double multi = std::min((double)kMaxMulti_t, (double)vertices_[i].depth / vertices_[i].length + 0.5);
         std::string label = VertexToDNAString(sdbg_, vertices_[i]);
 
         if (vertices_[i].is_palindrome) {
