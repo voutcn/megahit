@@ -96,11 +96,17 @@ int64_t encode_lv1_diff_base(int64_t read_id, count_global_t &g) {
 
 void read_input_prepare(count_global_t &globals) { // num_items_, num_cpu_threads_ and num_output_threads_ must be set here
     bool is_reverse = true;
-    ReadMultipleLibs(globals.read_lib_file, globals.package, globals.lib_se, is_reverse);
+    ReadMultipleLibs(globals.read_lib_file, globals.package, globals.lib_info, is_reverse);
     globals.max_read_length = globals.package.max_read_len();
     globals.num_reads = globals.package.size();
     
     log("[C::%s] %ld reads, %d max read length\n", __func__, globals.num_reads, globals.max_read_length);
+
+    if (cx1_t::kCX1Verbose >= 2) {
+        log("[B::%s] Output reads to binary file...\n", __func__);
+        bool is_reverse = true;
+        WriteMultipleLibs(globals.package, globals.lib_info, globals.output_prefix + ".all_reads", is_reverse);
+    }
 
     // calc words_per_xxx
     int bits_read_length = 1; // bit needed to store read_length

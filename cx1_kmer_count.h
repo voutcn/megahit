@@ -29,6 +29,7 @@
 #include "cx1.h"
 #include "sdbg_builder_writers.h"
 #include "sequence_package.h"
+#include "lib_info.h"
 
 struct count_opt_t {
     int kmer_k;
@@ -99,7 +100,7 @@ struct count_global_t {
 
     // big arrays
     SequencePackage package;
-    std::vector<std::pair<int64_t, int64_t> > lib_se;
+    std::vector<lib_info_t> lib_info;
 
 #ifndef LONG_READS
     unsigned char *first_0_out;

@@ -40,7 +40,6 @@ struct IterateGlobalData {
     int kmer_k;
     int step;
     int next_k1; // = next_k + 1
-    int max_read_len;
     int num_cpu_threads;
 
     // stat

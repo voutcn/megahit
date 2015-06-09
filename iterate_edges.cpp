@@ -51,7 +51,6 @@ struct Options {
     int num_cpu_threads;
     int kmer_k;
     int step;
-    int max_read_len;
     string output_prefix;
 
     Options() {
@@ -59,11 +58,10 @@ struct Options {
         num_cpu_threads = 0;
         kmer_k = 0;
         step = 0;
-        max_read_len = 0;
     }
 
     string output_edge_file() {
-        return output_prefix + "edges.0";
+        return output_prefix + ".edges.0";
     }
 
     string output_read_file() {
@@ -81,7 +79,6 @@ static void ParseOptions(int argc, char *argv[]) {
     desc.AddOption("kmer_k", "k", options.kmer_k, "(*) current kmer size.");
     desc.AddOption("step", "s", options.step, "(*) step for iteration (<= 29). i.e. this iteration is from kmer_k to (kmer_k + step)");
     desc.AddOption("output_prefix", "o", options.output_prefix, "(*) output_prefix.edges.0 and output_prefix.rr.pb will be created.");
-    desc.AddOption("max_read_len", "l", options.max_read_len, "(*) max read length of all reads.");
 
     try {
         desc.Parse(argc, argv);
@@ -101,8 +98,6 @@ static void ParseOptions(int argc, char *argv[]) {
             throw std::logic_error("No output prefix!");
         } else if (options.read_format != "binary" && options.read_format != "fasta" && options.read_format != "fastq") {
             throw std::logic_error("Invalid read format!");
-        } else if (options.max_read_len == 0) {
-            throw std::logic_error("Invalid max read length!");
         }
 
         if (options.num_cpu_threads == 0) {
@@ -128,7 +123,6 @@ static void InitGlobalData(IterateGlobalData &globals) {
     globals.kmer_k = options.kmer_k;
     globals.step = options.step;
     globals.next_k1 = globals.kmer_k + globals.step + 1;
-    globals.max_read_len = options.max_read_len;
     globals.num_cpu_threads = options.num_cpu_threads;
     globals.read_format = options.read_format;
     globals.contig_file = options.contig_file;
@@ -143,7 +137,7 @@ static void* ReadContigsThread(void* seq_manager) {
     int64_t kMaxNumBases = 1 << 28;
     bool append = false;
     bool reverse = false;
-    bool discard_loop = true;
+    bool discard_loop = false; // FIXME, turn to false
     bool calc_depth = false;
     sm->ReadMegahitContigs(kMaxNumContigs, kMaxNumBases, append, reverse, discard_loop, calc_depth);
 
@@ -158,6 +152,13 @@ static void* ReadReadsThread(void* seq_manager) {
     bool append = false;
     bool reverse = false;
     sm->ReadShortReads(kMaxNumReads, kMaxNumBases, append, reverse);
+
+    // if (sm->package_->size() > 0) {
+    //     for (unsigned i = 0; i < sm->package_->length(0); ++i) {
+    //         putchar("ACGT"[sm->package_->get_base(0, i)]);
+    //     }
+    //     puts("");
+    // }
 
     return NULL;
 }
@@ -178,11 +179,13 @@ static bool ReadReadsAndProcessKernel(IterateGlobalData &globals,
     int64_t num_aligned_reads = 0;
     int64_t num_total_reads = 0;
 
-    if (globals.read_format == "Binary") {
+    if (globals.read_format == "binary") {
         seq_manager.set_file_type(SequenceManager::kBinaryReads);
     } else {
         seq_manager.set_file_type(SequenceManager::kFastxReads);
     }
+
+    seq_manager.set_file(globals.read_file);
     seq_manager.set_readlib_type(SequenceManager::kSingle); // PE info not used
     seq_manager.set_package(&packages[input_thread_index]);
 
@@ -379,10 +382,13 @@ static void ReadContigsAndBuildHash(IterateGlobalData &globals,
     SequenceManager seq_manager;
     int input_thread_index = 0;
     pthread_t input_thread;
+    std::vector<multi_t> dummy_multiplicity_v;
 
     seq_manager.set_file_type(SequenceManager::kMegahitContigs);
     seq_manager.set_package(&packages[input_thread_index]);
     seq_manager.set_file(globals.contig_file);
+    seq_manager.set_multiplicity_vector(&dummy_multiplicity_v);
+
     pthread_create(&input_thread, NULL, ReadContigsThread, &seq_manager);
 
     while (true) {

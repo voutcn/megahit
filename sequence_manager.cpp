@@ -224,11 +224,13 @@ void SequenceManager::WriteBinarySequences(FILE *file, bool reverse, int64_t fro
 			for (int j = 0, k = s.size() - 1; j < k; ++j, --k) {
 				std::swap(s[j], s[k]);
 			}
+
 			int shift = (16 - len % 16)  * 2;
-			if (shift != 16) {
+			if (shift != 32) {
 				for (int j = 0; j < (int)s.size() - 1; ++j) {
 					s[j] = (s[j] << shift) | (s[j+1] >> (32 - shift));
-				}	
+				}
+				s.back() <<= shift;
 			}
 		}
 

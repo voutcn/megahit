@@ -78,10 +78,7 @@ public:
     uint32_t MergeComplexBubbles(double similarity, bool permanent_rm);
 
     // output
-    void OutputInitUnitigs(FILE *contig_file, std::map<int64_t, int> &histo);
-    void OutputChangedUnitigs(FILE *addi_contig_file, std::map<int64_t, int> &histo);
-    void OutputInitUnitigs(FILE *contig_file, FILE *final_contig_file, std::map<int64_t, int> &histo, int min_final_contig_len);
-    void OutputFinalUnitigs(FILE *final_contig_file, std::map<int64_t, int> &histo, int min_final_contig_len, bool keep_short_for_fastg = false);
+    void OutputContigs(FILE *contig_file, FILE *final_file, std::map<int64_t, int> &histo, bool change_only, int min_final_len);
 
 private:
     // functions

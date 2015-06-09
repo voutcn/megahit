@@ -60,7 +60,7 @@ int64_t PrevSimplePathNode(SuccinctDBG &dbg, int64_t cur_node) {
     }
 }
 
-int64_t Trim(SuccinctDBG &dbg, int len, int min_final_contig_len) {
+int64_t Trim(SuccinctDBG &dbg, int len, int min_final_len) {
     int64_t number_tips = 0;
     omp_lock_t path_lock;
     omp_init_lock(&path_lock);
@@ -76,7 +76,7 @@ int64_t Trim(SuccinctDBG &dbg, int len, int min_final_contig_len) {
             for (int i = 1; i < len; ++i) {
                 prev_node = dbg.UniqueIncoming(cur_node);
                 if (prev_node == -1) {
-                    is_tip = dbg.IndegreeZero(cur_node); // && (i + dbg.kmer_k - 1 < min_final_contig_len);
+                    is_tip = dbg.IndegreeZero(cur_node); // && (i + dbg.kmer_k - 1 < min_final_len);
                     break;
                 } else if (dbg.UniqueOutgoing(prev_node) == -1) {
                     is_tip = true;
@@ -106,7 +106,7 @@ int64_t Trim(SuccinctDBG &dbg, int len, int min_final_contig_len) {
             for (int i = 1; i < len; ++i) {
                 next_node = dbg.UniqueOutgoing(cur_node);
                 if (next_node == -1) {
-                    is_tip = dbg.OutdegreeZero(cur_node); // && (i + dbg.kmer_k - 1 < min_final_contig_len);
+                    is_tip = dbg.OutdegreeZero(cur_node); // && (i + dbg.kmer_k - 1 < min_final_len);
                     break;
                 } else if (dbg.UniqueIncoming(next_node) == -1) {
                     is_tip = true;
@@ -135,21 +135,21 @@ int64_t Trim(SuccinctDBG &dbg, int len, int min_final_contig_len) {
     return number_tips;
 }
 
-int64_t RemoveTips(SuccinctDBG &dbg, int max_tip_len, int min_final_contig_len) {
+int64_t RemoveTips(SuccinctDBG &dbg, int max_tip_len, int min_final_len) {
     int64_t number_tips = 0;
     xtimer_t timer;
     for (int len = 2; len < max_tip_len; len *= 2) {
         printf("Removing tips with length less than %d\n", len);
         timer.reset();
         timer.start();
-        number_tips += Trim(dbg, len, min_final_contig_len);
+        number_tips += Trim(dbg, len, min_final_len);
         timer.stop();
         printf("Accumulated tips removed: %lld; time elapsed: %.4f\n", (long long)number_tips, timer.elapsed());
     }
     printf("Removing tips with length less than %d\n", max_tip_len);
     timer.reset();
     timer.start();
-    number_tips += Trim(dbg, max_tip_len, min_final_contig_len);
+    number_tips += Trim(dbg, max_tip_len, min_final_len);
     timer.stop();
     printf("Accumulated tips removed: %lld; time elapsed: %.4f\n", (long long)number_tips, timer.elapsed());
     return number_tips;
@@ -186,7 +186,7 @@ int64_t PopBubbles(SuccinctDBG &dbg, int max_bubble_len, double low_depth_ratio)
     return num_bubbles;
 }
 
-void AssembleFromUnitigGraph(SuccinctDBG &dbg, FILE *contigs_file, FILE *final_contig_file, int min_final_contig_len) {
+void AssembleFromUnitigGraph(SuccinctDBG &dbg, FILE *contig_file, FILE *final_contig_file, int min_final_len) {
     xtimer_t timer;
     timer.reset();
     timer.start();
@@ -199,39 +199,17 @@ void AssembleFromUnitigGraph(SuccinctDBG &dbg, FILE *contigs_file, FILE *final_c
     
     timer.reset();
     timer.start();
+
     histogram.clear();
-    if (final_contig_file == NULL) {
-        unitig_graph.OutputInitUnitigs(contigs_file, histogram);
-    } else {
-        unitig_graph.OutputInitUnitigs(contigs_file, final_contig_file, histogram, min_final_contig_len);
-    }
+    unitig_graph.OutputContigs(contig_file, final_contig_file, histogram, false, min_final_len);
     PrintStat();
+
     timer.stop();
     printf("Time to output: %lf\n", timer.elapsed());
 }
 
-void AssembleFinalFromUnitigGraph(SuccinctDBG &dbg, FILE *final_contig_file, int min_final_contig_len, bool need_fastg) {
-    xtimer_t timer;
-    timer.reset();
-    timer.start();
-    UnitigGraph unitig_graph(&dbg);
-    unitig_graph.InitFromSdBG();
-    unitig_graph.MergeBubbles(true);
-    unitig_graph.MergeComplexBubbles(0.98, false);
-    timer.stop();
-    printf("unitig graph size: %u, time for building: %lf\n", unitig_graph.size(), timer.elapsed());
-    
-    timer.reset();
-    timer.start();
-    histogram.clear();
-    unitig_graph.OutputFinalUnitigs(final_contig_file, histogram, min_final_contig_len, need_fastg);
-    PrintStat();
-    timer.stop();
-    printf("Time to output: %lf\n", timer.elapsed());
-}
-
-void RemoveLowLocalAndOutputChanged(SuccinctDBG &dbg, FILE *contigs_file, FILE *final_contig_file, FILE *addi_contig_file,
-                                    double min_depth, int min_len, double local_ratio, int min_final_contig_len, bool excessive_prune) {
+void RemoveLowLocalAndOutputChanged(SuccinctDBG &dbg, FILE *contig_file, FILE *final_contig_file, FILE *addi_contig_file,
+                                    double min_depth, int min_len, double local_ratio, int min_final_len, bool excessive_prune) {
     
     const double kMaxDepth = 65535;
     const int kLocalWidth = 1000;
@@ -257,13 +235,11 @@ void RemoveLowLocalAndOutputChanged(SuccinctDBG &dbg, FILE *contigs_file, FILE *
 
     timer.reset();
     timer.start();
+
     histogram.clear();
-    if (final_contig_file == NULL) {
-        unitig_graph.OutputInitUnitigs(contigs_file, histogram);
-    } else {
-        unitig_graph.OutputInitUnitigs(contigs_file, final_contig_file, histogram, min_final_contig_len);
-    }
+    unitig_graph.OutputContigs(contig_file, final_contig_file, histogram, false, min_final_len);
     PrintStat();
+
     timer.stop();
     printf("Time to output: %lf\n", timer.elapsed());
     
@@ -286,12 +262,12 @@ void RemoveLowLocalAndOutputChanged(SuccinctDBG &dbg, FILE *contigs_file, FILE *
     printf("Number of unitigs removed: %lld, time: %lf\n", (long long)num_removed, timer.elapsed());
 
     histogram.clear();
-    unitig_graph.OutputChangedUnitigs(addi_contig_file, histogram);
+    unitig_graph.OutputContigs(addi_contig_file, NULL, histogram, true, 0);
     PrintStat();
 }
 
-void RemoveLowLocalAndOutputFinal(SuccinctDBG &dbg, FILE *final_contig_file, 
-                                  double min_depth, int min_len, double local_ratio, int min_final_contig_len, bool need_fastg) {
+void RemoveLowLocalAndOutputFinal(SuccinctDBG &dbg, FILE *contig_file, FILE *final_contig_file, 
+                                  double min_depth, int min_len, double local_ratio, int min_final_len) {
     UnitigGraph unitig_graph(&dbg);
     unitig_graph.InitFromSdBG();
     unitig_graph.MergeBubbles(true);
@@ -310,7 +286,7 @@ void RemoveLowLocalAndOutputFinal(SuccinctDBG &dbg, FILE *final_contig_file,
     printf("Number of unitigs removed: %lld\n", (long long)num_removed);
 
     histogram.clear();
-    unitig_graph.OutputFinalUnitigs(final_contig_file, histogram, min_final_contig_len, need_fastg);
+    unitig_graph.OutputContigs(contig_file, final_contig_file, histogram, false, min_final_len);
     PrintStat();
 }
 

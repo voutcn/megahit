@@ -39,6 +39,13 @@ static const char dna_chars[] = "ACGT";
 
 static const int kMaxNumCPUThreads = 255;
 
+namespace contig_flag {
+
+static const int kIsolated = 0x1;
+static const int kLoop = 0x2;
+
+} 
+
 #define LONG_READS
 
 #endif // DEFINITIONS_H_

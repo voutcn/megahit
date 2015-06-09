@@ -9,15 +9,13 @@
 #include <string>
 #include <vector>
 
+#include "lib_info.h"
 #include "sequence_manager.h"
 #include "sequence_package.h"
 #include "mem_file_checker-inl.h"
-#include "utils.h"
-
-// std::pair<int64_t, int64_t>  library's start and end read_id in a SequencePackage
 
 inline void ReadMultipleLibs(const std::string &lib_file, SequencePackage &package,
-	                         std::vector<std::pair<int64_t, int64_t> > &lib_se, bool is_reverse) {
+	                         std::vector<lib_info_t> &lib_info, bool is_reverse) {
 	std::ifstream lib_config(lib_file);
 	if (!lib_config.is_open()) {
 		fprintf(stderr, "File to open read_lib file: %s\n", lib_file.c_str());
@@ -32,7 +30,7 @@ inline void ReadMultipleLibs(const std::string &lib_file, SequencePackage &packa
 	bool append_to_package = false;
 	SequenceManager seq_manager(&package);
 	package.clear();
-	lib_se.clear();
+	lib_info.clear();
 
 	while (lib_config >> type) {
 		if (type == "pe") {
@@ -66,13 +64,13 @@ inline void ReadMultipleLibs(const std::string &lib_file, SequencePackage &packa
 		seq_manager.ReadShortReads(1LL << 60, 1LL << 60, append_to_package, is_reverse);
 		seq_manager.clear();
 		int64_t end = package.size() - 1;
-		lib_se.push_back(std::pair<int64_t, int64_t> (start, end));
+		lib_info.push_back(lib_info_t(&package, start, end, type != "se"));
 	}
 }
 
-inline void ReadBinaryLibs(const std::string &file_prefix, SequencePackage &package, std::vector<std::pair<int64_t, int64_t> > &lib_se) {
+inline void ReadBinaryLibs(const std::string &file_prefix, SequencePackage &package, std::vector<lib_info_t> &lib_info) {
 	package.clear();
-	lib_se.clear();
+	lib_info.clear();
 	SequenceManager seq_manager(&package);
 	seq_manager.set_file_type(SequenceManager::kBinaryReads);
 	seq_manager.set_file(FormatString("%s.bin", file_prefix.c_str()));
@@ -81,24 +79,26 @@ inline void ReadBinaryLibs(const std::string &file_prefix, SequencePackage &pack
 	bool is_reverse = false;
 	seq_manager.ReadShortReads(1LL << 60, 1LL << 60, append_to_package, is_reverse);
 
-	FILE *lib_se_file = OpenFileAndCheck(FormatString("%s.lib_se", file_prefix.c_str()), "r");
+	FILE *lib_info_file = OpenFileAndCheck(FormatString("%s.lib_info", file_prefix.c_str()), "r");
 	int64_t start, end;
-	while (fscanf(lib_se_file, "%lu", &start) == 1) {
-		assert(fscanf(lib_se_file, "%lu", &end) == 1);
-		lib_se.push_back(std::pair<int64_t, int64_t> (start, end));
+	while (fscanf(lib_info_file, "%lu", &start) == 1) {
+		assert(fscanf(lib_info_file, "%lu", &end) == 1);
+		char is_pe[32];
+		assert(fscanf(lib_info_file, " %s", is_pe) == 1);
+		lib_info.push_back(lib_info_t(&package, start, end, strcmp(is_pe, "pe") == 0));
 	}
-	fclose(lib_se_file);
+	fclose(lib_info_file);
 }
 
-inline void WriteMultipleLibs(SequencePackage &package, std::vector<std::pair<int64_t, int64_t> > &lib_se, const std::string &file_prefix, bool is_reverse) {
+inline void WriteMultipleLibs(SequencePackage &package, std::vector<lib_info_t> &lib_info, const std::string &file_prefix, bool is_reverse) {
 	SequenceManager seq_manager(&package);
 	FILE *bin_file = OpenFileAndCheck(FormatString("%s.bin", file_prefix.c_str()), "wb");
 	seq_manager.WriteBinarySequences(bin_file, is_reverse);
 	fclose(bin_file);
 
-	FILE *se_file = OpenFileAndCheck(FormatString("%s.lib_se", file_prefix.c_str()), "w");
-	for (unsigned i = 0; i < lib_se.size(); ++i) {
-		fprintf(se_file, "%ld %ld\n", lib_se[i].first, lib_se[i].second);
+	FILE *se_file = OpenFileAndCheck(FormatString("%s.lib_info", file_prefix.c_str()), "w");
+	for (unsigned i = 0; i < lib_info.size(); ++i) {
+		fprintf(se_file, "%ld %ld %s\n", lib_info[i].from, lib_info[i].to, lib_info[i].is_pe ? "pe" : "se");
 	}
 	fclose(se_file);
 }

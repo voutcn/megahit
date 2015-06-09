@@ -170,14 +170,16 @@ struct SequencePackage {
 			}
 		}
 
-		int shift_clean = kBitsPerWord - (end - begin + 1) * 2 % kBitsPerWord;
-		if (shift_clean != (int)kBitsPerWord) {
+		unsigned shift_clean = kBitsPerWord - (end - begin + 1) * 2 % kBitsPerWord;
+		if (shift_clean != kBitsPerWord) {
 			s.back() >>= shift_clean;
 			s.back() <<= shift_clean;	
 		}
 
 		// for (int j = 0; j < end - begin + 1; ++j) {
-		// 	assert((s[j/16] >> (15-j%16) * 2) == get_base(seq_id, j));
+		// 	if ((s[j/16] >> (15-j%16) * 2 & 3) != get_base(seq_id, begin + j)) {
+		// 		printf("j: %d, first_shift: %d\n", j, first_shift);
+		// 	}
 		// }
 	}
 };

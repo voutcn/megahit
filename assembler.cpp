@@ -90,7 +90,6 @@ void ParseOption(int argc, char *argv[]) {
     desc.AddOption("low_local_ratio", "", options.low_local_ratio, "ratio to define low depth contigs");
     desc.AddOption("min_depth", "", options.min_depth, "permanently remove low local coverage unitigs under this threshold");
     desc.AddOption("is_final_round", "", options.is_final_round, "this is the last iteration");
-    desc.AddOption("need_fastg", "", options.need_fastg, "keep short branching contigs to generate fastg file");
 
     try {
         desc.Parse(argc, argv);
@@ -182,37 +181,30 @@ int main(int argc, char **argv) {
                 options.min_final_contig_len,
                 options.excessive_prune);
             
-            fclose (out_addi_contig_file);
+            fclose(out_addi_contig_file);
         } else {
             assembly_algorithms::RemoveLowLocalAndOutputFinal(
                 dbg, 
+                out_contig_file, 
                 out_final_contig_file, 
                 options.min_depth,  
                 options.max_tip_len, 
                 options.low_local_ratio,
-                options.min_final_contig_len,
-                options.need_fastg);
+                options.min_final_contig_len);
         }
         timer.stop();
         printf("Done! Time elapsed(sec.): %lf\n", timer.elapsed());
     } else {
-        printf("Assembling unitigs...\n");
+        printf("Assembling contigs...\n");
         timer.reset();
         timer.start();
-        if (!options.is_final_round) {
-            FILE *out_final_contig_file = NULL; // uncomment to avoid output final contigs
-            assembly_algorithms::AssembleFromUnitigGraph(
-                dbg, 
-                out_contig_file, 
-                out_final_contig_file,
-                options.min_final_contig_len);
-        } else {
-            assembly_algorithms::AssembleFinalFromUnitigGraph(
-                dbg, 
-                out_final_contig_file, 
-                options.min_final_contig_len,
-                options.need_fastg);
-        }
+
+        FILE *out_final_contig_file = NULL; // uncomment to avoid output final contigs
+        assembly_algorithms::AssembleFromUnitigGraph(
+            dbg, 
+            out_contig_file, 
+            out_final_contig_file,
+            options.min_final_contig_len);
 
         timer.stop();
         printf("Done! Time elapsed(sec.): %lf\n", timer.elapsed());
