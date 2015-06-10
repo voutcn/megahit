@@ -153,6 +153,34 @@ int64_t SequenceManager::ReadEdges(int64_t max_num, bool append) {
 	assert(false);
 }
 
+
+int64_t SequenceManager::ReadEdgesWithFixedLen(int64_t max_num, bool append) {
+	if (!append) {
+		multi_->clear();
+		package_->clear();
+	}
+
+	if (f_type == kMegahitEdges) {
+		for (int64_t i = 0; i < max_num; ++i) {
+			uint32_t *next_edge = edge_reader_.NextUnsortedEdge();
+			if (next_edge == NULL) { return i; }
+			package_->AppendFixedLenSeq(next_edge, edge_reader_.kmer_k + 1);
+			multi_->push_back(next_edge[edge_reader_.words_per_edge - 1] & kMaxMulti_t);
+		}
+		return max_num;
+	} else if (f_type == kSortedEdges) {
+		for (int64_t i = 0; i < max_num; ++i) {
+			uint32_t *next_edge = edge_reader_.NextSortedEdge();
+			if (next_edge == NULL) { return i; }
+			package_->AppendFixedLenSeq(next_edge, edge_reader_.kmer_k + 1);
+			multi_->push_back(next_edge[edge_reader_.words_per_edge - 1] & kMaxMulti_t);
+		}
+		return max_num;
+	}
+
+	assert(false);
+}
+
 int64_t SequenceManager::ReadMegahitContigs(int64_t max_num, int64_t max_num_bases, bool append, bool reverse, 
 										    int discard_flag, bool extend_loop, bool calc_depth) {
 	assert(f_type == kMegahitContigs);

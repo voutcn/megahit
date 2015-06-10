@@ -137,8 +137,8 @@ void* lv0_calc_bucket_size(void* _data) {
             continue;
         }
 
-        uint32_t *read_p = &globals.package.packed_seq[globals.package.start_idx[read_id] / 16];
-        edge.init(read_p, globals.package.start_idx[read_id] % 16, globals.kmer_k + 1);
+        uint32_t *read_p = &globals.package.packed_seq[globals.package.get_start_index(read_id) / 16];
+        edge.init(read_p, globals.package.get_start_index(read_id) % 16, globals.kmer_k + 1);
         rev_edge = edge;
         rev_edge.ReverseComplement(globals.kmer_k + 1);
 
@@ -288,8 +288,8 @@ void* lv1_fill_offset(void* _data) {
             continue;
         }
 
-        uint32_t *read_p = &globals.package.packed_seq[globals.package.start_idx[read_id] / 16];
-        edge.init(read_p, globals.package.start_idx[read_id] % 16, globals.kmer_k + 1);
+        uint32_t *read_p = &globals.package.packed_seq[globals.package.get_start_index(read_id) / 16];
+        edge.init(read_p, globals.package.get_start_index(read_id) % 16, globals.kmer_k + 1);
         rev_edge = edge;
         rev_edge.ReverseComplement(globals.kmer_k + 1);
 
@@ -369,8 +369,8 @@ void* lv2_extract_substr(void* _data) {
                 int num_chars_to_copy = globals.kmer_k + 1;
 
                 int read_length = globals.package.length(read_id);
-                int64_t which_word = globals.package.start_idx[read_id] / 16;
-                int start_offset = globals.package.start_idx[read_id] % 16;
+                int64_t which_word = globals.package.get_start_index(read_id) / 16;
+                int start_offset = globals.package.get_start_index(read_id) % 16;
                 int words_this_seq = DivCeiling(start_offset + read_length, 16);
                 uint32_t *read_p = &globals.package.packed_seq[which_word];
 

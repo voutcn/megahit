@@ -2,6 +2,7 @@
 #define SEQUENCE_PACKAGE_H__
 
 #include <stdint.h>
+#include <assert.h>
 #include <vector>
 
 /**
@@ -16,16 +17,31 @@ struct SequencePackage {
 	char dna_map_[256];
 
 	std::vector<word_t> packed_seq; // packed all 
-	std::vector<uint64_t> start_idx; // the index of the starting position of a sequence
+	std::vector<uint64_t> start_idx_; // the index of the starting position of a sequence
 
 	uint8_t unused_bits_; // the number of unused bits in the last word
 	int max_read_len_;
 
+	// the package's first fixed_len_size_ items have the same length of fixed_len_
+	// if fixed_len_sealed_, no more fixed-length items can be pushed
+	int fixed_len_;
+	size_t num_fixed_len_items_;
+	bool fixed_len_sealed_;
+
+	// for looking up the seq_id of a position
+	std::vector<uint64_t> pos_to_id_;
+	const static int kLookupStep = 1024;
+
 	SequencePackage() {
-		start_idx.push_back(0);
+		start_idx_.push_back(0);
 		packed_seq.push_back(word_t(0));
 		unused_bits_ = kBitsPerWord;
 		max_read_len_ = 0;
+
+		fixed_len_ = 0;
+		num_fixed_len_items_ = 0;
+		fixed_len_sealed_ = false;
+
 		for (int i = 0; i < 10; ++i) {
 			dna_map_[(int)("ACGTNacgtn"[i])] = "0123201232"[i] - '0';
 		}
@@ -36,21 +52,26 @@ struct SequencePackage {
 	void clear() {
 		packed_seq.clear();
 		packed_seq.push_back(word_t(0));
-		start_idx.clear();
-		start_idx.push_back(word_t(0));
+		start_idx_.clear();
+		start_idx_.push_back(0);
+		pos_to_id_.clear();
 		unused_bits_ = kBitsPerWord;
+
+		fixed_len_ = 0;
+		num_fixed_len_items_ = 0;
+		fixed_len_sealed_ = false;
 	}
 
 	size_t size() {
-		return start_idx.size() - 1;
+		return num_fixed_len_items_ + start_idx_.size() - 1;
 	}
 
 	size_t base_size() {
-		return start_idx.back();
+		return start_idx_.back();
 	}
 
 	size_t size_in_byte() {
-		return sizeof(uint32_t) * packed_seq.size() + sizeof(uint64_t) * start_idx.size();
+		return sizeof(word_t) * packed_seq.size() + sizeof(uint64_t) * start_idx_.size() + sizeof(uint64_t) * pos_to_id_.size();
 	}
 
 	size_t max_read_len() {
@@ -59,19 +80,122 @@ struct SequencePackage {
 
 	void shrink_to_fit() {
 		// packed_seq.shrink_to_fit();
-		// start_idx.shrink_to_fit();
+		// start_idx_.shrink_to_fit();
 	}
 
 	size_t length(size_t seq_id) {
-		return start_idx[seq_id + 1] - start_idx[seq_id];
+		if (seq_id < num_fixed_len_items_) {
+			return fixed_len_;
+		} else {
+			return start_idx_[seq_id - num_fixed_len_items_ + 1] - start_idx_[seq_id - num_fixed_len_items_];	
+		}
 	}
 
 	uint8_t get_base(size_t seq_id, size_t offset) {
-		uint64_t where = start_idx[seq_id] + offset;
+		uint64_t where = get_start_index(seq_id) + offset;
 		return packed_seq[where / kCharsPerWord] >> (kCharsPerWord - 1 - where % kCharsPerWord) * 2 & 3;
 	}
 
+	uint64_t get_start_index(size_t seq_id) {
+		if (seq_id < num_fixed_len_items_) {
+			return seq_id * fixed_len_;
+		} else {
+			return start_idx_[seq_id - num_fixed_len_items_];
+		}
+	}
+
+	void set_fixed_len(int len) {
+		assert(!fixed_len_sealed_);
+		fixed_len_ = len;
+	}
+
+	void BuildLookup() {
+		pos_to_id_.clear();
+		size_t abs_offset = num_fixed_len_items_ * fixed_len_;
+		size_t cur_id = num_fixed_len_items_;
+
+		while (abs_offset <= start_idx_.back()) {
+			while (cur_id < size() && start_idx_[cur_id - num_fixed_len_items_ + 1] <= abs_offset) {
+				++cur_id;
+			}
+			pos_to_id_.push_back(cur_id);
+			abs_offset += kLookupStep;
+		}
+		pos_to_id_.push_back(size());
+		pos_to_id_.push_back(size());
+	}
+
+	uint64_t get_id(size_t abs_offset) {
+		if (abs_offset < num_fixed_len_items_ * fixed_len_) {
+			return abs_offset / fixed_len_;
+		} else {
+			size_t look_up_entry = (abs_offset - num_fixed_len_items_ * fixed_len_) / kLookupStep;
+			size_t l = pos_to_id_[look_up_entry], r = pos_to_id_[look_up_entry+1];
+			while (l < r) {
+				size_t mid = (l + r) / 2;
+				if (start_idx_[mid - num_fixed_len_items_] > abs_offset) {
+					r = mid - 1;
+				} else if (start_idx_[mid - num_fixed_len_items_ + 1] <= abs_offset) {
+					l = mid + 1;
+				} else {
+					return mid;
+				}
+			}
+			return l;
+		}
+
+		assert(false);
+	}
+
+	void AppendFixedLenSeq(const char *s, int len) {
+		assert(len == fixed_len_);
+		assert(!fixed_len_sealed_);
+
+		AddSeqToPackedSeq_(s, len);
+		++num_fixed_len_items_;
+		start_idx_.back() += len;
+	}
+
+	void AppendFixedLenRevSeq(const char *s, int len) {
+		assert(len == fixed_len_);
+		assert(!fixed_len_sealed_);
+
+		AddRevSeqToPackedSeq_(s, len);
+		++num_fixed_len_items_;
+		start_idx_.back() += len;
+	}
+
+	void AppendFixedLenSeq(const word_t *s, int len) {
+		assert(len == fixed_len_);
+		assert(!fixed_len_sealed_);
+
+		AddSeqToPackedSeq_(s, len);
+		++num_fixed_len_items_;
+		start_idx_.back() += len;
+	}
+
 	void AppendSeq(const char *s, int len) {
+		fixed_len_sealed_ = true;
+		AddSeqToPackedSeq_(s, len);
+		uint64_t end = start_idx_.back() + len;
+		start_idx_.push_back(end);
+	}
+
+	void AppendReverseSeq(const char *s, int len) {
+		fixed_len_sealed_ = true;
+		AddRevSeqToPackedSeq_(s, len);
+		uint64_t end = start_idx_.back() + len;
+		start_idx_.push_back(end);
+	}
+
+	void AppendSeq(const word_t *s, int len) {
+		fixed_len_sealed_ = true;
+		AddSeqToPackedSeq_(s, len);
+		uint64_t end = start_idx_.back() + len;
+		start_idx_.push_back(end);
+	}
+
+	void AddSeqToPackedSeq_(const char *s, int len) {
 		for (int i = 0; i < len; ++i) {
 			unused_bits_ -= 2;
 			packed_seq.back() |= dna_map_[(int)s[i]] << unused_bits_;
@@ -81,11 +205,9 @@ struct SequencePackage {
 			}
 		}
 		if (len > max_read_len_) { max_read_len_ = len; }
-		uint64_t end = start_idx.back() + len;
-		start_idx.push_back(end);
 	}
 
-	void AppendReverseSeq(const char *s, int len) {
+	void AddRevSeqToPackedSeq_(const char *s, int len) {
 		for (int i = len - 1; i >= 0; --i) {
 			unused_bits_ -= 2;
 			packed_seq.back() |= dna_map_[(int)s[i]] << unused_bits_;
@@ -95,14 +217,10 @@ struct SequencePackage {
 			}
 		}
 		if (len > max_read_len_) { max_read_len_ = len; }
-		uint64_t end = start_idx.back() + len;
-		start_idx.push_back(end);
 	}
 
-	void AppendSeq(const word_t *s, int len) {
+	void AddSeqToPackedSeq_(const word_t *s, int len) {
 		if (len > max_read_len_) { max_read_len_ = len; }
-		uint64_t end = start_idx.back() + len;
-		start_idx.push_back(end);
 
 		if (len * 2 <= unused_bits_) {
 			unused_bits_ -= len * 2;
@@ -132,7 +250,7 @@ struct SequencePackage {
 				}
 			}
 
-			int bits_in_last_word = end % kCharsPerWord * 2;
+			int bits_in_last_word = (start_idx_.back() + len) % kCharsPerWord * 2;
 			unused_bits_ = kBitsPerWord - bits_in_last_word;
 			if (unused_bits_ == kBitsPerWord) {
 				packed_seq.push_back(word_t(0));
@@ -148,9 +266,9 @@ struct SequencePackage {
 			end = length(seq_id) - 1;
 		}
 
-		size_t first_word = (start_idx[seq_id] + begin) / kCharsPerWord;
-		size_t last_word = (start_idx[seq_id] + end) / kCharsPerWord;
-		int first_shift = (start_idx[seq_id] + begin) % kCharsPerWord * 2;
+		size_t first_word = (get_start_index(seq_id) + begin) / kCharsPerWord;
+		size_t last_word = (get_start_index(seq_id) + end) / kCharsPerWord;
+		int first_shift = (get_start_index(seq_id) + begin) % kCharsPerWord * 2;
 
 		s.clear();
 		if (end < begin) {

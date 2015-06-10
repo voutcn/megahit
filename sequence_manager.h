@@ -94,6 +94,7 @@ struct SequenceManager {
 
 	int64_t ReadShortReads(int64_t max_num, int64_t max_num_bases, bool append, bool reverse);
 	int64_t ReadEdges(int64_t max_num, bool append);
+	int64_t ReadEdgesWithFixedLen(int64_t max_num, bool append);
 	int64_t ReadShortedEdges(int64_t max_num, int kmer_size, bool append);
 	int64_t ReadMegahitContigs(int64_t max_num, int64_t max_num_bases, bool append, bool reverse, 
 							   int discard_flag, bool extend_loop, bool calc_depth);

@@ -47,8 +47,8 @@ typedef CX1<sequences2sdbg_global_t, kNumBuckets>::outputpartition_data_t output
 /**
  * @brief encode seq_id and its offset in one int64_t
  */
-inline int64_t EncodeEdgeOffset(int64_t seq_id, int offset, int strand, int bits_for_offset) {
-    return (seq_id << (bits_for_offset + 1)) | (strand << bits_for_offset) | offset;
+inline int64_t EncodeEdgeOffset(int64_t seq_id, int offset, int strand, SequencePackage &p) {
+    return ((p.get_start_index(seq_id) + offset) << 1) | strand;
 }
 
 inline bool IsDiffKMinusOneMer(uint32_t *item1, uint32_t *item2, int64_t spacing, int kmer_k) {
@@ -96,9 +96,9 @@ inline int ExtractCounting(uint32_t *item, int num_words, int64_t spacing) {
 
 // cx1 core functions
 int64_t encode_lv1_diff_base(int64_t read_id, sequences2sdbg_global_t &g) {
-    return EncodeEdgeOffset(read_id, 0, 0, g.bits_for_offset);
+    assert(read_id < (int64_t)g.package.size());
+    return EncodeEdgeOffset(read_id, 0, 0, g.package);
 }
-
 
 /**
  * @brief build lkt for faster binary search for mercy
@@ -121,7 +121,7 @@ void InitLookupTable(int64_t *lookup_table, SequencePackage &p) {
     lookup_table[cur_prefix * 2] = 0;
 
     for (int64_t i = 1, num_edges = p.size(); i < num_edges; ++i) {
-        kmer.init(&p.packed_seq[p.start_idx[i] / 16], p.start_idx[i] % 16, 16);
+        kmer.init(&p.packed_seq[p.get_start_index(i) / 16], p.get_start_index(i) % 16, 16);
 
         if ((kmer.data_[0] >> kLookUpShift) > cur_prefix) {
             lookup_table[cur_prefix * 2 + 1] = i - 1;
@@ -148,7 +148,7 @@ inline int64_t BinarySearchKmer(Kmer<6, uint32_t> &kmer, int64_t *lookup_table, 
 
     while (l <= r) {
         int64_t mid = (l + r) / 2;
-        mid_kmer.init(&p.packed_seq[p.start_idx[mid] / 16], p.start_idx[mid] % 16, kmer_size);
+        mid_kmer.init(&p.packed_seq[p.get_start_index(mid) / 16], p.get_start_index(mid) % 16, kmer_size);
         int cmp = kmer.cmp(mid_kmer, kmer_size);
 
         if (cmp > 0) {
@@ -236,7 +236,7 @@ inline void GenMercyEdges(sequences2sdbg_global_t &globals) {
             std::fill(has_in.begin(), has_in.end(), false);
             std::fill(has_out.begin(), has_out.end(), false);
 
-            kmer.init(&rp.packed_seq[rp.start_idx[read_id] / 16], rp.start_idx[read_id] % 16, globals.kmer_k);
+            kmer.init(&rp.packed_seq[rp.get_start_index(read_id) / 16], rp.get_start_index(read_id) % 16, globals.kmer_k);
             rev_kmer = kmer;
             rev_kmer.ReverseComplement(globals.kmer_k);
 
@@ -324,7 +324,7 @@ inline void GenMercyEdges(sequences2sdbg_global_t &globals) {
                     if (last_no_out >= 0) {
                         for (int j = last_no_out; j < i; ++j) {
                             omp_set_lock(&mercy_lock);
-                            mercy_edges.push_back(Kmer<6, uint32_t>(&rp.packed_seq[rp.start_idx[read_id] / 16], rp.start_idx[read_id] % 16 + j, globals.kmer_k + 1));
+                            mercy_edges.push_back(Kmer<6, uint32_t>(&rp.packed_seq[rp.get_start_index(read_id) / 16], rp.get_start_index(read_id) % 16 + j, globals.kmer_k + 1));
                             omp_unset_lock(&mercy_lock);
                         }
                         num_mercy_edges += i - last_no_out;
@@ -345,7 +345,7 @@ inline void GenMercyEdges(sequences2sdbg_global_t &globals) {
         }
 
         for (unsigned i = 0; i < mercy_edges.size(); ++i) {
-            globals.package.AppendSeq(mercy_edges[i].data_, globals.kmer_k + 1);
+            globals.package.AppendFixedLenSeq(mercy_edges[i].data_, globals.kmer_k + 1);
         }
     }
 
@@ -358,13 +358,14 @@ inline void GenMercyEdges(sequences2sdbg_global_t &globals) {
 
 void read_seq_and_prepare(sequences2sdbg_global_t &globals) {
     // --- init reader ---
+    globals.package.set_fixed_len(globals.kmer_k + 1);
     SequenceManager seq_manager(&globals.package);
     seq_manager.set_multiplicity_vector(&globals.multiplicity);
 
     if (globals.input_prefix != "") {
         seq_manager.set_file_type(globals.need_mercy ? SequenceManager::kSortedEdges : SequenceManager::kMegahitEdges);
         seq_manager.set_edge_files(globals.input_prefix + ".edges", globals.num_edge_files);
-        seq_manager.ReadEdges(1LL << 60, true);
+        seq_manager.ReadEdgesWithFixedLen(1LL << 60, true);
         seq_manager.clear();
     }
 
@@ -416,16 +417,7 @@ void read_seq_and_prepare(sequences2sdbg_global_t &globals) {
         seq_manager.clear();
     }
 
-    // --- compute bits_for_offset ---
-    {
-        globals.bits_for_offset = 0;
-        int len = 1;
-        while (len < (int)globals.package.max_read_len() + 1) {
-            globals.bits_for_offset++;
-            len *= 2;
-        }
-    }
-
+    globals.package.BuildLookup();
     globals.num_seq = globals.package.size();
 
     // --- set cx1 param ---
@@ -497,11 +489,11 @@ void init_global_and_set_cx1(sequences2sdbg_global_t &globals) {
 #endif
 
     if (cx1_t::kCX1Verbose >= 2) {
-        log("[B::%s] %d words per substring, bits_for_offset: %d, words per dummy node ($v): %d\n", __func__, globals.words_per_substring, globals.bits_for_offset, globals.words_per_dummy_node);
+        log("[B::%s] %d words per substring, num sequences: %ld, words per dummy node ($v): %d\n", __func__, globals.words_per_substring, globals.num_seq, globals.words_per_dummy_node);
     }
 
     // --- memory stuff ---
-    globals.mem_packed_seq = globals.package.size_in_byte();
+    globals.mem_packed_seq = globals.package.size_in_byte() + globals.multiplicity.size() * sizeof(multi_t);
     int64_t mem_remained = globals.host_mem
                            - globals.mem_packed_seq
                            - kNumBuckets * sizeof(int64_t) * (globals.num_cpu_threads * 3 + 1);
@@ -582,21 +574,21 @@ void* lv1_fill_offset(void* _data) {
     // this loop is VERY similar to that in PreprocessScanToFillBucketSizesThread
 
     // ===== this is a macro to save some copy&paste ================
-#define CHECK_AND_SAVE_OFFSET(offset, strand)                                                                   \
+#define CHECK_AND_SAVE_OFFSET(key_, offset, strand)                                                             \
     do {                                                                                                        \
-        if (((key - globals.cx1.lv1_start_bucket_) ^ (key - globals.cx1.lv1_end_bucket_)) & kSignBitMask) {     \
-            int64_t full_offset = EncodeEdgeOffset(seq_id, offset, strand, globals.bits_for_offset);            \
-            int64_t differential = full_offset - prev_full_offsets[key];                                        \
+        if (((key_ - globals.cx1.lv1_start_bucket_) ^ (key_ - globals.cx1.lv1_end_bucket_)) & kSignBitMask) {   \
+            int64_t full_offset = EncodeEdgeOffset(seq_id, offset, strand, globals.package);                    \
+            int64_t differential = full_offset - prev_full_offsets[key_];                                       \
             if (differential > cx1_t::kDifferentialLimit) {                                                     \
                 pthread_mutex_lock(&globals.lv1_items_scanning_lock);                                           \
-                globals.lv1_items[rp.rp_bucket_offsets[key]++] = -globals.cx1.lv1_items_special_.size() - 1;    \
+                globals.lv1_items[rp.rp_bucket_offsets[key_]++] = -globals.cx1.lv1_items_special_.size() - 1;   \
                 globals.cx1.lv1_items_special_.push_back(full_offset);                                          \
                 pthread_mutex_unlock(&globals.lv1_items_scanning_lock);                                         \
             } else {                                                                                            \
                 assert(differential >= 0);                                                                      \
-                globals.lv1_items[rp.rp_bucket_offsets[key]++] = (int) differential;                            \
+                globals.lv1_items[rp.rp_bucket_offsets[key_]++] = (int) differential;                           \
             }                                                                                                   \
-            prev_full_offsets[key] = full_offset;                                                               \
+            prev_full_offsets[key_] = full_offset;                                                              \
         }                                                                                                       \
     } while (0)
     // ^^^^^ why is the macro surrounded by a do-while? please ask Google
@@ -606,27 +598,21 @@ void* lv1_fill_offset(void* _data) {
         int seq_len = globals.package.length(seq_id);
         if (seq_len < globals.kmer_k + 1) { continue; }
 
-        uint32_t key = 0; // $$$$$$$$
+        int key = 0; // $$$$$$$$
+        int rev_key = 0;
         // build initial partial key
         for (int i = 0; i < kBucketPrefixLength - 1; ++i) {
             key = key * kBucketBase + globals.package.get_base(seq_id, i) + 1;
+            rev_key = rev_key * kBucketBase + (3 - globals.package.get_base(seq_id, seq_len - 1 - i)) + 1; // complement
         }
         // sequence = xxxxxxxxx
         // edges = $xxxx, xxxxx, ..., xxxx$
         for (int i = kBucketPrefixLength - 1; i - (kBucketPrefixLength - 1) + globals.kmer_k - 1 <= seq_len; ++i) {
             key = (key * kBucketBase + globals.package.get_base(seq_id, i) + 1) % kNumBuckets;
-            CHECK_AND_SAVE_OFFSET(i - kBucketPrefixLength + 1, 0);
-        }
-
-        // reverse complement
-        key = 0;
-        for (int i = 0; i < kBucketPrefixLength - 1; ++i) {
-            key = key * kBucketBase + (3 - globals.package.get_base(seq_id, seq_len - 1 - i)) + 1; // complement
-        }
-        for (int i = kBucketPrefixLength - 1; i - (kBucketPrefixLength - 1) + globals.kmer_k - 1 <= seq_len; ++i) {
-            key = key * kBucketBase + (3 - globals.package.get_base(seq_id, seq_len - 1 - i)) + 1;
-            key %= kNumBuckets;
-            CHECK_AND_SAVE_OFFSET(i - kBucketPrefixLength + 1, 1);
+            rev_key = rev_key * kBucketBase + (3 - globals.package.get_base(seq_id, seq_len - 1 - i)) + 1;
+            rev_key %= kNumBuckets;
+            CHECK_AND_SAVE_OFFSET(key, i - kBucketPrefixLength + 1, 0);
+            CHECK_AND_SAVE_OFFSET(rev_key, i - kBucketPrefixLength + 1, 1);
         }
     }
 
@@ -652,7 +638,6 @@ void* lv2_extract_substr(void* _data) {
     bucketpartition_data_t &bp = *((bucketpartition_data_t*) _data);
     sequences2sdbg_global_t &globals = *(bp.globals);
     int *lv1_p = globals.lv1_items + globals.cx1.rp_[0].rp_bucket_offsets[bp.bp_start_bucket];
-    int64_t offset_mask = (1 << globals.bits_for_offset) - 1; // 0000....00011..11
     uint32_t *substrings_p = globals.lv2_substrings +
                                 (globals.cx1.rp_[0].rp_bucket_offsets[bp.bp_start_bucket] - globals.cx1.rp_[0].rp_bucket_offsets[globals.cx1.lv2_start_bucket_]);
 
@@ -666,9 +651,10 @@ void* lv2_extract_substr(void* _data) {
                 } else {
                     full_offset = globals.cx1.lv1_items_special_[-1 - *(lv1_p++)];
                 }
-                int64_t seq_id = full_offset >> (1 + globals.bits_for_offset);
-                int offset = full_offset & offset_mask;
-                int strand = (full_offset >> globals.bits_for_offset) & 1;
+                int64_t seq_id = globals.package.get_id(full_offset >> 1);
+                int offset = (full_offset >> 1) - globals.package.get_start_index(seq_id);
+                int strand = full_offset & 1;
+
                 int seq_len = globals.package.length(seq_id);
                 int num_chars_to_copy = globals.kmer_k - (offset + globals.kmer_k > seq_len);
                 int counting = 0;
@@ -676,8 +662,8 @@ void* lv2_extract_substr(void* _data) {
                     counting = globals.multiplicity[seq_id];
                 }
 
-                int64_t which_word = globals.package.start_idx[seq_id] / 16;
-                int start_offset = globals.package.start_idx[seq_id] % 16;
+                int64_t which_word = globals.package.get_start_index(seq_id) / 16;
+                int start_offset = globals.package.get_start_index(seq_id) % 16;
                 int words_this_seq = DivCeiling(start_offset + seq_len, 16);
                 uint32_t *edge_p = &globals.package.packed_seq[which_word];
 
