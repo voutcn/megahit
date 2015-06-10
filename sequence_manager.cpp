@@ -60,6 +60,7 @@ int64_t SequenceManager::ReadShortReads(int64_t max_num, int64_t max_num_bases, 
 
 	max_num = (max_num + 1) / 2 * 2;
 	int64_t num_bases = 0;
+
 	if (f_type == kFastxReads) {
 		if (r_type == kPaired) {
 			for (int64_t i = 0; i < max_num; i += 2) {

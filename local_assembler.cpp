@@ -20,30 +20,32 @@
 #include "histgram.h"
 #include "bit_operation.h"
 #include "atomic_bit_vector.h"
+#include "sequence_manager.h"
+#include "read_lib_functions-inl.h"
 
 #ifndef KSEQ_INITED
 #define KSEQ_INITED
 KSEQ_INIT(gzFile, gzread)
 #endif
 
-void LocalAssembler::ReadContigs(const char *fastx_file_name) {
-	gzFile fp = strcmp(fastx_file_name, "-") == 0 ? gzdopen(fileno(stdin), "r") : gzopen(fastx_file_name, "r");
-	assert(fp != NULL);
+void LocalAssembler::ReadContigs(const std::string &contig_file_name) {
+	SequenceManager seq_manager;
+	seq_manager.set_file_type(SequenceManager::kMegahitContigs);
+	seq_manager.set_file(contig_file_name);
+	seq_manager.set_min_len(min_contig_len_);
+
 	if (contigs_ == NULL) {
 		contigs_ = new SequencePackage();
 	}
 
-    kseq_t *seq = kseq_init(fp); // kseq to read files
-    int ctg_len = 0;
-    while ((ctg_len = kseq_read(seq)) >= 0) {
-    	if (ctg_len < (int)min_contig_len_) {
-    		continue;
-    	}
-    	contigs_->AppendSeq(seq->seq.s, seq->seq.l);
-	}
+	seq_manager.set_package(contigs_);
+	bool contig_reverse = false;
+    bool append_to_package = false;
+    int discard_flag = contig_flag::kLoop | contig_flag::kIsolated;
+    bool extend_loop = false;
+    bool calc_depth = false;
 
-	kseq_destroy(seq);
-	gzclose(fp);
+	seq_manager.ReadMegahitContigs(1LL << 60, 1LL << 60, append_to_package, contig_reverse, discard_flag, extend_loop, calc_depth);
 }
 
 void LocalAssembler::BuildHashMapper(bool show_stat) {
@@ -52,58 +54,26 @@ void LocalAssembler::BuildHashMapper(bool show_stat) {
 
 #pragma omp parallel for reduction(+: estimate_num_kmer)
 	for (size_t i = 0; i < sz; ++i) {
-		estimate_num_kmer += (contigs_->length(i) - seed_kmer_ + sparcity_) / sparcity_;
+		estimate_num_kmer += (contigs_->length(i) - seed_kmer_ + sparsity_) / sparsity_;
 	}
 	mapper_.reserve(estimate_num_kmer);
 
 #pragma omp parallel for
     for (size_t i = 0; i < sz; ++i) {
-    	AddToHashMapper_(mapper_, i, sparcity_);
+    	AddToHashMapper_(mapper_, i, sparsity_);
     }
 
     if (show_stat) {
-    	fprintf(stderr, "Mapper size :%lu\n", mapper_.size());
+    	fprintf(stderr, "[LA] Mapper size :%lu\n", mapper_.size());
     }
 }
 
-void LocalAssembler::AddReadLib(const char *file_name, int file_type, bool is_paired) {
-	SequencePackage *read_lib = new SequencePackage();
-	read_libs_.push_back(read_lib);
-	if (is_paired) {
-		insert_sizes_.push_back(tlen_t(0, 0));
-	} else {
-		insert_sizes_.push_back(tlen_t(-1, -1));
+void LocalAssembler::AddReadLib(const std::string &file_prefix) {
+	if (reads_ == NULL) {
+		reads_ = new SequencePackage();
 	}
-
-	gzFile fp = strcmp(file_name, "-") == 0 ? gzdopen(fileno(stdin), "r") : gzopen(file_name, "r");
-	assert(fp != NULL);
-
-	if (file_type == kBinary) {
-		int seq_capacity = 16;
-		uint32_t *seq = (uint32_t*) MallocAndCheck(sizeof(uint32_t) * seq_capacity, __FILE__, __LINE__);
-		int len, num_words;
-
-		while (gzread(fp, &len, sizeof(uint32_t)) != 0) {
-			num_words = (len + SequencePackage::kCharsPerWord - 1) / SequencePackage::kCharsPerWord;
-			if (num_words > seq_capacity) {
-				seq_capacity = num_words;
-				seq = (uint32_t*) ReAllocAndCheck(seq, sizeof(uint32_t) * seq_capacity, __FILE__, __LINE__);
-			}
-			assert(gzread(fp, &seq[0], sizeof(uint32_t) * num_words) == num_words * (int)sizeof(uint32_t));
-
-			read_lib->AppendSeq(seq, len);
-		}
-
-		free(seq);
-	} else {
-		kseq_t *seq = kseq_init(fp); // kseq to read files
-	    while (kseq_read(seq) >= 0) {
-	    	read_lib->AppendSeq(seq->seq.s, seq->seq.l);
-		}
-		kseq_destroy(seq);
-	}
-
-	gzclose(fp);
+	ReadBinaryLibs(file_prefix, *reads_, lib_info_);
+	insert_sizes_.resize(lib_info_.size(), tlen_t(-1, -1));
 }
 
 inline uint64_t EncodeContigOffset(unsigned contig_id, unsigned contig_offset, bool strand) {
@@ -121,7 +91,7 @@ void LocalAssembler::AddToHashMapper_(mapper_t &mapper, unsigned contig_id, int 
 	kmer_t key;
 	kp.ann = ~0ULL;	// special marker
 	for (int i = 0, len = contigs_->length(contig_id); i + seed_kmer_ <= len; i += sparcity) {
-		uint64_t full_offset = contigs_->start_idx[contig_id] + i;
+		uint64_t full_offset = contigs_->get_start_index(contig_id) + i;
 		key.init(&contigs_->packed_seq[full_offset / SequencePackage::kCharsPerWord], full_offset % SequencePackage::kCharsPerWord, seed_kmer_);
 		kp.kmer = key.unique_format(seed_kmer_);
 		kmer_plus_t &kp_in_mapper = mapper.find_or_insert_with_lock(kp);
@@ -166,12 +136,12 @@ inline int Mismatch(uint32_t x, uint32_t y) {
 	return __builtin_popcount(x);
 }
 
-int LocalAssembler::Match_(SequencePackage *read_lib, size_t read_id, int query_from, int query_to,
-							size_t contig_id, int ref_from, int ref_to, bool strand) {
-	uint32_t *query_first_word = &read_lib->packed_seq[read_lib->start_idx[read_id] / 16];
-	int query_shift = read_lib->start_idx[read_id] % 16;
-	uint32_t *ref_first_word = &contigs_->packed_seq[contigs_->start_idx[contig_id] / 16]; 
-	int ref_shift = contigs_->start_idx[contig_id] % 16;
+int LocalAssembler::Match_(size_t read_id, int query_from, int query_to,
+						  size_t contig_id, int ref_from, int ref_to, bool strand) {
+	uint32_t *query_first_word = &reads_->packed_seq[reads_->get_start_index(read_id) / 16];
+	int query_shift = reads_->get_start_index(read_id) % 16;
+	uint32_t *ref_first_word = &contigs_->packed_seq[contigs_->get_start_index(contig_id) / 16]; 
+	int ref_shift = contigs_->get_start_index(contig_id) % 16;
 
 	int match_len = query_to - query_from + 1;
 	int threshold = similarity_ * match_len + 0.5;
@@ -191,16 +161,16 @@ int LocalAssembler::Match_(SequencePackage *read_lib, size_t read_id, int query_
 	return match_len;
 }
 
-bool LocalAssembler::MapToHashMapper_(const mapper_t &mapper, SequencePackage *read_lib, size_t read_id, MappingRecord &rec) {
-	int len = read_lib->length(read_id);
+bool LocalAssembler::MapToHashMapper_(const mapper_t &mapper, size_t read_id, MappingRecord &rec) {
+	int len = reads_->length(read_id);
 	if (len < seed_kmer_ || len < 50) return false; // too short reads not reliable
 
 	int tested = 0;
 	MappingRecord tested_rec[3];
 
-	uint32_t *packed_seq = &read_lib->packed_seq[0];
-	kmer_t kmer_f(packed_seq + read_lib->start_idx[read_id] / SequencePackage::kCharsPerWord,
-				  read_lib->start_idx[read_id] % SequencePackage::kCharsPerWord, seed_kmer_);
+	uint32_t *packed_seq = &reads_->packed_seq[0];
+	kmer_t kmer_f(packed_seq + reads_->get_start_index(read_id) / SequencePackage::kCharsPerWord,
+				  reads_->get_start_index(read_id) % SequencePackage::kCharsPerWord, seed_kmer_);
 	kmer_t kmer_r = kmer_f;
 	kmer_r.ReverseComplement(seed_kmer_);
 	int num_mapped = 0;
@@ -209,7 +179,7 @@ bool LocalAssembler::MapToHashMapper_(const mapper_t &mapper, SequencePackage *r
 
 	for (int i = seed_kmer_ - 1; i < len; ++i) {
 		if (i >= seed_kmer_) {
-			uint8_t ch = read_lib->get_base(read_id, i);
+			uint8_t ch = reads_->get_base(read_id, i);
 			kmer_f.ShiftAppend(ch, seed_kmer_);
 			kmer_r.ShiftPreappend(3 - ch, seed_kmer_);
 		}
@@ -263,7 +233,7 @@ bool LocalAssembler::MapToHashMapper_(const mapper_t &mapper, SequencePackage *r
 			++tested;
 		}
 
-		int match_bases = Match_(read_lib, read_id, query_from, query_to, contig_id, contig_from, contig_to, mapping_strand);
+		int match_bases = Match_(read_id, query_from, query_to, contig_id, contig_from, contig_to, mapping_strand);
 		if (match_bases > 0) {
 			if (num_mapped > 0) {
 				return false;
@@ -279,29 +249,31 @@ bool LocalAssembler::MapToHashMapper_(const mapper_t &mapper, SequencePackage *r
 }
 
 void LocalAssembler::EstimateInsertSize(bool show_stat) {
-    for (unsigned lib_id = 0; lib_id < read_libs_.size(); ++lib_id) {
-    	if (insert_sizes_[lib_id].first < -0.5) { continue; }
+    for (unsigned lib_id = 0; lib_id < lib_info_.size(); ++lib_id) {
+    	if (!lib_info_[lib_id].is_pe) { continue; }
     	MappingRecord rec1, rec2;
     	Histgram<int> insert_hist;
-    	size_t start_read_id = 0, end_read_id = 0;
+    	size_t start_read_id = lib_info_[lib_id].from;
+    	size_t end_read_id = start_read_id;
 
-    	while (insert_hist.size() < (1 << 18) && end_read_id < read_libs_[lib_id]->size()) {
+    	while (insert_hist.size() < (1 << 18) && end_read_id <= (size_t)lib_info_[lib_id].to) {
     		start_read_id = end_read_id;
-    		end_read_id = std::min(read_libs_[lib_id]->size(), start_read_id + size_t(2 << 20));
+    		end_read_id = std::min((size_t)lib_info_[lib_id].to, start_read_id + size_t(2 << 20));
+
 #pragma omp parallel for private(rec1, rec2)
 	    	for (size_t i = start_read_id; i < end_read_id; i += 2) {
-	    		if (MapToHashMapper_(mapper_, read_libs_[lib_id], i, rec1) &&
-	    			MapToHashMapper_(mapper_, read_libs_[lib_id], i^1, rec2)) {
+	    		if (MapToHashMapper_(mapper_, i, rec1) &&
+	    			MapToHashMapper_(mapper_, i+1, rec2)) {
 	    			if (rec1.contig_id == rec2.contig_id && rec1.strand != rec2.strand) {
 	    				int insert_size = -1;
 	    				if (rec1.strand == 0) {
-	    					insert_size = rec2.contig_to + read_libs_[lib_id]->length(i^1) - rec2.query_to - (rec1.contig_from - rec1.query_from);
+	    					insert_size = rec2.contig_to + reads_->length(i+1) - rec2.query_to - (rec1.contig_from - rec1.query_from);
 	    				} else {
-	    					insert_size = rec1.contig_to + read_libs_[lib_id]->length(i) - rec1.query_to - (rec2.contig_from - rec2.query_from);
+	    					insert_size = rec1.contig_to + reads_->length(i) - rec1.query_to - (rec2.contig_from - rec2.query_from);
 	    				}
 
-	    				if (insert_size >= (int)read_libs_[lib_id]->length(i) &&
-	    					insert_size >= (int)read_libs_[lib_id]->length(i^1)) {
+	    				if (insert_size >= (int)reads_->length(i) &&
+	    					insert_size >= (int)reads_->length(i+1)) {
 	    					insert_hist.insert(insert_size);
 	    				}
 	    			}
@@ -312,14 +284,14 @@ void LocalAssembler::EstimateInsertSize(bool show_stat) {
     	insert_sizes_[lib_id] = tlen_t(insert_hist.mean(), insert_hist.sd());
 
     	if (show_stat) {
-	    	fprintf(stderr, "Lib %d, insert size: %.2lf sd: %.2lf\n", lib_id, insert_hist.mean(), insert_hist.sd());
+	    	fprintf(stderr, "[LA] Lib %d, insert size: %.2lf sd: %.2lf\n", lib_id, insert_hist.mean(), insert_hist.sd());
 	    }
     }
 }
 
 int LocalAssembler::LocalRange_(int lib_id) {
-	int local_range = read_libs_[lib_id]->max_read_len() - 1;
-	if (insert_sizes_[lib_id].first >= read_libs_[lib_id]->max_read_len()) {
+	int local_range = lib_info_[lib_id].max_read_len - 1;
+	if (insert_sizes_[lib_id].first >= lib_info_[lib_id].max_read_len) {
 		local_range = std::min(2 * insert_sizes_[lib_id].first,
 			                   insert_sizes_[lib_id].first + 3 * insert_sizes_[lib_id].second);
 	}
@@ -328,20 +300,20 @@ int LocalAssembler::LocalRange_(int lib_id) {
 }
 
 inline uint64_t PackMappingResult(uint64_t contig_offset, uint64_t is_mate, uint64_t mismatch,
-								  uint64_t strand, uint64_t read_id, uint64_t lib_id, uint64_t num_libs) {
+								  uint64_t strand, uint64_t read_id) {
 	assert(contig_offset < (1ULL << 14));
 	return (contig_offset << 50) | (is_mate << 49) | (std::min(uint64_t(15), mismatch) << 45) |
-		   (strand << 44) | (read_id * num_libs + lib_id);
+		   (strand << 44) | read_id;
 }
 
-bool LocalAssembler::AddToMappingDeque_(int lib_id, size_t read_id, const MappingRecord &rec, int local_range) {
-	assert(read_id < read_libs_[lib_id]->size());
+bool LocalAssembler::AddToMappingDeque_(size_t read_id, const MappingRecord &rec, int local_range) {
+	assert(read_id < reads_->size());
 	assert(rec.contig_id < contigs_->size());
 
 	int contig_len = contigs_->length(rec.contig_id);
-	int read_len = read_libs_[lib_id]->length(read_id);
+	int read_len = reads_->length(read_id);
 	if (rec.contig_to < local_range && rec.query_from != 0) {
-		uint64_t res = PackMappingResult(rec.contig_to, 0, rec.mismatch, rec.strand, read_id, lib_id, read_libs_.size());
+		uint64_t res = PackMappingResult(rec.contig_to, 0, rec.mismatch, rec.strand, read_id);
 		while (!locks_.lock(rec.contig_id)) {
 			continue;
 		}
@@ -349,7 +321,7 @@ bool LocalAssembler::AddToMappingDeque_(int lib_id, size_t read_id, const Mappin
 		locks_.unset(rec.contig_id);
 		return true;
 	} else if (rec.contig_from + local_range >= contig_len && rec.query_to < read_len - 1) {
-		uint64_t res = PackMappingResult(contig_len - 1 - rec.contig_from, 0, rec.mismatch, rec.strand, read_id, lib_id, read_libs_.size());
+		uint64_t res = PackMappingResult(contig_len - 1 - rec.contig_from, 0, rec.mismatch, rec.strand, read_id);
 		while (!locks_.lock(rec.contig_id)) {
 			continue;
 		}
@@ -361,9 +333,9 @@ bool LocalAssembler::AddToMappingDeque_(int lib_id, size_t read_id, const Mappin
 	return false;
 }
 
-bool LocalAssembler::AddMateToMappingDeque_(int lib_id, size_t read_id, const MappingRecord &rec1, const MappingRecord &rec2, bool mapped2, int local_range) {
-	// assert(read_id < read_libs_[lib_id]->size());
-	// assert((read_id ^ 1) < read_libs_[lib_id]->size());
+bool LocalAssembler::AddMateToMappingDeque_(size_t read_id, size_t mate_id, const MappingRecord &rec1, const MappingRecord &rec2, bool mapped2, int local_range) {
+	// assert(read_id < reads_->size());
+	// assert((read_id ^ 1) < reads_->size());
 	// assert(rec1.contig_id < contigs_->size());
 	// assert(!mapped2 || rec2.contig_id < contigs_->size());
 
@@ -371,10 +343,9 @@ bool LocalAssembler::AddMateToMappingDeque_(int lib_id, size_t read_id, const Ma
 		return false;
 
 	int contig_len = contigs_->length(rec1.contig_id);
-	int read_len = read_libs_[lib_id]->length(read_id);
 
 	if (rec1.contig_to < local_range && rec1.strand == 1) {
-		uint64_t res = PackMappingResult(rec1.contig_to, 1, rec1.mismatch, rec1.strand, read_id^1, lib_id, read_libs_.size());
+		uint64_t res = PackMappingResult(rec1.contig_to, 1, rec1.mismatch, rec1.strand, mate_id);
 		while (!locks_.lock(rec1.contig_id)) {
 			continue;
 		}
@@ -382,7 +353,7 @@ bool LocalAssembler::AddMateToMappingDeque_(int lib_id, size_t read_id, const Ma
 		locks_.unset(rec1.contig_id);	
 		return true;
 	} else if (rec1.contig_from + local_range >= contig_len && rec1.strand == 0) {
-		uint64_t res = PackMappingResult(contig_len - 1 - rec1.contig_from, 1, rec1.mismatch, rec1.strand, read_id^1, lib_id, read_libs_.size());
+		uint64_t res = PackMappingResult(contig_len - 1 - rec1.contig_from, 1, rec1.mismatch, rec1.strand, mate_id);
 		while (!locks_.lock(rec1.contig_id)) {
 			continue;
 		}
@@ -402,38 +373,38 @@ void LocalAssembler::MapToContigs() {
 	max_read_len_ = 1;
 	local_range_ = 0;
 
-	for (unsigned lib_id = 0; lib_id < read_libs_.size(); ++lib_id) {
+	for (unsigned lib_id = 0; lib_id < lib_info_.size(); ++lib_id) {
 		int local_range = LocalRange_(lib_id);
-		bool is_paired = insert_sizes_[lib_id].first >= read_libs_[lib_id]->max_read_len();
+		bool is_paired = lib_info_[lib_id].is_pe;
 
 		local_range_ = std::max(local_range, local_range_);
-		max_read_len_ = std::max(max_read_len_, (int)read_libs_[lib_id]->max_read_len());
+		max_read_len_ = std::max(max_read_len_, lib_info_[lib_id].max_read_len);
 
-    	size_t sz = read_libs_[lib_id]->size();
     	MappingRecord rec1, rec2;
     	size_t num_added = 0, num_mapped = 0;
 
 #pragma omp parallel for private(rec1, rec2) reduction(+: num_added, num_mapped)
-    	for (size_t i = 0; i < sz; i += 2) {
-    		bool map1 = MapToHashMapper_(mapper_, read_libs_[lib_id], i, rec1);
-    		bool map2 = (i^1) < sz ? MapToHashMapper_(mapper_, read_libs_[lib_id], i^1, rec2) : false;
+    	for (int64_t i = lib_info_[lib_id].from; i <= lib_info_[lib_id].to; i += 2) {
+    		bool map1 = MapToHashMapper_(mapper_, i, rec1);
+    		bool map2 = (i+1) <= lib_info_[lib_id].to ? MapToHashMapper_(mapper_, i+1, rec2) : false;
 
     		if (map1) {
-    			num_added += AddToMappingDeque_(lib_id, i, rec1, local_range);
+    			num_added += AddToMappingDeque_(i, rec1, local_range);
     			++num_mapped;
     			if (is_paired) {
-    				num_added += AddMateToMappingDeque_(lib_id, i, rec1, rec2, map2, local_range);
+    				num_added += AddMateToMappingDeque_(i, i+1, rec1, rec2, map2, local_range);
     			}
     		}
     		if (map2) {
     			++num_mapped;
-    			num_added += AddToMappingDeque_(lib_id, i^1, rec2, local_range);
+    			num_added += AddToMappingDeque_(i+1, rec2, local_range);
     			if (is_paired) {
-    				num_added += AddMateToMappingDeque_(lib_id, i^1, rec2, rec1, map1, local_range);
+    				num_added += AddMateToMappingDeque_(i+1, i, rec2, rec1, map1, local_range);
     			}
     		}
     	}
-	    fprintf(stderr, "Lib %d: total %lu reads, aligned %lu, added %lu reads for local assembly\n", lib_id, read_libs_[lib_id]->size(), num_mapped, num_added);
+	    fprintf(stderr, "[LA] Lib %d: total %ld reads, aligned %lu, added %lu reads for local assembly\n",
+	    		lib_id, lib_info_[lib_id].to - lib_info_[lib_id].to + 1, num_mapped, num_added);
     }
 }
 
@@ -537,17 +508,15 @@ void* LocalAssembler::LocalAssembleThread_(void *data) {
 
 			for (size_t j = 0; j < mapped_reads.size(); ++j) {
 				int pos = mapped_reads[j] >> 49;
-				assert((pos >> 1) < la->contigs_->length(i));
 				pos_count = pos == last_mapping_pos ? pos_count + 1 : 1;
 				last_mapping_pos = pos;
 
 				if (pos_count <= 3) {
 					seq.clear();
-					int lib_id = (mapped_reads[j] & ((1ULL << 44) - 1)) % la->read_libs_.size();
-					uint64_t read_id = (mapped_reads[j] & ((1ULL << 44) - 1)) / la->read_libs_.size();
-					assert(read_id < la->read_libs_[lib_id]->size());
-					for (unsigned ri = 0, rsz = la->read_libs_[lib_id]->length(read_id); ri < rsz; ++ri) {
-						seq.Append(la->read_libs_[lib_id]->get_base(read_id, ri));
+					uint64_t read_id = mapped_reads[j] & ((1ULL << 44) - 1);
+
+					for (unsigned ri = 0, rsz = la->reads_->length(read_id); ri < rsz; ++ri) {
+						seq.Append(la->reads_->get_base(read_id, ri));
 					}
 					reads.push_back(seq);
 					// if (i == 0 && strand == 0) {
@@ -573,9 +542,9 @@ void* LocalAssembler::LocalAssembleThread_(void *data) {
 			LaunchIDBA(reads, contig_end, out_contigs, la->local_kmin_, la->local_kmax_, la->local_step_);
 
 			for (size_t j = 0; j < out_contigs.size(); ++j) {
-				if (out_contigs[j].size() > la->min_contig_len_) {
+				if (out_contigs[j].size() > (unsigned)la->min_contig_len_) {
 					while (!la->locks_.lock(1)) {}
-					WriteFasta(std::cout, out_contigs[j], FormatString("localcontig_%llu_strand_%d_id_%lu", i, strand, j));
+					WriteFasta(std::cout, out_contigs[j], FormatString(">localcontig_%llu_strand_%d_id_%lu flag=0 multi=1", i, strand, j));
 					la->locks_.unset(1);
 				}
 			}

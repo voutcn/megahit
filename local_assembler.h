@@ -41,7 +41,7 @@ struct LocalAssembler {
 	int min_contig_len_;	// only align reads to these contigs
 	int seed_kmer_;			// kmer size for seeding
 	int similarity_;		// similarity threshold for alignment
-	int sparcity_;			// sparcity of hash mapper
+	int sparsity_;			// sparsity of hash mapper
 	int min_mapped_len_;
 	std::string local_filename_;
 	int local_kmin_, local_kmax_, local_step_;
@@ -60,9 +60,9 @@ struct LocalAssembler {
 
 	std::vector<std::deque<uint64_t> > mapped_f_, mapped_r_;
 
-	LocalAssembler(int min_contig_len, int seed_kmer, int sparcity)
-		:min_contig_len_(min_contig_len), seed_kmer_(seed_kmer), sparcity_(sparcity),
-		 contigs_(NULL) {
+	LocalAssembler(int min_contig_len, int seed_kmer, int sparsity)
+		:min_contig_len_(min_contig_len), seed_kmer_(seed_kmer), sparsity_(sparsity),
+		 contigs_(NULL), reads_(NULL) {
 		similarity_ = 0.95;
 		min_mapped_len_ = 100;
 		num_threads_ = omp_get_max_threads();
@@ -74,9 +74,7 @@ struct LocalAssembler {
 
 	~LocalAssembler() {
 		delete contigs_;
-		for (auto it = read_libs_.begin(); it != read_libs_.end(); ++it) {
-			delete *it;
-		}
+		delete reads_;
 	}
 
 	void set_kmer(int kmin, int kmax, int step) {
@@ -94,19 +92,19 @@ struct LocalAssembler {
 		num_threads_ = num_threads;
 	}
 
-	void ReadContigs(const char *fastx_file_name);
+	void ReadContigs(const std::string &file_name);
 	void BuildHashMapper(bool show_stat = true);
-	void AddReadLib(const char *file_name, int file_type, bool is_paired);
+	void AddReadLib(const std::string &file_prefix);
 	void EstimateInsertSize(bool show_stat = true);
 	void MapToContigs();
 	void LocalAssemble();
 
-	void AddToHashMapper_(mapper_t &mapper, unsigned contig_id, int sparcity);
-	int Match_(SequencePackage *read_lib, size_t read_id, int query_from, int query_to, size_t contig_id, int ref_from, int ref_to, bool strand);
+	void AddToHashMapper_(mapper_t &mapper, unsigned contig_id, int sparsity);
+	int Match_(size_t read_id, int query_from, int query_to, size_t contig_id, int ref_from, int ref_to, bool strand);
 	int LocalRange_(int lib_id);
-	bool AddToMappingDeque_(int lib_id, size_t read_id, const MappingRecord &rec, int local_range);
-	bool AddMateToMappingDeque_(int lib_id, size_t read_id, const MappingRecord &rec1, const MappingRecord &rec2, bool mapped2, int local_range); 
-	bool MapToHashMapper_(const mapper_t &mapper, SequencePackage *read_lib, size_t read_id, MappingRecord &rec);
+	bool AddToMappingDeque_(size_t read_id, const MappingRecord &rec, int local_range);
+	bool AddMateToMappingDeque_(size_t read_id, size_t mate_id, const MappingRecord &rec1, const MappingRecord &rec2, bool mapped2, int local_range); 
+	bool MapToHashMapper_(const mapper_t &mapper, size_t read_id, MappingRecord &rec);
 	static void* LocalAssembleThread_(void *task);
 };
 

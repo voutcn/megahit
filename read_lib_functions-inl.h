@@ -64,13 +64,33 @@ inline void ReadMultipleLibs(const std::string &lib_file, SequencePackage &packa
 		seq_manager.ReadShortReads(1LL << 60, 1LL << 60, append_to_package, is_reverse);
 		seq_manager.clear();
 		int64_t end = package.size() - 1;
-		lib_info.push_back(lib_info_t(&package, start, end, type != "se"));
+
+		int max_read_len = 0;
+		for (int64_t i = start; i <= end; ++i) {
+			if (max_read_len < (int)package.length(i)) {
+				max_read_len = package.length(i);
+			}
+		}
+		lib_info.push_back(lib_info_t(&package, start, end, max_read_len, type != "se"));
 	}
 }
 
 inline void ReadBinaryLibs(const std::string &file_prefix, SequencePackage &package, std::vector<lib_info_t> &lib_info) {
 	package.clear();
 	lib_info.clear();
+
+	FILE *lib_info_file = OpenFileAndCheck(FormatString("%s.lib_info", file_prefix.c_str()), "r");
+	int64_t start, end;
+	int max_read_len;
+	while (fscanf(lib_info_file, "%lu", &start) == 1) {
+		char is_pe[32];
+		assert(fscanf(lib_info_file, "%lu", &end) == 1);
+		assert(fscanf(lib_info_file, "%d", &max_read_len) == 1);
+		assert(fscanf(lib_info_file, " %s", is_pe) == 1);
+		lib_info.push_back(lib_info_t(&package, start, end, max_read_len, strcmp(is_pe, "pe") == 0));
+	}
+	fclose(lib_info_file);
+
 	SequenceManager seq_manager(&package);
 	seq_manager.set_file_type(SequenceManager::kBinaryReads);
 	seq_manager.set_file(FormatString("%s.bin", file_prefix.c_str()));
@@ -78,16 +98,6 @@ inline void ReadBinaryLibs(const std::string &file_prefix, SequencePackage &pack
 	bool append_to_package = false;
 	bool is_reverse = false;
 	seq_manager.ReadShortReads(1LL << 60, 1LL << 60, append_to_package, is_reverse);
-
-	FILE *lib_info_file = OpenFileAndCheck(FormatString("%s.lib_info", file_prefix.c_str()), "r");
-	int64_t start, end;
-	while (fscanf(lib_info_file, "%lu", &start) == 1) {
-		assert(fscanf(lib_info_file, "%lu", &end) == 1);
-		char is_pe[32];
-		assert(fscanf(lib_info_file, " %s", is_pe) == 1);
-		lib_info.push_back(lib_info_t(&package, start, end, strcmp(is_pe, "pe") == 0));
-	}
-	fclose(lib_info_file);
 }
 
 inline void WriteMultipleLibs(SequencePackage &package, std::vector<lib_info_t> &lib_info, const std::string &file_prefix, bool is_reverse) {
@@ -98,7 +108,8 @@ inline void WriteMultipleLibs(SequencePackage &package, std::vector<lib_info_t> 
 
 	FILE *se_file = OpenFileAndCheck(FormatString("%s.lib_info", file_prefix.c_str()), "w");
 	for (unsigned i = 0; i < lib_info.size(); ++i) {
-		fprintf(se_file, "%ld %ld %s\n", lib_info[i].from, lib_info[i].to, lib_info[i].is_pe ? "pe" : "se");
+		fprintf(se_file, "%ld %ld %d %s\n", lib_info[i].from, lib_info[i].to, 
+			                                lib_info[i].max_read_len, lib_info[i].is_pe ? "pe" : "se");
 	}
 	fclose(se_file);
 }

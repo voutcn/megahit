@@ -8,7 +8,7 @@
 
 struct local_asm_opt_t {
 	std::string contig_file;
-	std::string read_file;
+	std::string lib_file_prefix;
 
     int kmin;
     int kmax;
@@ -39,7 +39,7 @@ void ParseOption(int argc, char *argv[]) {
     OptionsDescription desc;
 
     desc.AddOption("contig_file", "c", opt.contig_file, "contig file");
-    desc.AddOption("read_file", "r", opt.read_file, "read file");
+    desc.AddOption("lib_file_prefix", "l", opt.lib_file_prefix, "lib file prefix");
     desc.AddOption("kmin", "", opt.kmin, "");
     desc.AddOption("kmax", "", opt.kmax, "");
     desc.AddOption("step", "", opt.step, "");
@@ -55,7 +55,7 @@ void ParseOption(int argc, char *argv[]) {
         if (opt.contig_file == "") {
             throw std::logic_error("no contig file!");
         }
-        if (opt.read_file == "") {
+        if (opt.lib_file_prefix == "") {
         	throw std::logic_error("no read file!");
         }
         if (opt.num_threads == 0) {
@@ -80,9 +80,9 @@ int main(int argc, char **argv) {
     la.set_mapping_threshold(opt.similarity, opt.min_mapping_len);
     la.set_num_threads(opt.num_threads);
 
-	la.ReadContigs(opt.contig_file.c_str());
+	la.ReadContigs(opt.contig_file);
     la.BuildHashMapper();
-	la.AddReadLib(opt.read_file.c_str(), LocalAssembler::kFastx, true);
+	la.AddReadLib(opt.lib_file_prefix);
 	la.EstimateInsertSize();
     la.MapToContigs();
     la.LocalAssemble();
