@@ -219,9 +219,10 @@ int main(int argc, char **argv) {
         timer.reset();
         timer.start();
         histogram.clear();
-        out_final_contig_file = NULL; // uncomment to avoid output final contigs
 
-        unitig_graph.OutputContigs(out_contig_file, out_final_contig_file, histogram, false, opt.min_final_len);
+        // unitig_graph.OutputContigs(out_contig_file, out_final_contig_file, histogram, false, opt.min_final_len);
+        unitig_graph.OutputContigs(out_contig_file, NULL, histogram, false, opt.min_final_len);
+
         PrintStat(histogram);
 
         timer.stop();
@@ -256,7 +257,8 @@ int main(int argc, char **argv) {
         if (!opt.is_final_round) {
             unitig_graph.OutputContigs(out_addi_contig_file, NULL, histogram, true, 0);
         } else {
-            unitig_graph.OutputContigs(out_contig_file, out_final_contig_file, histogram, false, opt.min_final_len);
+            // unitig_graph.OutputContigs(out_contig_file, out_final_contig_file, histogram, false, opt.min_final_len);
+            unitig_graph.OutputContigs(out_contig_file, NULL, histogram, false, opt.min_final_len);
         }
 
         PrintStat(histogram);
