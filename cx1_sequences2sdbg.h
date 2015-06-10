@@ -39,8 +39,9 @@ struct sequences2sdbg_opt_t {
     int num_output_threads;
     int kmer_k;
     int kmer_from;
-    std::string contig_file_name;
-    std::string add_contig_file_name;
+    std::string contig;
+    std::string addi_contig;
+    std::string local_contig;
     std::string input_prefix;
     int num_edge_files;
     std::string output_prefix;
@@ -56,8 +57,9 @@ struct sequences2sdbg_opt_t {
         kmer_k = 0;
         kmer_from = 0;
         mem_flag = 1;
-        contig_file_name = "";
-        add_contig_file_name = "";
+        contig = "";
+        addi_contig = "";
+        local_contig = "";
         input_prefix = "";
         output_prefix = "out";
         need_mercy = false;
@@ -97,8 +99,9 @@ struct sequences2sdbg_global_t {
     int mem_flag;
     bool need_mercy;
 
-    std::string contig_file_name;
-    std::string add_contig_file_name;
+    std::string contig;
+    std::string addi_contig;
+    std::string local_contig;
     std::string input_prefix;
     std::string output_prefix;
     int num_edge_files;

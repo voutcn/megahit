@@ -41,7 +41,7 @@ void LocalAssembler::ReadContigs(const std::string &contig_file_name) {
 	seq_manager.set_package(contigs_);
 	bool contig_reverse = false;
     bool append_to_package = false;
-    int discard_flag = contig_flag::kLoop | contig_flag::kIsolated;
+    int discard_flag = contig_flag::kLoop;
     bool extend_loop = false;
     bool calc_depth = false;
 
@@ -404,7 +404,7 @@ void LocalAssembler::MapToContigs() {
     		}
     	}
 	    fprintf(stderr, "[LA] Lib %d: total %ld reads, aligned %lu, added %lu reads for local assembly\n",
-	    		lib_id, lib_info_[lib_id].to - lib_info_[lib_id].to + 1, num_mapped, num_added);
+	    		lib_id, lib_info_[lib_id].to - lib_info_[lib_id].from + 1, num_mapped, num_added);
     }
 }
 
@@ -428,14 +428,15 @@ void LocalAssembler::LocalAssemble() {
 
 inline void LaunchIDBA(std::deque<Sequence> &reads, Sequence &contig_end,
 					   std::deque<Sequence> &out_contigs,
+					   std::deque<ContigInfo> out_contig_infos,
 					   int mink, int maxk, int step) {
 	int local_range = contig_end.size();
 	HashGraph hash_graph;
 	hash_graph.reserve(4 * local_range);
 
 	ContigGraph contig_graph;
-	std::deque<ContigInfo> contig_infos;
 	out_contigs.clear();
+	out_contig_infos.clear();
 
 	int max_read_len = 0;
 	for (unsigned i = 0; i < reads.size(); ++i) {
@@ -465,17 +466,18 @@ inline void LaunchIDBA(std::deque<Sequence> &reads, Sequence &contig_end,
         for (int64_t i = 0; i < (int64_t)out_contigs.size(); ++i)
             hash_graph.InsertUncountKmers(out_contigs[i]);
 
-        hash_graph.Assemble(out_contigs, contig_infos);
+        hash_graph.Assemble(out_contigs, out_contig_infos);
         contig_graph.set_kmer_size(kmer_size);
-        contig_graph.Initialize(out_contigs, contig_infos);
+        contig_graph.Initialize(out_contigs, out_contig_infos);
         contig_graph.RemoveDeadEnd(kmer_size*2);
         
         contig_graph.RemoveBubble();
         contig_graph.IterateCoverage(kmer_size*2, 1, threshold);
-        contig_graph.Assemble(out_contigs, contig_infos);
+        contig_graph.Assemble(out_contigs, out_contig_infos);
 
-        if (out_contigs.size() == 1)
-            break;
+        if (out_contigs.size() == 1) {
+            return;
+        }
     }
 }
 
@@ -489,6 +491,7 @@ void* LocalAssembler::LocalAssembleThread_(void *data) {
 	Sequence seq, contig_end;
 	std::deque<Sequence> reads;
 	std::deque<Sequence> out_contigs;
+	std::deque<ContigInfo> out_contig_infos;
 
 	for (size_t i = task->tid, csz = la->contigs_->size(); i < csz; i += la->num_threads_) {
 		int cl = la->contigs_->length(i);
@@ -519,11 +522,6 @@ void* LocalAssembler::LocalAssembleThread_(void *data) {
 						seq.Append(la->reads_->get_base(read_id, ri));
 					}
 					reads.push_back(seq);
-					// if (i == 0 && strand == 0) {
-					// 	while (!la->locks_.lock(1)) {}
-					// 	WriteFasta(std::cerr, seq, FormatString("read_%d", read_id));
-					// 	la->locks_.unset(1);
-					// }
 				}
 			}
 
@@ -539,12 +537,16 @@ void* LocalAssembler::LocalAssembleThread_(void *data) {
 			}
 
 			out_contigs.clear();
-			LaunchIDBA(reads, contig_end, out_contigs, la->local_kmin_, la->local_kmax_, la->local_step_);
+			LaunchIDBA(reads, contig_end, out_contigs, out_contig_infos, la->local_kmin_, la->local_kmax_, la->local_step_);
 
 			for (size_t j = 0; j < out_contigs.size(); ++j) {
-				if (out_contigs[j].size() > (unsigned)la->min_contig_len_) {
+				if (out_contigs[j].size() > (unsigned)la->min_contig_len_ &&
+					out_contigs[j].size() > (unsigned)la->local_kmax_) {
 					while (!la->locks_.lock(1)) {}
-					WriteFasta(std::cout, out_contigs[j], FormatString(">localcontig_%llu_strand_%d_id_%lu flag=0 multi=1", i, strand, j));
+					WriteFasta(std::cout,
+							   out_contigs[j],
+							   FormatString(">localcontig_%llu_strand_%d_id_%lu flag=0 multi=1",
+							   	            i, strand, j));
 					la->locks_.unset(1);
 				}
 			}

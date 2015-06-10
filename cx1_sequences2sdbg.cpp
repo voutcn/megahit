@@ -385,9 +385,9 @@ void read_seq_and_prepare(sequences2sdbg_global_t &globals) {
         }
     }
 
-    if (globals.contig_file_name != "") {
+    if (globals.contig != "") {
         seq_manager.set_file_type(SequenceManager::kMegahitContigs);
-        seq_manager.set_file(globals.contig_file_name);
+        seq_manager.set_file(globals.contig);
         seq_manager.set_kmer_size(globals.kmer_from, globals.kmer_k);
         seq_manager.set_min_len(globals.kmer_k + 1);
 
@@ -401,9 +401,25 @@ void read_seq_and_prepare(sequences2sdbg_global_t &globals) {
         seq_manager.clear();
     }
 
-    if (globals.add_contig_file_name != "") {
+    if (globals.addi_contig != "") {
         seq_manager.set_file_type(SequenceManager::kMegahitContigs);
-        seq_manager.set_file(globals.add_contig_file_name);
+        seq_manager.set_file(globals.addi_contig);
+        seq_manager.set_kmer_size(globals.kmer_from, globals.kmer_k);
+        seq_manager.set_min_len(globals.kmer_k + 1);
+
+        bool contig_reverse = false;
+        bool append_to_package = true;
+        int discard_flag = 0;
+        bool extend_loop = true;
+        bool calc_depth = false;
+
+        seq_manager.ReadMegahitContigs(1LL << 60, 1LL << 60, append_to_package, contig_reverse, discard_flag, extend_loop, calc_depth);
+        seq_manager.clear();
+    }
+
+    if (globals.local_contig != "") {
+        seq_manager.set_file_type(SequenceManager::kMegahitContigs);
+        seq_manager.set_file(globals.local_contig);
         seq_manager.set_kmer_size(globals.kmer_from, globals.kmer_k);
         seq_manager.set_min_len(globals.kmer_k + 1);
 

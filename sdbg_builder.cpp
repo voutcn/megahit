@@ -230,8 +230,9 @@ int main_seq2sdbg(int argc, char **argv) {
     desc.AddOption("kmer_from", "", opt.kmer_from, "previous k");
     desc.AddOption("num_cpu_threads", "t", opt.num_cpu_threads, "number of CPU threads. At least 2.");
     desc.AddOption("num_output_threads", "", opt.num_output_threads, "number of threads for output. Must be less than num_cpu_threads");
-    desc.AddOption("contig_file_name", "", opt.contig_file_name, "contigs from previous k");
-    desc.AddOption("add_contig_file_name", "", opt.add_contig_file_name, "additional contigs from previous k");
+    desc.AddOption("contig", "", opt.contig, "contigs from previous k");
+    desc.AddOption("addi_contig", "", opt.addi_contig, "additional contigs from previous k");
+    desc.AddOption("local_contig", "", opt.local_contig, "local contigs from previous k");
     desc.AddOption("input_prefix", "", opt.input_prefix, "files input_prefix.edges.* output by count module, can be gzip'ed.");
     desc.AddOption("num_edge_files", "", opt.num_edge_files, "the number of files with name input_prefix.edges.*");
     desc.AddOption("output_prefix", "o", opt.output_prefix, "output prefix");
@@ -240,7 +241,7 @@ int main_seq2sdbg(int argc, char **argv) {
 
     try {
         desc.Parse(argc, argv);
-        if (opt.input_prefix == "" && opt.contig_file_name == "" && opt.add_contig_file_name == "") {
+        if (opt.input_prefix == "" && opt.contig == "" && opt.addi_contig == "") {
             throw std::logic_error("No input files!");
         }
 
@@ -286,7 +287,7 @@ int main_seq2sdbg(int argc, char **argv) {
         }
     } catch (std::exception &e) {
         std::cerr << e.what() << std::endl;
-        std::cerr << "Usage: sdbg_builder seq2sdbg -k kmer_size --contig_file_name contigs.fa [--add_contig_file_name add.fa] [--input_prefix input] -o out" << std::endl;
+        std::cerr << "Usage: sdbg_builder seq2sdbg -k kmer_size --contig contigs.fa [--addi_contig add.fa] [--input_prefix input] -o out" << std::endl;
         std::cerr << "Options:" << std::endl;
         std::cerr << desc << std::endl;
         exit(1);
@@ -300,8 +301,9 @@ int main_seq2sdbg(int argc, char **argv) {
     globals.input_prefix = opt.input_prefix;
     globals.num_edge_files = opt.num_edge_files;
     globals.output_prefix = opt.output_prefix;
-    globals.contig_file_name = opt.contig_file_name;
-    globals.add_contig_file_name = opt.add_contig_file_name;
+    globals.contig = opt.contig;
+    globals.addi_contig = opt.addi_contig;
+    globals.local_contig = opt.local_contig;
     globals.mem_flag = opt.mem_flag;
     globals.kmer_k = opt.kmer_k;
     globals.kmer_from = opt.kmer_from;

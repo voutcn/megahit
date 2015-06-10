@@ -241,7 +241,7 @@ int64_t SequenceManager::ReadMegahitContigs(int64_t max_num, int64_t max_num_bas
 	                exp_num_kmer *= depth_from;
 	                multi_->push_back(std::min(int(exp_num_kmer * k_from_ / (k_to_ + 1) / num_nextk1 + 0.5), kMaxMulti_t));
 				} else {
-					multi_->push_back(1);
+					multi_->push_back((multi_t)atof(kseq_readers_[0]->comment.s + 13));
 				}
 			}
 

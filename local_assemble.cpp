@@ -75,6 +75,8 @@ static AutoMaxRssRecorder recorder;
 int main(int argc, char **argv) {
 	ParseOption(argc, argv);
 
+    omp_set_num_threads(opt.num_threads);
+
     LocalAssembler la(opt.min_contig_len, opt.seed_kmer, opt.sparsity);
     la.set_kmer(opt.kmin, opt.kmax, opt.step);
     la.set_mapping_threshold(opt.similarity, opt.min_mapping_len);

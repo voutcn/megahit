@@ -804,6 +804,7 @@ void UnitigGraph::OutputContigs(FILE *contig_file, FILE *final_file, std::map<in
         if (vertices_[i].is_deleted && !vertices_[i].is_loop) { continue; }
 
         double multi = std::min((double)kMaxMulti_t, (double)vertices_[i].depth / vertices_[i].length + 0.5);
+        if (change_only) { multi = 1; }
         std::string label = VertexToDNAString(sdbg_, vertices_[i]);
 
         if (vertices_[i].is_palindrome) {
