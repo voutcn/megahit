@@ -39,7 +39,6 @@ using std::map;
 namespace assembly_algorithms {
 
 static AtomicBitVector marked;
-static map<int64_t, int> histogram;
 static inline void MarkNode(SuccinctDBG &dbg, int64_t node_idx);
 
 int64_t NextSimplePathNode(SuccinctDBG &dbg, int64_t cur_node) {
@@ -152,6 +151,12 @@ int64_t RemoveTips(SuccinctDBG &dbg, int max_tip_len, int min_final_len) {
     number_tips += Trim(dbg, max_tip_len, min_final_len);
     timer.stop();
     printf("Accumulated tips removed: %lld; time elapsed: %.4f\n", (long long)number_tips, timer.elapsed());
+
+    {
+        AtomicBitVector empty;
+        marked.swap(empty);
+    }
+
     return number_tips;
 }
 
@@ -184,140 +189,6 @@ int64_t PopBubbles(SuccinctDBG &dbg, int max_bubble_len, double low_depth_ratio)
 
     omp_destroy_lock(&bubble_lock);
     return num_bubbles;
-}
-
-void AssembleFromUnitigGraph(SuccinctDBG &dbg, FILE *contig_file, FILE *final_contig_file, int min_final_len) {
-    xtimer_t timer;
-    timer.reset();
-    timer.start();
-    UnitigGraph unitig_graph(&dbg);
-    unitig_graph.InitFromSdBG();
-    unitig_graph.MergeBubbles(true);
-    unitig_graph.MergeComplexBubbles(0.98, false);
-    timer.stop();
-    printf("unitig graph size: %u, time for building: %lf\n", unitig_graph.size(), timer.elapsed());
-    
-    timer.reset();
-    timer.start();
-
-    histogram.clear();
-    unitig_graph.OutputContigs(contig_file, final_contig_file, histogram, false, min_final_len);
-    PrintStat();
-
-    timer.stop();
-    printf("Time to output: %lf\n", timer.elapsed());
-}
-
-void RemoveLowLocalAndOutputChanged(SuccinctDBG &dbg, FILE *contig_file, FILE *final_contig_file, FILE *addi_contig_file,
-                                    double min_depth, int min_len, double local_ratio, int min_final_len, bool excessive_prune) {
-    
-    const double kMaxDepth = 65535;
-    const int kLocalWidth = 1000;
-    int64_t num_removed = 0;
-
-    xtimer_t timer;
-    timer.reset();
-    timer.start();
-    UnitigGraph unitig_graph(&dbg);
-    unitig_graph.InitFromSdBG();
-    unitig_graph.MergeBubbles(true);
-    unitig_graph.MergeComplexBubbles(0.98, true);
-    timer.stop();
-    printf("Unitig graph size: %u, time for building: %lf\n", unitig_graph.size(), timer.elapsed());
-
-    if (excessive_prune) {
-        timer.reset();
-        timer.start();
-        unitig_graph.RemoveLocalLowDepth(min_depth, min_len, kLocalWidth, 0.1, num_removed, true);
-        timer.stop();
-        printf("Unitigs removed in excessive pruning: %lld, time: %lf\n", (long long)num_removed, timer.elapsed());   
-    }
-
-    timer.reset();
-    timer.start();
-
-    histogram.clear();
-    unitig_graph.OutputContigs(contig_file, final_contig_file, histogram, false, min_final_len);
-    PrintStat();
-
-    timer.stop();
-    printf("Time to output: %lf\n", timer.elapsed());
-    
-    timer.reset();
-    timer.start();
-    while (min_depth < kMaxDepth) {
-        // xtimer_t local_timer;
-        // local_timer.reset();
-        // local_timer.start();
-        if (!unitig_graph.RemoveLocalLowDepth(min_depth, min_len, kLocalWidth, local_ratio, num_removed)) {
-            break;
-        }
-
-        min_depth *= 1.1;
-        // local_timer.stop();
-        // printf("depth: %lf, num: %ld, time: %lf\n", min_depth, num_removed, local_timer.elapsed());
-    }
-    unitig_graph.MergeComplexBubbles(0.98, false);
-    timer.stop();
-    printf("Number of unitigs removed: %lld, time: %lf\n", (long long)num_removed, timer.elapsed());
-
-    histogram.clear();
-    unitig_graph.OutputContigs(addi_contig_file, NULL, histogram, true, 0);
-    PrintStat();
-}
-
-void RemoveLowLocalAndOutputFinal(SuccinctDBG &dbg, FILE *contig_file, FILE *final_contig_file, 
-                                  double min_depth, int min_len, double local_ratio, int min_final_len) {
-    UnitigGraph unitig_graph(&dbg);
-    unitig_graph.InitFromSdBG();
-    unitig_graph.MergeBubbles(true);
-    unitig_graph.MergeComplexBubbles(0.98, true);
-    printf("Unitig graph size: %u\n", unitig_graph.size());
-
-    const double kMaxDepth = 65535;
-    const int kLocalWidth = 1000;
-    int64_t num_removed = 0;
-
-    while (min_depth < kMaxDepth && 
-           unitig_graph.RemoveLocalLowDepth(min_depth, min_len, kLocalWidth, local_ratio, num_removed)) {
-        min_depth *= 1.1;
-    }
-    unitig_graph.MergeComplexBubbles(0.98, false);
-    printf("Number of unitigs removed: %lld\n", (long long)num_removed);
-
-    histogram.clear();
-    unitig_graph.OutputContigs(contig_file, final_contig_file, histogram, false, min_final_len);
-    PrintStat();
-}
-
-void PrintStat(long long genome_size) {
-    // total length
-    int64_t total_length = 0;
-    int64_t total_contigs = 0;
-    int64_t average_length = 0;
-    for (auto it = histogram.begin(); it != histogram.end(); ++it) {
-        total_length += it->first * it->second;
-        total_contigs += it->second;
-    }
-    if (genome_size == 0) { genome_size = total_length; }
-
-    if (total_contigs > 0) {
-        average_length = total_length / total_contigs;
-    }
-
-    // N50
-    int64_t n50 = -1;
-    int64_t acc_length = 0;
-    for (auto it = histogram.rbegin(); it != histogram.rend(); ++it) {
-        acc_length += it->first * it->second;
-        if (n50 == -1 && acc_length * 2 >= genome_size) {
-            n50 = it->first;
-            break;
-        }
-    }
-
-    printf("Total length: %lld, N50: %lld, Mean: %lld, number of contigs: %lld\n", (long long)total_length, (long long)n50, (long long)average_length, (long long)total_contigs);
-    printf("Maximum length: %llu\n", (unsigned long long)(histogram.size() > 0 ? histogram.rbegin()->first : 0));
 }
 
 static inline void MarkNode(SuccinctDBG &dbg, int64_t node_idx) {

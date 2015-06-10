@@ -21,6 +21,7 @@
 #include <string>
 #include <algorithm>
 #include <iostream>
+#include <map>
 #include <stdexcept>
 
 #include "succinct_dbg.h"
@@ -28,6 +29,7 @@
 #include "utils.h"
 #include "options_description.h"
 #include "mem_file_checker-inl.h"
+#include "unitig_graph.h"
 
 using std::string;
 
@@ -38,25 +40,25 @@ struct AssemblerOptions {
     int num_cpu_threads;
 
     int max_tip_len;
-    int min_final_contig_len;
+    int min_final_len;
     double min_depth;
     bool is_final_round;
     bool no_bubble;
-    double bubble_remove_ratio;
-    bool remove_low_local;
+    int merge_level;
+    int prune_level;
     bool excessive_prune;
-    double low_local_ratio;
+    double local_low_ratio;
     bool need_fastg;
 
     AssemblerOptions() {
         output_prefix = "out";
         num_cpu_threads = 0;
         max_tip_len = -1;
-        min_final_contig_len = 200;
+        min_final_len = 200;
         no_bubble = false;
-        bubble_remove_ratio = 1;
-        remove_low_local = false;
-        low_local_ratio = 0.2;
+        merge_level = 20;
+        prune_level = 2;
+        local_low_ratio = 0.2;
         min_depth = 1.5;
         is_final_round = false;
     }
@@ -73,27 +75,26 @@ struct AssemblerOptions {
         return output_prefix + ".addi.fa";
     }
 
-} options;
+} opt;
 
 void ParseOption(int argc, char *argv[]) {
     OptionsDescription desc;
 
-    desc.AddOption("sdbg_name", "s", options.sdbg_name, "succinct de Bruijn graph name");
-    desc.AddOption("output_prefix", "o", options.output_prefix, "output prefix");
-    desc.AddOption("num_cpu_threads", "t", options.num_cpu_threads, "number of cpu threads");
-    desc.AddOption("max_tip_len", "", options.max_tip_len, "max length for tips to be removed. -1 for 2k");
-    desc.AddOption("min_final_contig_len", "", options.min_final_contig_len, "min length to output a final contig");
-    desc.AddOption("no_bubble", "", options.no_bubble, "do not remove bubbles");
-    desc.AddOption("bubble_remove_ratio", "", options.bubble_remove_ratio, "bubbles with multiplicities lower than this ratio times to highest of its group will be removed");
-    desc.AddOption("remove_low_local", "", options.remove_low_local, "remove low local depth contigs progressively");
-    desc.AddOption("excessive_prune", "", options.excessive_prune, "permanently remove low local depth contigs whose absolute depth is low");
-    desc.AddOption("low_local_ratio", "", options.low_local_ratio, "ratio to define low depth contigs");
-    desc.AddOption("min_depth", "", options.min_depth, "permanently remove low local coverage unitigs under this threshold");
-    desc.AddOption("is_final_round", "", options.is_final_round, "this is the last iteration");
+    desc.AddOption("sdbg_name", "s", opt.sdbg_name, "succinct de Bruijn graph name");
+    desc.AddOption("output_prefix", "o", opt.output_prefix, "output prefix");
+    desc.AddOption("num_cpu_threads", "t", opt.num_cpu_threads, "number of cpu threads");
+    desc.AddOption("max_tip_len", "", opt.max_tip_len, "max length for tips to be removed. -1 for 2k");
+    desc.AddOption("min_final_len", "", opt.min_final_len, "min length of a final contig");
+    desc.AddOption("no_bubble", "", opt.no_bubble, "do not remove bubbles");
+    desc.AddOption("merge_level", "", opt.merge_level, "strength of merging");
+    desc.AddOption("prune_level", "", opt.prune_level, "strength of low local depth contig pruning (0-2)");
+    desc.AddOption("local_low_ratio", "", opt.local_low_ratio, "ratio to define low depth contigs");
+    desc.AddOption("min_depth", "", opt.min_depth, "if prune_level is 2, permanently remove low local coverage unitigs under this threshold");
+    desc.AddOption("is_final_round", "", opt.is_final_round, "this is the last iteration");
 
     try {
         desc.Parse(argc, argv);
-        if (options.sdbg_name == "") {
+        if (opt.sdbg_name == "") {
             throw std::logic_error("no succinct de Bruijn graph name!");
         }
     } catch (std::exception &e) {
@@ -103,6 +104,35 @@ void ParseOption(int argc, char *argv[]) {
         std::cerr << desc << std::endl;
         exit(1);
     }
+}
+
+void PrintStat(std::map<int64_t, int> &hist) {
+    // total length
+    int64_t total_length = 0;
+    int64_t total_contigs = 0;
+    int64_t average_length = 0;
+    for (auto it = hist.begin(); it != hist.end(); ++it) {
+        total_length += it->first * it->second;
+        total_contigs += it->second;
+    }
+
+    if (total_contigs > 0) {
+        average_length = total_length / total_contigs;
+    }
+
+    // N50
+    int64_t n50 = -1;
+    int64_t acc_length = 0;
+    for (auto it = hist.rbegin(); it != hist.rend(); ++it) {
+        acc_length += it->first * it->second;
+        if (n50 == -1 && acc_length * 2 >= total_length) {
+            n50 = it->first;
+            break;
+        }
+    }
+
+    printf("Total length: %lld, N50: %lld, Mean: %lld, number of contigs: %lld\n", (long long)total_length, (long long)n50, (long long)average_length, (long long)total_contigs);
+    printf("Maximum length: %llu\n", (unsigned long long)(hist.size() > 0 ? hist.rbegin()->first : 0));
 }
 
 static AutoMaxRssRecorder recorder;
@@ -120,8 +150,8 @@ int main(int argc, char **argv) {
     { // graph loading
         timer.reset();
         timer.start();
-        printf("Loading succinct de Bruijn graph: %s\n", options.sdbg_name.c_str());
-        dbg.LoadFromFile(options.sdbg_name.c_str());
+        printf("Loading succinct de Bruijn graph: %s\n", opt.sdbg_name.c_str());
+        dbg.LoadFromFile(opt.sdbg_name.c_str());
         timer.stop();
         printf("Done. Time elapsed: %lf\n", timer.elapsed());
         printf("Number of Edges: %lld\n", (long long)dbg.size);;
@@ -129,85 +159,109 @@ int main(int argc, char **argv) {
     }
 
     { // set parameters
-        if (options.num_cpu_threads == 0) {
-            options.num_cpu_threads = omp_get_max_threads();
+        if (opt.num_cpu_threads == 0) {
+            opt.num_cpu_threads = omp_get_max_threads();
         }
-        omp_set_num_threads(options.num_cpu_threads);
-        printf("Number of CPU threads: %d\n", options.num_cpu_threads);
+        omp_set_num_threads(opt.num_cpu_threads);
+        printf("Number of CPU threads: %d\n", opt.num_cpu_threads);
 
-        if (options.max_tip_len == -1) {
-            options.max_tip_len = dbg.kmer_k * 2;
+        if (opt.max_tip_len == -1) {
+            opt.max_tip_len = dbg.kmer_k * 2;
         }
     }
 
-    if (options.max_tip_len > 0) { // tips removal
+    if (opt.max_tip_len > 0) { // tips removal
         timer.reset();
         timer.start();
-        assembly_algorithms::RemoveTips(dbg, options.max_tip_len, options.min_final_contig_len);
+        assembly_algorithms::RemoveTips(dbg, opt.max_tip_len, opt.min_final_len);
         timer.stop();
         printf("Tips removal done! Time elapsed(sec): %lf\n", timer.elapsed());
     }
 
-    if (!options.no_bubble) { // merge bubbles
-        // timer.reset();
-        // timer.start();
-        // int64_t num_bubbles = assembly_algorithms::PopBubbles(dbg, dbg.kmer_k + 2, options.bubble_remove_ratio);
-        // timer.stop();
-        // printf("Number of bubbles: %lld. Time elapsed: %lf\n", (long long)num_bubbles, timer.elapsed());
-    }
+    // construct unitig graph
+    timer.reset();
+    timer.start();
+    UnitigGraph unitig_graph(&dbg);
+    unitig_graph.InitFromSdBG();
+    timer.stop();
+    printf("unitig graph size: %u, time for building: %lf\n", unitig_graph.size(), timer.elapsed());
 
-    FILE *out_contig_file = OpenFileAndCheck(options.contig_file().c_str(), "w");
-    FILE *out_final_contig_file = OpenFileAndCheck(options.final_contig_file().c_str(), "w");
-    assert(out_contig_file != NULL);
-    assert(out_final_contig_file != NULL);
-
-    if (options.remove_low_local) { // remove local low depth
+    // remove bubbles
+    if (!opt.no_bubble) {
         timer.reset();
         timer.start();
-
-        printf("Removing low local coverage...\n");
-        if (!options.is_final_round) {
-            FILE *out_addi_contig_file = OpenFileAndCheck(options.addi_contig_file().c_str(), "w");
-            assert(out_addi_contig_file != NULL);
-
-            FILE *out_final_contig_file = NULL; // uncomment to avoid output final contigs
-            assembly_algorithms::RemoveLowLocalAndOutputChanged(
-                dbg, out_contig_file, 
-                out_final_contig_file,
-                out_addi_contig_file,
-                options.min_depth,
-                options.max_tip_len, 
-                options.low_local_ratio,
-                options.min_final_contig_len,
-                options.excessive_prune);
-            
-            fclose(out_addi_contig_file);
-        } else {
-            assembly_algorithms::RemoveLowLocalAndOutputFinal(
-                dbg, 
-                out_contig_file, 
-                out_final_contig_file, 
-                options.min_depth,  
-                options.max_tip_len, 
-                options.low_local_ratio,
-                options.min_final_contig_len);
+        unitig_graph.MergeBubbles(true);
+        if (opt.merge_level > 0) {
+            unitig_graph.MergeComplexBubbles(0.98, opt.merge_level, true);
         }
         timer.stop();
-        printf("Done! Time elapsed(sec.): %lf\n", timer.elapsed());
-    } else {
-        printf("Assembling contigs...\n");
+        printf("Time elapsed(sec): %lf\n", timer.elapsed());
+    }
+
+    // excessive pruning
+    static const int kLocalWidth = 1000;
+    int64_t num_removed = 0;
+
+    if (opt.prune_level >= 2) {
         timer.reset();
         timer.start();
+        unitig_graph.RemoveLocalLowDepth(opt.min_depth, opt.max_tip_len, kLocalWidth, std::min(opt.local_low_ratio, 0.1), num_removed, true);
+        timer.stop();
+        printf("Unitigs removed in excessive pruning: %lld, time: %lf\n", (long long)num_removed, timer.elapsed());   
+    }
 
-        FILE *out_final_contig_file = NULL; // uncomment to avoid output final contigs
-        assembly_algorithms::AssembleFromUnitigGraph(
-            dbg, 
-            out_contig_file, 
-            out_final_contig_file,
-            options.min_final_contig_len);
+    // output contigs
+    std::map<int64_t, int> histogram;
+    FILE *out_contig_file = OpenFileAndCheck(opt.contig_file().c_str(), "w");
+    FILE *out_final_contig_file = OpenFileAndCheck(opt.final_contig_file().c_str(), "w");
+
+    if (!(opt.is_final_round && opt.prune_level >= 1)) { // otherwise output after local low depth pruning
+        timer.reset();
+        timer.start();
+        histogram.clear();
+        out_final_contig_file = NULL; // uncomment to avoid output final contigs
+
+        unitig_graph.OutputContigs(out_contig_file, out_final_contig_file, histogram, false, opt.min_final_len);
+        PrintStat(histogram);
 
         timer.stop();
-        printf("Done! Time elapsed(sec.): %lf\n", timer.elapsed());
+        printf("Time to output: %lf\n", timer.elapsed());
+    }
+
+    // remove local low depth & output additional contigs
+    if (opt.prune_level >= 1) {
+        FILE *out_addi_contig_file = OpenFileAndCheck(opt.addi_contig_file().c_str(), "w");
+
+        timer.reset();
+        timer.start();
+        num_removed = 0;
+        double min_depth = opt.min_depth;
+
+        while (min_depth < kMaxMulti_t) {
+            if (!unitig_graph.RemoveLocalLowDepth(min_depth, opt.max_tip_len, kLocalWidth, opt.local_low_ratio, num_removed, opt.is_final_round)) {
+                break;
+            }
+
+            min_depth *= 1.1;
+        }
+        
+        if (opt.merge_level > 0)
+            unitig_graph.MergeComplexBubbles(0.98, opt.merge_level, opt.is_final_round);
+
+        timer.stop();
+        printf("Number of local low depth unitigs removed: %lld, time: %lf\n", (long long)num_removed, timer.elapsed());
+
+        histogram.clear();
+
+        if (!opt.is_final_round) {
+            unitig_graph.OutputContigs(out_addi_contig_file, NULL, histogram, true, 0);
+        } else {
+            unitig_graph.OutputContigs(out_contig_file, out_final_contig_file, histogram, false, opt.min_final_len);
+        }
+
+        PrintStat(histogram);
+
+        fclose(out_addi_contig_file);
     }
 
     fclose(out_contig_file);

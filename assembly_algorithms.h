@@ -39,17 +39,6 @@ int64_t RemoveTips(SuccinctDBG &dbg, int max_tip_len, int min_final_contig_len);
 // bubble merging
 int64_t PopBubbles(SuccinctDBG &dbg, int max_bubble_len, double low_depth_ratio = 1);
 
-// assembly
-
-void AssembleFromUnitigGraph(SuccinctDBG &dbg, FILE *contig_file, FILE *final_contig_file, int min_final_contig_len);
-void RemoveLowLocalAndOutputChanged(SuccinctDBG &dbg, FILE *contig_file, FILE *final_contig_file, FILE *addi_contig_file,
-                                    double min_depth, int min_len, double local_ratio, int min_final_contig_len, bool excessive_prune);
-void RemoveLowLocalAndOutputFinal(SuccinctDBG &dbg, FILE *contig_file, FILE *final_contig_file, 
-                                  double min_depth, int min_len, double local_ratio, int min_final_contig_len);
-
-// print stat
-void PrintStat(long long genome_size = 0);
-
 }
 
 #endif // define ASSEMBLY_ALGORITHMS_H_

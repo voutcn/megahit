@@ -406,9 +406,9 @@ uint32_t UnitigGraph::MergeBubbles(bool permanent_rm) {
     return num_removed;
 }
 
-uint32_t UnitigGraph::MergeComplexBubbles(double similarity, bool permanent_rm) {
-    int max_indel_allowed = 20;
-    int max_bubble_len = sdbg_->kmer_k * 20 / similarity + 0.5;
+uint32_t UnitigGraph::MergeComplexBubbles(double similarity, int merge_level, bool permanent_rm) {
+    int max_indel_allowed = merge_level;
+    int max_bubble_len = sdbg_->kmer_k * merge_level / similarity + 0.5;
     uint32_t num_removed = 0;
 
     std::vector<std::tuple<double, int64_t, vertexID_t, std::vector<int64_t>, bool> > branches; // depth, representative id, id, in_out_ids, strand
