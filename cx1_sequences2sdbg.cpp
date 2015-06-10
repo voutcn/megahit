@@ -391,7 +391,7 @@ void read_seq_and_prepare(sequences2sdbg_global_t &globals) {
         seq_manager.set_kmer_size(globals.kmer_from, globals.kmer_k);
         seq_manager.set_min_len(globals.kmer_k + 1);
 
-        bool contig_reverse = false;
+        bool contig_reverse = true;
         bool append_to_package = true;
         int discard_flag = 0;
         bool extend_loop = true;
@@ -407,7 +407,7 @@ void read_seq_and_prepare(sequences2sdbg_global_t &globals) {
         seq_manager.set_kmer_size(globals.kmer_from, globals.kmer_k);
         seq_manager.set_min_len(globals.kmer_k + 1);
 
-        bool contig_reverse = false;
+        bool contig_reverse = true;
         bool append_to_package = true;
         int discard_flag = 0;
         bool extend_loop = true;
@@ -423,7 +423,7 @@ void read_seq_and_prepare(sequences2sdbg_global_t &globals) {
         seq_manager.set_kmer_size(globals.kmer_from, globals.kmer_k);
         seq_manager.set_min_len(globals.kmer_k + 1);
 
-        bool contig_reverse = false;
+        bool contig_reverse = true;
         bool append_to_package = true;
         int discard_flag = 0;
         bool extend_loop = true;
