@@ -214,9 +214,9 @@ int64_t SequenceManager::ReadMegahitContigs(int64_t max_num, int64_t max_num_bas
 				}
 
 				if (reverse) {
-					package_->AppendReverseSeq(ss.c_str(), kseq_readers_[0]->seq.l);
+					package_->AppendReverseSeq(ss.c_str(), ss.length());
 				} else {
-					package_->AppendSeq(ss.c_str(), kseq_readers_[0]->seq.l);
+					package_->AppendSeq(ss.c_str(), ss.length());
 				}
 			} else {
 				if (reverse) {

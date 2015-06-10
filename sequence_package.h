@@ -143,8 +143,6 @@ struct SequencePackage {
 			}
 			return l;
 		}
-
-		assert(false);
 	}
 
 	void AppendFixedLenSeq(const char *s, int len) {
