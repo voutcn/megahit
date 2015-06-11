@@ -95,7 +95,7 @@ class Usage(Exception):
 class Options():
     def __init__(self):
         self.host_mem = 0.9
-        self.gpu_mem = 0
+        self.gpu_mem = False
         self.lib = ""
         self.out_dir = "./megahit_out/"
         self.min_contig_len = 200
@@ -105,22 +105,22 @@ class Options():
         self.min_count = 2
         self.bin_dir = sys.path[0] + "/"
         self.max_tip_len = -1
-        self.no_mercy = 0
-        self.no_local = 0
-        self.no_bubble = 0
+        self.no_mercy = False
+        self.no_local = False
+        self.no_bubble = False
         self.merge_level = 20
         self.prune_level = 2
-        self.num_cpu_threads = 0
+        self.num_cpu_threads = False
         self.low_local_ratio = 0.2
         self.temp_dir = self.out_dir + "tmp/"
-        self.keep_tmp_files = 0
+        self.keep_tmp_files = False
         self.builder = "sdbg_builder_cpu"
-        self.use_gpu = 0
+        self.use_gpu = False
         self.mem_flag = 1
-        self.continue_mode = 0;
+        self.continue_mode = False;
         self.last_cp = -1;
         self.out_prefix = ""
-        self.kmin_1pass = 0
+        self.kmin_1pass = False
         self.pe1 = []
         self.pe2 = []
         self.pe12 = []
@@ -203,7 +203,7 @@ def parse_opt(argv):
         elif option in ("-t", "--num-cpu-threads"):
             opt.num_cpu_threads = int(value)
         elif option == "--kmin-1pass":
-            opt.kmin_1pass = 1
+            opt.kmin_1pass = True
         elif option == "--lib":
             opt.lib = value
         elif option == "--k-min":
@@ -221,17 +221,17 @@ def parse_opt(argv):
         elif option == "--prune-level":
             opt.prune_level = int(value)
         elif option == "--no-bubble":
-            opt.no_bubble = 1
+            opt.no_bubble = True
         elif option == "--no-mercy":
-            opt.no_mercy = 1
+            opt.no_mercy = True
         elif option == "--no-local":
-            opt.no_local = 1
+            opt.no_local = True
         elif option == "--low-local-ratio":
             opt.low_local_ratio = float(value)
         elif option == "--keep-tmp-files":
-            opt.keep_tmp_files = 1
+            opt.keep_tmp_files = True
         elif option == "--use-gpu":
-            opt.use_gpu = 1
+            opt.use_gpu = True
             opt.builder = "sdbg_builder_gpu"
         elif option == "--mem-flag":
             opt.mem_flag = int(value)
@@ -361,7 +361,7 @@ def prepare_continue():
         t_dir = opt.out_dir
         opt = Options()
         opt.out_dir = t_dir
-        opt.continue_mode = 1 # avoid dead loop
+        opt.continue_mode = True # avoid dead loop
         parse_opt(argv)
     f.close()
 
@@ -413,7 +413,6 @@ def delete_tmp_after_iter(kmer_k):
 def write_cp(cp):
     cpf = open(opt.temp_dir + "cp.txt", "a")
     print(str(cp) + "\t" + "done", file=cpf);
-    cpf.flush()
     cpf.close()
 
 def write_lib():
@@ -442,7 +441,7 @@ def build_first_graph():
                      "--read_lib_file", str(opt.lib)]
 
         cmd = []
-        if opt.kmin_1pass == 1:
+        if opt.kmin_1pass:
             cmd = [opt.bin_dir + opt.builder, "read2sdbg"] + count_opt
             if opt.no_mercy == 0:
                 cmd.append("--need_mercy")
@@ -453,7 +452,7 @@ def build_first_graph():
             log_file = open(log_file_name(), "a")
             start_time = datetime.now()
             print("%s" % (" ").join(cmd), file=log_file)
-            if opt.kmin_1pass == 1:
+            if opt.kmin_1pass:
                 print("[%s] Extracting solid (k+1)-mers and building sdbg for k = %d" % (start_time.strftime("%c"), opt.k_min), file=sys.stderr)
                 print("[%s] Extracting solid (k+1)-mers and building sdbg k = %d" % (start_time.strftime("%c"), opt.k_min), file=log_file)
             else:
@@ -475,9 +474,9 @@ def build_first_graph():
 
     write_cp(cp)
     cp = cp + 1
-    if opt.kmin_1pass != 1:
+    if not opt.kmin_1pass:
         build_graph(opt.k_min, opt.k_min, phase1_out_threads)
-    elif opt.keep_tmp_files != 1:
+    elif not opt.keep_tmp_files:
         delete_tmp_after_build(opt.k_min)
 
 def build_graph(kmer_k, kmer_from, num_edge_files):
@@ -527,7 +526,7 @@ def build_graph(kmer_k, kmer_from, num_edge_files):
 
     write_cp(cp)
     cp = cp + 1
-    if opt.keep_tmp_files != 1:
+    if not opt.keep_tmp_files:
         delete_tmp_after_build(kmer_k)
     return True
 
@@ -568,7 +567,7 @@ def iterate(cur_k, step):
 
     write_cp(cp)
     cp = cp + 1
-    if opt.keep_tmp_files != 1:
+    if not opt.keep_tmp_files:
         delete_tmp_after_iter(cur_k)
 
 def assemble(cur_k):
@@ -593,7 +592,7 @@ def assemble(cur_k):
         if cur_k == opt.k_max:
             assembly_cmd.append("--is_final_round")
 
-        if opt.no_bubble == 1:
+        if opt.no_bubble:
             assembly_cmd.append("--no_bubble")
 
         try:
@@ -617,7 +616,7 @@ def assemble(cur_k):
             exit(1)
     write_cp(cp)
     cp = cp + 1
-    if opt.keep_tmp_files != 1 and cur_k != opt.k_max:
+    if (not opt.keep_tmp_files) and (cur_k != opt.k_max):
         delete_tmp_after_assemble(cur_k)
 
 def local_assemble(cur_k):
@@ -686,7 +685,7 @@ def main(argv = None):
         make_out_dir()
         write_lib()
 
-        if opt.continue_mode != True:
+        if not opt.continue_mode:
             write_opt(argv[1:]) # for --continue
         build_first_graph()
         assemble(opt.k_min)
@@ -694,7 +693,7 @@ def main(argv = None):
         k_step = opt.k_step
         cur_k = opt.k_min
         while cur_k < opt.k_max:
-            if (opt.no_local != 1):
+            if not opt.no_local:
                 local_assemble(cur_k)
             next_k = min(cur_k + k_step, opt.k_max)
             if next_k > opt.k_max:

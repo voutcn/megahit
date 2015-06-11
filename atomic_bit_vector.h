@@ -55,27 +55,37 @@ class AtomicBitVector {
     }
 
     bool get(size_t i) {
-        return bool((data_[i / kBitsPerWord] >> i % kBitsPerWord) & 1);
+        word_t volatile *p = data_ + i / kBitsPerWord;
+        return bool((*p >> i % kBitsPerWord) & 1);
     }
 
-    bool lock(size_t i) {
-        while (!((data_[i / kBitsPerWord] >> i % kBitsPerWord) & 1)) {
-            word_t old_value = data_[i / kBitsPerWord];
-            word_t new_value = data_[i / kBitsPerWord] | (word_t(1) << (i % kBitsPerWord));
-            if (__sync_bool_compare_and_swap(data_ + i / kBitsPerWord, old_value, new_value)) {
+    bool try_lock(size_t i) {
+        word_t volatile *p = data_ + i / kBitsPerWord;
+        while (!((*p >> i % kBitsPerWord) & 1)) {
+            word_t old_value = *p;
+            word_t new_value = old_value | (word_t(1) << (i % kBitsPerWord));
+            if (__sync_bool_compare_and_swap(p, old_value, new_value)) {
                 return true;
             }
         }
         return false;
     }
 
+    void lock(size_t i) {
+        while (!try_lock(i)) {
+            continue;
+        }
+    }
+
     void set(size_t i) {
-        __sync_fetch_and_or(data_ + i / kBitsPerWord, word_t(1) << (i % kBitsPerWord));
+        word_t volatile *p = data_ + i / kBitsPerWord;
+        __sync_fetch_and_or(p, word_t(1) << (i % kBitsPerWord));
     }
 
     void unset(size_t i) {
         word_t mask = ~(word_t(1) << (i % kBitsPerWord));
-        __sync_fetch_and_and(data_ + i / kBitsPerWord, mask);
+        word_t volatile *p = data_ + i / kBitsPerWord;
+        __sync_fetch_and_and(p, mask);
     }
 
     void reset(size_t size = 0) {

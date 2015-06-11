@@ -535,7 +535,6 @@ void* s1_lv2_output(void* _op) {
     int64_t op_start_index = op->op_start_index;
     int64_t op_end_index = op->op_end_index;
     int thread_id = op->op_id;
-    int start_idx;
     int end_idx;
     int count_prev_head[5][5];
     int count_tail_next[5][5];
@@ -544,7 +543,6 @@ void* s1_lv2_output(void* _op) {
     int64_t *thread_edge_counting = globals.thread_edge_counting + thread_id * (kMaxMulti_t + 1);
 
     for (int i = op_start_index; i < op_end_index; i = end_idx) {
-        start_idx = i;
         end_idx = i + 1;
         uint32_t *first_item = globals.lv2_substrings_db + (globals.permutation_db[i]);
         memset(count_prev_head, 0, sizeof(count_prev_head));

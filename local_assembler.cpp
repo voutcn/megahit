@@ -318,17 +318,13 @@ bool LocalAssembler::AddToMappingDeque_(size_t read_id, const MappingRecord &rec
 	int read_len = reads_->length(read_id);
 	if (rec.contig_to < local_range && rec.query_from != 0) {
 		uint64_t res = PackMappingResult(rec.contig_to, 0, rec.mismatch, rec.strand, read_id);
-		while (!locks_.lock(rec.contig_id)) {
-			continue;
-		}
+		locks_.lock(rec.contig_id);
 		mapped_f_[rec.contig_id].push_back(res);
 		locks_.unset(rec.contig_id);
 		return true;
 	} else if (rec.contig_from + local_range >= contig_len && rec.query_to < read_len - 1) {
 		uint64_t res = PackMappingResult(contig_len - 1 - rec.contig_from, 0, rec.mismatch, rec.strand, read_id);
-		while (!locks_.lock(rec.contig_id)) {
-			continue;
-		}
+		locks_.lock(rec.contig_id);
 		mapped_r_[rec.contig_id].push_back(res);
 		locks_.unset(rec.contig_id);
 		return true;
@@ -350,17 +346,13 @@ bool LocalAssembler::AddMateToMappingDeque_(size_t read_id, size_t mate_id, cons
 
 	if (rec1.contig_to < local_range && rec1.strand == 1) {
 		uint64_t res = PackMappingResult(rec1.contig_to, 1, rec1.mismatch, rec1.strand, mate_id);
-		while (!locks_.lock(rec1.contig_id)) {
-			continue;
-		}
+		locks_.lock(rec1.contig_id);
 		mapped_f_[rec1.contig_id].push_back(res);
 		locks_.unset(rec1.contig_id);	
 		return true;
 	} else if (rec1.contig_from + local_range >= contig_len && rec1.strand == 0) {
 		uint64_t res = PackMappingResult(contig_len - 1 - rec1.contig_from, 1, rec1.mismatch, rec1.strand, mate_id);
-		while (!locks_.lock(rec1.contig_id)) {
-			continue;
-		}
+		locks_.lock(rec1.contig_id);
 		mapped_r_[rec1.contig_id].push_back(res);
 		locks_.unset(rec1.contig_id);
 		return true;
@@ -410,6 +402,11 @@ void LocalAssembler::MapToContigs() {
 	    fprintf(stderr, "[LA] Lib %d: total %ld reads, aligned %lu, added %lu reads for local assembly\n",
 	    		lib_id, lib_info_[lib_id].to - lib_info_[lib_id].from + 1, num_mapped, num_added);
     }
+
+    {
+    	AtomicBitVector empty;
+    	empty.swap(locks_);
+    }
 }
 
 void LocalAssembler::LocalAssemble() {
@@ -417,6 +414,8 @@ void LocalAssembler::LocalAssemble() {
 
 	std::vector<pthread_t> threads(num_threads_);
 	std::vector<AssembleTask> tasks(num_threads_);
+	output_lock_ = 0;
+
 	for (int tid = 0; tid < num_threads_; ++tid) {
 		tasks[tid].tid = tid;
 		tasks[tid].local_assembler = this;
@@ -432,7 +431,7 @@ void LocalAssembler::LocalAssemble() {
 
 inline void LaunchIDBA(std::deque<Sequence> &reads, Sequence &contig_end,
 					   std::deque<Sequence> &out_contigs,
-					   std::deque<ContigInfo> out_contig_infos,
+					   std::deque<ContigInfo> &out_contig_infos,
 					   int mink, int maxk, int step) {
 	int local_range = contig_end.size();
 	HashGraph hash_graph;
@@ -546,16 +545,15 @@ void* LocalAssembler::LocalAssembleThread_(void *data) {
 			for (size_t j = 0; j < out_contigs.size(); ++j) {
 				if (out_contigs[j].size() > (unsigned)la->min_contig_len_ &&
 					out_contigs[j].size() > (unsigned)la->local_kmax_) {
-					while (!la->locks_.lock(1)) {}
+					while (__sync_lock_test_and_set(&la->output_lock_, 1)) while (la->output_lock_);
 					WriteFasta(std::cout,
 							   out_contigs[j],
 							   FormatString("localcontig_%llu_strand_%d_id_%lu flag=0 multi=1",
 							   	            i, strand, j));
-					la->locks_.unset(1);
+					__sync_lock_release(&la->output_lock_);
 				}
 			}
 		}
 	}
-
 	return NULL;
 }

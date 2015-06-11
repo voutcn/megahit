@@ -198,7 +198,7 @@ void UnitigGraph::InitFromSdBG() {
         if (sdbg_->IsValidNode(node_idx) && 
             sdbg_->IsLast(node_idx) && 
             assembly_algorithms::NextSimplePathNode(*sdbg_, node_idx) == -1 &&
-            marked.lock(node_idx)) {
+            marked.try_lock(node_idx)) {
 
             bool will_be_added = true;
             int64_t cur_node = node_idx, prev_node;
@@ -206,7 +206,7 @@ void UnitigGraph::InitFromSdBG() {
             uint32_t length = 1;
             while ((prev_node = assembly_algorithms::PrevSimplePathNode(*sdbg_, cur_node)) != -1) {
                 cur_node = sdbg_->GetLastIndex(prev_node);
-                if (!marked.lock(cur_node)) {
+                if (!marked.try_lock(cur_node)) {
                     will_be_added = false;
                     break;
                 }
@@ -225,7 +225,7 @@ void UnitigGraph::InitFromSdBG() {
             }
             int64_t rc_end = -1;
 
-            if (!marked.lock(rc_start)) {
+            if (!marked.try_lock(rc_start)) {
                 rc_end = sdbg_->ReverseComplement(cur_node);
                 // compare whose id is bigger
                 if (std::max(node_idx, cur_node) < std::max(rc_start, rc_end)) {
@@ -239,7 +239,7 @@ void UnitigGraph::InitFromSdBG() {
                 while ((rc_cur_node = assembly_algorithms::NextSimplePathNode(*sdbg_, rc_cur_node)) != -1) {
                     rc_cur_node = sdbg_->GetLastIndex(rc_cur_node);
                     rc_end = rc_cur_node;
-                    if (!marked.lock(rc_cur_node)) {
+                    if (!marked.try_lock(rc_cur_node)) {
                         extend_full = false;
                         break;
                     }
@@ -656,7 +656,7 @@ void UnitigGraph::Refresh_(bool set_changed) {
             continue;
         }
 
-        if (!marked.lock(i)) { continue; }
+        if (!marked.try_lock(i)) { continue; }
 
         std::vector<std::pair<vertexID_t, bool> > linear_path; // first: vertex_id, second: is_rc
         int64_t cur_end = dir == 0 ? vertices_[i].end_node : vertices_[i].rev_end_node;
@@ -682,14 +682,12 @@ void UnitigGraph::Refresh_(bool set_changed) {
 
         if (linear_path.empty()) { continue; }
 
-        if (i != linear_path.back().first && !marked.lock(linear_path.back().first)) { // if i == linear_path.back().first it is a palindrome self loop
+        if (i != linear_path.back().first && !marked.try_lock(linear_path.back().first)) { // if i == linear_path.back().first it is a palindrome self loop
             if (linear_path.back().first > i) {
                 marked.unset(i);
                 continue;
             } else {
-                while (!marked.lock(linear_path.back().first)) {
-                    // wait for the other thread release the lock
-                }
+                marked.lock(linear_path.back().first);
             }
         }
 

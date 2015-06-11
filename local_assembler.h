@@ -53,6 +53,7 @@ struct LocalAssembler {
 	std::vector<lib_info_t> lib_info_;
 	std::vector<tlen_t> insert_sizes_;
 	AtomicBitVector locks_;
+	volatile int output_lock_;
 
 	std::vector<std::deque<uint64_t> > mapped_f_, mapped_r_;
 
