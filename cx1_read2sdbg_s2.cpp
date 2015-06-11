@@ -552,7 +552,7 @@ void* s2_lv2_extract_substr(void* _data) {
                     default:
                         assert(false);
                     }
-                    CopySubstring(substrings_p, read_p, offset, num_chars_to_copy,
+                    CopySubstring(substrings_p, read_p, offset + start_offset, num_chars_to_copy,
                                   globals.cx1.lv2_num_items_, words_this_read, globals.words_per_substring);
 
                     uint32_t *last_word = substrings_p + int64_t(globals.words_per_substring - 1) * globals.cx1.lv2_num_items_;
@@ -577,7 +577,7 @@ void* s2_lv2_extract_substr(void* _data) {
                         assert(false);
                     }
 
-                    CopySubstringRC(substrings_p, read_p, offset, num_chars_to_copy,
+                    CopySubstringRC(substrings_p, read_p, offset + start_offset, num_chars_to_copy,
                                     globals.cx1.lv2_num_items_, words_this_read, globals.words_per_substring);
 
                     uint32_t *last_word = substrings_p + int64_t(globals.words_per_substring - 1) * globals.cx1.lv2_num_items_;
