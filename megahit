@@ -71,8 +71,8 @@ Optional Arguments:
   Advanced assembly options:
     --no-mercy                                  do not add mercy kmers
     --no-bubble                                 do not merge bubbles
-    --merge-level                               strength of complex bubble merging (0-100), default 20
-    --prune-level                               strength of local low depth pruning (0-2), default 2
+    --merge-level                  <int>        strength of complex bubble merging (0-100), default 20
+    --prune-level                  <int>        strength of local low depth pruning (0-2), default 2
     --low-local-ratio              <float>      ratio threshold to define low local coverage contigs, default: 0.2
     --max-tip-len                  <int>        remove tips less than this value; default: 2*k for iteration of kmer_size=k
     --no-local                                  disable local assembly

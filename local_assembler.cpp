@@ -64,7 +64,7 @@ void LocalAssembler::BuildHashMapper(bool show_stat) {
     }
 
     if (show_stat) {
-    	fprintf(stderr, "[LA] Mapper size :%lu\n", mapper_.size());
+    	fprintf(stderr, "[LA] Mapper size: %lu\n", mapper_.size());
     }
 }
 
@@ -256,9 +256,13 @@ void LocalAssembler::EstimateInsertSize(bool show_stat) {
     	size_t start_read_id = lib_info_[lib_id].from;
     	size_t end_read_id = start_read_id;
 
+    	if (show_stat) {
+    		fprintf(stderr, "[LA] Lib %d: from %ld to %ld\n", lib_id, lib_info_[lib_id].from, lib_info_[lib_id].to);
+    	}
+
     	while (insert_hist.size() < (1 << 18) && end_read_id <= (size_t)lib_info_[lib_id].to) {
     		start_read_id = end_read_id;
-    		end_read_id = std::min((size_t)lib_info_[lib_id].to, start_read_id + size_t(2 << 20));
+    		end_read_id = std::min((size_t)lib_info_[lib_id].to, start_read_id + size_t(2 << 18));
 
 #pragma omp parallel for private(rec1, rec2)
 	    	for (size_t i = start_read_id; i < end_read_id; i += 2) {
@@ -296,7 +300,7 @@ int LocalAssembler::LocalRange_(int lib_id) {
 			                   insert_sizes_[lib_id].first + 3 * insert_sizes_[lib_id].second);
 	}
 
-	return local_range;
+	return std::min(local_range, kMaxLocalRange);
 }
 
 inline uint64_t PackMappingResult(uint64_t contig_offset, uint64_t is_mate, uint64_t mismatch,

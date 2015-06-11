@@ -27,7 +27,7 @@ inline void ReadMultipleLibs(const std::string &lib_file, SequencePackage &packa
 	std::string file_name1;
 	std::string file_name2;
 
-	bool append_to_package = false;
+	bool append_to_package = true;
 	SequenceManager seq_manager(&package);
 	package.clear();
 	lib_info.clear();

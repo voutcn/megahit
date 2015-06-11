@@ -17,11 +17,7 @@ struct LocalAssembler {
 	typedef KmerPlus<2, uint32_t, uint64_t> kmer_plus_t;
 	typedef Kmer<2, uint32_t> kmer_t;
 	typedef HashTable<kmer_plus_t, kmer_t> mapper_t;
-
-	enum ReadFormat {
-		kFastx,
-		kBinary,
-	} read_format;
+	static const int kMaxLocalRange = 650;
 
 	struct MappingRecord {
 		uint32_t contig_id;
