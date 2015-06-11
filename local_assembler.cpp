@@ -262,7 +262,7 @@ void LocalAssembler::EstimateInsertSize(bool show_stat) {
 
     	while (insert_hist.size() < (1 << 18) && end_read_id <= (size_t)lib_info_[lib_id].to) {
     		start_read_id = end_read_id;
-    		end_read_id = std::min((size_t)lib_info_[lib_id].to, start_read_id + size_t(2 << 18));
+    		end_read_id = std::min((size_t)lib_info_[lib_id].to + 1, start_read_id + size_t(2 << 18));
 
 #pragma omp parallel for private(rec1, rec2)
 	    	for (size_t i = start_read_id; i < end_read_id; i += 2) {

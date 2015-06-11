@@ -98,6 +98,16 @@ inline void ReadBinaryLibs(const std::string &file_prefix, SequencePackage &pack
 	bool append_to_package = false;
 	bool is_reverse = false;
 	seq_manager.ReadShortReads(1LL << 60, 1LL << 60, append_to_package, is_reverse);
+
+	// for (int i = 0; i < package.length(0); ++i) {
+	// 	fprintf(stderr, "%c", "ACGT"[package.get_base(0, i)]);
+	// }
+	// fprintf(stderr, "\n");
+
+	// for (int i = 0; i < package.length(1); ++i) {
+	// 	fprintf(stderr, "%c", "ACGT"[package.get_base(1, i)]);
+	// }
+	// fprintf(stderr, "\n");
 }
 
 inline void WriteMultipleLibs(SequencePackage &package, std::vector<lib_info_t> &lib_info, const std::string &file_prefix, bool is_reverse) {
