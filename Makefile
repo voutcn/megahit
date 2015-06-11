@@ -225,7 +225,7 @@ cx1_read2sdbg_s1_gpu.o: cx1_read2sdbg_s1.cpp $(DEPS)
 cx1_read2sdbg_s2_gpu.o: cx1_read2sdbg_s2.cpp $(DEPS)
 	$(CXX) $(CFLAGS) -D USE_GPU -c cx1_read2sdbg_s2.cpp -o cx1_read2sdbg_s2_gpu.o
 
-cx1_sequences2sdbg_gpu.o: cx1_edge2sdbg.cpp $(DEPS)
+cx1_sequences2sdbg_gpu.o: cx1_sequences2sdbg.cpp $(DEPS)
 	$(CXX) $(CFLAGS) -D USE_GPU -c cx1_sequences2sdbg.cpp -o cx1_sequences2sdbg_gpu.o
 
 #-------------------------------------------------------------------------------
