@@ -129,17 +129,16 @@ int main_read2sdbg(int argc, char **argv) {
     desc.AddOption("min_kmer_frequency", "m", opt.kmer_freq_threshold, "min frequency to output an edge");
     desc.AddOption("host_mem", "", opt.host_mem, "Max memory to be used. 90% of the free memory is recommended.");
     desc.AddOption("gpu_mem", "", opt.gpu_mem, "gpu memory to be used. 0 for auto detect.");
-    desc.AddOption("max_read_length", "", opt.max_read_length, "max read length");
     desc.AddOption("num_cpu_threads", "", opt.num_cpu_threads, "number of CPU threads. At least 2.");
     desc.AddOption("num_output_threads", "", opt.num_output_threads, "number of threads for output. Must be less than num_cpu_threads");
-    desc.AddOption("input_file", "", opt.input_file, "input fast[aq] file, can be gzip'ed. \"-\" for stdin.");
+    desc.AddOption("read_lib_file", "", opt.read_lib_file, "input fast[aq] file, can be gzip'ed. \"-\" for stdin.");
     desc.AddOption("output_prefix", "", opt.output_prefix, "output prefix");
     desc.AddOption("mem_flag", "", opt.mem_flag, "memory options. 0: minimize memory usage; 1: automatically use moderate memory; other: use all available mem specified by '--host_mem'");
     desc.AddOption("need_mercy", "", opt.need_mercy, "to add mercy edges.");
 
     try {
         desc.Parse(argc, argv);
-        if (opt.input_file == "") {
+        if (opt.read_lib_file == "") {
             throw std::logic_error("No input file!");
         }
         if (opt.num_cpu_threads == 0) {
@@ -169,7 +168,7 @@ int main_read2sdbg(int argc, char **argv) {
         }
     } catch (std::exception &e) {
         std::cerr << e.what() << std::endl;
-        std::cerr << "Usage: sdbg_builder read2sdbg --input_file fastx_file -o out" << std::endl;
+        std::cerr << "Usage: sdbg_builder read2sdbg --read_lib_file fastx_file -o out" << std::endl;
         std::cerr << "Options:" << std::endl;
         std::cerr << desc << std::endl;
         exit(1);
@@ -178,13 +177,12 @@ int main_read2sdbg(int argc, char **argv) {
     cx1_read2sdbg::read2sdbg_global_t globals;
     globals.kmer_k = opt.kmer_k;
     globals.kmer_freq_threshold = opt.kmer_freq_threshold;
-    globals.max_read_length = opt.max_read_length;
     globals.host_mem = opt.host_mem;
     globals.gpu_mem = opt.gpu_mem;
     globals.num_cpu_threads = opt.num_cpu_threads;
     globals.num_output_threads = opt.num_output_threads;
-    globals.input_file = opt.input_file.c_str();
-    globals.output_prefix = opt.output_prefix.c_str();
+    globals.read_lib_file = opt.read_lib_file;
+    globals.output_prefix = opt.output_prefix;
     globals.mem_flag = opt.mem_flag;
     globals.need_mercy = opt.need_mercy;
     globals.cx1.g_ = &globals;
@@ -332,12 +330,9 @@ int main_seq2sdbg(int argc, char **argv) {
 
 void DisplayHelp(char *program_name) {
     fprintf(stderr, "Usage: \n");
-    fprintf(stderr, "    1. Counting & output solid edges: \n");
-    fprintf(stderr, "       type \"%s count\" for help.\n", program_name);
-    fprintf(stderr, "    2. read2sdbg count & build Succinct dBG: \n");
-    fprintf(stderr, "       type \"%s read2sdbg\" for help.\n", program_name);
-    fprintf(stderr, "    3. seq2sdbg build sdbg from contigs + edges: \n");
-    fprintf(stderr, "       type \"%s seq2sdbg\" for help.\n", program_name);
+    fprintf(stderr, "       %s count          kmer counting\n", program_name);
+    fprintf(stderr, "       %s read2sdbg      build sdbg from reads\n", program_name);
+    fprintf(stderr, "       %s seq2sdbg       build sdbg from megahit contigs + edges\n", program_name);
 }
 
 int main(int argc, char** argv) {

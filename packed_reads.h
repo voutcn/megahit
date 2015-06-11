@@ -30,146 +30,7 @@
 #include "definitions.h"
 #include "kseq.h"
 #include "mem_file_checker-inl.h"
-
-/*
- * Packs an ASCII read into 2-bit per base form. The last base goes to the MSB of the first word.
- * -Params-
- * read: the read, in ASCII ACGT
- * p: a pointer to the first uint32_t of the packed sequence to be written to
- * read_length: number of bases in the read
- * last_word_shift: the number of empty bits in the last word. we need to shift the bits up by this amount. solely determined by read_length.
- */
-
-static int dna_map[256];
-
-#ifndef KSEQ_INITED
-#define KSEQ_INITED
-KSEQ_INIT(gzFile, gzread)
-#endif
-
-inline void PackReadFromAscii(char* read, uint32_t* p, int read_length, int words_per_read) {
-    // for de Bruijn graph construction, packing the reverse is more convenient
-    uint32_t w = 0;
-    int i, j;
-    for (i = 0, j = 0; j < read_length; ++j) {
-        if (j % kCharsPerEdgeWord == 0 && j) { // TODO bitwise?
-            *(p++) = w;
-            w = 0;
-            ++i;
-        }
-        while (read[j] == 'N') {
-            break;
-        }
-        w = (w << kBitsPerEdgeChar) | dna_map[(int)read[j]];
-    }
-
-    int last_word_shift = j % kCharsPerEdgeWord;
-    last_word_shift = last_word_shift ? (kCharsPerEdgeWord - last_word_shift) * kBitsPerEdgeChar : 0;
-    *p = w << last_word_shift;
-
-    while (++i < words_per_read) {
-        *(++p) = 0;
-    }
-
-    *p |= read_length;
-}
-
-inline int64_t ReadFastxAndPack(uint32_t *&packed_reads, const char *input_file, int words_per_read,
-                                int min_read_len, int max_read_length, int64_t max_num_reads) {
-    for (int i = 0; i < 10; ++i) {
-        dna_map[int("ACGTNacgtn"[i])] = "0123101231"[i] - '0';
-    }
-
-    int64_t capacity = std::min(max_num_reads, int64_t(1048576)); // initial capacity 1M
-    gzFile fp = strcmp(input_file, "-") ? gzopen(input_file, "r") : gzdopen(fileno(stdin), "r");
-    kseq_t *seq = kseq_init(fp); // kseq to read files
-    uint32_t *packed_reads_p; // current pointer
-    packed_reads_p = packed_reads = (uint32_t*) MallocAndCheck(capacity * words_per_read * sizeof(uint32_t), __FILE__, __LINE__);
-    int64_t num_reads = 0;
-    int read_length = 0;
-
-    // --- main reading loop ---
-    bool stop_reading = false;
-    while ((read_length = kseq_read(seq)) >= 0 && !stop_reading) {
-        std::reverse(seq->seq.s, seq->seq.s + read_length);
-        char *next_p = seq->seq.s;
-        while (read_length >= min_read_len) {
-            int scan_len = 0;
-            while (scan_len < read_length && next_p[scan_len] != 'N') {
-                ++scan_len;
-            }
-
-            if (scan_len >= min_read_len && scan_len <= max_read_length) {
-                if (num_reads >= capacity) {
-                    if (capacity == max_num_reads) {
-                        err("[%s WRANING] No enough memory to hold all the reads. Only the first %llu reads are kept.\n", __func__, num_reads);
-                        stop_reading = true;
-                        break;
-                    }
-                    capacity = std::min(capacity * 2, max_num_reads);
-                    uint32_t *new_ptr = (uint32_t*) realloc(packed_reads, capacity * words_per_read * sizeof(uint32_t));
-                    if (new_ptr != NULL) {
-                        packed_reads = new_ptr;
-                        packed_reads_p = packed_reads + words_per_read * num_reads;
-                    } else {
-                        err("[%s WRANING] No enough memory to hold all the reads. Only the first %llu reads are kept.\n", __func__, num_reads);
-                        stop_reading = true;
-                        break;
-                    }
-                }
-                // read length is ok! compress and store the packed read
-                PackReadFromAscii(next_p, packed_reads_p, scan_len, words_per_read);
-                packed_reads_p += words_per_read;
-                ++num_reads;
-            } else if (scan_len > max_read_length) { // this read length is wrong
-                err("[%s WARNING] Found a read of length %d > max read length = %d\n, it will be discarded.", __func__, scan_len, max_read_length);
-            }
-
-            while (scan_len < read_length && next_p[scan_len] == 'N') {
-                ++scan_len;
-            }
-            read_length -= scan_len;
-            next_p += scan_len;
-        }
-    }
-
-    kseq_destroy(seq);
-    gzclose(fp);
-
-    return num_reads;
-}
-
-/**
- * @param packed_reads the ptr of read0
- * @param i read id
- * @param words_per_read
- *
- * @return pointer pointing to the starting pos a read
- */
-inline uint32_t* GetReadPtr(uint32_t *packed_reads, int64_t i, int words_per_read) {
-    return packed_reads + i * words_per_read;
-}
-
-/**
- * @brief obtain the read length of a read
- *
- * @param read_p
- * @param words_per_read
- * @param mask 0000...11111 = (1 << bits_of_len) - 1
- * @return read length
- */
-inline int GetReadLength(uint32_t* read_p, int words_per_read, int mask) {
-    return *(read_p + words_per_read - 1) & mask;
-}
-
-/**
- * @brief extract the nth char in a packed read/edge
- */
-inline int ExtractNthChar(uint32_t *read_ptr, int n) {
-    int which_word = n / kCharsPerEdgeWord;
-    int index_in_word = n % kCharsPerEdgeWord;
-    return (read_ptr[which_word] >> (kBitsPerEdgeChar * (kCharsPerEdgeWord - 1 - index_in_word))) & kEdgeCharMask;
-}
+#include "bit_operation.h"
 
 // 'spacing' is the strip length for read-word "coalescing"
 /**
@@ -251,7 +112,8 @@ inline void CopySubstringRC(uint32_t* dest, uint32_t* src_read, int offset, int 
 
     if (word_offset == kCharsPerEdgeWord - 1) { // uint32_t aligned
         for (int i = 0; i < words_per_substring && i <= which_word; ++i) {
-            *dest_p = ~ mirror(src_read[which_word - i]);
+            *dest_p = src_read[which_word - i];
+            bit_operation::ReverseComplement(*dest_p);
             dest_p += spacing;
         }
     } else {
@@ -261,7 +123,8 @@ inline void CopySubstringRC(uint32_t* dest, uint32_t* src_read, int offset, int 
         for (i = 0; i < words_per_substring - 1 && i < which_word; ++i) {
             w = (src_read[which_word - i] >> bit_offset) |
                 (src_read[which_word - i - 1] << (kBitsPerEdgeWord - bit_offset));
-            *dest_p = ~ mirror(w);
+            *dest_p = w;
+            bit_operation::ReverseComplement(*dest_p);
             dest_p += spacing;
         }
         // last word
@@ -269,7 +132,8 @@ inline void CopySubstringRC(uint32_t* dest, uint32_t* src_read, int offset, int 
         if (which_word >= i + 1) {
             w |= (src_read[which_word - i - 1] << (kBitsPerEdgeWord - bit_offset));
         }
-        *dest_p = ~ mirror(w);
+        *dest_p = w;
+        bit_operation::ReverseComplement(*dest_p);
     }
 
     {

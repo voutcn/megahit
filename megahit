@@ -53,7 +53,7 @@ Optional Arguments:
     --use-gpu                                   use GPU
     --gpu-mem                      <float>      GPU memory in byte to be used. Default: auto detect to use up all free GPU memory. 
     -t/--num-cpu-threads           <int>        Number of CPU threads, at least 2. Default: auto detect to use all CPU threads.
-    --kmin-1pass(todo)                          Use 1pass mode to build SdBG of k_min, which requires less memory for
+    --kmin-1pass                                Use 1pass mode to build SdBG of k_min, which requires less memory for
                                                 ultra low-depth data (e.g. soil)
 
   Output options:

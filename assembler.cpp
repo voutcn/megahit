@@ -48,7 +48,6 @@ struct AssemblerOptions {
     int prune_level;
     bool excessive_prune;
     double local_low_ratio;
-    bool need_fastg;
 
     AssemblerOptions() {
         output_prefix = "out";
