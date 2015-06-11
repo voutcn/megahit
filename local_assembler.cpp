@@ -443,7 +443,7 @@ inline void LaunchIDBA(std::deque<Sequence> &reads, Sequence &contig_end,
 		max_read_len = std::max(max_read_len, (int)reads[i].size());
 	}
 
-    for (int kmer_size = mink; kmer_size <= std::min(maxk, max_read_len); kmer_size = std::min(kmer_size + step, max_read_len))
+    for (int kmer_size = mink; kmer_size <= std::min(maxk, max_read_len); kmer_size += step)
     {
         int64_t sum = 0;
         hash_graph.set_kmer_size(kmer_size);
@@ -476,7 +476,7 @@ inline void LaunchIDBA(std::deque<Sequence> &reads, Sequence &contig_end,
         contig_graph.Assemble(out_contigs, out_contig_infos);
 
         if (out_contigs.size() == 1) {
-            return;
+            break;
         }
     }
 }
@@ -545,7 +545,7 @@ void* LocalAssembler::LocalAssembleThread_(void *data) {
 					while (!la->locks_.lock(1)) {}
 					WriteFasta(std::cout,
 							   out_contigs[j],
-							   FormatString(">localcontig_%llu_strand_%d_id_%lu flag=0 multi=1",
+							   FormatString("localcontig_%llu_strand_%d_id_%lu flag=0 multi=1",
 							   	            i, strand, j));
 					la->locks_.unset(1);
 				}
