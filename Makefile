@@ -145,7 +145,7 @@ DEPS =   ./Makefile \
 # g++ and its options
 #-------------------------------------------------------------------------------
 CUDALIBFLAG = -L/usr/local/cuda/lib64/ -lcuda -lcudart
-CFLAGS = -I. -O2 -Wall -Wno-unused-function -funroll-loops -fprefetch-loop-arrays -fopenmp -std=c++0x -static-libgcc
+CFLAGS = -I. -O3 -Wall -Wno-unused-function -funroll-loops -fprefetch-loop-arrays -fopenmp -std=c++0x -static-libgcc -static-libstdc++
 LIB = -lpthread -lm -lz
 ifneq ($(disablempopcnt), 1)
 	CFLAGS += -mpopcnt
@@ -186,9 +186,6 @@ LIB_IDBA += $(LIB_IDBA_DIR)/sequence.o
 #-------------------------------------------------------------------------------
 sdbg_builder_cpu: sdbg_builder.cpp cx1.h lv2_cpu_sort.h cx1_kmer_count.o cx1_read2sdbg_s1.o cx1_read2sdbg_s2.o cx1_sequences2sdbg.o options_description.o sequence_manager.o $(DEPS)
 	$(CXX) $(CFLAGS) sdbg_builder.cpp cx1_kmer_count.o options_description.o cx1_read2sdbg_s1.o cx1_read2sdbg_s2.o cx1_sequences2sdbg.o sequence_manager.o $(LIB) -o sdbg_builder_cpu
-
-# sdbg_builder_cpu_1pass: sdbg_builder_1pass.cpp cx1_functions_1pass.o lv2_cpu_sort.h options_description.o $(DEPS)
-# 	$(CXX) $(CFLAGS) sdbg_builder_1pass.cpp cx1_functions_1pass.o options_description.o $(LIB) -o sdbg_builder_cpu_1pass
 
 megahit_assemble: assembler.cpp succinct_dbg.o rank_and_select.h assembly_algorithms.o branch_group.o options_description.o unitig_graph.o $(DEPS)
 	$(CXX) $(CFLAGS) assembler.cpp succinct_dbg.o assembly_algorithms.o branch_group.o options_description.o unitig_graph.o $(LIB) -o megahit_assemble

@@ -2,7 +2,7 @@
 
 #-------------------------------------------------------------------------
 # MEGAHIT
-# Copyright (C) 2014 The University of Hong Kong
+# Copyright (C) 2014 - 2015 The University of Hong Kong
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -39,49 +39,50 @@ usage_message = '''
 Copyright (c) The University of Hong Kong
 
 Usage:
-    ./megahit [options] -s <reads.lib> [-o <output_dir>]
+  megahit [options] {-r <se> | -1 <pe1> -2 <pe2> | --12 <pe12>} [-o <out_dir>]
 
-Required Arguments:
-    --lib                          <string>     lib file
+    -r/--read                <se>           comma-separated list of single-end files
+    -1                       <pe1>          comma-separated list of paired-end #1 files, paired with files in <pe2>
+    -2                       <pe2>          comma-separated list of paired-end #2 files, paired with files in <pe1>
+    --12                     <pe12>         comma-separated list of interleaved paired-end files
 
 Optional Arguments:
   Hardware options:
-    -m/--memory                    <float>      max memory in byte to be used in SdBG construction; default 0.9
-                                                (if set between 0-1, fraction of the machine's total memory)
-    --mem-flag                     <int>        SdBG builder memory mode, default 1
-                                                0: minimum; 1: moderate; others: use all memory specified by '-m/--memory'.
-    --use-gpu                                   use GPU
-    --gpu-mem                      <float>      GPU memory in byte to be used. Default: auto detect to use up all free GPU memory. 
-    -t/--num-cpu-threads           <int>        Number of CPU threads, at least 2. Default: auto detect to use all CPU threads.
-    --kmin-1pass                                Use 1pass mode to build SdBG of k_min, which requires less memory for
-                                                ultra low-depth data (e.g. soil)
+    -m/--memory              <float>        max memory in byte to be used in SdBG construction; default 0.9
+                                            (if set between 0-1, fraction of the machine's total memory)
+    --mem-flag               <int>          SdBG builder memory mode, default 1
+                                            0: minimum; 1: moderate; others: use all memory specified by '-m/--memory'.
+    --use-gpu                               use GPU
+    --gpu-mem                <float>        GPU memory in byte to be used. Default: auto detect to use up all free GPU memory. 
+    -t/--num-cpu-threads     <int>          number of CPU threads, at least 2. Default: auto detect to use all CPU threads.
+    --kmin-1pass                            use 1pass mode to build SdBG of k_min
 
   Output options:
-    -o/--out-dir                   <string>     output directory, default: ./megahit_out
-    --out-prefix                   <string>     output prefix (the contig file will be OUT_DIR/OUT_PREFIX.contigs.fa)
-    --min-contig-len               <int>        minimum length of contigs to output, default: 200
-    --keep-tmp-files                            keep all temporary files
+    -o/--out-dir             <string>       output directory, default: ./megahit_out
+    --out-prefix             <string>       output prefix (the contig file will be OUT_DIR/OUT_PREFIX.contigs.fa)
+    --min-contig-len         <int>          minimum length of contigs to output, default: 200
+    --keep-tmp-files                        keep all temporary files
 
   Basic assembly options:
-    --k-min                        <int>        minimum kmer size (<= 127), must be odd number, default: 21
-    --k-max                        <int>        maximum kmer size (<= 127), must be odd number, default: 99
-    --k-step                       <int>        increment of kmer size of each iteration (<= 28), must be even number, default: 10
-    --min-count                    <int>        minimum multiplicity for filtering (k_min+1)-mers, default: 2.
+    --k-min                  <int>          minimum kmer size (<= 127), must be odd number, default: 21
+    --k-max                  <int>          maximum kmer size (<= 127), must be odd number, default: 99
+    --k-step                 <int>          increment of kmer size of each iteration (<= 28), must be even number, default: 10
+    --min-count              <int>          minimum multiplicity for filtering (k_min+1)-mers, default: 2.
 
   Advanced assembly options:
-    --no-mercy                                  do not add mercy kmers
-    --no-bubble                                 do not merge bubbles
-    --merge-level                  <int>        strength of complex bubble merging (0-100), default 20
-    --prune-level                  <int>        strength of local low depth pruning (0-2), default 2
-    --low-local-ratio              <float>      ratio threshold to define low local coverage contigs, default: 0.2
-    --max-tip-len                  <int>        remove tips less than this value; default: 2*k for iteration of kmer_size=k
-    --no-local                                  disable local assembly
+    --no-mercy                              do not add mercy kmers
+    --no-bubble                             do not merge bubbles
+    --merge-level            <int>          strength of complex bubble merging (0-100), default 20
+    --prune-level            <int>          strength of local low depth pruning (0-2), default 2
+    --low-local-ratio        <float>        ratio threshold to define low local coverage contigs, default: 0.2
+    --max-tip-len            <int>          remove tips less than this value; default: 2*k for iteration of kmer_size=k
+    --no-local                              disable local assembly
 
 Other Arguments:
-    --continue                                  continue a MEGAHIT run from its last available check point.
-                                                please set the output directory correctly when using this option.
-    -h/--help                                   print the usage message
-    -v/--version                                print version
+    --continue                              continue a MEGAHIT run from its last available check point.
+                                            please set the output directory correctly when using this option.
+    -h/--help                               print the usage message
+    -v/--version                            print version
 '''
 
 if sys.version > '3':
@@ -120,6 +121,10 @@ class Options():
         self.last_cp = -1;
         self.out_prefix = ""
         self.kmin_1pass = 0
+        self.pe1 = []
+        self.pe2 = []
+        self.pe12 = []
+        self.se = []
 
 opt = Options()
 cp = 0
@@ -146,9 +151,10 @@ def make_out_dir():
 
 def parse_opt(argv):
     try:
-        opts, args = getopt.getopt(argv, "hm:o:r:t:v", 
+        opts, args = getopt.getopt(argv, "hm:o:r:t:v1:2:", 
                                     ["help",
-                                     "lib=",
+                                     "read="
+                                     "12="
                                      "memory=",
                                      "out-dir=",
                                      "min-contig-len=",
@@ -237,9 +243,16 @@ def parse_opt(argv):
                 need_continue = True
         elif option == "--out-prefix":
             opt.out_prefix = value
-
         elif option in ("--cpu-only", "-l", "--max-read-len", "--no-low-local"):
             continue # historical options, just ignore
+        elif option in ("-r", "--read"):
+            opt.se = value.split(",")
+        elif option == "-1":
+            opt.pe1 = value.split(",")
+        elif option == "-2":
+            opt.pe2 = value.split(",")
+        elif option == "--12":
+            opt.pe12 = value.split(",")
 
         else:
             print("Invalid option %s", option, file=sys.stderr)
@@ -256,13 +269,13 @@ def parse_opt(argv):
 def check_opt():
     global opt
     if opt.host_mem <= 0:
-        print("Please specify a positive number for -m flag.", file=sys.stderr)
+        raise Usage("Please specify a positive number for -m flag.")
         exit(1)
     elif opt.host_mem < 1:
         total_mem = detect_available_mem()
         opt.host_mem = long(total_mem * opt.host_mem)
         if total_mem <= 0:
-            print("Failed to detect available memory. Please specify the value in bytes using -m flag.", file=sys.stderr)
+            raise Usage("Failed to detect available memory. Please specify the value in bytes using -m flag.")
             exit(1)
         else:
             print(str(round(total_mem/(1024**3),3)) + "Gb memory in total.", file=sys.stderr)
@@ -271,51 +284,43 @@ def check_opt():
         opt.host_mem = long(opt.host_mem)
     if opt.use_gpu == 0:
         opt.gpu_mem = 0
-    if opt.lib == "":
-        print("No lib file!", file=sys.stderr)
-        exit(1)
     if opt.lib != "" and not os.path.exists(opt.lib):
-        print("Can't find file:\n" + opt.lib + "\nPlease try a valid file with -r option.", file=sys.stderr)
-        exit(1)
+        raise Usage("Can't find file:\n" + opt.lib + "\nPlease try a valid file with -r option.", file=sys.stderr)
     if opt.k_min < 15:
-        print("k_min should be at least 15.", file=sys.stderr)
-        exit(1)
+        raise Usage("k_min should be at least 15.")
     if opt.k_max > 127:
-        print("k_max cannot exceed 127.", file=sys.stderr)
-        exit(1)
+        raise Usage("k_max cannot exceed 127.")
     if opt.k_max < opt.k_min:
-        print("k_min should be no larger than k_max.", file=sys.stderr)
-        exit(1)
+        raise Usage("k_min should be no larger than k_max.")
     if opt.k_min % 2 == 0 or opt.k_max % 2 == 0:
-        print("k_min and k_max must be odd numbers.", file=sys.stderr)
-        exit(1)
+        raise Usage("k_min and k_max must be odd numbers.")
     if opt.k_step > 28:
-        print("step must be less than 29.", file=sys.stderr)
-        exit(1)
+        raise Usage("step must be less than 29.")
     if opt.k_step % 2 != 0:
-        print("step must be an even number.", file=sys.stderr)
-        exit(1)
+        raise Usage("step must be an even number.")
     if opt.min_count <= 0:
-        print("min_count must be greater than 0.", file=sys.stderr)
-        exit(1)
+        raise Usage("min_count must be greater than 0.")
     if opt.prune_level < 0 or opt.prune_level > 2:
-        print("prune level must be in 0-2.", file=sys.stderr)
-        exit(1)
-    if opt.prune_level < 0 or opt.prune_level > 2:
-        print("merge level must be in 0-100.", file=sys.stderr)
-        exit(1)
+        raise Usage("prune level must be in 0-2.")
+    if opt.merge_level < 0 or opt.merge_level > 100:
+        raise Usage("merge level must be in 0-100.")
     if opt.low_local_ratio <= 0 or opt.low_local_ratio > 0.5:
-        print("low_local_ratio should be in (0, 0.5].", file=sys.stderr)
-        exit(1)
+        raise Usage("low_local_ratio should be in (0, 0.5].")
     if opt.num_cpu_threads > multiprocessing.cpu_count():
         print("Maximum number of available CPU thread is %d." % multiprocessing.cpu_count(), file=sys.stderr);
-        print("Number of thread is reset to the %d." % multiprocessing.cpu_count(), file=sys.stderr);
+        print("Number of thread is reset to the %d." % max(2, multiprocessing.cpu_count()), file=sys.stderr);
         opt.num_cpu_threads = multiprocessing.cpu_count()
     if opt.num_cpu_threads == 0:
         opt.num_cpu_threads = multiprocessing.cpu_count()
     if opt.num_cpu_threads <= 1:
-        print("num_cpu_threads should be at least 2.", file=sys.stderr)
-        exit(1)
+        raise Usage("num_cpu_threads should be at least 2.")
+
+    # reads
+    if len(opt.pe1) != len(opt.pe2):
+        raise Usage("Number of paired-end files not match!")
+    for r in opt.pe1 + opt.pe2 + opt.se + opt.pe12:
+        if not os.path.exists(r):
+            raise Usage("Cannot find file " + r)
 
 def detect_available_mem():
     mem = long()
@@ -371,13 +376,9 @@ def prepare_continue():
     print("Continue from check point " + str(opt.last_cp), file=sys.stderr) 
 
 def check_bin():
-    if not os.path.exists(opt.bin_dir + "megahit_assemble"):
-        print(megahit_version_str + '\n' + "Cannot find sub-program \"megahit_assemble\", please recompile.", file=sys.stderr)
-        exit(1)
-    if not os.path.exists(opt.bin_dir + "megahit_iter"):
-        print(megahit_version_str + '\n' + "Cannot find sub-program \"megahit_iter\", please recompile.", file=sys.stderr)
-    if not os.path.exists(opt.bin_dir + "megahit_local_asm"):
-        print(megahit_version_str + '\n' + "Cannot find sub-program \"megahit_local_asm\", please recompile.", file=sys.stderr)
+    for subprogram in ["megahit_assemble", "megahit_iter", "megahit_local_asm"]:
+        if not os.path.exists(opt.bin_dir + "megahit_assemble"):
+            raise Usage(megahit_version_str + '\n' + "Cannot find sub-program \"" + subprogram + "\", please recompile.")
 
 def check_builder():
     if not os.path.exists(opt.bin_dir + opt.builder):
@@ -403,22 +404,28 @@ def delete_tmp_after_build(kmer_k):
     delect_file_if_exist(graph_prefix(kmer_k) + ".cand")
 
 def delete_tmp_after_assemble(kmer_k):
-    delect_file_if_exist(graph_prefix(kmer_k) + ".w")
-    delect_file_if_exist(graph_prefix(kmer_k) + ".last")
-    delect_file_if_exist(graph_prefix(kmer_k) + ".isd")
-    delect_file_if_exist(graph_prefix(kmer_k) + ".dn")
-    delect_file_if_exist(graph_prefix(kmer_k) + ".f")
-    delect_file_if_exist(graph_prefix(kmer_k) + ".mul")
-    delect_file_if_exist(graph_prefix(kmer_k) + ".mul2")
+    for extension in ["w", "last", "isd", "dn", "f", "mul", "mul2"]:
+        delect_file_if_exist(graph_prefix(kmer_k) + "." + extension)
 
 def delete_tmp_after_iter(kmer_k):
     delect_file_if_exist(graph_prefix(kmer_k) + ".rr.pb")
 
 def write_cp(cp):
     cpf = open(opt.temp_dir + "cp.txt", "a")
-    print("\n" + str(cp) + "\t" + "done", file=cpf);
+    print(str(cp) + "\t" + "done", file=cpf);
     cpf.flush()
     cpf.close()
+
+def write_lib():
+    opt.lib = opt.temp_dir + "reads.lib"
+    lib = open(opt.lib, "w")
+    for r in opt.pe12:
+        print("interleaved " + r, file=lib)
+    for i in range(0, len(opt.pe1)):
+        print("pe " + opt.pe1[i] + " " + opt.pe2[i], file=lib)
+    for r in opt.se:
+        print("se " + r, file=lib)
+    lib.close()
 
 def build_first_graph():
     global cp
@@ -677,6 +684,8 @@ def main(argv = None):
         print("[%s] Start assembly. Number of CPU threads %d." % (start_time.strftime("%c"), opt.num_cpu_threads), file=sys.stderr)
 
         make_out_dir()
+        write_lib()
+
         if opt.continue_mode != True:
             write_opt(argv[1:]) # for --continue
         build_first_graph()
