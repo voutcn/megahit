@@ -153,8 +153,8 @@ def parse_opt(argv):
     try:
         opts, args = getopt.getopt(argv, "hm:o:r:t:v1:2:", 
                                     ["help",
-                                     "read="
-                                     "12="
+                                     "read=",
+                                     "12=",
                                      "memory=",
                                      "out-dir=",
                                      "min-contig-len=",
