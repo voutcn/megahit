@@ -472,8 +472,11 @@ void HashGraph::AssembleFunc::operator ()(HashGraphVertex &vertex)
                 if (!hash_graph_->GetNextVertexAdaptor(current, next))
                     break;
 
+                if (hash_graph_->IsPalindromeLoop(contig_builder.contig(), next))
+                   break;
+
                 if (hash_graph_->IsLoop(contig_builder.contig(), next))
-                    break;
+                    return;
 
                 if (!next.status().LockPreempt(omp_get_thread_num()))
                     return;

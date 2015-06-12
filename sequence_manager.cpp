@@ -205,12 +205,14 @@ int64_t SequenceManager::ReadMegahitContigs(int64_t max_num, int64_t max_num_bas
 				continue;
 			}
 
-			if (extend_loop && kseq_readers_[0]->seq.l >= k_to_ + 1U &&
-				((kseq_readers_[0]->comment.s[5] - '0') & contig_flag::kLoop)) {
+			if (extend_loop && ((kseq_readers_[0]->comment.s[5] - '0') & contig_flag::kLoop)) {
+				if (kseq_readers_[0]->seq.l < k_to_ + 1U) {
+					continue;
+				}
 
 				std::string ss(kseq_readers_[0]->seq.s);
 				for (int i = 0; i < k_to_ + 1 - k_from_; ++i) {
-					ss.push_back(ss[i + k_from_]);
+					ss.push_back(ss[i + k_from_ - 1]);
 				}
 
 				if (reverse) {

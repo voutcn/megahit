@@ -902,8 +902,11 @@ int64_t ContigGraph::Assemble(deque<Sequence> &contigs, deque<ContigInfo> &conti
                 if (!GetNextVertexAdaptor(current, next))
                     break;
 
-                if (IsLoop(path, next))
+                if (IsPalindromeLoop(path, next))
                     break;
+
+                if (IsLoop(path, next))
+                    goto FAIL;
 
                 if (!next.status().LockPreempt(omp_get_thread_num()))
                     goto FAIL;

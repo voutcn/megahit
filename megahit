@@ -443,7 +443,7 @@ def build_first_graph():
         cmd = []
         if opt.kmin_1pass:
             cmd = [opt.bin_dir + opt.builder, "read2sdbg"] + count_opt
-            if opt.no_mercy == 0:
+            if not opt.no_mercy:
                 cmd.append("--need_mercy")
         else:
             cmd = [opt.bin_dir + opt.builder, "count"] + count_opt
@@ -482,8 +482,6 @@ def build_first_graph():
 def build_graph(kmer_k, kmer_from, num_edge_files):
     global cp
     if (not opt.continue_mode) or (cp > opt.last_cp):
-        if os.path.getsize(graph_prefix(kmer_k) + ".edges.0") == 0:
-            return False # not build
         build_comm_opt = ["--host_mem", str(opt.host_mem),
                              "--mem_flag", str(opt.mem_flag),
                              "--gpu_mem", str(opt.gpu_mem),
@@ -503,7 +501,7 @@ def build_graph(kmer_k, kmer_from, num_edge_files):
         if (os.path.exists(graph_prefix(kmer_from) + ".local.fa")):
             build_cmd += ["--local_contig", graph_prefix(kmer_from) + ".local.fa"]
 
-        if (opt.no_mercy == 0 and kmer_k == opt.k_min):
+        if not opt.no_mercy and kmer_k == opt.k_min:
             build_cmd.append("--need_mercy")
 
         try:
@@ -639,7 +637,7 @@ def local_assemble(cur_k):
             local_contig_file = open(graph_prefix(cur_k) + ".local.fa", "w")
             ret_code = subprocess.call(la_cmd, stdout = local_contig_file)
             if ret_code != 0:
-                print("Error occurs when running local assembly for k = %d to k = %d " % (cur_k, next_k), file=sys.stderr)
+                print("Error occurs when running local assembly for k = %d to k = %d " % (cur_k, min(cur_k + opt.k_step, opt.k_max)), file=sys.stderr)
                 print("[Exit code %d]" % ret_code, file=sys.stderr)
                 exit(ret_code)
 

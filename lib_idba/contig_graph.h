@@ -199,7 +199,10 @@ private:
     }
 
     bool IsLoop(const ContigGraphPath &path, const ContigGraphVertexAdaptor &next)
-    { return path.front().id() == next.id() || path.back().id() == next.id(); }
+    { return path.front().id() == next.id(); }
+
+    bool IsPalindromeLoop(const ContigGraphPath &path, const ContigGraphVertexAdaptor &next)
+    { return path.back().id() == next.id(); }
 
     ContigGraphVertexAdaptor FindVertexAdaptorByBeginIdbaKmer(const IdbaKmer &begin_kmer)
     {

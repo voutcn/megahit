@@ -209,8 +209,16 @@ private:
         IdbaKmer rev_comp = kmer;
         rev_comp.ReverseComplement();
 
-        return contig.GetIdbaKmer(0, kmer_size_) == kmer 
-            || contig.GetIdbaKmer(contig.size() - kmer_size_, kmer_size_) == rev_comp;
+        return contig.GetIdbaKmer(0, kmer_size_) == kmer;
+    }
+
+    bool IsPalindromeLoop(const Sequence &contig, HashGraphVertexAdaptor &next)
+    {
+        IdbaKmer kmer = next.kmer();
+        IdbaKmer rev_comp = kmer;
+        rev_comp.ReverseComplement();
+
+        return contig.GetIdbaKmer(contig.size() - kmer_size_, kmer_size_) == rev_comp;   
     }
 
     class BackupEdgesFunc
