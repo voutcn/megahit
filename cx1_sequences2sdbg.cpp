@@ -137,14 +137,14 @@ void InitLookupTable(int64_t *lookup_table, SequencePackage &p) {
 /**
  * @brief search mercy kmer
  */
-inline int64_t BinarySearchKmer(Kmer<6, uint32_t> &kmer, int64_t *lookup_table, SequencePackage &p, int kmer_size) {
+inline int64_t BinarySearchKmer(GenericKmer &kmer, int64_t *lookup_table, SequencePackage &p, int kmer_size) {
     // --- first look up ---
     int64_t l = lookup_table[(kmer.data_[0] >> kLookUpShift) * 2];
     if (l == -1) {
         return -1;
     }
     int64_t r = lookup_table[(kmer.data_[0] >> kLookUpShift) * 2 + 1];
-    Kmer<6, uint32_t> mid_kmer;
+    GenericKmer mid_kmer;
 
     while (l <= r) {
         int64_t mid = (l + r) / 2;
@@ -189,7 +189,7 @@ inline void GenMercyEdges(sequences2sdbg_global_t &globals) {
     int64_t *edge_lookup = (int64_t *) MallocAndCheck(kLookUpSize * 2 * sizeof(int64_t), __FILE__, __LINE__);
     InitLookupTable(edge_lookup, globals.package);
 
-    std::vector<Kmer<6, uint32_t> > mercy_edges;
+    std::vector<GenericKmer > mercy_edges;
 
     SequencePackage read_package[2];
     SequenceManager seq_manager;
@@ -209,7 +209,7 @@ inline void GenMercyEdges(sequences2sdbg_global_t &globals) {
     int64_t num_mercy_reads = 0;
 
     std::vector<bool> has_in, has_out;
-    Kmer<6, uint32_t> kmer, rev_kmer;
+    GenericKmer kmer, rev_kmer;
 
     while (true) {
         pthread_join(input_thread, NULL);
@@ -324,7 +324,7 @@ inline void GenMercyEdges(sequences2sdbg_global_t &globals) {
                     if (last_no_out >= 0) {
                         for (int j = last_no_out; j < i; ++j) {
                             omp_set_lock(&mercy_lock);
-                            mercy_edges.push_back(Kmer<6, uint32_t>(&rp.packed_seq[rp.get_start_index(read_id) / 16], rp.get_start_index(read_id) % 16 + j, globals.kmer_k + 1));
+                            mercy_edges.push_back(GenericKmer(&rp.packed_seq[rp.get_start_index(read_id) / 16], rp.get_start_index(read_id) % 16 + j, globals.kmer_k + 1));
                             omp_unset_lock(&mercy_lock);
                         }
                         num_mercy_edges += i - last_no_out;
@@ -722,7 +722,7 @@ void* lv2_extract_substr(void* _data) {
 
                 // if ((*substrings_p >> (32 - kBucketPrefixLength * 2)) != BucketToPrefix(bucket)) {
                 //     err("WRONG substring wrong:%d right:%d read_id:%lld offset:%d strand: %d num_chars_to_copy:%d\n", *substrings_p >> (32 - kBucketPrefixLength * 2),  BucketToPrefix(bucket), seq_id, offset, strand, num_chars_to_copy);
-                //     Kmer<6, uint32_t> kmer;
+                //     GenericKmer kmer;
                 //     kmer.init(edge_p, offset + start_offset, kBucketPrefixLength);
                 //     err("%d\n", kmer.data_[0] >> (32 - kBucketPrefixLength * 2));
                 // }

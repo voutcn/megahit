@@ -21,13 +21,15 @@
 
 #include <stdint.h>
 
+#include "kmer.h"
+
 typedef uint16_t multi_t;
-const int kBitsPerMulti_t = 16;
-const int kMaxMulti_t = 65535;
+static const int kBitsPerMulti_t = 16;
+static const int kMaxMulti_t = 65535;
 
 typedef uint8_t multi2_t;
-const int kMaxMulti2_t = 254;
-const multi2_t kMulti2Sp = 255;
+static const int kMaxMulti2_t = 254;
+static const multi2_t kMulti2Sp = 255;
 
 typedef uint32_t edge_word_t;
 static const int kBitsPerEdgeWord = 32;
@@ -44,7 +46,13 @@ namespace contig_flag {
 static const int kIsolated = 0x1;
 static const int kLoop = 0x2;
 
-} 
+}
+
+static const int kMaxK = 127;
+static const int kUint32PerKmerMaxK = (kMaxK + 1 + 15) / 16;
+static const int kUint64PerIdbaKmerMaxK = (kMaxK * 2 + 16 + 63) / 64;
+
+typedef Kmer<kUint32PerKmerMaxK, uint32_t> GenericKmer;
 
 #define LONG_READS
 

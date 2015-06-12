@@ -19,17 +19,20 @@
 /* contact: Dinghua Li <dhli@cs.hku.hk> */
 
 #include "iterate_edges.h"
+
 #include <stdio.h>
 #include <pthread.h>
 #include <omp.h>
 #include <stdlib.h>
 #include <assert.h>
+
 #include <string>
 #include <vector>
 #include <iostream>
 #include <sstream>
 #include <algorithm>
 #include <stdexcept>
+
 #include "definitions.h"
 #include "options_description.h"
 #include "atomic_bit_vector.h"
@@ -82,9 +85,9 @@ static void ParseOptions(int argc, char *argv[]) {
 
     try {
         desc.Parse(argc, argv);
-        if (options.step + options.kmer_k >= (int)Kmer<4>::max_size()) {
+        if (options.step + options.kmer_k >= std::max((int)Kmer<4>::max_size(), (int)GenericKmer::max_size())) {
             std::ostringstream os;
-            os << "kmer_k + step must less than " << Kmer<4>::max_size();
+            os << "kmer_k + step must less than " << std::max((int)Kmer<4>::max_size(), (int)GenericKmer::max_size());
             throw std::logic_error(os.str());
         } else if (options.contig_file == "") {
             throw std::logic_error("No contig file!");
@@ -92,7 +95,7 @@ static void ParseOptions(int argc, char *argv[]) {
             throw std::logic_error("No reads file!");
         } else if (options.kmer_k <= 0) {
             throw std::logic_error("Invalid kmer size!");
-        } else if (options.step <= 0) {
+        } else if (options.step <= 0 || options.step > 28 || options.step % 2 == 1) {
             throw std::logic_error("Invalid step size!");
         } else if (options.output_prefix == "") {
             throw std::logic_error("No output prefix!");
@@ -373,6 +376,7 @@ static void ReadReadsAndProcess(IterateGlobalData &globals,
     if (ReadReadsAndProcessKernel<3, uint64_t>(globals, crusial_kmers)) return;
     if (ReadReadsAndProcessKernel<7, uint32_t>(globals, crusial_kmers)) return;
     if (ReadReadsAndProcessKernel<4, uint64_t>(globals, crusial_kmers)) return;
+    if (ReadReadsAndProcessKernel<kUint32PerKmerMaxK, uint32_t>(globals, crusial_kmers)) return;
     assert (false);
 }
 
@@ -469,6 +473,7 @@ int main(int argc, char *argv[]) {
         if (IterateToNextK<3, uint64_t>(globals)) break;
         if (IterateToNextK<7, uint32_t>(globals)) break;
         if (IterateToNextK<4, uint64_t>(globals)) break;
+        if (IterateToNextK<kUint32PerKmerMaxK, uint32_t>(globals)) break;
         assert(false);
     }
 

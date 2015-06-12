@@ -1,3 +1,4 @@
+
 /*
  *  MEGAHIT
  *  Copyright (C) 2014 - 2015 The University of Hong Kong
@@ -236,7 +237,7 @@ void* s2_lv0_calc_bucket_size(void* _data) {
     read2sdbg_global_t &globals = *(rp.globals);
     int64_t *bucket_sizes = rp.rp_bucket_sizes;
     memset(bucket_sizes, 0, kNumBuckets * sizeof(int64_t));
-    Kmer<6, uint32_t> edge, rev_edge; // (k+1)-mer and its rc
+    GenericKmer edge, rev_edge; // (k+1)-mer and its rc
 
     for (int64_t read_id = rp.rp_start_id; read_id < rp.rp_end_id; ++read_id) {
         int read_length = globals.package.length(read_id);
@@ -409,7 +410,7 @@ void* s2_lv1_fill_offset(void* _data) {
     for (int b = globals.cx1.lv1_start_bucket_; b < globals.cx1.lv1_end_bucket_; ++b)
         prev_full_offsets[b] = rp.rp_lv1_differential_base;
     // this loop is VERY similar to that in PreprocessScanToFillBucketSizesThread
-    Kmer<6, uint32_t> edge, rev_edge; // (k+1)-mer and its rc
+    GenericKmer edge, rev_edge; // (k+1)-mer and its rc
 
     int key;
     for (int64_t read_id = rp.rp_start_id; read_id < rp.rp_end_id; ++read_id) {

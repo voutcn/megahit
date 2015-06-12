@@ -18,7 +18,6 @@
 #include "city.h"
 #include "bit_operation.h"
 
-
 /**
  * @brief It represents a k-mer. The value of k is limited by the number of
  * words used. The maximum value can be calculated by max_size().
