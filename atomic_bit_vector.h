@@ -55,11 +55,11 @@ class AtomicBitVector {
     }
 
     bool get(size_t i) {
-        word_t volatile *p = data_ + i / kBitsPerWord;
-        return bool((*p >> i % kBitsPerWord) & 1);
+        return bool((data_[i / kBitsPerWord] >> i % kBitsPerWord) & 1);
     }
 
     bool try_lock(size_t i) {
+        // assert(i / kBitsPerWord < num_words_);
         word_t volatile *p = data_ + i / kBitsPerWord;
         while (!((*p >> i % kBitsPerWord) & 1)) {
             word_t old_value = *p;
@@ -77,15 +77,20 @@ class AtomicBitVector {
         }
     }
 
+    void unlock(size_t i) {
+        __sync_synchronize();
+        word_t mask = ~(word_t(1) << (i % kBitsPerWord));
+        __sync_fetch_and_and(data_ + i / kBitsPerWord, mask);
+    }
+
     void set(size_t i) {
-        word_t volatile *p = data_ + i / kBitsPerWord;
-        __sync_fetch_and_or(p, word_t(1) << (i % kBitsPerWord));
+        __sync_fetch_and_or(data_ + i / kBitsPerWord, word_t(1) << (i % kBitsPerWord));
     }
 
     void unset(size_t i) {
+        // assert(i / kBitsPerWord < num_words_);
         word_t mask = ~(word_t(1) << (i % kBitsPerWord));
-        word_t volatile *p = data_ + i / kBitsPerWord;
-        __sync_fetch_and_and(p, mask);
+        __sync_fetch_and_and(data_ + i / kBitsPerWord, mask);
     }
 
     void reset(size_t size = 0) {

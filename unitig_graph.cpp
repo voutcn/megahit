@@ -685,7 +685,7 @@ void UnitigGraph::Refresh_(bool set_changed) {
 
         if (i != linear_path.back().first && !marked.try_lock(linear_path.back().first)) { // if i == linear_path.back().first it is a palindrome self loop
             if (linear_path.back().first > i) {
-                marked.unset(i);
+                marked.unlock(i);
                 continue;
             } else {
                 marked.lock(linear_path.back().first);

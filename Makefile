@@ -145,7 +145,7 @@ DEPS =   ./Makefile \
 # g++ and its options
 #-------------------------------------------------------------------------------
 CUDALIBFLAG = -L/usr/local/cuda/lib64/ -lcuda -lcudart
-CFLAGS = -I. -O3 -Wall -Wno-unused-function -funroll-loops -fprefetch-loop-arrays -fopenmp -std=c++0x -static-libgcc -static-libstdc++
+CFLAGS = -O2 -Wall -Wno-unused-function -funroll-loops -fprefetch-loop-arrays -fopenmp -I. -std=c++0x -static-libgcc -static-libstdc++
 LIB = -lpthread -lm -lz
 ifneq ($(disablempopcnt), 1)
 	CFLAGS += -mpopcnt
@@ -193,7 +193,7 @@ megahit_assemble: assembler.cpp succinct_dbg.o rank_and_select.h assembly_algori
 megahit_iter: iterate_edges.cpp iterate_edges.h options_description.o city.o sequence_manager.o $(DEPS)
 	$(CXX) $(CFLAGS) iterate_edges.cpp options_description.o city.o sequence_manager.o $(LIB) -o megahit_iter
 
-megahit_local_asm: local_assembler.o local_assemble.cpp city.o options_description.o sequence_manager.o $(LIB_IDBA) $(DEPS)
+megahit_local_asm: local_assembler.o city.o options_description.o sequence_manager.o local_assemble.cpp $(LIB_IDBA) $(DEPS)
 	$(CXX) $(CFLAGS) local_assemble.cpp local_assembler.o options_description.o city.o sequence_manager.o $(LIB_IDBA) $(LIB) -o megahit_local_asm
 
 #-------------------------------------------------------------------------------
@@ -249,4 +249,4 @@ clean:
 	-rm -fr *.i* *.cubin *.cu.c *.cudafe* *.fatbin.c *.ptx *.hash *.cu.cpp *.o .*.o .*.cpp \
 		$(LIB_IDBA) \
 		example/megahit_*out \
-		megahit_assemble megahit_iter sdbg_builder_cpu sdbg_builder_gpu sdbg_builder_cpu_1pass sdbg_builder_gpu_1pass
+		megahit_assemble megahit_iter sdbg_builder_cpu sdbg_builder_gpu megahit_local_asm

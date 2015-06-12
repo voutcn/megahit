@@ -19,7 +19,6 @@
 #include "kseq.h"
 #include "histgram.h"
 #include "bit_operation.h"
-#include "atomic_bit_vector.h"
 #include "sequence_manager.h"
 #include "read_lib_functions-inl.h"
 
@@ -311,6 +310,7 @@ inline uint64_t PackMappingResult(uint64_t contig_offset, uint64_t is_mate, uint
 }
 
 bool LocalAssembler::AddToMappingDeque_(size_t read_id, const MappingRecord &rec, int local_range) {
+	// fprintf(stderr, "%lu %Lu\n", read_id, rec.contig_id);
 	assert(read_id < reads_->size());
 	assert(rec.contig_id < contigs_->size());
 
@@ -318,15 +318,15 @@ bool LocalAssembler::AddToMappingDeque_(size_t read_id, const MappingRecord &rec
 	int read_len = reads_->length(read_id);
 	if (rec.contig_to < local_range && rec.query_from != 0) {
 		uint64_t res = PackMappingResult(rec.contig_to, 0, rec.mismatch, rec.strand, read_id);
-		locks_.lock(rec.contig_id);
+		omp_set_lock(&locks_[rec.contig_id % kMaxNumLocks]);
 		mapped_f_[rec.contig_id].push_back(res);
-		locks_.unset(rec.contig_id);
+		omp_unset_lock(&locks_[rec.contig_id % kMaxNumLocks]);
 		return true;
 	} else if (rec.contig_from + local_range >= contig_len && rec.query_to < read_len - 1) {
 		uint64_t res = PackMappingResult(contig_len - 1 - rec.contig_from, 0, rec.mismatch, rec.strand, read_id);
-		locks_.lock(rec.contig_id);
+		omp_set_lock(&locks_[rec.contig_id % kMaxNumLocks]);
 		mapped_r_[rec.contig_id].push_back(res);
-		locks_.unset(rec.contig_id);
+		omp_unset_lock(&locks_[rec.contig_id % kMaxNumLocks]);
 		return true;
 	}
 
@@ -334,10 +334,10 @@ bool LocalAssembler::AddToMappingDeque_(size_t read_id, const MappingRecord &rec
 }
 
 bool LocalAssembler::AddMateToMappingDeque_(size_t read_id, size_t mate_id, const MappingRecord &rec1, const MappingRecord &rec2, bool mapped2, int local_range) {
-	// assert(read_id < reads_->size());
-	// assert((read_id ^ 1) < reads_->size());
-	// assert(rec1.contig_id < contigs_->size());
-	// assert(!mapped2 || rec2.contig_id < contigs_->size());
+	assert(read_id < reads_->size());
+	assert(mate_id < reads_->size());
+	assert(rec1.contig_id < contigs_->size());
+	assert(!mapped2 || rec2.contig_id < contigs_->size());
 
 	if (mapped2 && rec2.contig_id == rec1.contig_id)
 		return false;
@@ -346,15 +346,15 @@ bool LocalAssembler::AddMateToMappingDeque_(size_t read_id, size_t mate_id, cons
 
 	if (rec1.contig_to < local_range && rec1.strand == 1) {
 		uint64_t res = PackMappingResult(rec1.contig_to, 1, rec1.mismatch, rec1.strand, mate_id);
-		locks_.lock(rec1.contig_id);
+		omp_set_lock(&locks_[rec1.contig_id % kMaxNumLocks]);
 		mapped_f_[rec1.contig_id].push_back(res);
-		locks_.unset(rec1.contig_id);	
+		omp_unset_lock(&locks_[rec1.contig_id % kMaxNumLocks]);
 		return true;
 	} else if (rec1.contig_from + local_range >= contig_len && rec1.strand == 0) {
 		uint64_t res = PackMappingResult(contig_len - 1 - rec1.contig_from, 1, rec1.mismatch, rec1.strand, mate_id);
-		locks_.lock(rec1.contig_id);
+		omp_set_lock(&locks_[rec1.contig_id % kMaxNumLocks]);
 		mapped_r_[rec1.contig_id].push_back(res);
-		locks_.unset(rec1.contig_id);
+		omp_unset_lock(&locks_[rec1.contig_id % kMaxNumLocks]);
 		return true;
 	}
 
@@ -364,7 +364,11 @@ bool LocalAssembler::AddMateToMappingDeque_(size_t read_id, size_t mate_id, cons
 void LocalAssembler::MapToContigs() {
 	mapped_f_.resize(contigs_->size());
 	mapped_r_.resize(contigs_->size());
-	locks_.reset(contigs_->size());
+	locks_.resize(std::min(contigs_->size(), (size_t)kMaxNumLocks));
+
+	for (auto it = locks_.begin(); it != locks_.end(); ++it) {
+		omp_init_lock(&*it);
+	}
 
 	max_read_len_ = 1;
 	local_range_ = 0;
@@ -391,6 +395,7 @@ void LocalAssembler::MapToContigs() {
     				num_added += AddMateToMappingDeque_(i, i+1, rec1, rec2, map2, local_range);
     			}
     		}
+
     		if (map2) {
     			++num_mapped;
     			num_added += AddToMappingDeque_(i+1, rec2, local_range);
@@ -403,10 +408,12 @@ void LocalAssembler::MapToContigs() {
 	    		lib_id, lib_info_[lib_id].to - lib_info_[lib_id].from + 1, num_mapped, num_added);
     }
 
-    {
-    	AtomicBitVector empty;
-    	empty.swap(locks_);
-    }
+    for (auto it = locks_.begin(); it != locks_.end(); ++it) {
+		omp_destroy_lock(&*it);
+	}
+
+	std::vector<omp_lock_t> empty;
+	empty.swap(locks_);
 }
 
 void LocalAssembler::LocalAssemble() {

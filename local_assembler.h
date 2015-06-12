@@ -6,18 +6,19 @@
 #include <string>
 #include <deque>
 
-#include "atomic_bit_vector.h"
 #include "hash_table.h"
 #include "sequence_package.h"
 #include "kmer_plus.h"
 #include "lib_info.h"
 
 struct LocalAssembler {
+	static const int kMaxLocalRange = 650;
+	static const int kMaxNumLocks = 1 << 20;
+
 	typedef std::pair<double, double> tlen_t;
 	typedef KmerPlus<2, uint32_t, uint64_t> kmer_plus_t;
 	typedef Kmer<2, uint32_t> kmer_t;
 	typedef HashTable<kmer_plus_t, kmer_t> mapper_t;
-	static const int kMaxLocalRange = 650;
 
 	struct MappingRecord {
 		uint32_t contig_id;
@@ -52,7 +53,7 @@ struct LocalAssembler {
 	mapper_t mapper_;
 	std::vector<lib_info_t> lib_info_;
 	std::vector<tlen_t> insert_sizes_;
-	AtomicBitVector locks_;
+	std::vector<omp_lock_t> locks_;
 	volatile int output_lock_;
 
 	std::vector<std::deque<uint64_t> > mapped_f_, mapped_r_;
