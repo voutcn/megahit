@@ -138,11 +138,10 @@ void WriteContig(const std::string &label, int k_size, long long &id, int flag, 
     omp_unset_lock(lock);
 }
 
-double GetSimilarity(std::string &a, std::string &b, int max_indel, double min_similar) {
+double GetSimilarity(std::string &a, std::string &b, double min_similar) {
     int n = a.length();
     int m = b.length();
-    int max_mm = std::max(n, m) * (1 - min_similar);
-    max_indel = std::min(max_indel, max_mm);
+    int max_indel = std::max(n, m) * (1 - min_similar);
     if (abs(n - m) > max_indel) { return 0; }
     if (max_indel < 1) { return 0; }
 
@@ -407,7 +406,6 @@ uint32_t UnitigGraph::MergeBubbles(bool permanent_rm) {
 }
 
 uint32_t UnitigGraph::MergeComplexBubbles(double similarity, int merge_level, bool permanent_rm) {
-    int max_indel_allowed = merge_level;
     int max_bubble_len = sdbg_->kmer_k * merge_level / similarity + 0.5;
     uint32_t num_removed = 0;
 
@@ -416,7 +414,7 @@ uint32_t UnitigGraph::MergeComplexBubbles(double similarity, int merge_level, bo
 
 #pragma omp parallel for private(branches, vertex_labels) reduction(+: num_removed)
     for (vertexID_t i = 0; i < vertices_.size(); ++i) {
-        if (vertices_[i].is_deleted) { continue; }
+        if (vertices_[i].is_deleted || vertices_[i].is_dead) { continue; }
 
         for (int strand = 0; strand < 2; ++strand) {
             int64_t outgoings[4];
@@ -464,7 +462,7 @@ uint32_t UnitigGraph::MergeComplexBubbles(double similarity, int merge_level, bo
                         }
 
                         // fprintf(stderr, "%s\n%s\n%lf\n", a.c_str(), b.c_str(), GetSimilarity(a, b, max_indel_allowed, similarity));
-                        if (GetSimilarity(vertex_labels[j], vertex_labels[k], max_indel_allowed, similarity) >= similarity) {
+                        if (GetSimilarity(vertex_labels[j], vertex_labels[k], similarity) >= similarity) {
                             num_removed++;
                             vk.is_dead = true;
                         }
