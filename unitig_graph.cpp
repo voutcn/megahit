@@ -417,13 +417,15 @@ uint32_t UnitigGraph::MergeComplexBubbles(double similarity, int merge_level, bo
 #pragma omp parallel for private(branches, vertex_labels) reduction(+: num_removed)
     for (vertexID_t i = 0; i < vertices_.size(); ++i) {
         if (vertices_[i].is_deleted) { continue; }
+
         for (int strand = 0; strand < 2; ++strand) {
             int64_t outgoings[4];
             int outdegree = sdbg_->Outgoings(strand == 0 ? vertices_[i].end_node : vertices_[i].rev_end_node, outgoings);
             if (outdegree <= 1) { continue; }
 
             branches.clear();
-            vertex_labels.resize(outdegree, "");
+            vertex_labels.resize(outdegree);
+            std::fill(vertex_labels.begin(), vertex_labels.end(), "");
 
             for (int j = 0; j < outdegree; ++j) {
                 auto next_vertex_iter = start_node_map_.find(outgoings[j]);
@@ -463,7 +465,7 @@ uint32_t UnitigGraph::MergeComplexBubbles(double similarity, int merge_level, bo
 
                         // fprintf(stderr, "%s\n%s\n%lf\n", a.c_str(), b.c_str(), GetSimilarity(a, b, max_indel_allowed, similarity));
                         if (GetSimilarity(vertex_labels[j], vertex_labels[k], max_indel_allowed, similarity) >= similarity) {
-                            ++num_removed;
+                            num_removed++;
                             vk.is_dead = true;
                         }
                     }
