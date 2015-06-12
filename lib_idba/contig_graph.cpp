@@ -219,7 +219,6 @@ void ContigGraph::MergeSimilarPath()
 
             if (current.out_edges().size() > 1)
             {
-                ContigGraphVertexAdaptor end(NULL);
                 deque<ContigGraphVertexAdaptor> neighbors;
                 GetNeighbors(current, neighbors);
                 sort(neighbors.begin(), neighbors.end(), CompareContigCoverage);

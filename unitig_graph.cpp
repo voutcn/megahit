@@ -407,6 +407,7 @@ uint32_t UnitigGraph::MergeBubbles(bool permanent_rm) {
 
 uint32_t UnitigGraph::MergeComplexBubbles(double similarity, int merge_level, bool permanent_rm) {
     int max_bubble_len = sdbg_->kmer_k * merge_level / similarity + 0.5;
+    if (max_bubble_len * (1 - similarity) < 1) return 0;
     uint32_t num_removed = 0;
 
     std::vector<std::tuple<double, int64_t, vertexID_t, std::vector<int64_t>, bool> > branches; // depth, representative id, id, in_out_ids, strand

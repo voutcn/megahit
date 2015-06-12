@@ -72,7 +72,7 @@ Optional Arguments:
   Advanced assembly options:
     --no-mercy                              do not add mercy kmers
     --no-bubble                             do not merge bubbles
-    --merge-level            <int>          strength of complex bubble merging (0-100), default 20
+    --merge-level            <l,s>          merge complex bubbles of length <= l*kmer_size and similarity >= s, default: 20,0.98
     --prune-level            <int>          strength of local low depth pruning (0-2), default 2
     --low-local-ratio        <float>        ratio threshold to define low local coverage contigs, default: 0.2
     --max-tip-len            <int>          remove tips less than this value; default: 2*k for iteration of kmer_size=k
@@ -95,7 +95,7 @@ class Usage(Exception):
 class Options():
     def __init__(self):
         self.host_mem = 0.9
-        self.gpu_mem = False
+        self.gpu_mem = 0
         self.lib = ""
         self.out_dir = "./megahit_out/"
         self.min_contig_len = 200
@@ -108,7 +108,8 @@ class Options():
         self.no_mercy = False
         self.no_local = False
         self.no_bubble = False
-        self.merge_level = 20
+        self.merge_len = 20
+        self.merge_similar = 0.98
         self.prune_level = 2
         self.num_cpu_threads = False
         self.low_local_ratio = 0.2
@@ -217,7 +218,8 @@ def parse_opt(argv):
         elif option == "--max-tip-len":
             opt.max_tip_len = int(value)
         elif option == "--merge-level":
-            opt.merge_level = int(value)
+            (opt.merge_len, opt.merge_similar) = map(float, value.split(","))
+            opt.merge_len = int(opt.merge_len)
         elif option == "--prune-level":
             opt.prune_level = int(value)
         elif option == "--no-bubble":
@@ -302,8 +304,10 @@ def check_opt():
         raise Usage("min_count must be greater than 0.")
     if opt.prune_level < 0 or opt.prune_level > 2:
         raise Usage("prune level must be in 0-2.")
-    if opt.merge_level < 0 or opt.merge_level > 100:
-        raise Usage("merge level must be in 0-100.")
+    if opt.merge_len < 0:
+        raise Usage("merge_level: length must be >= 0")
+    if opt.merge_similar < 0 or opt.merge_similar > 1:
+        raise Usage("merge_level: similarity must be in [0, 1]")
     if opt.low_local_ratio <= 0 or opt.low_local_ratio > 0.5:
         raise Usage("low_local_ratio should be in (0, 0.5].")
     if opt.num_cpu_threads > multiprocessing.cpu_count():
@@ -578,7 +582,9 @@ def assemble(cur_k):
                         "--max_tip_len", str(opt.max_tip_len),
                         "--min_final_len", str(opt.min_contig_len),
                         "--prune_level", str(opt.prune_level),
-                        "--merge_level", str(opt.merge_level)]
+                        "--merge_len", str(int(opt.merge_len)),
+                        "--merge_similar", str(opt.merge_similar),
+                        "--low_local_ratio", str(opt.low_local_ratio)]
 
         if cur_k == opt.k_min:
             assembly_cmd.append("--min_depth")

@@ -44,10 +44,11 @@ struct AssemblerOptions {
     double min_depth;
     bool is_final_round;
     bool no_bubble;
-    int merge_level;
+    int merge_len;
+    int merge_similar;
     int prune_level;
     bool excessive_prune;
-    double local_low_ratio;
+    double low_local_ratio;
 
     AssemblerOptions() {
         output_prefix = "out";
@@ -55,9 +56,10 @@ struct AssemblerOptions {
         max_tip_len = -1;
         min_final_len = 200;
         no_bubble = false;
-        merge_level = 20;
+        merge_len = 20;
+        merge_similar = 0.98;
         prune_level = 2;
-        local_low_ratio = 0.2;
+        low_local_ratio = 0.2;
         min_depth = 1.5;
         is_final_round = false;
     }
@@ -85,9 +87,10 @@ void ParseOption(int argc, char *argv[]) {
     desc.AddOption("max_tip_len", "", opt.max_tip_len, "max length for tips to be removed. -1 for 2k");
     desc.AddOption("min_final_len", "", opt.min_final_len, "min length of a final contig");
     desc.AddOption("no_bubble", "", opt.no_bubble, "do not remove bubbles");
-    desc.AddOption("merge_level", "", opt.merge_level, "strength of merging");
+    desc.AddOption("merge_len", "", opt.merge_len, "merge complex bubbles of length <= merge_len * k");
+    desc.AddOption("merge_similar", "", opt.merge_similar, "min similarity of complex bubble merging");
     desc.AddOption("prune_level", "", opt.prune_level, "strength of low local depth contig pruning (0-2)");
-    desc.AddOption("local_low_ratio", "", opt.local_low_ratio, "ratio to define low depth contigs");
+    desc.AddOption("low_local_ratio", "", opt.low_local_ratio, "ratio to define low depth contigs");
     desc.AddOption("min_depth", "", opt.min_depth, "if prune_level is 2, permanently remove low local coverage unitigs under this threshold");
     desc.AddOption("is_final_round", "", opt.is_final_round, "this is the last iteration");
 
@@ -190,8 +193,8 @@ int main(int argc, char **argv) {
         timer.reset();
         timer.start();
         unitig_graph.MergeBubbles(true);
-        if (opt.merge_level > 0) {
-            unitig_graph.MergeComplexBubbles(0.98, opt.merge_level, true);
+        if (opt.merge_len > 0) {
+            unitig_graph.MergeComplexBubbles(opt.merge_similar, opt.merge_len, true);
         }
         timer.stop();
         printf("Time elapsed(sec): %lf\n", timer.elapsed());
@@ -204,7 +207,7 @@ int main(int argc, char **argv) {
     if (opt.prune_level >= 2) {
         timer.reset();
         timer.start();
-        unitig_graph.RemoveLocalLowDepth(opt.min_depth, opt.max_tip_len, kLocalWidth, std::min(opt.local_low_ratio, 0.1), num_removed, true);
+        unitig_graph.RemoveLocalLowDepth(opt.min_depth, opt.max_tip_len, kLocalWidth, std::min(opt.low_local_ratio, 0.1), num_removed, true);
         timer.stop();
         printf("Unitigs removed in excessive pruning: %lld, time: %lf\n", (long long)num_removed, timer.elapsed());   
     }
@@ -238,15 +241,15 @@ int main(int argc, char **argv) {
         double min_depth = opt.min_depth;
 
         while (min_depth < kMaxMulti_t) {
-            if (!unitig_graph.RemoveLocalLowDepth(min_depth, opt.max_tip_len, kLocalWidth, opt.local_low_ratio, num_removed, opt.is_final_round)) {
+            if (!unitig_graph.RemoveLocalLowDepth(min_depth, opt.max_tip_len, kLocalWidth, opt.low_local_ratio, num_removed, opt.is_final_round)) {
                 break;
             }
 
             min_depth *= 1.1;
         }
         
-        if (opt.merge_level > 0)
-            unitig_graph.MergeComplexBubbles(0.98, opt.merge_level, opt.is_final_round);
+        if (opt.merge_len > 0)
+            unitig_graph.MergeComplexBubbles(opt.merge_similar, opt.merge_len, opt.is_final_round);
 
         timer.stop();
         printf("Number of local low depth unitigs removed: %lld, time: %lf\n", (long long)num_removed, timer.elapsed());
