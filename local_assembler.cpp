@@ -9,7 +9,7 @@
 #include <iostream>
 
 #include <zlib.h>
-#include <pthread.h>
+#include <omp.h>
 #include "lib_idba/sequence.h"
 #include "lib_idba/hash_graph.h"
 #include "lib_idba/contig_graph.h"
@@ -58,7 +58,7 @@ void LocalAssembler::BuildHashMapper(bool show_stat) {
 	mapper_.reserve(estimate_num_kmer);
 
 #pragma omp parallel for
-    for (size_t i = 0; i < sz; ++i) {
+    for (size_t i = 0; i < sz; ++i) { 
     	AddToHashMapper_(mapper_, i, sparsity_);
     }
 
@@ -415,25 +415,6 @@ void LocalAssembler::MapToContigs() {
 	empty.swap(locks_);
 }
 
-void LocalAssembler::LocalAssemble() {
-	omp_set_num_threads(1);
-
-	std::vector<pthread_t> threads(num_threads_);
-	std::vector<AssembleTask> tasks(num_threads_);
-	output_lock_ = 0;
-
-	for (int tid = 0; tid < num_threads_; ++tid) {
-		tasks[tid].tid = tid;
-		tasks[tid].local_assembler = this;
-        pthread_create(&threads[tid], NULL, LocalAssembleThread_, (void *)&tasks[tid]);
-	}
-
-	for (int tid = 0; tid < num_threads_; ++tid) {
-		pthread_join(threads[tid], NULL);
-	}
-
-	omp_set_num_threads(num_threads_);	
-}
 
 inline void LaunchIDBA(std::deque<Sequence> &reads, Sequence &contig_end,
 					   std::deque<Sequence> &out_contigs,
@@ -476,12 +457,14 @@ inline void LaunchIDBA(std::deque<Sequence> &reads, Sequence &contig_end,
             hash_graph.InsertUncountKmers(out_contigs[i]);
 
         hash_graph.Assemble(out_contigs, out_contig_infos);
+
         contig_graph.set_kmer_size(kmer_size);
         contig_graph.Initialize(out_contigs, out_contig_infos);
         contig_graph.RemoveDeadEnd(kmer_size*2);
         
         contig_graph.RemoveBubble();
         contig_graph.IterateCoverage(kmer_size*2, 1, threshold);
+
         contig_graph.Assemble(out_contigs, out_contig_infos);
 
         if (out_contigs.size() == 1) {
@@ -490,21 +473,21 @@ inline void LaunchIDBA(std::deque<Sequence> &reads, Sequence &contig_end,
     }
 }
 
-void* LocalAssembler::LocalAssembleThread_(void *data) {
-	AssembleTask *task = (AssembleTask*)data;
-	LocalAssembler *la = task->local_assembler;
-	int min_num_reads = la->local_range_ / la->max_read_len_;
+void LocalAssembler::LocalAssemble() {
+	output_lock_ = 0;
+	int min_num_reads = local_range_ / max_read_len_;
 
 	Sequence seq, contig_end;
 	std::deque<Sequence> reads;
 	std::deque<Sequence> out_contigs;
 	std::deque<ContigInfo> out_contig_infos;
 
-	for (size_t i = task->tid, csz = la->contigs_->size(); i < csz; i += la->num_threads_) {
-		int cl = la->contigs_->length(i);
+#pragma omp parallel for private(seq, contig_end, reads, out_contigs, out_contig_infos)
+	for (uint64_t cid = 0; cid < contigs_->size(); ++cid) {
+		int cl = contigs_->length(cid);
 
 		for (int strand = 0; strand < 2; ++strand) {
-			std::deque<uint64_t> &mapped_reads = strand == 0 ? la->mapped_f_[i] : la->mapped_r_[i];
+			std::deque<uint64_t> &mapped_reads = strand == 0 ? mapped_f_[cid] : mapped_r_[cid];
 			if ((int)mapped_reads.size() <= min_num_reads) {
 				continue;
 			}
@@ -516,7 +499,7 @@ void* LocalAssembler::LocalAssembleThread_(void *data) {
 			int last_mapping_pos = -1;
 			int pos_count = 0;
 
-			for (size_t j = 0; j < mapped_reads.size(); ++j) {
+			for (uint64_t j = 0; j < mapped_reads.size(); ++j) {
 				int pos = mapped_reads[j] >> 49;
 				pos_count = pos == last_mapping_pos ? pos_count + 1 : 1;
 				last_mapping_pos = pos;
@@ -525,8 +508,8 @@ void* LocalAssembler::LocalAssembleThread_(void *data) {
 					seq.clear();
 					uint64_t read_id = mapped_reads[j] & ((1ULL << 44) - 1);
 
-					for (unsigned ri = 0, rsz = la->reads_->length(read_id); ri < rsz; ++ri) {
-						seq.Append(la->reads_->get_base(read_id, ri));
+					for (unsigned ri = 0, rsz = reads_->length(read_id); ri < rsz; ++ri) {
+						seq.Append(reads_->get_base(read_id, ri));
 					}
 					reads.push_back(seq);
 				}
@@ -534,30 +517,29 @@ void* LocalAssembler::LocalAssembleThread_(void *data) {
 
 			contig_end.clear();
 			if (strand == 0) {
-				for (int j = 0, e = std::min(la->local_range_, cl); j < e; ++j) {
-					contig_end.Append(la->contigs_->get_base(i, j));
+				for (int j = 0, e = std::min(local_range_, cl); j < e; ++j) {
+					contig_end.Append(contigs_->get_base(cid, j));
 				}
 			} else {
-				for (int j = std::max(0,  cl - la->local_range_); j < cl; ++j) {
-					contig_end.Append(la->contigs_->get_base(i, j));
+				for (int j = std::max(0,  cl - local_range_); j < cl; ++j) {
+					contig_end.Append(contigs_->get_base(cid, j));
 				}
 			}
 
 			out_contigs.clear();
-			LaunchIDBA(reads, contig_end, out_contigs, out_contig_infos, la->local_kmin_, la->local_kmax_, la->local_step_);
+			LaunchIDBA(reads, contig_end, out_contigs, out_contig_infos, local_kmin_, local_kmax_, local_step_);
 
-			for (size_t j = 0; j < out_contigs.size(); ++j) {
-				if (out_contigs[j].size() > (unsigned)la->min_contig_len_ &&
-					out_contigs[j].size() > (unsigned)la->local_kmax_) {
-					while (__sync_lock_test_and_set(&la->output_lock_, 1)) while (la->output_lock_);
+			for (uint64_t j = 0; j < out_contigs.size(); ++j) {
+				if (out_contigs[j].size() > (unsigned)min_contig_len_ &&
+					out_contigs[j].size() > (unsigned)local_kmax_) {
+					while (__sync_lock_test_and_set(&output_lock_, 1)) while (output_lock_);
 					WriteFasta(std::cout,
 							   out_contigs[j],
-							   FormatString("lc_%llu_strand_%d_id_%lu flag=0 multi=1",
-							   	            i, strand, j));
-					__sync_lock_release(&la->output_lock_);
+							   FormatString("lc_%" PRIu64 "_strand_%d_id_%" PRIu64 " flag=0 multi=1",
+							   	            cid, strand, j));
+					__sync_lock_release(&output_lock_);
 				}
 			}
 		}
 	}
-	return NULL;
 }

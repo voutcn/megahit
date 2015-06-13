@@ -60,7 +60,7 @@ class AtomicBitVector {
 
     bool try_lock(size_t i) {
         // assert(i / kBitsPerWord < num_words_);
-        word_t volatile *p = data_ + i / kBitsPerWord;
+        word_t *p = data_ + i / kBitsPerWord;
         while (!((*p >> i % kBitsPerWord) & 1)) {
             word_t old_value = *p;
             word_t new_value = old_value | (word_t(1) << (i % kBitsPerWord));

@@ -66,7 +66,7 @@ Optional Arguments:
   Basic assembly options:
     --k-min                  <int>          minimum kmer size (<= 127), must be odd number, default: 21
     --k-max                  <int>          maximum kmer size (<= 127), must be odd number, default: 99
-    --k-step                 <int>          increment of kmer size of each iteration (<= 28), must be even number, default: 10
+    --k-step                 <int>          increment of kmer size of each iteration (<= 28), must be even number, default: 20
     --min-count              <int>          minimum multiplicity for filtering (k_min+1)-mers, default: 2.
 
   Advanced assembly options:
@@ -101,7 +101,7 @@ class Options():
         self.min_contig_len = 200
         self.k_min = 21
         self.k_max = 99
-        self.k_step = 10
+        self.k_step = 20
         self.min_count = 2
         self.bin_dir = sys.path[0] + "/"
         self.max_tip_len = -1

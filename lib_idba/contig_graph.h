@@ -270,8 +270,6 @@ private:
 
     HashMap<IdbaKmer, uint32_t> in_kmer_count_table_;
     HashGraph edge_count_table_;
-
-    double p_table[10][10000];
 };
 
 #endif

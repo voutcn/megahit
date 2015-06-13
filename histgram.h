@@ -11,7 +11,6 @@
 
 #define __BASIC_HISTGRAM_H__
 
-#include <omp.h>
 #include <stdint.h>
 
 #include <algorithm>

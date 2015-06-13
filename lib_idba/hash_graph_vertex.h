@@ -24,7 +24,7 @@
 class HashGraphVertex
 {
 public:
-    explicit HashGraphVertex(const IdbaKmer &kmer = IdbaKmer()): kmer_(kmer) {}
+    explicit HashGraphVertex(const IdbaKmer &kmer = IdbaKmer()): kmer_(kmer), count_(0) {}
     HashGraphVertex(const HashGraphVertex &x)
         : kmer_(x.kmer_), count_(x.count_), status_(x.status_), in_edges_(x.in_edges_), out_edges_(x.out_edges_) {}
 

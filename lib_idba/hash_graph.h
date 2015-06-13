@@ -310,7 +310,7 @@ private:
     class RefreshEdgesFunc
     {
     public:
-        explicit RefreshEdgesFunc(HashGraph *hash_graph) { hash_graph_ = hash_graph; }
+        explicit RefreshEdgesFunc(HashGraph *hash_graph) { hash_graph_ = hash_graph; total_degree_ = 0; }
 
         void operator ()(HashGraphVertex &vertex)
         {

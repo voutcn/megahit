@@ -6,6 +6,8 @@
 #include <string>
 #include <deque>
 
+#include <omp.h>
+
 #include "hash_table.h"
 #include "sequence_package.h"
 #include "kmer_plus.h"
@@ -28,11 +30,6 @@ struct LocalAssembler {
 		int16_t query_to : 15;
 		bool strand : 1;
 		int mismatch: 9;
-	};
-
-	struct AssembleTask {
-		int tid;
-		LocalAssembler *local_assembler;
 	};
 
 	int min_contig_len_;	// only align reads to these contigs

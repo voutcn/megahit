@@ -319,6 +319,7 @@ void UnitigGraph::InitFromSdBG() {
     for (vertexID_t i = 0; i < vertices_.size(); ++i) {
         omp_init_lock(&locks_[i]);
     }
+    
     omp_destroy_lock(&path_lock);
 }
 

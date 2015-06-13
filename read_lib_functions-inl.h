@@ -4,6 +4,8 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <assert.h>
+#include <stdint.h>
+#include <inttypes.h>
 #include <iostream>
 #include <fstream>
 #include <string>
@@ -82,9 +84,9 @@ inline void ReadBinaryLibs(const std::string &file_prefix, SequencePackage &pack
 	FILE *lib_info_file = OpenFileAndCheck(FormatString("%s.lib_info", file_prefix.c_str()), "r");
 	int64_t start, end;
 	int max_read_len;
-	while (fscanf(lib_info_file, "%lu", &start) == 1) {
+	while (fscanf(lib_info_file, "%" SCNd64 "", &start) == 1) {
 		char is_pe[32];
-		assert(fscanf(lib_info_file, "%lu", &end) == 1);
+		assert(fscanf(lib_info_file, "%" SCNd64 "", &end) == 1);
 		assert(fscanf(lib_info_file, "%d", &max_read_len) == 1);
 		assert(fscanf(lib_info_file, " %s", is_pe) == 1);
 		lib_info.push_back(lib_info_t(&package, start, end, max_read_len, strcmp(is_pe, "pe") == 0));
@@ -118,7 +120,7 @@ inline void WriteMultipleLibs(SequencePackage &package, std::vector<lib_info_t> 
 
 	FILE *se_file = OpenFileAndCheck(FormatString("%s.lib_info", file_prefix.c_str()), "w");
 	for (unsigned i = 0; i < lib_info.size(); ++i) {
-		fprintf(se_file, "%ld %ld %d %s\n", lib_info[i].from, lib_info[i].to, 
+		fprintf(se_file, "%" PRId64 " %" PRId64 " %d %s\n", lib_info[i].from, lib_info[i].to, 
 			                                lib_info[i].max_read_len, lib_info[i].is_pe ? "pe" : "se");
 	}
 	fclose(se_file);

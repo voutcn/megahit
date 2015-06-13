@@ -32,49 +32,6 @@ double ContigGraph::Binormial(int n, int m)
     return product;
 }
 
-void ContigGraph::InitializeTable()
-{
-    const double err = 0.01;
-    double p_err = err/3 * pow(1-err, double(kmer_size_-1));
-
-    for (int m = 1; m < 10; ++m)
-    {
-        for (int x = 1; x < 1000; ++x)
-        {
-            double sum = 0;
-            for (int i = 0; i <= x - m; ++i)
-                sum += 3 * Binormial(x - m - i + 2, 2) * pow(p_err, x-i) * pow(1 - p_err, i);
-            for (int i = 0; i <= x - 2*m; ++i)
-                sum -= 3 * Binormial(x - 2*m - i + 2, 2) * pow(p_err, x-i) * pow(1 - p_err, i);
-            for (int i = 0; i <= x - 3*m; ++i)
-                sum += Binormial(x - 3*m - i + 2, 2) * pow(p_err, x-i) * pow(1 - p_err, i);
-
-            p_table[m][x] = sum;
-        }
-    }
-}
-
-double ContigGraph::Threshold(double k, double mean, double sd, double p_false)
-{
-    if (mean > 150)
-        return mean;
-
-    const double Pi = 3.1415926535;
-    double x = 0;
-    double sum = 0;
-    double step = 0.1;
-    while (sum < p_false && x < mean)
-    {
-        double y = 1 / sqrt(2*Pi*sd*sd) * exp(-(x-mean)*(x-mean)/(2*sd*sd)) * 4 * k * p_table[1][int(x)] * step;
-        sum += y;
-        x += step;
-    }
-
-    cout << x << " " << mean << endl;
-
-    return x;
-}
-
 
 void ContigGraph::Initialize(const deque<Sequence> &contigs, const deque<ContigInfo> &contig_infos)
 {
@@ -89,32 +46,6 @@ void ContigGraph::Initialize(const deque<Sequence> &contigs, const deque<ContigI
         vertices_[i].set_id(i);
     }
     RefreshEdges();
-}
-
-void ContigGraph::BuildEdgeCountTable()
-{
-    edge_count_table_.clear();
-    edge_count_table_.set_kmer_size(kmer_size_+1);
-
-    for (int64_t i = 0; i < (int64_t)vertices_.size(); ++i)
-    {
-        for (int strand = 0; strand < 2; ++strand)
-        {
-            ContigGraphVertexAdaptor current(&vertices_[i], strand);
-
-            IdbaKmer kmer = current.end_kmer(kmer_size_);
-            kmer.resize(kmer_size_+1);
-            for (int x = 0; x < 4; ++x)
-            {
-                if (current.out_edges()[x])
-                {
-                    kmer.set_base(kmer_size_, x);
-                    edge_count_table_.InsertVertex(kmer);
-                }
-            }
-        }
-    }
-    edge_count_table_.ClearCount();
 }
 
 void ContigGraph::Refresh()
@@ -506,26 +437,6 @@ double ContigGraph::IterateComponentCoverage(int min_length, double ratio, doubl
     return min_cover;
 }
 
-double ContigGraph::IterateComponentCoverage2(int min_length, double ratio, double min_cover, double max_cover, double factor, int max_component_size)
-{
-    in_kmer_count_table_.reserve(vertices_.size());
-
-    min_cover = min(min_cover, max_cover);
-    while (true)
-    {
-        bool is_changed = RemoveComponentLowCoverage2(min_cover, min_length, ratio, max_component_size);
-
-        if (!is_changed)
-            break;
-
-        if (min_cover >= max_cover)
-            break;
-
-        min_cover *= factor;
-    }
-    return min_cover;
-}
-
 bool ContigGraph::RemoveLowCoverage(double min_cover, int min_length)
 {
     bool is_changed = false;
@@ -559,7 +470,7 @@ bool ContigGraph::RemoveLocalLowCoverage(double min_cover, int min_length, doubl
     int region_length = 1000;
     //int region_length = 100;
     bool is_changed = false;
-#pragma omp parallel for schedule(static, 1)
+
     for (int64_t i = 0; i < (int64_t)vertices_.size(); ++i)
     {
         ContigGraphVertexAdaptor current(&vertices_[i]);
@@ -648,79 +559,6 @@ bool ContigGraph::RemoveComponentLowCoverage(double min_cover, int min_length, d
 
             if (current.coverage() < threshold 
                     || ((int)components[id].size() > max_component_size && current.coverage() < average_coverage[id]))
-            {
-                is_changed = true;
-                current.status().SetDeadFlag();
-            }
-        }
-    }
-
-    Refresh();
-    MergeSimplePaths();
-
-    return is_changed;
-}
-
-bool ContigGraph::RemoveComponentLowCoverage2(double min_cover, int min_length, double ratio, int max_component_size)
-{
-    int region_length = 300;
-    deque<deque<ContigGraphVertexAdaptor> > components;
-    deque<string> component_strings;
-    GetComponents(components, component_strings);
-
-    deque<double> average_coverage(components.size());
-    deque<int> component_id_table(vertices_.size());
-
-    for (int64_t i = 0; i < (int64_t)components.size(); ++i)
-    {
-        double total_kmer_count = 0;
-        double total = 0;
-
-        Histgram<double> histgram;
-        for (unsigned j = 0; j < components[i].size(); ++j)
-        {
-            total_kmer_count += components[i][j].kmer_count();
-            total += components[i][j].contig_size() - kmer_size_ + 1;
-            component_id_table[components[i][j].id()] = i;
-
-//            SequenceCount counts = components[i][j].counts();
-//            for (unsigned k = 0; k < counts.size(); ++k)
-//                histgram.insert(counts[k]);
-        }
-
-        average_coverage[i] = total_kmer_count / total;
-    }
-
-    bool is_changed = false;
-    //int max_component_size = 30;
-
-    for (int64_t i = 0; i < (int64_t)vertices_.size(); ++i)
-    {
-        ContigGraphVertexAdaptor current(&vertices_[i]);
-        int id = component_id_table[current.id()];
-
-        if (components[id].size() <= 10)
-            continue;
-
-        if (current.contig_size() < min_length + kmer_size_ - 1
-                && (current.in_edges().size() <= 1 && current.out_edges().size() <= 1)
-                        //|| current.in_edges().size() == 0 || current.out_edges().size() == 0)
-           )
-        {
-            if (is_changed && current.coverage() > min_cover)
-                continue;
-
-            double threshold = min_cover;
-            double mean = LocalCoverage(current, region_length);
-            //double mean = average_coverage[id];
-            double threshold2 = Threshold(kmer_size_, average_coverage[id], average_coverage[id]/10, 0.01);
-            if (min_cover < ratio * mean || ((int)components[id].size() > max_component_size && min_cover < threshold2))
-                is_changed = true;
-            else
-                threshold = ratio * mean;
-
-            if (current.coverage() < threshold 
-                    || ((int)components[id].size() > max_component_size && current.coverage() < threshold2))
             {
                 is_changed = true;
                 current.status().SetDeadFlag();
@@ -1354,7 +1192,6 @@ void ContigGraph::FindLongestPath(deque<ContigGraphVertexAdaptor> &component, Co
 void ContigGraph::TopSort(deque<ContigGraphVertexAdaptor> &component, deque<ContigGraphVertexAdaptor> &order)
 {
     ContigGraphVertexAdaptor begin = GetBeginVertexAdaptor(component);
-    ContigGraphVertexAdaptor end = GetEndVertexAdaptor(component);
 
     map<int, int> status;
     TopSortDFS(order, begin, status);

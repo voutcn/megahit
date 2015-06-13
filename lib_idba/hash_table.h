@@ -18,7 +18,7 @@
 #include <ostream>
 #include <stdexcept>
 
-#include "pool.h"
+#include "lib_idba/pool.h"
 #include "hash.h"
 #include "functional.h"
 
@@ -191,7 +191,7 @@ public:
     typedef HashTableST<Value, Key, HashFunc, ExtractKey, EqualKey> hash_table_type;
     typedef HashTableSTIterator<Value, Key, HashFunc, ExtractKey, EqualKey> iterator;
     typedef HashTableSTConstIterator<Value, Key, HashFunc, ExtractKey, EqualKey> const_iterator;
-    typedef Pool<node_type> pool_type;
+    typedef PoolST<node_type> pool_type;
 
     friend class HashTableSTIterator<Value, Key, HashFunc, ExtractKey, EqualKey>;
     friend class HashTableSTConstIterator<Value, Key, HashFunc, ExtractKey, EqualKey>;
@@ -603,7 +603,7 @@ private:
     get_key_func_type get_key_;
     key_equal_func_type key_equal_;
 
-    Pool<node_type> pool_;
+    PoolST<node_type> pool_;
     std::vector<node_type *> buckets_;
     uint64_t size_;
 };
