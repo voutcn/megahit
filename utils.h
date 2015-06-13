@@ -44,7 +44,7 @@ inline void megahit_log__(const char* format, ...) {
 }
 
 #define xlog_ext(str, args...) megahit_log__(str, ##args);
-#define xlog(str, args...) megahit_log__("    [%-25s:%4d]     ", __FILE__, __LINE__); megahit_log__(str, ##args);
+#define xlog(str, args...) megahit_log__("    [%-26s:%4d]     ", __FILE__, __LINE__); megahit_log__(str, ##args);
 #define xerr(str, args...) megahit_log__("    [ERROR] [%-25s:%4d]: ", __FILE__, __LINE__); megahit_log__(str, ##args);
 #define xwarning(str, args...) megahit_log__("    [WARNING] [%-25s:%4d] ", __FILE__, __LINE__); megahit_log__(str, ##args);
 #define xerr_and_exit(str, args...) megahit_log__("    [ERROR] [%-25s:%4d]: ", __FILE__, __LINE__); megahit_log__(str, ##args); exit(1);

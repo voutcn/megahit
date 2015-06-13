@@ -307,8 +307,8 @@ int main_seq2sdbg(int argc, char **argv) {
     globals.kmer_from = opt.kmer_from;
     globals.need_mercy = opt.need_mercy;
 
-    xlog("[B::%s] Host memory to be used: %lld\n", __func__, (long long)globals.host_mem);
-    xlog("[B::%s] Number CPU threads: %d\n", __func__, globals.num_cpu_threads);
+    xlog("Host memory to be used: %lld\n", (long long)globals.host_mem);
+    xlog("Number CPU threads: %d\n", globals.num_cpu_threads);
 
     // set & run cx1
     globals.cx1.g_ = &globals;

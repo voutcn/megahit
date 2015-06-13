@@ -457,11 +457,11 @@ def build_first_graph():
             start_time = datetime.now()
             print("%s" % (" ").join(cmd), file=log_file)
             if opt.kmin_1pass:
-                print("---- [%s] Extracting solid (k+1)-mers and building sdbg for k = %d----\n" % (start_time.strftime("%c"), opt.k_min), file=sys.stderr)
-                print("---- [%s] Extracting solid (k+1)-mers and building sdbg k = %d----\n" % (start_time.strftime("%c"), opt.k_min), file=log_file)
+                print("\n---- [%s] Extracting solid (k+1)-mers and building sdbg for k = %d ----\n" % (start_time.strftime("%c"), opt.k_min), file=sys.stderr)
+                print("\n---- [%s] Extracting solid (k+1)-mers and building sdbg k = %d ----\n" % (start_time.strftime("%c"), opt.k_min), file=log_file)
             else:
-                print("---- [%s] Extracting solid (k+1)-mers for k = %d----\n" % (start_time.strftime("%c"), opt.k_min), file=sys.stderr)
-                print("---- [%s] Extracting solid (k+1)-mers for k = %d----\n" % (start_time.strftime("%c"), opt.k_min), file=log_file)
+                print("\n---- [%s] Extracting solid (k+1)-mers for k = %d ----\n" % (start_time.strftime("%c"), opt.k_min), file=sys.stderr)
+                print("\n---- [%s] Extracting solid (k+1)-mers for k = %d ----\n" % (start_time.strftime("%c"), opt.k_min), file=log_file)
             log_file.flush()
 
             ret_code = subprocess.call(cmd, stdout = log_file)
@@ -512,8 +512,8 @@ def build_graph(kmer_k, kmer_from, num_edge_files):
             log_file = open(log_file_name(), "a")
             start_time = datetime.now()
             print("%s" % (" ").join(build_cmd), file=log_file)
-            print("---- [%s] Building graph for k = %d----\n" % (start_time.strftime("%c"), kmer_k), file=sys.stderr)
-            print("---- [%s] Building graph for k = %d----\n" % (start_time.strftime("%c"), kmer_k), file=log_file)
+            print("\n---- [%s] Building graph for k = %d ----\n" % (start_time.strftime("%c"), kmer_k), file=sys.stderr)
+            print("\n---- [%s] Building graph for k = %d ----\n" % (start_time.strftime("%c"), kmer_k), file=log_file)
             log_file.flush()
             ret_code = subprocess.call(build_cmd, stdout = log_file)
             if ret_code != 0:
@@ -551,8 +551,8 @@ def iterate(cur_k, step):
             log_file = open(log_file_name(), "a")
             start_time = datetime.now()
             print("%s" % (" ").join(iterate_cmd), file=log_file)
-            print("---- [%s] Extracting iterative edges from k = %d to %d ----\n" % (start_time.strftime("%c"), cur_k, next_k), file=sys.stderr)
-            print("---- [%s] Extracting iterative edges from k = %d to %d ----\n" % (start_time.strftime("%c"), cur_k, next_k), file=log_file)
+            print("\n---- [%s] Extracting iterative edges from k = %d to %d ----\n" % (start_time.strftime("%c"), cur_k, next_k), file=sys.stderr)
+            print("\n---- [%s] Extracting iterative edges from k = %d to %d ----\n" % (start_time.strftime("%c"), cur_k, next_k), file=log_file)
             log_file.flush()
             ret_code = subprocess.call(iterate_cmd, stdout = log_file)
             if ret_code != 0:
@@ -603,8 +603,8 @@ def assemble(cur_k):
             log_file = open(log_file_name(), "a")
             start_time = datetime.now()
             print("%s" % (" ").join(assembly_cmd), file=log_file)
-            print("---- [%s] Assembling contigs from SdBG for k = %d ----\n" % (start_time.strftime("%c"), cur_k), file=sys.stderr)
-            print("---- [%s] Assembling contigs from SdBG for k = %d ----\n" % (start_time.strftime("%c"), cur_k), file=log_file)
+            print("\n---- [%s] Assembling contigs from SdBG for k = %d ----\n" % (start_time.strftime("%c"), cur_k), file=sys.stderr)
+            print("\n---- [%s] Assembling contigs from SdBG for k = %d ----\n" % (start_time.strftime("%c"), cur_k), file=log_file)
             log_file.flush()
             ret_code = subprocess.call(assembly_cmd, stdout = log_file)
             if ret_code != 0:
@@ -636,8 +636,8 @@ def local_assemble(cur_k):
             log_file = open(log_file_name(), "a")
             start_time = datetime.now()
             print("%s" % (" ").join(la_cmd), file=log_file)
-            print("---- [%s] Local assembling k = %d ----\n" % (start_time.strftime("%c"), cur_k), file=sys.stderr)
-            print("---- [%s] Local assembling k = %d ----\n" % (start_time.strftime("%c"), cur_k), file=log_file)
+            print("\n---- [%s] Local assembling k = %d ----\n" % (start_time.strftime("%c"), cur_k), file=sys.stderr)
+            print("\n---- [%s] Local assembling k = %d ----\n" % (start_time.strftime("%c"), cur_k), file=log_file)
             log_file.flush()
 
             local_contig_file = open(graph_prefix(cur_k) + ".local.fa", "w")
@@ -661,8 +661,8 @@ def local_assemble(cur_k):
 def merge_final():
     log_file = open(log_file_name(), "a")
     start_time = datetime.now()
-    print("---- [%s] Merging to output final contigs ----\n" % (start_time.strftime("%c")), file=sys.stderr)
-    print("---- [%s] Merging to output final contigs ----\n" % (start_time.strftime("%c")), file=log_file)
+    print("\n---- [%s] Merging to output final contigs ----\n" % (start_time.strftime("%c")), file=sys.stderr)
+    print("\n---- [%s] Merging to output final contigs ----\n" % (start_time.strftime("%c")), file=log_file)
     final_contig_name = opt.out_dir + "final.contigs.fa"
     if opt.out_prefix != "":
         final_contig_name = opt.out_dir + opt.out_prefix + ".contigs.fa"
@@ -684,7 +684,7 @@ def main(argv = None):
 
         start_time = datetime.now()  
         print(megahit_version_str, file=sys.stderr)
-        print("---- [%s] Start assembly. Number of CPU threads %d----\n" % (start_time.strftime("%c"), opt.num_cpu_threads), file=sys.stderr)
+        print("\n---- [%s] Start assembly. Number of CPU threads %d ----\n" % (start_time.strftime("%c"), opt.num_cpu_threads), file=sys.stderr)
 
         make_out_dir()
         write_lib()
@@ -717,8 +717,8 @@ def main(argv = None):
 
         log_file = open(log_file_name(), "a")
         start_time = datetime.now()
-        print("---- [%s] ALL DONE ----\n" % (start_time.strftime("%c")), file=sys.stderr)
-        print("---- [%s] ALL DONE ----\n" % (start_time.strftime("%c")), file=log_file)
+        print("\n---- [%s] ALL DONE ----\n" % (start_time.strftime("%c")), file=sys.stderr)
+        print("\n---- [%s] ALL DONE ----\n" % (start_time.strftime("%c")), file=log_file)
         log_file.flush()
         log_file.close()
         open(opt.out_dir + "done", "w").close()

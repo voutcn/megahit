@@ -71,18 +71,6 @@ class AtomicBitVector {
         return false;
     }
 
-    void lock(size_t i) {
-        while (!try_lock(i)) {
-            continue;
-        }
-    }
-
-    void unlock(size_t i) {
-        __sync_synchronize();
-        word_t mask = ~(word_t(1) << (i % kBitsPerWord));
-        __sync_fetch_and_and(data_ + i / kBitsPerWord, mask);
-    }
-
     void set(size_t i) {
         __sync_fetch_and_or(data_ + i / kBitsPerWord, word_t(1) << (i % kBitsPerWord));
     }

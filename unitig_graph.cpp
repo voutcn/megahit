@@ -314,6 +314,11 @@ void UnitigGraph::InitFromSdBG() {
         }
     }
 
+    locks_.resize(vertices_.size());
+#pragma omp parallel for
+    for (vertexID_t i = 0; i < vertices_.size(); ++i) {
+        omp_init_lock(&locks_[i]);
+    }
     omp_destroy_lock(&path_lock);
 }
 
@@ -609,8 +614,6 @@ double UnitigGraph::LocalDepth_(vertexID_t id, int local_width) {
 void UnitigGraph::Refresh_(bool set_changed) {
     omp_lock_t reassemble_lock;
     omp_init_lock(&reassemble_lock);
-    static AtomicBitVector marked;
-    marked.reset(vertices_.size());
 
     // update the sdbg
 #pragma omp parallel for
@@ -652,7 +655,7 @@ void UnitigGraph::Refresh_(bool set_changed) {
             continue;
         }
 
-        if (!marked.try_lock(i)) { continue; }
+        if (!omp_test_lock(&locks_[i])) { continue; }
 
         std::vector<std::pair<vertexID_t, bool> > linear_path; // first: vertex_id, second: is_rc
         int64_t cur_end = dir == 0 ? vertices_[i].end_node : vertices_[i].rev_end_node;
@@ -676,16 +679,21 @@ void UnitigGraph::Refresh_(bool set_changed) {
             cur_end = is_rc ? next_vertex.rev_end_node : next_vertex.end_node;
         }
 
-        if (linear_path.empty()) { continue; }
+        if (linear_path.empty()) { 
+            vertices_[i].is_marked = true;
+            continue;
+        }
 
-        if (i != linear_path.back().first && !marked.try_lock(linear_path.back().first)) { // if i == linear_path.back().first it is a palindrome self loop
+        if (i != linear_path.back().first && !omp_test_lock(&locks_[linear_path.back().first])) { // if i == linear_path.back().first it is a palindrome self loop
             if (linear_path.back().first > i) {
-                marked.unlock(i);
+                omp_unset_lock(&locks_[i]);
                 continue;
             } else {
-                marked.lock(linear_path.back().first);
+                omp_set_lock(&locks_[linear_path.back().first]);
             }
         }
+
+        vertices_[i].is_marked = true;
 
         // assemble the linear path
 
@@ -725,9 +733,9 @@ void UnitigGraph::Refresh_(bool set_changed) {
     // looped path
 #pragma omp parallel for
     for (vertexID_t i = 0; i < vertices_.size(); ++i) {
-        if (!vertices_[i].is_deleted && !marked.get(i)) {
+        if (!vertices_[i].is_deleted && !vertices_[i].is_marked) {
             omp_set_lock(&reassemble_lock);
-            if (!vertices_[i].is_deleted && !marked.get(i)) {
+            if (!vertices_[i].is_deleted) {
                 uint32_t length = vertices_[i].length;
                 int64_t depth = vertices_[i].depth;
 
@@ -774,8 +782,16 @@ void UnitigGraph::Refresh_(bool set_changed) {
 #pragma omp parallel for
     for (vertexID_t i = 0; i < vertices_.size(); ++i) {
         if (!vertices_[i].is_deleted) {
+            vertices_[i].is_marked = false;
             start_node_map_[vertices_[i].rev_start_node] = i;
+        } else {
+            assert(!vertices_[i].is_marked);
         }
+    }
+
+#pragma omp parallel for
+    for (vertexID_t i = 0; i < vertices_.size(); ++i) {
+        omp_unset_lock(&locks_[i]);
     }
 
     omp_destroy_lock(&reassemble_lock);

@@ -23,6 +23,7 @@
 #include <map>
 #include <limits>
 #include <assert.h>
+#include <omp.h>
 
 #include "hash_map.h"
 
@@ -34,6 +35,7 @@ struct UnitigGraphVertex {
             rev_end_node(rev_end_node), depth(depth), length(length) {
         is_deleted = false;
         is_changed = false;
+        is_marked = false;
         is_dead = false;
         is_loop = false;
         is_palindrome = false;
@@ -44,9 +46,10 @@ struct UnitigGraphVertex {
     int64_t depth: 60; // if is_loop, depth is equal to average depth
     bool is_deleted: 1;
     bool is_changed: 1;
+    bool is_marked: 1;
     bool is_dead: 1;
     bool is_loop: 1;
-    uint32_t length: 31;
+    uint32_t length: 30;
     bool is_palindrome: 1;
 
     UnitigGraphVertex ReverseComplement() {
@@ -69,7 +72,11 @@ public:
     typedef uint32_t vertexID_t; 
 
     UnitigGraph(SuccinctDBG *sdbg): sdbg_(sdbg) {}
-    ~UnitigGraph() {}
+    ~UnitigGraph() {
+        for (vertexID_t i = 0; i < locks_.size(); ++i) {
+            omp_destroy_lock(&locks_[i]);
+        }
+    }
 
     void InitFromSdBG();
     uint32_t size() { return vertices_.size(); }
@@ -91,6 +98,7 @@ private:
     SuccinctDBG *sdbg_;
     HashMap<int64_t, vertexID_t> start_node_map_;
     std::vector<UnitigGraphVertex> vertices_;
+    std::vector<omp_lock_t> locks_;
 };
 
 #endif // UNITIG_GRAPH_H_

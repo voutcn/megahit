@@ -236,11 +236,11 @@ sdbg_builder_gpu: sdbg_builder.cpp cx1_kmer_count_gpu.o cx1_read2sdbg_s1_gpu.o c
 #-------------------------------------------------------------------------------
 
 .PHONY:
-test: megahit_assemble megahit_iter sdbg_builder_cpu
+test: megahit_assemble megahit_iter sdbg_builder_cpu megahit_local_asm
 	-rm -fr example/megahit_out
 	./megahit --12 example/readsInterleaved.fa -o example/megahit_out -t 4
 
-test_gpu: megahit_assemble megahit_iter sdbg_builder_gpu
+test_gpu: megahit_assemble megahit_iter sdbg_builder_gpu megahit_local_asm
 	-rm -fr example/megahit_gpu_out
 	./megahit --12 example/readsInterleaved.fa --use-gpu -o example/megahit_gpu_out -t 4
 
