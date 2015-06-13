@@ -1,4 +1,3 @@
-
 /*
  *  MEGAHIT
  *  Copyright (C) 2014 - 2015 The University of Hong Kong
@@ -110,7 +109,7 @@ void s2_read_mercy_prepare(read2sdbg_global_t &globals) {
     if (cx1_t::kCX1Verbose >= 3) {
         timer.reset();
         timer.start();
-        log("[B1::%s] Adding mercy edges...\n", __func__);
+        xlog("Adding mercy edges...\n");
     }
 
     std::vector<uint64_t> mercy_cand;
@@ -129,7 +128,7 @@ void s2_read_mercy_prepare(read2sdbg_global_t &globals) {
             mercy_cand.insert(mercy_cand.end(), buf, buf + num_read);
         }
         if (cx1_t::kCX1Verbose >= 4) {
-            log("[B1::%s] Mercy file: %s, %lu\n", __func__, FormatString("%s.mercy_cand.%d", globals.output_prefix.c_str(), fid), mercy_cand.size());
+            xlog("Mercy file: %s, %lu\n", FormatString("%s.mercy_cand.%d", globals.output_prefix.c_str(), fid), mercy_cand.size());
         }
 
         omp_set_num_threads(globals.num_cpu_threads);
@@ -222,8 +221,8 @@ void s2_read_mercy_prepare(read2sdbg_global_t &globals) {
 
     if (cx1_t::kCX1Verbose >= 3) {
         timer.stop();
-        log("[B1::%s] Adding mercy Done. Time elapsed: %.4lf\n", __func__, timer.elapsed());
-        log("[B1::%s] Number mercy: %llu\n", __func__, (unsigned long long)num_mercy);
+        xlog("Adding mercy Done. Time elapsed: %.4lf\n", timer.elapsed());
+        xlog("Number mercy: %llu\n", (unsigned long long)num_mercy);
     }
 
     // set cx1 param
@@ -303,7 +302,7 @@ void s2_init_global_and_set_cx1(read2sdbg_global_t &globals) {
     timer.stop();
 
     if (cx1_t::kCX1Verbose >= 3) {
-        log("[B1::%s] Done. Time elapsed: %.4lfs\n", __func__, timer.elapsed());
+        xlog("Done. Time elapsed: %.4lfs\n", timer.elapsed());
     }
 
     // --- calculate lv2 memory ---
@@ -313,9 +312,8 @@ void s2_init_global_and_set_cx1(read2sdbg_global_t &globals) {
     int64_t lv2_mem = globals.gpu_mem - 1073741824; // should reserver ~1G for GPU sorting
     globals.cx1.max_lv2_items_ = std::min(lv2_mem / cx1_t::kGPUBytePerItem, std::max(globals.max_bucket_size, kMinLv2BatchSizeGPU));
     if (globals.max_bucket_size > globals.cx1.max_lv2_items_) {
-        err("[ERROR B1::%s] Bucket too large for GPU: contains %lld items. Please try CPU version.\n", __func__, globals.max_bucket_size);
+        xerr_and_exit("Bucket too large for GPU: contains %lld items. Please try CPU version.\n", globals.max_bucket_size);
         // TODO: auto switch to CPU version
-        exit(1);
     }
 #endif
 
@@ -328,7 +326,7 @@ void s2_init_global_and_set_cx1(read2sdbg_global_t &globals) {
 #endif
 
     if (cx1_t::kCX1Verbose >= 2) {
-        log("[B1::%s] %d words per substring, words per dummy node ($v): %d\n", __func__, globals.words_per_substring, globals.words_per_dummy_node);
+        xlog("%d words per substring, words per dummy node ($v): %d\n", globals.words_per_substring, globals.words_per_dummy_node);
     }
 
     // --- memory stuff ---
@@ -361,9 +359,9 @@ void s2_init_global_and_set_cx1(read2sdbg_global_t &globals) {
     }
 
     if (cx1_t::kCX1Verbose >= 2) {
-        log("[B1::%s] Memory for reads: %lld\n", __func__, globals.mem_packed_reads);
-        log("[B1::%s] max # lv.1 items = %lld\n", __func__, globals.cx1.max_lv1_items_);
-        log("[B1::%s] max # lv.2 items = %lld\n", __func__, globals.cx1.max_lv2_items_);
+        xlog("Memory for reads: %lld\n", globals.mem_packed_reads);
+        xlog("max # lv.1 items = %lld\n", globals.cx1.max_lv1_items_);
+        xlog("max # lv.2 items = %lld\n", globals.cx1.max_lv2_items_);
     }
 
     // --- alloc memory ---
@@ -606,7 +604,7 @@ void s2_lv2_sort(read2sdbg_global_t &globals) {
     local_timer.stop();
 
     if (cx1_t::kCX1Verbose >= 4) {
-        log("[B1::%s] Sorting substrings with CPU...done. Time elapsed: %.4lf\n", __func__, local_timer.elapsed());
+        xlog("Sorting substrings with CPU...done. Time elapsed: %.4lf\n", local_timer.elapsed());
     }
 #else
     if (cx1_t::kCX1Verbose >= 4) {
@@ -618,7 +616,7 @@ void s2_lv2_sort(read2sdbg_global_t &globals) {
 
     if (cx1_t::kCX1Verbose >= 4) {
         local_timer.stop();
-        log("[B1::%s] Sorting substrings with GPU...done. Time elapsed: %.4lf\n", __func__, local_timer.elapsed());
+        xlog("Sorting substrings with GPU...done. Time elapsed: %.4lf\n", local_timer.elapsed());
     }
 #endif
 }
@@ -678,7 +676,7 @@ void* s2_lv2_output(void* _op) {
     int last_a[4], outputed_b;
 
     globals.lv2_output_items[thread_id].clear();
-    // err("%d %d %d\n", thread_id, op_start_index, op_end_index);
+    // xlog("%d %d %d\n", thread_id, op_start_index, op_end_index);
 
     for (start_idx = op_start_index; start_idx < op_end_index; start_idx = end_idx) {
         end_idx = start_idx + 1;
@@ -760,7 +758,7 @@ void* s2_lv2_output(void* _op) {
 
     if (cx1_t::kCX1Verbose >= 4) {
         local_timer.stop();
-        log("[B1::%s] SdBG calculation time elapsed: %.4f\n", local_timer.elapsed());
+        xlog("SdBG calculation time elapsed: %.4f\n", local_timer.elapsed());
     }
 
     pthread_barrier_wait(&globals.output_barrier);
@@ -801,8 +799,7 @@ void* s2_lv2_output(void* _op) {
                 if ((*it >> 5) & 1) {
                     globals.num_dollar_nodes++;
                     if (globals.num_dollar_nodes >= kMaxDummyEdges) {
-                        err("[ERROR B1::%s] Too many dummy nodes (>= %lld)! The graph contains too many tips!\n", __func__, (long long)kMaxDummyEdges);
-                        exit(1);
+                        xerr_and_exit("Too many dummy nodes (>= %lld)! The graph contains too many tips!\n", (long long)kMaxDummyEdges);
                     }
                     for (int64_t i = 0; i < globals.words_per_dummy_node; ++i) {
                         globals.dummy_nodes_writer.output(item[i * globals.lv2_num_items_db]);
@@ -816,7 +813,7 @@ void* s2_lv2_output(void* _op) {
 
         if (cx1_t::kCX1Verbose >= 4) {
             local_timer.stop();
-            log("[B1::%s] Linear part: %lf\n", __func__, local_timer.elapsed());
+            xlog("Linear part: %lf\n", local_timer.elapsed());
         }
     }
     return NULL;
@@ -828,11 +825,12 @@ void s2_lv2_post_output(read2sdbg_global_t &globals) {
 
 void s2_post_proc(read2sdbg_global_t &globals) {
     if (cx1_t::kCX1Verbose >= 3) {
-        log("[B1::%s] Number of $ A C G T A- C- G- T-:\n", __func__);
+        xlog("Number of $ A C G T A- C- G- T-:\n");
+        xlog("");
         for (int i = 0; i < 9; ++i) {
-            log("%lld ", globals.num_chars_in_w[i]);
+            xlog_ext("%lld ", globals.num_chars_in_w[i]);
         }
-        log("\n");
+        xlog_ext("\n");
     }
 
     // --- write tails ---
@@ -841,14 +839,14 @@ void s2_post_proc(read2sdbg_global_t &globals) {
     fprintf(globals.output_f_file, "%lld\n", (long long)globals.num_dollar_nodes);
 
     if (cx1_t::kCX1Verbose >= 2) {
-        log("[B1::%s] Total number of edges: %llu\n", __func__, globals.total_number_edges);
-        log("[B1::%s] Total number of ONEs: %llu\n", __func__, globals.num_ones_in_last);
-        log("[B1::%s] Total number of v$ edges: %llu\n", __func__, globals.num_dummy_edges);
-        log("[B1::%s] Total number of $v edges: %llu\n", __func__, globals.num_dollar_nodes);
+        xlog("Total number of edges: %llu\n", globals.total_number_edges);
+        xlog("Total number of ONEs: %llu\n", globals.num_ones_in_last);
+        xlog("Total number of v$ edges: %llu\n", globals.num_dummy_edges);
+        xlog("Total number of $v edges: %llu\n", globals.num_dollar_nodes);
     }
 
     if (cx1_t::kCX1Verbose >= 2) {
-        log("[B::%s] Output reads to binary file...\n", __func__);
+        xlog("Output reads to binary file...\n");
         bool is_reverse = true;
         WriteMultipleLibs(globals.package, globals.lib_info, globals.output_prefix + ".all_reads", is_reverse);
     }

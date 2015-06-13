@@ -133,8 +133,8 @@ void PrintStat(std::map<int64_t, int> &hist) {
         }
     }
 
-    printf("Total length: %lld, N50: %lld, Mean: %lld, number of contigs: %lld\n", (long long)total_length, (long long)n50, (long long)average_length, (long long)total_contigs);
-    printf("Maximum length: %llu\n", (unsigned long long)(hist.size() > 0 ? hist.rbegin()->first : 0));
+    xlog("Total length: %lld, N50: %lld, Mean: %lld, number of contigs: %lld\n", (long long)total_length, (long long)n50, (long long)average_length, (long long)total_contigs);
+    xlog("Maximum length: %llu\n", (unsigned long long)(hist.size() > 0 ? hist.rbegin()->first : 0));
 }
 
 static AutoMaxRssRecorder recorder;
@@ -152,12 +152,11 @@ int main(int argc, char **argv) {
     { // graph loading
         timer.reset();
         timer.start();
-        printf("Loading succinct de Bruijn graph: %s\n", opt.sdbg_name.c_str());
+        xlog("Loading succinct de Bruijn graph: %s ", opt.sdbg_name.c_str());
         dbg.LoadFromFile(opt.sdbg_name.c_str());
         timer.stop();
-        printf("Done. Time elapsed: %lf\n", timer.elapsed());
-        printf("Number of Edges: %lld\n", (long long)dbg.size);;
-        printf("K value: %d\n", dbg.kmer_k);
+        xlog_ext("Done. Time elapsed: %lf\n", timer.elapsed());
+        xlog("Number of Edges: %lld; K value: %d\n", (long long)dbg.size, dbg.kmer_k);
     }
 
     { // set parameters
@@ -165,7 +164,7 @@ int main(int argc, char **argv) {
             opt.num_cpu_threads = omp_get_max_threads();
         }
         omp_set_num_threads(opt.num_cpu_threads);
-        printf("Number of CPU threads: %d\n", opt.num_cpu_threads);
+        xlog("Number of CPU threads: %d\n", opt.num_cpu_threads);
 
         if (opt.max_tip_len == -1) {
             opt.max_tip_len = dbg.kmer_k * 2;
@@ -177,7 +176,7 @@ int main(int argc, char **argv) {
         timer.start();
         assembly_algorithms::RemoveTips(dbg, opt.max_tip_len, opt.min_final_len);
         timer.stop();
-        printf("Tips removal done! Time elapsed(sec): %lf\n", timer.elapsed());
+        xlog("Tips removal done! Time elapsed(sec): %lf\n", timer.elapsed());
     }
 
     // construct unitig graph
@@ -186,7 +185,7 @@ int main(int argc, char **argv) {
     UnitigGraph unitig_graph(&dbg);
     unitig_graph.InitFromSdBG();
     timer.stop();
-    printf("unitig graph size: %u, time for building: %lf\n", unitig_graph.size(), timer.elapsed());
+    xlog("unitig graph size: %u, time for building: %lf\n", unitig_graph.size(), timer.elapsed());
 
     // remove bubbles
     if (!opt.no_bubble) {
@@ -198,7 +197,7 @@ int main(int argc, char **argv) {
             num_complex_bubbles += unitig_graph.MergeComplexBubbles(opt.merge_similar, opt.merge_len, true);
         }
         timer.stop();
-        printf("Number of bubbles/complex bubbles removed: %u/%u, Time elapsed(sec): %lf\n",
+        xlog("Number of bubbles/complex bubbles removed: %u/%u, Time elapsed(sec): %lf\n",
                num_bubbles, num_complex_bubbles, timer.elapsed());
     }
 
@@ -211,7 +210,7 @@ int main(int argc, char **argv) {
         timer.start();
         unitig_graph.RemoveLocalLowDepth(opt.min_depth, opt.max_tip_len, kLocalWidth, std::min(opt.low_local_ratio, 0.1), num_removed, true);
         timer.stop();
-        printf("Unitigs removed in excessive pruning: %lld, time: %lf\n", (long long)num_removed, timer.elapsed());   
+        xlog("Unitigs removed in excessive pruning: %lld, time: %lf\n", (long long)num_removed, timer.elapsed());   
     }
 
     // output contigs
@@ -230,7 +229,7 @@ int main(int argc, char **argv) {
         PrintStat(histogram);
 
         timer.stop();
-        printf("Time to output: %lf\n", timer.elapsed());
+        xlog("Time to output: %lf\n", timer.elapsed());
     }
 
     // remove local low depth & output additional contigs
@@ -255,7 +254,7 @@ int main(int argc, char **argv) {
             num_complex_bubbles = unitig_graph.MergeComplexBubbles(opt.merge_similar, opt.merge_len, opt.is_final_round);
 
         timer.stop();
-        printf("Number of local low depth unitigs removed: %lld, complex bubbles removed: %u, time: %lf\n",
+        xlog("Number of local low depth unitigs removed: %lld, complex bubbles removed: %u, time: %lf\n",
               (long long)num_removed, num_complex_bubbles, timer.elapsed());
 
         histogram.clear();

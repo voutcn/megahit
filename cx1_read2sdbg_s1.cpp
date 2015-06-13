@@ -98,7 +98,7 @@ void s1_read_input_prepare(read2sdbg_global_t &globals) {
     globals.max_read_length = globals.package.max_read_len();
     globals.num_reads = globals.package.size();
 
-    log("[B1::%s] Total number of reads: %lld\n", __func__, (long long)globals.num_reads);
+    xlog("Total number of reads: %lld\n", (long long)globals.num_reads);
 
     int bits_read_length = 1; // bit needed to store read_length
     while ((1 << bits_read_length) - 1 < globals.max_read_length) {
@@ -181,9 +181,8 @@ void s1_init_global_and_set_cx1(read2sdbg_global_t &globals) {
     int64_t lv2_mem = globals.gpu_mem - 1073741824; // should reserver ~1G for GPU sorting
     globals.cx1.max_lv2_items_ = std::min(lv2_mem / cx1_t::kGPUBytePerItem, std::max(globals.max_bucket_size, kMinLv2BatchSizeGPU));
     if (globals.max_bucket_size > globals.cx1.max_lv2_items_) {
-        err("[ERROR B1::%s] Bucket too large for GPU: contains %lld items. Please try CPU version.\n", __func__, globals.max_bucket_size);
+        xerr_and_exit("Bucket too large for GPU: contains %lld items. Please try CPU version.\n", globals.max_bucket_size);
         // TODO: auto switch to CPU version
-        exit(1);
     }
 #endif
     // to count (k+1)-mers, sort by the internal (k-1)-mer
@@ -200,7 +199,7 @@ void s1_init_global_and_set_cx1(read2sdbg_global_t &globals) {
 #endif
 
     if (cx1_t::kCX1Verbose >= 2) {
-        log("[B1::%s] %d words per substring\n", __func__, globals.words_per_substring);
+        xlog("%d words per substring\n", globals.words_per_substring);
     }
     // --- memory stuff ---
     int64_t mem_remained = globals.host_mem
@@ -251,7 +250,7 @@ void s1_init_global_and_set_cx1(read2sdbg_global_t &globals) {
         globals.num_mercy_files <<= 1;
     }
     if (cx1_t::kCX1Verbose >= 3) {
-        log("[B1::%s] Number of files for mercy candidate reads: %d\n", __func__, globals.num_mercy_files);
+        xlog("Number of files for mercy candidate reads: %d\n", globals.num_mercy_files);
     }
     for (int i = 0; i < globals.num_mercy_files; ++i) {
         globals.mercy_files.push_back(OpenFileAndCheck(FormatString("%s.mercy_cand.%d", globals.output_prefix.c_str(), i), "wb"));
@@ -456,7 +455,7 @@ void s1_lv2_sort(read2sdbg_global_t &globals) {
     local_timer.stop();
 
     if (cx1_t::kCX1Verbose >= 4) {
-        log("[B1::%s] Sorting substrings with CPU...done. Time elapsed: %.4lf\n", __func__, local_timer.elapsed());
+        xlog("Sorting substrings with CPU...done. Time elapsed: %.4lf\n", local_timer.elapsed());
     }
 #else
     if (cx1_t::kCX1Verbose >= 4) {
@@ -468,7 +467,7 @@ void s1_lv2_sort(read2sdbg_global_t &globals) {
 
     if (cx1_t::kCX1Verbose >= 4) {
         local_timer.stop();
-        log("[B1::%s] Sorting substrings with GPU...done. Time elapsed: %.4lf\n", __func__, local_timer.elapsed());
+        xlog("Sorting substrings with GPU...done. Time elapsed: %.4lf\n", local_timer.elapsed());
     }
 #endif
 }
@@ -479,19 +478,6 @@ void s1_lv2_pre_output_partition(read2sdbg_global_t &globals) {
     std::swap(globals.lv2_substrings_db, globals.lv2_substrings);
     std::swap(globals.permutation_db, globals.permutation);
     std::swap(globals.lv2_read_info_db, globals.lv2_read_info);
-
-    // err("Ha\n");
-    // for (int i = 0; i < globals.lv2_num_items_db; ++i) {
-    //     uint32_t *item = globals.lv2_substrings_db + globals.permutation_db[i];
-    //     uint8_t head_and_tail = ExtractHeadTail(item, globals.lv2_num_items_db, globals.words_per_substring);
-    //     err("%c %c ", "ACGT$"[head_and_tail >> 3], "ACGT$"[head_and_tail & 7]);
-    //     for (int j = 0; j < globals.kmer_k - 1; ++j) {
-    //         err("%c", "ACGT"[ExtractNthChar(item, j % 16)]);
-    //         if (j == 15) { item += globals.lv2_num_items_db; }
-    //     }
-    //     err("\n");
-    // }
-    // err("ha\n");
 
     int64_t last_end_index = 0;
     int64_t items_per_thread = globals.lv2_num_items_db / globals.num_output_threads;
@@ -683,13 +669,13 @@ void* s1_lv2_output(void* _op) {
         }
 
         if (i != end_idx) {
-            err("%d %d %d %d\n", i, end_idx, op_start_index, op_end_index);
+            xerr_and_exit("%d %d %d %d\n", i, end_idx, op_start_index, op_end_index);
         }
     }
 
     if (cx1_t::kCX1Verbose >= 4) {
         local_timer.stop();
-        log("[B1::%s] Counting time elapsed: %.4lfs\n", __func__, local_timer.elapsed());
+        xlog("Counting time elapsed: %.4lfs\n", local_timer.elapsed());
     }
     return NULL;
 }
@@ -710,7 +696,7 @@ void s1_post_proc(read2sdbg_global_t &globals) {
     }
 
     if (cx1_t::kCX1Verbose >= 2) {
-        log("[B::%s] Total number of solid edges: %llu\n", __func__, num_solid_edges);
+        xlog("[B::%s] Total number of solid edges: %llu\n", num_solid_edges);
     }
 
     FILE *counting_file = OpenFileAndCheck((std::string(globals.output_prefix)+".counting").c_str(), "w");

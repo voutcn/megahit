@@ -174,7 +174,6 @@ static bool ReadReadsAndProcessKernel(IterateGlobalData &globals,
         return false;
     }
 
-    // fprintf(stderr, "Second: %u %u %u\n", kNumKmerWord_n, sizeof(Kmer<kNumKmerWord_n, kmer_word_n_t>), sizeof(KmerPlus<kNumKmerWord_n, kmer_word_n_t, uint16_t>));
     HashTable<KmerPlus<kNumKmerWord_n, kmer_word_n_t, uint16_t>, Kmer<kNumKmerWord_n, kmer_word_n_t> > iterative_edges;
     SequencePackage packages[2];
     SequenceManager seq_manager;
@@ -325,11 +324,15 @@ static bool ReadReadsAndProcessKernel(IterateGlobalData &globals,
         }
 
         num_total_reads += rp.size();
+
+        if (num_total_reads % (16 << 22) == 0) {
+            xlog("Total: %lld, aligned: %lld. Iterative edges: %llu\n", (long long)num_total_reads, (long long)num_aligned_reads, (unsigned long long)iterative_edges.size());
+        }
     }
-    printf("Total: %lld, aligned: %lld. Iterative edges: %llu\n", (long long)num_total_reads, (long long)num_aligned_reads, (unsigned long long)iterative_edges.size());
+    xlog("Total: %lld, aligned: %lld. Iterative edges: %llu\n", (long long)num_total_reads, (long long)num_aligned_reads, (unsigned long long)iterative_edges.size());
 
     // write iterative edges
-    printf("Writing iterative edges...\n");
+    xlog("Writing iterative edges...\n");
     FILE *output_edge_file = OpenFileAndCheck(options.output_edge_file().c_str(), "wb");
 
     // header
@@ -442,7 +445,7 @@ static void ReadContigsAndBuildHash(IterateGlobalData &globals,
         }
     }
 
-    printf("Number of crusial kmers: %lu\n", crusial_kmers.size());
+    xlog("Number of crusial kmers: %lu\n", crusial_kmers.size());
 }
 
 template <uint32_t kNumKmerWord_p, typename kmer_word_p_t>

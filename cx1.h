@@ -131,7 +131,7 @@ struct CX1 {
         }
 
         if (max_lv2_items_ < min_lv2_items) {
-            fprintf(stderr, "[CX1] No enough memory to process.\n");
+            fprintf(stderr, "No enough memory to process.\n");
             exit(1);
         }
 
@@ -310,21 +310,21 @@ struct CX1 {
         if (kCX1Verbose >= 2) {
             lv0_timer.reset();
             lv0_timer.start();
-            log("[CX1] Preparing data...\n");
+            xlog("Preparing data...\n");
         }
 
         prepare_func_(*g_);
 
         if (kCX1Verbose >= 2) {
             lv0_timer.stop();
-            log("[CX1] Preparing data... Done. Time elapsed: %.4f\n", lv0_timer.elapsed());
+            xlog("Preparing data... Done. Time elapsed: %.4f\n", lv0_timer.elapsed());
         }
 
 
         if (kCX1Verbose >= 2) {
             lv0_timer.reset();
             lv0_timer.start();
-            log("[CX1] Preparing partitions and initialing global data...\n");
+            xlog("Preparing partitions and initialing global data...\n");
         }
 
         // prepare rp bp and op
@@ -336,13 +336,13 @@ struct CX1 {
 
         if (kCX1Verbose >= 2) {
             lv0_timer.stop();
-            log("[CX1] Preparing partitions and initialing global data... Done. Time elapsed: %.4f\n", lv0_timer.elapsed());
+            xlog("Preparing partitions and initialing global data... Done. Time elapsed: %.4f\n", lv0_timer.elapsed());
         }
 
         if (kCX1Verbose >= 2) {
             lv0_timer.reset();
             lv0_timer.start();
-            log("[CX1] Start main loop...\n");
+            xlog("Start main loop...\n");
         }
 
         // === start main loop ===
@@ -356,26 +356,26 @@ struct CX1 {
             // --- finds the bucket range for this iteration ---
             lv1_end_bucket_ = find_end_buckets_(lv1_start_bucket_, kNumBuckets, max_lv1_items_, lv1_num_items_);
             if (lv1_num_items_ == 0) {
-                fprintf(stderr, "[CX1] Bucket %d too large for lv1: %lld > %lld\n", lv1_end_bucket_, (long long)bucket_sizes_[lv1_end_bucket_], (long long)max_lv1_items_);
+                fprintf(stderr, "Bucket %d too large for lv1: %lld > %lld\n", lv1_end_bucket_, (long long)bucket_sizes_[lv1_end_bucket_], (long long)max_lv1_items_);
                 exit(1);
             }
 
             if (kCX1Verbose >= 3) {
                 lv1_timer.reset();
                 lv1_timer.start();
-                log("[CX1] Lv1 scanning from bucket %d to %d\n", lv1_start_bucket_, lv1_end_bucket_);
+                xlog("Lv1 scanning from bucket %d to %d\n", lv1_start_bucket_, lv1_end_bucket_);
             }
 
             // --- scan to fill offset ---
             lv1_fill_offset_mt_();
             if (lv1_items_special_.size() > kSpDiffMaxNum) {
-                fprintf(stderr, "[CX1] Too many large diff items (%lu) from in buckets [%d, %d)\n", lv1_items_special_.size(), lv1_start_bucket_, lv1_end_bucket_);
+                fprintf(stderr, "Too many large diff items (%lu) from in buckets [%d, %d)\n", lv1_items_special_.size(), lv1_start_bucket_, lv1_end_bucket_);
                 exit(1);
             }
 
             if (kCX1Verbose >= 3) {
                 lv1_timer.stop();
-                log("[CX1] Lv1 scanning done. Large diff: %lu. Time elapsed: %.4f\n", lv1_items_special_.size(), lv1_timer.elapsed());
+                xlog("Lv1 scanning done. Large diff: %lu. Time elapsed: %.4f\n", lv1_items_special_.size(), lv1_timer.elapsed());
                 lv1_timer.reset();
                 lv1_timer.start();
             }
@@ -389,14 +389,14 @@ struct CX1 {
                 lv2_iteration++;
                 lv2_end_bucket_ = find_end_buckets_(lv2_start_bucket_, lv1_end_bucket_, max_lv2_items_, lv2_num_items_);
                 if (lv2_num_items_ == 0) {
-                    fprintf(stderr, "[CX1] Bucket %d too large for lv2: %lld > %lld\n", lv2_end_bucket_, (long long)bucket_sizes_[lv2_end_bucket_], (long long)max_lv2_items_);
+                    fprintf(stderr, "Bucket %d too large for lv2: %lld > %lld\n", lv2_end_bucket_, (long long)bucket_sizes_[lv2_end_bucket_], (long long)max_lv2_items_);
                     exit(1);
                 }
 
                 if (kCX1Verbose >= 4) {
                     lv2_timer.reset();
                     lv2_timer.start();
-                    log("[CX1] Lv2 fetching substrings from bucket %d to %d\n", lv2_start_bucket_, lv2_end_bucket_);
+                    xlog("Lv2 fetching substrings from bucket %d to %d\n", lv2_start_bucket_, lv2_end_bucket_);
                 }
 
                 // --- extract lv2 substr and sort ---
@@ -404,7 +404,7 @@ struct CX1 {
 
                 if (kCX1Verbose >= 4) {
                     lv2_timer.stop();
-                    log("[CX1] Lv2 fetching substrings done. Time elapsed: %.4f\n", lv2_timer.elapsed());
+                    xlog("Lv2 fetching substrings done. Time elapsed: %.4f\n", lv2_timer.elapsed());
                     lv2_timer.reset();
                     lv2_timer.start();
                 }
@@ -413,7 +413,7 @@ struct CX1 {
 
                 if (kCX1Verbose >= 4) {
                     lv2_timer.stop();
-                    log("[CX1] Lv2 sorting done. Time elapsed: %.4f\n", lv2_timer.elapsed());
+                    xlog("Lv2 sorting done. Time elapsed: %.4f\n", lv2_timer.elapsed());
                     lv2_timer.reset();
                     lv2_timer.start();
                 }
@@ -434,7 +434,7 @@ struct CX1 {
 
             if (kCX1Verbose >= 3) {
                 lv1_timer.stop();
-                log("[CX1] Lv1 fetching & sorting done. Time elapsed: %.4f\n", lv1_timer.elapsed());
+                xlog("Lv1 fetching & sorting done. Time elapsed: %.4f\n", lv1_timer.elapsed());
             }
 
             lv1_start_bucket_ = lv1_end_bucket_;
@@ -447,13 +447,13 @@ struct CX1 {
 
         if (kCX1Verbose >= 2) {
             lv0_timer.stop();
-            log("[CX1] Main loop done. Time elapsed: %.4f\n", lv0_timer.elapsed());
+            xlog("Main loop done. Time elapsed: %.4f\n", lv0_timer.elapsed());
         }
 
         if (kCX1Verbose >= 2) {
             lv0_timer.reset();
             lv0_timer.start();
-            log("[CX1] Postprocessing...\n");
+            xlog("Postprocessing...\n");
         }
 
         post_proc_func_(*g_);
@@ -461,7 +461,7 @@ struct CX1 {
 
         if (kCX1Verbose >= 2) {
             lv0_timer.stop();
-            log("[CX1] Postprocess done. Time elapsed: %.4f\n", lv0_timer.elapsed());
+            xlog("Postprocess done. Time elapsed: %.4f\n", lv0_timer.elapsed());
         }
     }
 };

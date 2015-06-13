@@ -27,7 +27,7 @@
 
 #include "cx1_kmer_count.h"
 #include "cx1_read2sdbg.h"
-#include "cx1_sequences2sdbg.h"
+#include "cx1_seq2sdbg.h"
 #include "lv2_gpu_functions.h"
 #include "options_description.h"
 #include "utils.h"
@@ -98,8 +98,8 @@ int main_kmer_count(int argc, char **argv) {
     globals.output_prefix = opt.output_prefix.c_str();
     globals.mem_flag = opt.mem_flag;
 
-    log ("[C::%s] Host memory to be used: %lld\n", __func__, (long long)globals.host_mem);
-    log ("[C::%s] Number CPU threads: %d\n", __func__, globals.num_cpu_threads);
+    xlog("Host memory to be used: %lld\n", (long long)globals.host_mem);
+    xlog("Number CPU threads: %d\n", globals.num_cpu_threads);
 
     // set & run cx1
     globals.cx1.g_ = &globals;
@@ -220,7 +220,7 @@ int main_read2sdbg(int argc, char **argv) {
 
 int main_seq2sdbg(int argc, char **argv) {
     OptionsDescription desc;
-    sequences2sdbg_opt_t opt;
+    seq2sdbg_opt_t opt;
 
     desc.AddOption("host_mem", "", opt.host_mem, "memory to be used. No more than 95% of the free memory is recommended. 0 for auto detect.");
     desc.AddOption("gpu_mem", "", opt.gpu_mem, "gpu memory to be used. 0 for auto detect.");
@@ -291,7 +291,7 @@ int main_seq2sdbg(int argc, char **argv) {
         exit(1);
     }
 
-    cx1_sequences2sdbg::sequences2sdbg_global_t globals;
+    cx1_seq2sdbg::seq2sdbg_global_t globals;
     globals.host_mem = opt.host_mem;
     globals.gpu_mem = opt.gpu_mem;
     globals.num_cpu_threads = opt.num_cpu_threads;
@@ -307,22 +307,22 @@ int main_seq2sdbg(int argc, char **argv) {
     globals.kmer_from = opt.kmer_from;
     globals.need_mercy = opt.need_mercy;
 
-    log("[B::%s] Host memory to be used: %lld\n", __func__, (long long)globals.host_mem);
-    log("[B::%s] Number CPU threads: %d\n", __func__, globals.num_cpu_threads);
+    xlog("[B::%s] Host memory to be used: %lld\n", __func__, (long long)globals.host_mem);
+    xlog("[B::%s] Number CPU threads: %d\n", __func__, globals.num_cpu_threads);
 
     // set & run cx1
     globals.cx1.g_ = &globals;
-    globals.cx1.encode_lv1_diff_base_func_ = cx1_sequences2sdbg::encode_lv1_diff_base;
-    globals.cx1.prepare_func_ = cx1_sequences2sdbg::read_seq_and_prepare;
-    globals.cx1.lv0_calc_bucket_size_func_ = cx1_sequences2sdbg::lv0_calc_bucket_size;
-    globals.cx1.init_global_and_set_cx1_func_ = cx1_sequences2sdbg::init_global_and_set_cx1;
-    globals.cx1.lv1_fill_offset_func_ = cx1_sequences2sdbg::lv1_fill_offset;
-    globals.cx1.lv2_extract_substr_func_ = cx1_sequences2sdbg::lv2_extract_substr;
-    globals.cx1.lv2_sort_func_ = cx1_sequences2sdbg::lv2_sort;
-    globals.cx1.lv2_pre_output_partition_func_ = cx1_sequences2sdbg::lv2_pre_output_partition;
-    globals.cx1.lv2_output_func_ = cx1_sequences2sdbg::lv2_output;
-    globals.cx1.lv2_post_output_func_ = cx1_sequences2sdbg::lv2_post_output;
-    globals.cx1.post_proc_func_ = cx1_sequences2sdbg::post_proc;
+    globals.cx1.encode_lv1_diff_base_func_ = cx1_seq2sdbg::encode_lv1_diff_base;
+    globals.cx1.prepare_func_ = cx1_seq2sdbg::read_seq_and_prepare;
+    globals.cx1.lv0_calc_bucket_size_func_ = cx1_seq2sdbg::lv0_calc_bucket_size;
+    globals.cx1.init_global_and_set_cx1_func_ = cx1_seq2sdbg::init_global_and_set_cx1;
+    globals.cx1.lv1_fill_offset_func_ = cx1_seq2sdbg::lv1_fill_offset;
+    globals.cx1.lv2_extract_substr_func_ = cx1_seq2sdbg::lv2_extract_substr;
+    globals.cx1.lv2_sort_func_ = cx1_seq2sdbg::lv2_sort;
+    globals.cx1.lv2_pre_output_partition_func_ = cx1_seq2sdbg::lv2_pre_output_partition;
+    globals.cx1.lv2_output_func_ = cx1_seq2sdbg::lv2_output;
+    globals.cx1.lv2_post_output_func_ = cx1_seq2sdbg::lv2_post_output;
+    globals.cx1.post_proc_func_ = cx1_seq2sdbg::post_proc;
 
     globals.cx1.run();
     return 0;

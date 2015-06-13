@@ -28,6 +28,7 @@
 #include <string>
 #include <utility>
 
+#include "utils.h"
 #include "definitions.h"
 #include "succinct_dbg.h"
 #include "assembly_algorithms.h"
@@ -113,9 +114,6 @@ void FoldPalindrome(std::string &s, int kmer_k, bool is_loop) {
         }
     } else {
         int num_kmer = s.length() - kmer_k + 1;
-        if (num_kmer % 2 != 0) {
-            fprintf(stderr, "ERR: %s\n", s.c_str());
-        }
         assert(num_kmer % 2 == 0);
         s.resize(num_kmer / 2 + (kmer_k - 1));
     }
@@ -218,9 +216,7 @@ void UnitigGraph::InitFromSdBG() {
 
             int64_t rc_start = sdbg_->ReverseComplement(node_idx);
             if (rc_start == -1) {
-                fprintf(stderr, "Node: %lld\n", (long long)node_idx); 
-                fprintf(stderr, "Graph is incorrect!\n");
-                exit(1);
+                xerr_and_exit("Node %lld cannot find its RC, Graph is incorrect!\n", (long long)node_idx); 
             }
             int64_t rc_end = -1;
 
@@ -297,9 +293,8 @@ void UnitigGraph::InitFromSdBG() {
     }
 
     if (vertices_.size() >= kMaxNumVertices) {
-        fprintf(stderr, "[ERROR] Too many vertices in the unitig graph (%llu >= %llu)\n", 
+        xerr_and_exit("[ERROR] Too many vertices in the unitig graph (%llu >= %llu)\n", 
                 (unsigned long long)vertices_.size(), (unsigned long long)kMaxNumVertices);
-        exit(1);
     }
 
     // free memory for hash table construction

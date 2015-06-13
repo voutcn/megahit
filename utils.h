@@ -35,15 +35,7 @@ inline T1 DivCeiling(T1 a, T2 b) {
     return (a + b - 1) / b;
 }
 
-inline void log(const char* format, ...) {
-    va_list args;
-    va_start(args, format);
-    vfprintf(stdout, format, args);
-    va_end(args);
-    fflush(stdout);
-}
-
-inline void err(const char* format, ...) {
+inline void megahit_log__(const char* format, ...) {
     va_list args;
     va_start(args, format);
     vfprintf(stderr, format, args);
@@ -51,19 +43,11 @@ inline void err(const char* format, ...) {
     fflush(stderr);
 }
 
-inline unsigned int mirror(unsigned int v) {
-    // swap odd and even bits
-    // v = ((v >> 1) & 0x55555555) | ((v & 0x55555555) << 1);
-    // swap consecutive pairs
-    v = ((v >> 2) & 0x33333333) | ((v & 0x33333333) << 2);
-    // swap nibbles ...
-    v = ((v >> 4) & 0x0F0F0F0F) | ((v & 0x0F0F0F0F) << 4);
-    // swap bytes
-    v = ((v >> 8) & 0x00FF00FF) | ((v & 0x00FF00FF) << 8);
-    // swap 2-byte long pairs
-    v = ( v >> 16             ) | ( v               << 16);
-    return v;
-}
+#define xlog_ext(str, args...) megahit_log__(str, ##args);
+#define xlog(str, args...) megahit_log__("    [%-25s:%4d]     ", __FILE__, __LINE__); megahit_log__(str, ##args);
+#define xerr(str, args...) megahit_log__("    [ERROR] [%-25s:%4d]: ", __FILE__, __LINE__); megahit_log__(str, ##args);
+#define xwarning(str, args...) megahit_log__("    [WARNING] [%-25s:%4d] ", __FILE__, __LINE__); megahit_log__(str, ##args);
+#define xerr_and_exit(str, args...) megahit_log__("    [ERROR] [%-25s:%4d]: ", __FILE__, __LINE__); megahit_log__(str, ##args); exit(1);
 
 inline char* FormatString(const char *fmt, ...) {
     static char buffer[1 << 20];
@@ -119,15 +103,14 @@ struct AutoMaxRssRecorder {
         gettimeofday(&tv2, NULL);
         struct rusage usage;
         if (getrusage(RUSAGE_SELF, &usage)) {
-            fprintf(stderr, "Fail to getrusage()\n");
-            return;
+            xwarning("Fail to getrusage()\n");
         }
         double utime = 1e-6 * usage.ru_utime.tv_usec + usage.ru_utime.tv_sec;
         double stime = 1e-6 * usage.ru_stime.tv_usec + usage.ru_stime.tv_sec;
 
         long long real_time = (long long)(tv2.tv_sec - tv1.tv_sec) * 1000000 + tv2.tv_usec - tv1.tv_usec;
-        fprintf(stderr, "Real: %.4lf", real_time / 1000000.0);
-        fprintf(stderr, "\tuser: %.4lf\tsys: %.4lf\tmaxrss: %ld\n", utime, stime, usage.ru_maxrss);
+        xlog("Real: %.4lf", real_time / 1000000.0);
+        xlog_ext("\tuser: %.4lf\tsys: %.4lf\tmaxrss: %ld\n", utime, stime, usage.ru_maxrss);
 #endif
     }
 };

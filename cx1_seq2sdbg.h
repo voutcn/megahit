@@ -32,7 +32,7 @@
 #include "sdbg_builder_writers.h"
 #include "sequence_manager.h"
 
-struct sequences2sdbg_opt_t {
+struct seq2sdbg_opt_t {
     double host_mem;
     double gpu_mem;
     int num_cpu_threads;
@@ -48,7 +48,7 @@ struct sequences2sdbg_opt_t {
     int mem_flag;
     bool need_mercy;
 
-    sequences2sdbg_opt_t() {
+    seq2sdbg_opt_t() {
         host_mem = 0;
         gpu_mem = 0;
         num_cpu_threads = 0;
@@ -66,7 +66,7 @@ struct sequences2sdbg_opt_t {
     }
 };
 
-namespace cx1_sequences2sdbg {
+namespace cx1_seq2sdbg {
 
 static const int kBucketPrefixLength = 8; // less than 16 (chars per word)
 static const int kBucketBase = 5;
@@ -86,8 +86,8 @@ static const int kSentinelValue = 4;
 static const int kBWTCharNumBits = 3;
 static const int kTopCharShift = kBitsPerEdgeWord - kBitsPerEdgeChar;
 
-struct sequences2sdbg_global_t {
-    CX1<sequences2sdbg_global_t, kNumBuckets> cx1;
+struct seq2sdbg_global_t {
+    CX1<seq2sdbg_global_t, kNumBuckets> cx1;
 
     // input options
     int kmer_k;
@@ -158,17 +158,17 @@ struct sequences2sdbg_global_t {
     pthread_barrier_t output_barrier;
 };
 
-int64_t encode_lv1_diff_base(int64_t read_id, sequences2sdbg_global_t &g);
-void    read_seq_and_prepare(sequences2sdbg_global_t &g); // num_items_, num_cpu_threads_ and num_output_threads_ must be set here
+int64_t encode_lv1_diff_base(int64_t read_id, seq2sdbg_global_t &g);
+void    read_seq_and_prepare(seq2sdbg_global_t &g); // num_items_, num_cpu_threads_ and num_output_threads_ must be set here
 void*   lv0_calc_bucket_size(void*); // pthread working function
-void    init_global_and_set_cx1(sequences2sdbg_global_t &g);
+void    init_global_and_set_cx1(seq2sdbg_global_t &g);
 void*   lv1_fill_offset(void*); // pthread working function
 void*   lv2_extract_substr(void*); // pthread working function
-void    lv2_sort(sequences2sdbg_global_t &g);
-void    lv2_pre_output_partition(sequences2sdbg_global_t &g);
+void    lv2_sort(seq2sdbg_global_t &g);
+void    lv2_pre_output_partition(seq2sdbg_global_t &g);
 void*   lv2_output(void*); // pthread working function
-void    lv2_post_output(sequences2sdbg_global_t &g);
-void    post_proc(sequences2sdbg_global_t &g);
+void    lv2_post_output(seq2sdbg_global_t &g);
+void    post_proc(seq2sdbg_global_t &g);
 
-} // end of namespace cx1_sequences2sdbg
+} // end of namespace cx1_seq2sdbg
 #endif // CX1_SEQUENCES2SDBG_H__

@@ -138,19 +138,19 @@ int64_t RemoveTips(SuccinctDBG &dbg, int max_tip_len, int min_final_len) {
     int64_t number_tips = 0;
     xtimer_t timer;
     for (int len = 2; len < max_tip_len; len *= 2) {
-        printf("Removing tips with length less than %d\n", len);
+        xlog("Removing tips with length less than %d; ", len);
         timer.reset();
         timer.start();
         number_tips += Trim(dbg, len, min_final_len);
         timer.stop();
-        printf("Accumulated tips removed: %lld; time elapsed: %.4f\n", (long long)number_tips, timer.elapsed());
+        xlog_ext("Accumulated tips removed: %lld; time elapsed: %.4f\n", (long long)number_tips, timer.elapsed());
     }
-    printf("Removing tips with length less than %d\n", max_tip_len);
+    xlog("Removing tips with length less than %d; ", max_tip_len);
     timer.reset();
     timer.start();
     number_tips += Trim(dbg, max_tip_len, min_final_len);
     timer.stop();
-    printf("Accumulated tips removed: %lld; time elapsed: %.4f\n", (long long)number_tips, timer.elapsed());
+    xlog_ext("Accumulated tips removed: %lld; time elapsed: %.4f\n", (long long)number_tips, timer.elapsed());
 
     {
         AtomicBitVector empty;

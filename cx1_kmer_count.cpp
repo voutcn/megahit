@@ -48,8 +48,6 @@ typedef CX1<count_global_t, kNumBuckets>::readpartition_data_t readpartition_dat
 typedef CX1<count_global_t, kNumBuckets>::bucketpartition_data_t bucketpartition_data_t;
 typedef CX1<count_global_t, kNumBuckets>::outputpartition_data_t outputpartition_data_t;
 
-int dna_map[256];
-
 /**
  * @brief encode read_id and its offset in one int64_t
  */
@@ -100,13 +98,7 @@ void read_input_prepare(count_global_t &globals) { // num_items_, num_cpu_thread
     globals.max_read_length = globals.package.max_read_len();
     globals.num_reads = globals.package.size();
     
-    log("[C::%s] %ld reads, %d max read length\n", __func__, globals.num_reads, globals.max_read_length);
-
-    if (cx1_t::kCX1Verbose >= 2) {
-        log("[B::%s] Output reads to binary file...\n", __func__);
-        bool is_reverse = true;
-        WriteMultipleLibs(globals.package, globals.lib_info, globals.output_prefix + ".all_reads", is_reverse);
-    }
+    xlog("%ld reads, %d max read length\n", globals.num_reads, globals.max_read_length);
 
     // calc words_per_xxx
     int bits_read_length = 1; // bit needed to store read_length
@@ -176,9 +168,8 @@ void init_global_and_set_cx1(count_global_t &globals) {
     int64_t lv2_mem = globals.gpu_mem - 1073741824; // should reserver ~1G for GPU sorting
     globals.cx1.max_lv2_items_ = std::min(lv2_mem / cx1_t::kGPUBytePerItem, std::max(globals.max_bucket_size, kMinLv2BatchSizeGPU));
     if (globals.max_bucket_size > globals.cx1.max_lv2_items_) {
-        err("[ERROR C::%s] Bucket too large for GPU: contains %lld items. Please try CPU version.\n", __func__, globals.max_bucket_size);
+        xerr_and_exit("Bucket too large for GPU: contains %lld items. Please try CPU version.\n", globals.max_bucket_size);
         // TODO: auto switch to CPU version
-        exit(1);
     }
 #endif
     globals.words_per_substring = DivCeiling((globals.kmer_k + 1) * kBitsPerEdgeChar, kBitsPerEdgeWord);
@@ -191,7 +182,7 @@ void init_global_and_set_cx1(count_global_t &globals) {
 #endif
 
     if (cx1_t::kCX1Verbose >= 2) {
-        log("[C::%s] %d words per substring, %d words per edge\n", __func__, globals.words_per_substring, globals.words_per_edge);
+        xlog("%d words per substring, %d words per edge\n", globals.words_per_substring, globals.words_per_edge);
     }
     // --- memory stuff ---
     int64_t mem_remained = globals.host_mem
@@ -224,9 +215,9 @@ void init_global_and_set_cx1(count_global_t &globals) {
     }
 
     if (cx1_t::kCX1Verbose >= 2) {
-        log("[C::%s] Memory for reads: %lld\n", __func__, globals.mem_packed_reads);
-        log("[C::%s] max # lv.1 items = %lld\n", __func__, globals.cx1.max_lv1_items_);
-        log("[C::%s] max # lv.2 items = %lld\n", __func__, globals.cx1.max_lv2_items_);
+        xlog("Memory for reads: %lld\n", globals.mem_packed_reads);
+        xlog("max # lv.1 items = %lld\n", globals.cx1.max_lv1_items_);
+        xlog("max # lv.2 items = %lld\n", globals.cx1.max_lv2_items_);
     }
 
     // --- alloc memory ---
@@ -420,7 +411,7 @@ void lv2_sort(count_global_t &globals) {
     local_timer.stop();
 
     if (cx1_t::kCX1Verbose >= 4) {
-        log("[C::%s] Sorting substrings with CPU...done. Time elapsed: %.4lf\n", __func__, local_timer.elapsed());
+        xlog("Sorting substrings with CPU...done. Time elapsed: %.4lf\n", local_timer.elapsed());
     }
 #else
     if (cx1_t::kCX1Verbose >= 4) {
@@ -432,7 +423,7 @@ void lv2_sort(count_global_t &globals) {
 
     if (cx1_t::kCX1Verbose >= 4) {
         local_timer.stop();
-        log("[C::%s] Sorting substrings with GPU...done. Time elapsed: %.4lf\n", __func__, local_timer.elapsed());
+        xlog("Sorting substrings with GPU...done. Time elapsed: %.4lf\n", local_timer.elapsed());
     }
 #endif
 }
@@ -443,23 +434,6 @@ void lv2_pre_output_partition(count_global_t &globals) {
     std::swap(globals.lv2_substrings_db, globals.lv2_substrings);
     std::swap(globals.permutation_db, globals.permutation);
     std::swap(globals.lv2_read_info_db, globals.lv2_read_info);
-
-    // err("Ha\n");
-    // for (int i = 0; i < globals.lv2_num_items_db; ++i) {
-    //     uint32_t *item = globals.lv2_substrings_db + globals.permutation_db[i];
-    //     for (int j = 0; j < globals.kmer_k + 1; ++j) {
-    //         err("%c", "ACGT"[ExtractNthChar(item, j % 16)]);
-    //         if (j == 15) { item += globals.lv2_num_items_db; }
-    //     }
-    //     err("\n");
-    //     // item = globals.lv2_substrings_db + i;
-    //     // for (int j = 0; j < globals.kmer_k + 1; ++j) {
-    //     //     err("%c", "ACGT"[ExtractNthChar(item, j % 16)]);
-    //     //     if (j == 15) { item += globals.lv2_num_items_db; }
-    //     // }
-    //     // err("\n");
-    // }
-    // err("ha\n");
 
     // distribute partition
     int64_t last_end_index = 0;
@@ -626,7 +600,7 @@ void* lv2_output(void* _op) {
 
     if (cx1_t::kCX1Verbose >= 4) {
         local_timer.stop();
-        log("[C::%s] Counting time elapsed: %.4lfs\n", __func__, local_timer.elapsed());
+        xlog("Counting time elapsed: %.4lfs\n", local_timer.elapsed());
     }
     return NULL;
 }
@@ -659,7 +633,7 @@ void post_proc(count_global_t &globals) {
     fclose(candidate_file);
 
     if (cx1_t::kCX1Verbose >= 2) {
-        log("[C::%s] Total number of candidate reads: %lld(%lld)\n", __func__, num_candidate_reads, num_has_tips);
+        xlog("Total number of candidate reads: %lld(%lld)\n", num_candidate_reads, num_has_tips);
     }
 
     // --- stat ---
@@ -669,7 +643,7 @@ void post_proc(count_global_t &globals) {
     }
 
     if (cx1_t::kCX1Verbose >= 2) {
-        log("[B::%s] Total number of solid edges: %llu\n", __func__, num_solid_edges);
+        xlog("Total number of solid edges: %llu\n", num_solid_edges);
     }
 
     FILE *counting_file = OpenFileAndCheck((std::string(globals.output_prefix)+".counting").c_str(), "w");
@@ -678,6 +652,12 @@ void post_proc(count_global_t &globals) {
         fprintf(counting_file, "%lld %lld\n", (long long)i, (long long)acc);
     }
     fclose(counting_file);
+
+    if (cx1_t::kCX1Verbose >= 2) {
+        xlog("Output reads to binary file...\n");
+        bool is_reverse = true;
+        WriteMultipleLibs(globals.package, globals.lib_info, globals.output_prefix + ".all_reads", is_reverse);
+    }
 
     // --- cleaning ---
     pthread_mutex_destroy(&globals.lv1_items_scanning_lock);

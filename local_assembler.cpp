@@ -63,7 +63,7 @@ void LocalAssembler::BuildHashMapper(bool show_stat) {
     }
 
     if (show_stat) {
-    	fprintf(stderr, "[LA] Mapper size: %lu\n", mapper_.size());
+    	xlog("Number of contigs: %lu, Mapper size: %lu\n", contigs_->size(), mapper_.size());
     }
 }
 
@@ -255,10 +255,6 @@ void LocalAssembler::EstimateInsertSize(bool show_stat) {
     	size_t start_read_id = lib_info_[lib_id].from;
     	size_t end_read_id = start_read_id;
 
-    	if (show_stat) {
-    		fprintf(stderr, "[LA] Lib %d: from %ld to %ld\n", lib_id, lib_info_[lib_id].from, lib_info_[lib_id].to);
-    	}
-
     	while (insert_hist.size() < (1 << 18) && end_read_id <= (size_t)lib_info_[lib_id].to) {
     		start_read_id = end_read_id;
     		end_read_id = std::min((size_t)lib_info_[lib_id].to + 1, start_read_id + size_t(2 << 18));
@@ -287,7 +283,7 @@ void LocalAssembler::EstimateInsertSize(bool show_stat) {
     	insert_sizes_[lib_id] = tlen_t(insert_hist.mean(), insert_hist.sd());
 
     	if (show_stat) {
-	    	fprintf(stderr, "[LA] Lib %d, insert size: %.2lf sd: %.2lf\n", lib_id, insert_hist.mean(), insert_hist.sd());
+	    	xlog("Lib %d, insert size: %.2lf sd: %.2lf\n", lib_id, insert_hist.mean(), insert_hist.sd());
 	    }
     }
 }
@@ -298,8 +294,11 @@ int LocalAssembler::LocalRange_(int lib_id) {
 		local_range = std::min(2 * insert_sizes_[lib_id].first,
 			                   insert_sizes_[lib_id].first + 3 * insert_sizes_[lib_id].second);
 	}
+	if (local_range > kMaxLocalRange) {
+		local_range = kMaxLocalRange;
+	}
 
-	return std::min(local_range, kMaxLocalRange);
+	return local_range;
 }
 
 inline uint64_t PackMappingResult(uint64_t contig_offset, uint64_t is_mate, uint64_t mismatch,
@@ -310,7 +309,7 @@ inline uint64_t PackMappingResult(uint64_t contig_offset, uint64_t is_mate, uint
 }
 
 bool LocalAssembler::AddToMappingDeque_(size_t read_id, const MappingRecord &rec, int local_range) {
-	// fprintf(stderr, "%lu %Lu\n", read_id, rec.contig_id);
+	// xlog("%lu %Lu\n", read_id, rec.contig_id);
 	assert(read_id < reads_->size());
 	assert(rec.contig_id < contigs_->size());
 
@@ -404,7 +403,7 @@ void LocalAssembler::MapToContigs() {
     			}
     		}
     	}
-	    fprintf(stderr, "[LA] Lib %d: total %ld reads, aligned %lu, added %lu reads for local assembly\n",
+	    xlog("Lib %d: total %ld reads, aligned %lu, added %lu reads for local assembly\n",
 	    		lib_id, lib_info_[lib_id].to - lib_info_[lib_id].from + 1, num_mapped, num_added);
     }
 
@@ -555,7 +554,7 @@ void* LocalAssembler::LocalAssembleThread_(void *data) {
 					while (__sync_lock_test_and_set(&la->output_lock_, 1)) while (la->output_lock_);
 					WriteFasta(std::cout,
 							   out_contigs[j],
-							   FormatString("localcontig_%llu_strand_%d_id_%lu flag=0 multi=1",
+							   FormatString("lc_%llu_strand_%d_id_%lu flag=0 multi=1",
 							   	            i, strand, j));
 					__sync_lock_release(&la->output_lock_);
 				}
