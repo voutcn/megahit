@@ -11,9 +11,7 @@
 #define __GRAPH_VERTEX_STATUS_H_
 
 #include <stdint.h>
-
-#include "lib_idba/atomic_integer.h"
-
+#include <algorithm>
 
 /**
  * @brief It is a class for storing the status of a vertex. It provides many 
@@ -49,33 +47,26 @@ public:
         if (old_status & kVertexStatusFlagLock)
             return false;
 
-        uint16_t new_status = (old_status & ~kVertexStatusMaskLock) | kVertexStatusFlagLock | id;
-        if (status_.CompareAndSet(old_status, new_status))
-            return true;
-        else
-            return false;
+        status_ = (old_status & ~kVertexStatusMaskLock) | kVertexStatusFlagLock | id;
+        return true;
     }
 
     bool LockPreempt(int id)
     {
-        while (true)
-        {
-            uint16_t old_status = status_;
-            int old_id = -1;
-            if (old_status & kVertexStatusFlagLock)
-                old_id = old_status & kVertexStatusMaskLock;
+        uint16_t old_status = status_;
+        int old_id = -1;
+        if (old_status & kVertexStatusFlagLock)
+            old_id = old_status & kVertexStatusMaskLock;
 
-            if (old_id >= id)
-                return false;
+        if (old_id >= id)
+            return false;
 
-            uint16_t new_status = (old_status & ~kVertexStatusMaskLock) | kVertexStatusFlagLock | id;
-            if (status_.CompareAndSet(old_status, new_status))
-                return true;
-        }
+        status_ = (old_status & ~kVertexStatusMaskLock) | kVertexStatusFlagLock | id;
+        return true;
     }
 
     void swap(VertexStatus &vertex_status)
-    { if (this != &vertex_status) status_.swap(vertex_status.status_); }
+    { if (this != &vertex_status) std::swap(status_, vertex_status.status_); }
 
     void clear() { status_ = 0; }
 
@@ -89,7 +80,7 @@ private:
     void SetFlag(uint16_t flag) { status_ |= flag; }
     void ResetFlag(uint16_t flag) { status_ &= ~flag; }
 
-    AtomicInteger<uint16_t> status_;
+    uint16_t status_;
 };
 
 namespace std

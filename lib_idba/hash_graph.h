@@ -10,15 +10,13 @@
 
 #define __GRAPH_HASH_GRAPH_H_
 
-#include <omp.h>
-
 #include <deque>
 #include <istream>
 #include <ostream>
 
 #include "bit_operation.h"
-#include "hash_table.h"
 #include "histgram.h"
+#include "lib_idba/hash_table.h"
 #include "lib_idba/kmer.h"
 #include "lib_idba/contig_info.h"
 #include "lib_idba/hash_graph_vertex.h"
@@ -43,7 +41,7 @@ public:
     friend std::istream &operator >>(std::istream &is, HashGraph &hash_graph);
     friend std::ostream &operator <<(std::ostream &os, HashGraph &hash_graph);
 
-    typedef HashTable<HashGraphVertex, IdbaKmer> vertex_table_type;
+    typedef HashTableST<HashGraphVertex, IdbaKmer> vertex_table_type;
     typedef vertex_table_type::iterator iterator;
 
     explicit HashGraph(uint32_t kmer_size = 0) { set_kmer_size(kmer_size); num_edges_ = 0; }
@@ -343,7 +341,7 @@ private:
 
     private:
         HashGraph *hash_graph_;
-        AtomicInteger<uint64_t> total_degree_;
+        uint64_t total_degree_;
     };
 
     class ErodeFunc
@@ -376,9 +374,9 @@ private:
     {
     public:
         BubbleFunc(HashGraph *hash_graph)
-        { hash_graph_ = hash_graph; omp_init_lock(&bubble_lock_); }
+        { hash_graph_ = hash_graph; }
         ~BubbleFunc()
-        { omp_destroy_lock(&bubble_lock_); }
+        { }
 
         void operator ()(HashGraphVertex &vertex);
 
@@ -387,7 +385,6 @@ private:
     private:
         HashGraph *hash_graph_;
         std::deque<HashGraphVertexAdaptor> candidates_;
-        omp_lock_t bubble_lock_;
     };
 
     class AssembleFunc
@@ -395,9 +392,9 @@ private:
     public:
         AssembleFunc(HashGraph *hash_graph)
             : hash_graph_(hash_graph)
-        { omp_init_lock(&contig_lock_); }
+        { }
         ~AssembleFunc()
-        { omp_destroy_lock(&contig_lock_); }
+        { }
             
         void operator ()(HashGraphVertex &vertex);
 
@@ -408,7 +405,6 @@ private:
         HashGraph *hash_graph_;
         std::deque<Sequence> contigs_;
         std::deque<ContigInfo> contig_infos_;
-        omp_lock_t contig_lock_;
     };
 
     class CoverageHistgramFunc
@@ -423,7 +419,7 @@ private:
         Histgram<int> histgram_;
     };
 
-    HashTable<HashGraphVertex, IdbaKmer> vertex_table_;
+    HashTableST<HashGraphVertex, IdbaKmer> vertex_table_;
     uint32_t kmer_size_;
     uint64_t num_edges_;
 };

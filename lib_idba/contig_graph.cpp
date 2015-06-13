@@ -80,7 +80,7 @@ void ContigGraph::Initialize(const deque<Sequence> &contigs, const deque<ContigI
 {
     vertices_.clear();
     vertices_.resize(contigs.size());
-#pragma omp parallel for schedule(static, 1)
+
     for (int64_t i = 0; i < (int64_t)contigs.size(); ++i)
     {
         vertices_[i].clear();
@@ -95,7 +95,7 @@ void ContigGraph::BuildEdgeCountTable()
 {
     edge_count_table_.clear();
     edge_count_table_.set_kmer_size(kmer_size_+1);
-#pragma omp parallel for schedule(static, 1)
+
     for (int64_t i = 0; i < (int64_t)vertices_.size(); ++i)
     {
         for (int strand = 0; strand < 2; ++strand)
@@ -143,7 +143,7 @@ void ContigGraph::RefreshEdges()
     BuildBeginIdbaKmerMap();
 
     uint64_t total_degree = 0;
-#pragma omp parallel for reduction(+: total_degree)
+
     for (int64_t i = 0; i < (int64_t)vertices_.size(); ++i)
     {
         for (int strand = 0; strand < 2; ++strand)
@@ -161,7 +161,6 @@ void ContigGraph::RefreshEdges()
                 }
             }
 
-//#pragma omp atomic
             total_degree += current.out_edges().size();
         }
 
@@ -178,7 +177,6 @@ void ContigGraph::RefreshEdges()
 
 void ContigGraph::AddAllEdges()
 {
-#pragma omp parallel for
     for (int64_t i = 0; i < (int64_t)vertices_.size(); ++i)
     {
         vertices_[i].in_edges() = 15;
@@ -189,7 +187,6 @@ void ContigGraph::AddAllEdges()
 
 void ContigGraph::RemoveAllEdges()
 {
-#pragma omp parallel for
     for (int64_t i = 0; i < (int64_t)vertices_.size(); ++i)
     {
         vertices_[i].in_edges() = 0;
@@ -200,14 +197,12 @@ void ContigGraph::RemoveAllEdges()
 
 void ContigGraph::ClearStatus()
 {
-#pragma omp parallel for
     for (int64_t i = 0; i < (int64_t)vertices_.size(); ++i)
         vertices_[i].status().clear();
 }
 
 void ContigGraph::MergeSimilarPath()
 {
-#pragma omp parallel for
     for (int64_t i = 0; i < (int64_t)vertices_.size(); ++i)
     {
         for (int strand = 0; strand < 2; ++strand)
@@ -252,7 +247,7 @@ void ContigGraph::MergeSimilarPath()
 int64_t ContigGraph::Prune(int min_length)
 {
     uint64_t old_num_vertices = vertices_.size();
-#pragma omp parallel for
+
     for (int64_t i = 0; i < (int64_t)vertices_.size(); ++i)
     {
         for (int strand = 0; strand < 2; ++strand)
@@ -290,7 +285,7 @@ int64_t ContigGraph::Prune(int min_length)
 int64_t ContigGraph::Trim(int min_length)
 {
     uint64_t old_num_vertices = vertices_.size();
-#pragma omp parallel for
+
     for (int64_t i = 0; i < (int64_t)vertices_.size(); ++i)
     {
         if (vertices_[i].contig().size() == kmer_size_
@@ -314,7 +309,7 @@ int64_t ContigGraph::Trim(int min_length)
 int64_t ContigGraph::Trim(int min_length, double min_cover)
 {
     uint64_t old_num_vertices = vertices_.size();
-#pragma omp parallel for
+
     for (int64_t i = 0; i < (int64_t)vertices_.size(); ++i)
     {
         if (vertices_[i].contig().size() == kmer_size_
@@ -339,7 +334,7 @@ int64_t ContigGraph::Trim(int min_length, double min_cover)
 int64_t ContigGraph::RemoveStandAlone(int min_length)
 {
     uint64_t old_num_vertices = vertices_.size();
-#pragma omp parallel for
+
     for (int64_t i = 0; i < (int64_t)vertices_.size(); ++i)
     {
         if (vertices_[i].contig().size() == kmer_size_
@@ -394,10 +389,7 @@ int64_t ContigGraph::RemoveDeadEnd(int min_length, double min_cover)
 int64_t ContigGraph::RemoveBubble()
 {
     deque<ContigGraphVertexAdaptor> candidates;
-    omp_lock_t bubble_lock;
-    omp_init_lock(&bubble_lock);
 
-#pragma omp parallel for schedule(static, 1)
     for (int64_t i = 0; i < (int64_t)vertices_.size(); ++i)
     {
         for (int strand = 0; strand < 2; ++strand)
@@ -420,9 +412,7 @@ int64_t ContigGraph::RemoveBubble()
 
                     if (rev_branch_group.Search() && rev_branch_group.end() == end)
                     {
-                        omp_set_lock(&bubble_lock);
                         candidates.push_back(current);
-                        omp_unset_lock(&bubble_lock);
                     }
                 }
             }
@@ -540,7 +530,6 @@ bool ContigGraph::RemoveLowCoverage(double min_cover, int min_length)
 {
     bool is_changed = false;
 
-#pragma omp parallel for schedule(static, 1)
     for (int64_t i = 0; i < (int64_t)vertices_.size(); ++i)
     {
         ContigGraphVertexAdaptor current(&vertices_[i]);
@@ -614,7 +603,7 @@ bool ContigGraph::RemoveComponentLowCoverage(double min_cover, int min_length, d
 
     deque<double> average_coverage(components.size());
     deque<int> component_id_table(vertices_.size());
-#pragma omp parallel for schedule(dynamic)
+
     for (int64_t i = 0; i < (int64_t)components.size(); ++i)
     {
         double total_kmer_count = 0;
@@ -632,7 +621,7 @@ bool ContigGraph::RemoveComponentLowCoverage(double min_cover, int min_length, d
 
     bool is_changed = false;
     //int max_component_size = 30;
-#pragma omp parallel for schedule(static, 1)
+
     for (int64_t i = 0; i < (int64_t)vertices_.size(); ++i)
     {
         ContigGraphVertexAdaptor current(&vertices_[i]);
@@ -681,7 +670,7 @@ bool ContigGraph::RemoveComponentLowCoverage2(double min_cover, int min_length, 
 
     deque<double> average_coverage(components.size());
     deque<int> component_id_table(vertices_.size());
-#pragma omp parallel for schedule(dynamic)
+
     for (int64_t i = 0; i < (int64_t)components.size(); ++i)
     {
         double total_kmer_count = 0;
@@ -704,7 +693,7 @@ bool ContigGraph::RemoveComponentLowCoverage2(double min_cover, int min_length, 
 
     bool is_changed = false;
     //int max_component_size = 30;
-#pragma omp parallel for schedule(static, 1)
+
     for (int64_t i = 0; i < (int64_t)vertices_.size(); ++i)
     {
         ContigGraphVertexAdaptor current(&vertices_[i]);
@@ -853,16 +842,12 @@ int64_t ContigGraph::Assemble(deque<Sequence> &contigs, deque<ContigInfo> &conti
     contigs.clear();
     contig_infos.clear();
 
-    omp_lock_t contig_lock;
-    omp_init_lock(&contig_lock);
-
-#pragma omp parallel for
     for (int64_t i = 0; i < (int64_t)vertices_.size(); ++i)
     {
         if (vertices_[i].contig().size() == kmer_size_
                 && vertices_[i].contig().IsPalindrome())
         {
-            vertices_[i].status().Lock(omp_get_max_threads());
+            vertices_[i].status().Lock(1);
 
             Sequence contig = vertices_[i].contig();
             //ContigInfo contig_info(vertices_[i].kmer_count(), vertices_[i].in_edges(), vertices_[i].out_edges());
@@ -871,19 +856,16 @@ int64_t ContigGraph::Assemble(deque<Sequence> &contigs, deque<ContigInfo> &conti
             contig_info.in_edges() = vertices_[i].in_edges();
             contig_info.out_edges() = vertices_[i].out_edges();
 
-            omp_set_lock(&contig_lock);
             contigs.push_back(contig);
             contig_infos.push_back(contig_info);
-            omp_unset_lock(&contig_lock);
         }
     }
 
     //cout << "palindrome " << contigs.size() << endl;
 
-#pragma omp parallel for schedule(static, 1)
     for (int64_t i = 0; i < (int64_t)vertices_.size(); ++i)
     {
-        if (!vertices_[i].status().Lock(omp_get_thread_num()))
+        if (!vertices_[i].status().Lock(0))
             continue;
 
         ContigGraphPath path;
@@ -907,7 +889,7 @@ int64_t ContigGraph::Assemble(deque<Sequence> &contigs, deque<ContigInfo> &conti
                 if (IsLoop(path, next))
                     goto FAIL;
 
-                if (!next.status().LockPreempt(omp_get_thread_num()))
+                if (!next.status().LockPreempt(0))
                     goto FAIL;
 
                 path.Append(next, -kmer_size_ + 1);
@@ -917,15 +899,12 @@ int64_t ContigGraph::Assemble(deque<Sequence> &contigs, deque<ContigInfo> &conti
         }
 
         path.Assemble(contig, contig_info);
-        omp_set_lock(&contig_lock);
         contigs.push_back(contig);
         contig_infos.push_back(contig_info);
-        omp_unset_lock(&contig_lock);
 FAIL:
         ;
     }
 
-    omp_destroy_lock(&contig_lock);
     ClearStatus();
 
     return contigs.size();
@@ -1010,11 +989,8 @@ int64_t ContigGraph::SplitBranches()
     //cout << num_vertices() << " " << num_edges() << endl;
 
     deque<ContigGraphVertexAdaptor> branches;
-    omp_lock_t lock;
-    omp_init_lock(&lock);
 
     int64_t count = 0;
-#pragma omp parallel for
     for (int64_t i = 0; i < (int64_t)vertices_.size(); ++i)
     {
         ContigGraphVertexAdaptor current(&vertices_[i]);
@@ -1022,19 +998,14 @@ int64_t ContigGraph::SplitBranches()
         {
             if (!IsConverged(current))
             {
-#pragma omp atomic
                 ++count;
 
-                omp_set_lock(&lock);
                 branches.push_back(current);
-                omp_unset_lock(&lock);
             }
 
             current.ReverseComplement();
         }
     }
-
-    omp_destroy_lock(&lock);
 
     set<ContigGraphVertexAdaptor> sources;
 
@@ -1236,7 +1207,6 @@ void ContigGraph::GetContigs(deque<Sequence> &contigs, deque<ContigInfo> &contig
     contigs.resize(vertices_.size());
     contig_infos.resize(vertices_.size());
 
-#pragma omp parallel for 
     for (int64_t i = 0; i < (int64_t)vertices_.size(); ++i)
     {
         contigs[i] = vertices_[i].contig();
@@ -1278,7 +1248,7 @@ void ContigGraph::BuildBeginIdbaKmerMap()
 {
     begin_kmer_map_.clear();
     begin_kmer_map_.reserve(vertices_.size()*2);
-#pragma omp parallel for
+
     for (int64_t i = 0; i < (int64_t)vertices_.size(); ++i)
     {
         for (int strand = 0; strand < 2; ++strand)

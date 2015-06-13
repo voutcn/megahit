@@ -12,7 +12,6 @@
 
 #include <algorithm>
 
-#include "lib_idba/atomic_integer.h"
 #include "bit_operation.h"
 #include "lib_idba/kmer.h"
 #include "lib_idba/bit_edges.h"
@@ -48,8 +47,8 @@ public:
     const IdbaKmer &kmer() const { return kmer_; }
     void set_kmer(const IdbaKmer &kmer) { kmer_ = kmer; }
 
-    AtomicInteger<int32_t> &count() { return count_; }
-    const AtomicInteger<int32_t> &count() const { return count_; }
+    int32_t &count() { return count_; }
+    const int32_t &count() const { return count_; }
 
     VertexStatus &status() { return status_; }
     const VertexStatus &status() const { return status_; }
@@ -65,7 +64,7 @@ public:
         if (this != &x)
         {
             kmer_.swap(x.kmer_); 
-            count_.swap(x.count_); 
+            std::swap(count_, x.count_); 
             status_.swap(x.status_); 
             in_edges_.swap(x.in_edges_); 
             out_edges_.swap(x.out_edges_); 
@@ -79,7 +78,7 @@ public:
 private:
     IdbaKmer kmer_;
 
-    AtomicInteger<int32_t> count_;
+    int32_t count_;
     VertexStatus status_;
     BitEdges in_edges_;
     BitEdges out_edges_;
@@ -125,8 +124,8 @@ public:
     void set_vertex(HashGraphVertex *vertex, bool is_reverse = false)
     { vertex_ = vertex; is_reverse_ = is_reverse; }
 
-    AtomicInteger<int32_t> &count() { return vertex_->count(); }
-    const AtomicInteger<int32_t> &count() const { return vertex_->count(); }
+    int32_t &count() { return vertex_->count(); }
+    const int32_t &count() const { return vertex_->count(); }
 
     VertexStatus &status() { return vertex_->status(); }
     const VertexStatus &status() const { return vertex_->status(); }

@@ -11,8 +11,7 @@
 #define __GRAPH_BIT_EDGES_H_
 
 #include "bit_operation.h"
-#include "lib_idba/atomic_integer.h"
-
+#include <algorithm>
 
 /**
  * @brief It is compact bit vector used to represent edges in de Bruijn graph (HashGraph).
@@ -40,7 +39,7 @@ public:
     void Remove(int x) { edges_ &= ~uint8_t(1 << x); }
 
     void swap(BitEdges &bit_edges) 
-    { if (this != &bit_edges) edges_.swap(bit_edges.edges_); }
+    { if (this != &bit_edges) std::swap(edges_, bit_edges.edges_); }
 
     bool operator [] (int index) const { return edges_ & (1 << index); }
     int size() const { return bit_operation::BitCount(edges_); }
@@ -49,7 +48,7 @@ public:
     void clear() { edges_ = 0; }
 
 private:
-    AtomicInteger<uint8_t> edges_;
+    uint8_t edges_;
 };
 
 namespace std

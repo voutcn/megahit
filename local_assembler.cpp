@@ -491,8 +491,6 @@ inline void LaunchIDBA(std::deque<Sequence> &reads, Sequence &contig_end,
 }
 
 void* LocalAssembler::LocalAssembleThread_(void *data) {
-	omp_set_num_threads(1);
-
 	AssembleTask *task = (AssembleTask*)data;
 	LocalAssembler *la = task->local_assembler;
 	int min_num_reads = la->local_range_ / la->max_read_len_;

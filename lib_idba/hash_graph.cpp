@@ -23,7 +23,6 @@
 
 using namespace std;
 
-
 #include <iostream>
 
 int64_t HashGraph::InsertKmersWithPrefix(const Sequence &seq, uint64_t prefix, uint64_t mask)
@@ -294,7 +293,6 @@ int64_t HashGraph::Trim(int min_length)
     deque<ContigInfo> contig_infos;
     Assemble(contigs, contig_infos);
 
-#pragma omp parallel for
     for (int64_t i = 0; i < (int64_t)contigs.size(); ++i)
     {
         if ((contig_infos[i].out_edges() == 0 || contig_infos[i].in_edges() == 0)
@@ -337,7 +335,6 @@ int64_t HashGraph::RemoveLowCoverage(double min_cover, int min_length)
         deque<ContigInfo> contig_infos;
         Assemble(contigs, contig_infos);
 
-#pragma omp parallel for
         for (int64_t i = 0; i < (int64_t)contigs.size(); ++i)
         {
             if (contig_infos[i].kmer_count() * 1.0 / (contigs[i].size() - kmer_size_ + 1)  < min_cover
@@ -414,7 +411,7 @@ void HashGraph::TrimFunc::operator ()(HashGraphVertex &vertex)
     if (vertex.kmer().IsPalindrome())
         return;
 
-    if (!vertex.status().Lock(omp_get_thread_num()))
+    if (!vertex.status().Lock(0))
         return;
 
     for (int strand = 0; strand < 2; ++strand)
@@ -437,7 +434,7 @@ void HashGraph::TrimFunc::operator ()(HashGraphVertex &vertex)
             if (next.in_edges().size() != 1)
                 break;
 
-            if (!next.status().LockPreempt(omp_get_thread_num()))
+            if (!next.status().LockPreempt(0))
                 return;
 
             current = next;
@@ -454,7 +451,7 @@ void HashGraph::TrimFunc::operator ()(HashGraphVertex &vertex)
 
 void HashGraph::AssembleFunc::operator ()(HashGraphVertex &vertex)
 {
-    if (!vertex.status().Lock(omp_get_thread_num()))
+    if (!vertex.status().Lock(0))
         return;
 
     ContigBuilder contig_builder;
@@ -478,7 +475,7 @@ void HashGraph::AssembleFunc::operator ()(HashGraphVertex &vertex)
                 if (hash_graph_->IsLoop(contig_builder.contig(), next))
                     return;
 
-                if (!next.status().LockPreempt(omp_get_thread_num()))
+                if (!next.status().LockPreempt(0))
                     return;
 
                 contig_builder.Append(next);
@@ -489,9 +486,7 @@ void HashGraph::AssembleFunc::operator ()(HashGraphVertex &vertex)
         }
     }
 
-    omp_set_lock(&contig_lock_);
     contigs_.push_back(contig_builder.contig());
     contig_infos_.push_back(contig_builder.contig_info());
-    omp_unset_lock(&contig_lock_);
 }
 

@@ -12,14 +12,14 @@
 
 #include "functional.h"
 #include "hash.h"
-#include "hash_table.h"
+#include "lib_idba/hash_table.h"
 
 #include <functional>
 
 
 /**
  * @brief It is a parallel hash map which has similar inserface as stl map.
- * It is implemented based on parallel hash table (HashTable).
+ * It is implemented based on parallel hash table (HashTableST).
  *
  * @tparam Key
  * @tparam Value
@@ -30,7 +30,7 @@ template <typename Key, typename Value, typename HashFunc = Hash<Key>,
 class HashMap
 {
 public:
-    typedef HashTable<std::pair<Key, Value>, Key, HashFunc, 
+    typedef HashTableST<std::pair<Key, Value>, Key, HashFunc, 
             Select1st<std::pair<Key, Value> >, EqualKey> hash_table_type;
     typedef HashMap<Key, Value, HashFunc, EqualKey> hash_map_type;
 

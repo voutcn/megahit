@@ -31,20 +31,20 @@ class Histgram
 public:
     typedef T value_type;
 
-    Histgram(): size_(0) { omp_init_lock(&lock_); }
+    Histgram(): size_(0) { lock_ = 0; }
     Histgram(const Histgram<T> &hist)
-        : map_(hist.map_), size_(hist.size_) { omp_init_lock(&lock_); }
-    ~Histgram() { omp_destroy_lock(&lock_); }
+        : map_(hist.map_), size_(hist.size_) { lock_ = 0; }
+    ~Histgram() { }
 
     const Histgram<T> &operator =(const Histgram<T> &hist)
     { map_ = hist.map_; size_ = hist.size_; return *this; }
 
     void insert(value_type value, unsigned count = 1) 
     { 
-        omp_set_lock(&lock_);
+        while (__sync_lock_test_and_set(&lock_, 1)) while (lock_);
         map_[value] += count; 
-        size_ += count; 
-        omp_unset_lock(&lock_);
+        size_ += count;
+        __sync_lock_release(&lock_);
     }
 
     unsigned count(value_type value) const
@@ -230,7 +230,7 @@ public:
 private:
     std::map<value_type, unsigned> map_;
     uint32_t size_;
-    omp_lock_t lock_;
+    volatile int lock_;
 };
 
 namespace std
