@@ -45,7 +45,7 @@ struct AssemblerOptions {
     bool is_final_round;
     bool no_bubble;
     int merge_len;
-    int merge_similar;
+    double merge_similar;
     int prune_level;
     bool excessive_prune;
     double low_local_ratio;
@@ -192,12 +192,14 @@ int main(int argc, char **argv) {
     if (!opt.no_bubble) {
         timer.reset();
         timer.start();
-        unitig_graph.MergeBubbles(true);
+        uint32_t num_bubbles = unitig_graph.MergeBubbles(true);
+        uint32_t num_complex_bubbles = 0;
         if (opt.merge_len > 0) {
-            unitig_graph.MergeComplexBubbles(opt.merge_similar, opt.merge_len, true);
+            num_complex_bubbles += unitig_graph.MergeComplexBubbles(opt.merge_similar, opt.merge_len, true);
         }
         timer.stop();
-        printf("Time elapsed(sec): %lf\n", timer.elapsed());
+        printf("Number of bubbles/complex bubbles removed: %u/%u, Time elapsed(sec): %lf\n",
+               num_bubbles, num_complex_bubbles, timer.elapsed());
     }
 
     // excessive pruning
@@ -248,11 +250,13 @@ int main(int argc, char **argv) {
             min_depth *= 1.1;
         }
         
+        uint32_t num_complex_bubbles = 0;
         if (opt.merge_len > 0)
-            unitig_graph.MergeComplexBubbles(opt.merge_similar, opt.merge_len, opt.is_final_round);
+            num_complex_bubbles = unitig_graph.MergeComplexBubbles(opt.merge_similar, opt.merge_len, opt.is_final_round);
 
         timer.stop();
-        printf("Number of local low depth unitigs removed: %lld, time: %lf\n", (long long)num_removed, timer.elapsed());
+        printf("Number of local low depth unitigs removed: %lld, complex bubbles removed: %u, time: %lf\n",
+              (long long)num_removed, num_complex_bubbles, timer.elapsed());
 
         histogram.clear();
 

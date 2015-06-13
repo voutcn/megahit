@@ -16,8 +16,8 @@
  *  along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef DEFINITIONS_H_
-#define DEFINITIONS_H_
+#ifndef MEGAHIT_DEFINITIONS_H__
+#define MEGAHIT_DEFINITIONS_H__
 
 #include <stdint.h>
 
@@ -31,7 +31,6 @@ typedef uint8_t multi2_t;
 static const int kMaxMulti2_t = 254;
 static const multi2_t kMulti2Sp = 255;
 
-typedef uint32_t edge_word_t;
 static const int kBitsPerEdgeWord = 32;
 static const int kBitsPerEdgeChar = 2;
 static const int kCharsPerEdgeWord = 16;
@@ -56,4 +55,4 @@ typedef Kmer<kUint32PerKmerMaxK, uint32_t> GenericKmer;
 
 #define LONG_READS
 
-#endif // DEFINITIONS_H_
+#endif // MEGAHIT_DEFINITIONS_H__

@@ -180,7 +180,7 @@ struct DBG_BinaryWriter {
 struct WordWriter {
     static const int kBufferSize = 4096;
     int buffer_index;
-    edge_word_t output_buffer[kBufferSize];
+    uint32_t output_buffer[kBufferSize];
     FILE *file;
 
     WordWriter() {
@@ -201,17 +201,17 @@ struct WordWriter {
     void destroy() {
         if (file != NULL) {
             if (buffer_index > 0) {
-                fwrite(output_buffer, sizeof(edge_word_t), buffer_index, file);
+                fwrite(output_buffer, sizeof(uint32_t), buffer_index, file);
             }
             fclose(file);
             file = NULL;
         }
     }
 
-    void output(edge_word_t w) {
+    void output(uint32_t w) {
         output_buffer[buffer_index++] = w;
         if (buffer_index == kBufferSize) {
-            fwrite(output_buffer, sizeof(edge_word_t), kBufferSize, file);
+            fwrite(output_buffer, sizeof(uint32_t), kBufferSize, file);
             buffer_index = 0;
         }
     }

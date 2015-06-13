@@ -41,8 +41,8 @@ void alloc_gpu_buffers(void* &gpu_key_buffer1,
                        void* &gpu_value_buffer1,
                        void* &gpu_value_buffer2,
                        size_t max_num_items) {
-    CubDebugExit(g_allocator.DeviceAllocate((void**)&gpu_key_buffer1, sizeof(edge_word_t) * max_num_items));
-    CubDebugExit(g_allocator.DeviceAllocate((void**)&gpu_key_buffer2, sizeof(edge_word_t) * max_num_items));
+    CubDebugExit(g_allocator.DeviceAllocate((void**)&gpu_key_buffer1, sizeof(uint32_t) * max_num_items));
+    CubDebugExit(g_allocator.DeviceAllocate((void**)&gpu_key_buffer2, sizeof(uint32_t) * max_num_items));
     CubDebugExit(g_allocator.DeviceAllocate((void**)&gpu_value_buffer1, sizeof(uint32_t) * max_num_items));
     CubDebugExit(g_allocator.DeviceAllocate((void**)&gpu_value_buffer2, sizeof(uint32_t) * max_num_items));
 }
@@ -60,7 +60,7 @@ void free_gpu_buffers(void* gpu_key_buffer1,
 
 
 // device function for permuting an array
-__global__ void permutation_kernel(edge_word_t *index, edge_word_t *val, edge_word_t *new_val, uint32_t num_items) {
+__global__ void permutation_kernel(uint32_t *index, uint32_t *val, uint32_t *new_val, uint32_t num_items) {
     int tid = blockIdx.x * kGPUThreadPerBlock + threadIdx.x;
     if (tid < num_items)
         new_val[tid] = val[index[tid]];
@@ -74,7 +74,7 @@ __global__ void reset_permutation_kernel(uint32_t *permutation, uint32_t num_ite
 }
 
 // single thread
-void lv2_gpu_sort(edge_word_t *lv2_substrings,
+void lv2_gpu_sort(uint32_t *lv2_substrings,
                   uint32_t *permutation,
                   int words_per_substring,
                   int64_t lv2_num_items,
@@ -82,7 +82,7 @@ void lv2_gpu_sort(edge_word_t *lv2_substrings,
                   void* gpu_key_buffer2,
                   void* gpu_value_buffer1,
                   void* gpu_value_buffer2) {
-    DoubleBuffer<edge_word_t> d_keys;
+    DoubleBuffer<uint32_t> d_keys;
     DoubleBuffer<uint32_t> d_values;
     d_keys.d_buffers[0] = static_cast<__typeof(d_keys.d_buffers[0])>(gpu_key_buffer1);
     d_keys.d_buffers[1] = static_cast<__typeof(d_keys.d_buffers[1])>(gpu_key_buffer2);
@@ -102,10 +102,10 @@ void lv2_gpu_sort(edge_word_t *lv2_substrings,
     for (int64_t iteration = words_per_substring - 1; iteration >= 0; --iteration) {
         if (iteration == words_per_substring - 1) { // first iteration
             CubDebugExit(cudaMemcpy(d_keys.d_buffers[d_keys.selector], lv2_substrings + (iteration * lv2_num_items),
-                                    sizeof(edge_word_t) * lv2_num_items, cudaMemcpyHostToDevice));
+                                    sizeof(uint32_t) * lv2_num_items, cudaMemcpyHostToDevice));
         } else {
             CubDebugExit(cudaMemcpy(d_keys.d_buffers[1 - d_keys.selector], lv2_substrings + (iteration * lv2_num_items),
-                                    sizeof(edge_word_t) * lv2_num_items, cudaMemcpyHostToDevice));
+                                    sizeof(uint32_t) * lv2_num_items, cudaMemcpyHostToDevice));
 
             permutation_kernel<<<num_gpu_blocks, kGPUThreadPerBlock>>>(d_values.d_buffers[d_values.selector],
                     d_keys.d_buffers[1 - d_keys.selector], d_keys.d_buffers[d_keys.selector],
