@@ -84,7 +84,7 @@ std::string VertexToDNAString(SuccinctDBG *sdbg_, const UnitigGraphVertex &v) {
 
     assert(cur_node == v.start_node);
     while (cur_node != v.start_node) {
-        int64_t prev_node =  assembly_algorithms::PrevSimplePathNode(*sdbg_, cur_node);
+        int64_t prev_node = assembly_algorithms::PrevSimplePathNode(*sdbg_, cur_node);
         cur_node = sdbg_->GetLastIndex(prev_node);
         int8_t cur_char = sdbg_->GetW(prev_node);
         label.append(1, acgt[cur_char > 4 ? (cur_char - 5) : (cur_char - 1)]);
@@ -622,8 +622,17 @@ void UnitigGraph::Refresh_(bool set_changed) {
             int64_t cur_node = vertices_[i].end_node;
             while (cur_node != vertices_[i].start_node) {
                 sdbg_->SetInvalid(cur_node);
+                int64_t prev_node = cur_node;
                 cur_node = sdbg_->UniqueIncoming(cur_node);
-                assert(cur_node != -1);
+                // assert(cur_node != -1);
+                if (cur_node == -1) {
+                    int64_t ssss[4] = {-1,-1,-1,-1};
+                    xwarning("%d\n", sizeof(omp_lock_t));
+                    xwarning("%lld %lld %lld %lld %lld: %d\n", prev_node, vertices_[i].start_node, vertices_[i].end_node, 
+                        vertices_[i].rev_start_node, vertices_[i].rev_end_node, sdbg_->Incomings(cur_node, ssss));
+                    for (int i = 0; i < 4; ++i) { xlog_ext("%lld\n", ssss[i]); }
+                    exit(1);
+                }
                 cur_node = sdbg_->GetLastIndex(cur_node);
             }
             sdbg_->SetInvalid(cur_node);
