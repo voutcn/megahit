@@ -145,11 +145,19 @@ DEPS =   ./Makefile \
 # g++ and its options
 #-------------------------------------------------------------------------------
 CUDALIBFLAG = -L/usr/local/cuda/lib64/ -lcuda -lcudart
-CFLAGS = -O2 -Wall -Wno-unused-function -Wno-array-bounds -D__STDC_FORMAT_MACROS -funroll-loops -fprefetch-loop-arrays -fopenmp -I. -std=c++0x -static-libgcc -static-libstdc++
-LIB = -lm -lz
-ifneq ($(disablempopcnt), 1)
-	CFLAGS += -mpopcnt
+GCC_VER_GTE45 := $(shell echo `$(CXX) -dumpversion | cut -f1-2 -d.` \>= 4.5 | bc)
+
+CXXFLAGS = -O2 -Wall -Wno-unused-function -Wno-array-bounds -D__STDC_FORMAT_MACROS -funroll-loops -fprefetch-loop-arrays -fopenmp -I. -std=c++0x -static-libgcc
+LIB = -lm -lz -lpthread
+
+ifeq ($(GCC_VER_GTE45), 1)
+	CXXFLAGS += -static-libstdc++
 endif
+
+ifneq ($(disablempopcnt), 1)
+	CXXFLAGS += -mpopcnt
+endif
+
 DEPS = Makefile
 
 #-------------------------------------------------------------------------------
@@ -177,30 +185,30 @@ LIB_IDBA += $(LIB_IDBA_DIR)/sequence.o
 # CPU objectives
 #-------------------------------------------------------------------------------
 %.o: %.cpp %.h $(DEPS)
-	$(CXX) $(CFLAGS) -c $< -o $@
+	$(CXX) $(CXXFLAGS) -c $< -o $@
 %.o: %.cpp $(DEPS)
-	$(CXX) $(CFLAGS) -c $< -o $@
+	$(CXX) $(CXXFLAGS) -c $< -o $@
 
 #-------------------------------------------------------------------------------
 # CPU Applications
 #-------------------------------------------------------------------------------
 sdbg_builder_cpu: sdbg_builder.cpp cx1.h lv2_cpu_sort.h cx1_kmer_count.o cx1_read2sdbg_s1.o cx1_read2sdbg_s2.o cx1_seq2sdbg.o options_description.o sequence_manager.o $(DEPS)
-	$(CXX) $(CFLAGS) sdbg_builder.cpp cx1_kmer_count.o options_description.o cx1_read2sdbg_s1.o cx1_read2sdbg_s2.o cx1_seq2sdbg.o sequence_manager.o $(LIB) -lpthread -o sdbg_builder_cpu
+	$(CXX) $(CXXFLAGS) sdbg_builder.cpp cx1_kmer_count.o options_description.o cx1_read2sdbg_s1.o cx1_read2sdbg_s2.o cx1_seq2sdbg.o sequence_manager.o $(LIB) -o sdbg_builder_cpu
 
 megahit_assemble: assembler.cpp succinct_dbg.o rank_and_select.h assembly_algorithms.o branch_group.o options_description.o unitig_graph.o $(DEPS)
-	$(CXX) $(CFLAGS) assembler.cpp succinct_dbg.o assembly_algorithms.o branch_group.o options_description.o unitig_graph.o $(LIB) -o megahit_assemble
+	$(CXX) $(CXXFLAGS) assembler.cpp succinct_dbg.o assembly_algorithms.o branch_group.o options_description.o unitig_graph.o $(LIB) -o megahit_assemble
 
 megahit_iter: iterate_edges.cpp iterate_edges.h options_description.o city.o sequence_manager.o $(DEPS)
-	$(CXX) $(CFLAGS) iterate_edges.cpp options_description.o city.o sequence_manager.o $(LIB) -o megahit_iter
+	$(CXX) $(CXXFLAGS) iterate_edges.cpp options_description.o city.o sequence_manager.o $(LIB) -o megahit_iter
 
 megahit_local_asm: local_assembler.o city.o options_description.o sequence_manager.o local_assemble.cpp $(LIB_IDBA) $(DEPS)
-	$(CXX) $(CFLAGS) local_assemble.cpp local_assembler.o options_description.o city.o sequence_manager.o $(LIB_IDBA) $(LIB) -o megahit_local_asm
+	$(CXX) $(CXXFLAGS) local_assemble.cpp local_assembler.o options_description.o city.o sequence_manager.o $(LIB_IDBA) $(LIB) -o megahit_local_asm
 
 #-------------------------------------------------------------------------------
 # Applications for debug usage
 #-------------------------------------------------------------------------------
 query_sdbg: query_sdbg.cpp succinct_dbg.o rank_and_select.h assembly_algorithms.o branch_group.o unitig_graph.o $(DEPS)
-	$(CXX) $(CFLAGS) query_sdbg.cpp succinct_dbg.o assembly_algorithms.o branch_group.o unitig_graph.o -o query_sdbg
+	$(CXX) $(CXXFLAGS) query_sdbg.cpp succinct_dbg.o assembly_algorithms.o branch_group.o unitig_graph.o -o query_sdbg
 
 #-------------------------------------------------------------------------------
 # GPU objectives
@@ -211,25 +219,25 @@ query_sdbg: query_sdbg.cpp succinct_dbg.o rank_and_select.h assembly_algorithms.
 
 # cpp -> o
 lv2_gpu_functions_$(SUFFIX).o: .lv2_gpu_functions_$(SUFFIX).cpp $(DEPS)
-	$(CXX) $(CFLAGS) -c .lv2_gpu_functions_$(SUFFIX).cpp -o lv2_gpu_functions_$(SUFFIX).o
+	$(CXX) $(CXXFLAGS) -c .lv2_gpu_functions_$(SUFFIX).cpp -o lv2_gpu_functions_$(SUFFIX).o
 
 cx1_kmer_count_gpu.o: cx1_kmer_count.cpp $(DEPS)
-	$(CXX) $(CFLAGS) -D USE_GPU -c cx1_kmer_count.cpp -lpthread -o cx1_kmer_count_gpu.o
+	$(CXX) $(CXXFLAGS) -D USE_GPU -c cx1_kmer_count.cpp -lpthread -o cx1_kmer_count_gpu.o
 
 cx1_read2sdbg_s1_gpu.o: cx1_read2sdbg_s1.cpp $(DEPS)
-	$(CXX) $(CFLAGS) -D USE_GPU -c cx1_read2sdbg_s1.cpp -lpthread -o cx1_read2sdbg_s1_gpu.o
+	$(CXX) $(CXXFLAGS) -D USE_GPU -c cx1_read2sdbg_s1.cpp -lpthread -o cx1_read2sdbg_s1_gpu.o
 
 cx1_read2sdbg_s2_gpu.o: cx1_read2sdbg_s2.cpp $(DEPS)
-	$(CXX) $(CFLAGS) -D USE_GPU -c cx1_read2sdbg_s2.cpp -lpthread -o cx1_read2sdbg_s2_gpu.o
+	$(CXX) $(CXXFLAGS) -D USE_GPU -c cx1_read2sdbg_s2.cpp -lpthread -o cx1_read2sdbg_s2_gpu.o
 
 cx1_seq2sdbg_gpu.o: cx1_seq2sdbg.cpp $(DEPS)
-	$(CXX) $(CFLAGS) -D USE_GPU -c cx1_seq2sdbg.cpp -lpthread -o cx1_seq2sdbg_gpu.o
+	$(CXX) $(CXXFLAGS) -D USE_GPU -c cx1_seq2sdbg.cpp -lpthread -o cx1_seq2sdbg_gpu.o
 
 #-------------------------------------------------------------------------------
 # GPU Applications
 #-------------------------------------------------------------------------------
 sdbg_builder_gpu: sdbg_builder.cpp cx1_kmer_count_gpu.o cx1_read2sdbg_s1_gpu.o cx1_read2sdbg_s2_gpu.o cx1_seq2sdbg_gpu.o lv2_gpu_functions_$(SUFFIX).o options_description.o sequence_manager.o $(DEPS)
-	$(CXX) $(CFLAGS) $(CUDALIBFLAG) -D USE_GPU sdbg_builder.cpp lv2_gpu_functions_$(SUFFIX).o cx1_kmer_count_gpu.o cx1_read2sdbg_s1_gpu.o cx1_read2sdbg_s2_gpu.o cx1_seq2sdbg_gpu.o options_description.o sequence_manager.o $(LIB) -lpthread -o sdbg_builder_gpu
+	$(CXX) $(CXXFLAGS) $(CUDALIBFLAG) -D USE_GPU sdbg_builder.cpp lv2_gpu_functions_$(SUFFIX).o cx1_kmer_count_gpu.o cx1_read2sdbg_s1_gpu.o cx1_read2sdbg_s2_gpu.o cx1_seq2sdbg_gpu.o options_description.o sequence_manager.o $(LIB) -lpthread -o sdbg_builder_gpu
 
 #-------------------------------------------------------------------------------
 # Build binary directory

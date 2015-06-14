@@ -696,7 +696,7 @@ void s1_post_proc(read2sdbg_global_t &globals) {
     }
 
     if (cx1_t::kCX1Verbose >= 2) {
-        xlog("[B::%s] Total number of solid edges: %llu\n", num_solid_edges);
+        xlog("Total number of solid edges: %llu\n", num_solid_edges);
     }
 
     FILE *counting_file = OpenFileAndCheck((std::string(globals.output_prefix)+".counting").c_str(), "w");
