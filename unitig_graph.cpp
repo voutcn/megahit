@@ -859,7 +859,7 @@ void UnitigGraph::Refresh_(bool set_changed) {
 }
 
 void UnitigGraph::OutputContigs(FILE *contig_file, FILE *final_file, std::map<int64_t, int> &histo,
-                                bool change_only, int min_final_len) {
+                                bool change_only, int min_final_standalone) {
     omp_lock_t output_lock;
     omp_lock_t hist_lock;
     long long output_id = 0;
@@ -903,7 +903,7 @@ void UnitigGraph::OutputContigs(FILE *contig_file, FILE *final_file, std::map<in
             }
 
             if (final_file != NULL) {
-                if (label.length() < (unsigned)min_final_len) {
+                if (label.length() < (unsigned)min_final_standalone) {
                     continue;
                 } else {
                     out_file = final_file;
@@ -928,7 +928,7 @@ void UnitigGraph::OutputContigs(FILE *contig_file, FILE *final_file, std::map<in
                 flag = contig_flag::kIsolated;
 
                 if (final_file != NULL) {
-                    if (label.length() < (unsigned)min_final_len) {
+                    if (label.length() < (unsigned)min_final_standalone) {
                         continue;
                     } else {
                         out_file = final_file;

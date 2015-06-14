@@ -61,7 +61,7 @@ int64_t PrevSimplePathNode(SuccinctDBG &dbg, int64_t cur_node) {
     }
 }
 
-int64_t Trim(SuccinctDBG &dbg, int len, int min_final_len) {
+int64_t Trim(SuccinctDBG &dbg, int len, int min_final_standalone) {
     int64_t number_tips = 0;
     omp_lock_t path_lock;
     omp_init_lock(&path_lock);
@@ -77,7 +77,7 @@ int64_t Trim(SuccinctDBG &dbg, int len, int min_final_len) {
             for (int i = 1; i < len; ++i) {
                 prev_node = dbg.UniqueIncoming(cur_node);
                 if (prev_node == -1) {
-                    is_tip = dbg.IndegreeZero(cur_node); // && (i + dbg.kmer_k - 1 < min_final_len);
+                    is_tip = dbg.IndegreeZero(cur_node); // && (i + dbg.kmer_k - 1 < min_final_standalone);
                     break;
                 } else if (dbg.UniqueOutgoing(prev_node) == -1) {
                     is_tip = true;
@@ -107,7 +107,7 @@ int64_t Trim(SuccinctDBG &dbg, int len, int min_final_len) {
             for (int i = 1; i < len; ++i) {
                 next_node = dbg.UniqueOutgoing(cur_node);
                 if (next_node == -1) {
-                    is_tip = dbg.OutdegreeZero(cur_node); // && (i + dbg.kmer_k - 1 < min_final_len);
+                    is_tip = dbg.OutdegreeZero(cur_node); // && (i + dbg.kmer_k - 1 < min_final_standalone);
                     break;
                 } else if (dbg.UniqueIncoming(next_node) == -1) {
                     is_tip = true;
@@ -136,21 +136,21 @@ int64_t Trim(SuccinctDBG &dbg, int len, int min_final_len) {
     return number_tips;
 }
 
-int64_t RemoveTips(SuccinctDBG &dbg, int max_tip_len, int min_final_len) {
+int64_t RemoveTips(SuccinctDBG &dbg, int max_tip_len, int min_final_standalone) {
     int64_t number_tips = 0;
     xtimer_t timer;
     for (int len = 2; len < max_tip_len; len *= 2) {
         xlog("Removing tips with length less than %d; ", len);
         timer.reset();
         timer.start();
-        number_tips += Trim(dbg, len, min_final_len);
+        number_tips += Trim(dbg, len, min_final_standalone);
         timer.stop();
         xlog_ext("Accumulated tips removed: %lld; time elapsed: %.4f\n", (long long)number_tips, timer.elapsed());
     }
     xlog("Removing tips with length less than %d; ", max_tip_len);
     timer.reset();
     timer.start();
-    number_tips += Trim(dbg, max_tip_len, min_final_len);
+    number_tips += Trim(dbg, max_tip_len, min_final_standalone);
     timer.stop();
     xlog_ext("Accumulated tips removed: %lld; time elapsed: %.4f\n", (long long)number_tips, timer.elapsed());
 

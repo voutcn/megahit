@@ -603,7 +603,10 @@ def iterate(cur_k, step):
 def assemble(cur_k):
     global cp
     if (not opt.continue_mode) or (cp > opt.last_cp):
-        min_standalone = min(opt.k_max * 3 - 1, opt.min_contig_len)
+        min_standalone = max(opt.k_max * 3 - 1, opt.min_contig_len)
+        if (opt.max_tip_len >= 0):
+            min_standalone = max(opt.max_tip_len + opt.k_max - 1, opt.min_contig_len)
+
         assembly_cmd = [opt.bin_dir + "megahit_assemble",
                         "-s", graph_prefix(cur_k),
                         "-o", graph_prefix(cur_k),

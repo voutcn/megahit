@@ -89,7 +89,7 @@ class UnitigGraph {
     uint32_t MergeComplexBubbles(double similarity, int merge_level, bool permanent_rm);
 
     // output
-    void OutputContigs(FILE *contig_file, FILE *final_file, std::map<int64_t, int> &histo, bool change_only, int min_final_len);
+    void OutputContigs(FILE *contig_file, FILE *final_file, std::map<int64_t, int> &histo, bool change_only, int min_final_standalone);
 
   private:
     // functions
