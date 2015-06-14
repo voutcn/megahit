@@ -40,11 +40,14 @@ Copyright (c) The University of Hong Kong
 Usage:
   megahit [options] {-r <se> | -1 <pe1> -2 <pe2> | --12 <pe12>} [-o <out_dir>]
 
+  Input options that can be specified for multiple times:
     -r/--read                <se>           comma-separated list of single-end files
     -1                       <pe1>          comma-separated list of paired-end #1 files, paired with files in <pe2>
     -2                       <pe2>          comma-separated list of paired-end #2 files, paired with files in <pe1>
     --12                     <pe12>         comma-separated list of interleaved paired-end files
-    --input-cmd              <cmd>          (not recommended) command that outputs fasta/q reads to stdout taken as SE reads 
+
+  Input options that can be specified for at most ONE time (not recommended):
+    --input-cmd              <cmd>          command that outputs fasta/q reads to stdout; taken by MEGAHIT as SE reads 
 
 Optional Arguments:
   Hardware options:
@@ -126,6 +129,7 @@ class Options():
         self.pe2 = []
         self.pe12 = []
         self.se = []
+        self.input_cmd = ""
 
 opt = Options()
 cp = 0
@@ -156,6 +160,7 @@ def parse_opt(argv):
                                     ["help",
                                      "read=",
                                      "12=",
+                                     "input-cmd=",
                                      "memory=",
                                      "out-dir=",
                                      "min-contig-len=",
@@ -248,13 +253,15 @@ def parse_opt(argv):
         elif option in ("--cpu-only", "-l", "--max-read-len", "--no-low-local"):
             continue # historical options, just ignore
         elif option in ("-r", "--read"):
-            opt.se = value.split(",")
+            opt.se += value.split(",")
         elif option == "-1":
-            opt.pe1 = value.split(",")
+            opt.pe1 += value.split(",")
         elif option == "-2":
-            opt.pe2 = value.split(",")
+            opt.pe2 += value.split(",")
         elif option == "--12":
-            opt.pe12 = value.split(",")
+            opt.pe12 += value.split(",")
+        elif option == "--input-cmd":
+            opt.input_cmd = value
 
         else:
             print("Invalid option %s", option, file=sys.stderr)
@@ -428,6 +435,8 @@ def write_lib():
         print("pe " + opt.pe1[i] + " " + opt.pe2[i], file=lib)
     for r in opt.se:
         print("se " + r, file=lib)
+    if opt.input_cmd != "":
+        print("se " + "-", file=lib)
     lib.close()
 
 def build_first_graph():
@@ -454,13 +463,19 @@ def build_first_graph():
 
         try:
             if opt.kmin_1pass:
-                logging.info("\n---- [%s] Extracting solid (k+1)-mers and building sdbg for k = %d ----\n" % (datetime.now().strftime("%c"), opt.k_min))
+                logging.info("--- [%s] Extracting solid (k+1)-mers and building sdbg for k = %d ---" % (datetime.now().strftime("%c"), opt.k_min))
             else:
-                logging.info("\n---- [%s] Extracting solid (k+1)-mers for k = %d ----\n" % (datetime.now().strftime("%c"), opt.k_min))
+                logging.info("--- [%s] Extracting solid (k+1)-mers for k = %d ---" % (datetime.now().strftime("%c"), opt.k_min))
 
-            logging.debug("cmd: %s\n" % (" ").join(cmd))
+            logging.debug("cmd: %s" % (" ").join(cmd))
 
-            p = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            if opt.input_cmd != "":
+                logging.debug("input cmd: " + opt.input_cmd)
+                input_thread = subprocess.Popen(opt.input_cmd, shell = True, stdout = subprocess.PIPE)
+                p = subprocess.Popen(cmd, stdin = input_thread.stdout, stdout = subprocess.PIPE, stderr=subprocess.PIPE)
+            else:
+                p = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+
             p_output, p_stderr = p.communicate()
             logging.info(p_stderr)
             ret_code = p.wait()
@@ -520,7 +535,7 @@ def build_graph(kmer_k, kmer_from, num_edge_files):
             build_cmd.append("--need_mercy")
 
         try:
-            logging.info("\n---- [%s] Building graph for k = %d ----\n" % (datetime.now().strftime("%c"), kmer_k))
+            logging.info("--- [%s] Building graph for k = %d ---" % (datetime.now().strftime("%c"), kmer_k))
             logging.debug("%s" % (" ").join(build_cmd))
 
             p = subprocess.Popen(build_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
@@ -560,7 +575,7 @@ def iterate(cur_k, step):
                        "-f", "binary"]
 
         try:
-            logging.info("\n---- [%s] Extracting iterative edges from k = %d to %d ----\n" % (datetime.now().strftime("%c"), cur_k, next_k))
+            logging.info("--- [%s] Extracting iterative edges from k = %d to %d ---" % (datetime.now().strftime("%c"), cur_k, next_k))
             logging.debug("cmd: %s" % (" ").join(iterate_cmd))
 
             p = subprocess.Popen(iterate_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
@@ -614,7 +629,7 @@ def assemble(cur_k):
             assembly_cmd.append("--output_standalone")
 
         try:
-            logging.info("\n---- [%s] Assembling contigs from SdBG for k = %d ----\n" % (datetime.now().strftime("%c"), cur_k))
+            logging.info("--- [%s] Assembling contigs from SdBG for k = %d ---" % (datetime.now().strftime("%c"), cur_k))
             logging.debug("cmd: %s" % (" ").join(assembly_cmd))
 
             p = subprocess.Popen(assembly_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
@@ -647,7 +662,7 @@ def local_assemble(cur_k):
                   # "--sparsity", "1",
                   "--kmax", str(min(cur_k + opt.k_step, opt.k_max))]
         try:
-            logging.info("\n---- [%s] Local assembling k = %d ----\n" % (datetime.now().strftime("%c"), cur_k))
+            logging.info("--- [%s] Local assembling k = %d ---" % (datetime.now().strftime("%c"), cur_k))
             logging.debug("cmd: %s" % (" ").join(la_cmd))
 
             local_contig_file = open(graph_prefix(cur_k) + ".local.fa", "w")
@@ -673,7 +688,7 @@ def local_assemble(cur_k):
     cp = cp + 1
 
 def merge_final():
-    logging.info("\n---- [%s] Merging to output final contigs ----\n" % (datetime.now().strftime("%c")))
+    logging.info("--- [%s] Merging to output final contigs ---" % (datetime.now().strftime("%c")))
     final_contig_name = opt.out_dir + "final.contigs.fa"
     if opt.out_prefix != "":
         final_contig_name = opt.out_dir + opt.out_prefix + ".contigs.fa"
@@ -705,7 +720,7 @@ def main(argv = None):
         logging.getLogger('').addHandler(console)
 
         logging.info(megahit_version_str)
-        logging.info("\n---- [%s] Start assembly. Number of CPU threads %d ----\n" % (datetime.now().strftime("%c"), opt.num_cpu_threads))
+        logging.info("--- [%s] Start assembly. Number of CPU threads %d ---" % (datetime.now().strftime("%c"), opt.num_cpu_threads))
 
         write_lib()
 
@@ -736,7 +751,7 @@ def main(argv = None):
         merge_final()
         open(opt.out_dir + "done", "w").close()
 
-        logging.info("\n---- [%s] ALL DONE. Time elapsed: %f seconds ----\n" % (datetime.now().strftime("%c"), time.time() - start_time))
+        logging.info("--- [%s] ALL DONE. Time elapsed: %f seconds ---" % (datetime.now().strftime("%c"), time.time() - start_time))
 
 
     except Usage as err:
