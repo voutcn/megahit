@@ -25,14 +25,13 @@ import getopt
 import subprocess
 import errno
 import os, glob
-import tempfile
 import warnings
 import shutil
-import math  
 import locale
 import multiprocessing
-
-from datetime import datetime, date, time
+import logging
+import time
+from datetime import datetime
 
 megahit_version_str = "MEGAHIT v1.0-alpha"
 usage_message = '''
@@ -66,7 +65,7 @@ Optional Arguments:
   Basic assembly options:
     --k-min                  <int>          minimum kmer size (<= 127), must be odd number, default: 21
     --k-max                  <int>          maximum kmer size (<= 127), must be odd number, default: 99
-    --k-step                 <int>          increment of kmer size of each iteration (<= 28), must be even number, default: 20
+    --k-step                 <int>          increment of kmer size of each iteration (<= 28), must be even number, default: 10
     --min-count              <int>          minimum multiplicity for filtering (k_min+1)-mers, default: 2.
 
   Advanced assembly options:
@@ -101,7 +100,7 @@ class Options():
         self.min_contig_len = 200
         self.k_min = 21
         self.k_max = 99
-        self.k_step = 20
+        self.k_step = 10
         self.min_count = 2
         self.bin_dir = sys.path[0] + "/"
         self.max_tip_len = -1
@@ -453,27 +452,26 @@ def build_first_graph():
             cmd = [opt.bin_dir + opt.builder, "count"] + count_opt
 
         try:
-            log_file = open(log_file_name(), "a")
-            start_time = datetime.now()
-            print("%s" % (" ").join(cmd), file=log_file)
             if opt.kmin_1pass:
-                print("\n---- [%s] Extracting solid (k+1)-mers and building sdbg for k = %d ----\n" % (start_time.strftime("%c"), opt.k_min), file=sys.stderr)
-                print("\n---- [%s] Extracting solid (k+1)-mers and building sdbg k = %d ----\n" % (start_time.strftime("%c"), opt.k_min), file=log_file)
+                logging.info("\n---- [%s] Extracting solid (k+1)-mers and building sdbg for k = %d ----\n" % (datetime.now().strftime("%c"), opt.k_min))
             else:
-                print("\n---- [%s] Extracting solid (k+1)-mers for k = %d ----\n" % (start_time.strftime("%c"), opt.k_min), file=sys.stderr)
-                print("\n---- [%s] Extracting solid (k+1)-mers for k = %d ----\n" % (start_time.strftime("%c"), opt.k_min), file=log_file)
-            log_file.flush()
+                logging.info("\n---- [%s] Extracting solid (k+1)-mers for k = %d ----\n" % (datetime.now().strftime("%c"), opt.k_min))
 
-            ret_code = subprocess.call(cmd, stdout = log_file)
+            logging.debug("cmd: %s\n" % (" ").join(cmd))
+
+            p = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            p_output, p_stderr = p.communicate()
+            logging.info(p_stderr)
+            ret_code = p.wait()
+
             if ret_code != 0:
-                print("Error occurs when running \"sdbg_builder count/read2sdbg\"", file=sys.stderr)
-                print("[Exit code %d] " % ret_code, file=sys.stderr)
+                logger.error("Error occurs when running \"sdbg_builder count/read2sdbg\"")
+                logger.error("[Exit code %d] " % ret_code)
                 exit(ret_code)
-            log_file.close()
 
         except OSError as o:
             if o.errno == errno.ENOTDIR or o.errno == errno.ENOENT:
-                print("Error: sub-program sdbg_builder not found, please recompile MEGAHIT", file=sys.stderr)
+                logger.error("Error: sub-program sdbg_builder not found, please recompile MEGAHIT")
             exit(1)
 
     write_cp(cp)
@@ -509,21 +507,22 @@ def build_graph(kmer_k, kmer_from, num_edge_files):
             build_cmd.append("--need_mercy")
 
         try:
-            log_file = open(log_file_name(), "a")
-            start_time = datetime.now()
-            print("%s" % (" ").join(build_cmd), file=log_file)
-            print("\n---- [%s] Building graph for k = %d ----\n" % (start_time.strftime("%c"), kmer_k), file=sys.stderr)
-            print("\n---- [%s] Building graph for k = %d ----\n" % (start_time.strftime("%c"), kmer_k), file=log_file)
-            log_file.flush()
-            ret_code = subprocess.call(build_cmd, stdout = log_file)
+            logging.info("\n---- [%s] Building graph for k = %d ----\n" % (datetime.now().strftime("%c"), kmer_k))
+            logging.debug("%s" % (" ").join(build_cmd))
+
+            p = subprocess.Popen(build_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            p_output, p_stderr = p.communicate()
+            logging.info(p_stderr)
+            ret_code = p.wait()
+
             if ret_code != 0:
-                print("Error occurs when running \"builder build\" for k = %d" % kmer_k, file=sys.stderr)
-                print("[Exit code %d]" % ret_code, file=sys.stderr)
+                logger.error("Error occurs when running \"builder build\" for k = %d" % kmer_k)
+                logger.error("[Exit code %d]" % ret_code)
                 exit(ret_code)
-            log_file.close()
+
         except OSError as o:
             if o.errno == errno.ENOTDIR or o.errno == errno.ENOENT:
-                print("Error: sub-program builder not found, please recompile MEGAHIT", file=sys.stderr)
+                logger.error("Error: sub-program builder not found, please recompile MEGAHIT")
             exit(1) 
 
     write_cp(cp)
@@ -548,23 +547,22 @@ def iterate(cur_k, step):
                        "-f", "binary"]
 
         try:
-            log_file = open(log_file_name(), "a")
-            start_time = datetime.now()
-            print("%s" % (" ").join(iterate_cmd), file=log_file)
-            print("\n---- [%s] Extracting iterative edges from k = %d to %d ----\n" % (start_time.strftime("%c"), cur_k, next_k), file=sys.stderr)
-            print("\n---- [%s] Extracting iterative edges from k = %d to %d ----\n" % (start_time.strftime("%c"), cur_k, next_k), file=log_file)
-            log_file.flush()
-            ret_code = subprocess.call(iterate_cmd, stdout = log_file)
-            if ret_code != 0:
-                print("Error occurs when running iterator for k = %d to k = %d " % (cur_k, next_k), file=sys.stderr)
-                print("[Exit code %d]" % ret_code, file=sys.stderr)
-                exit(ret_code)
+            logging.info("\n---- [%s] Extracting iterative edges from k = %d to %d ----\n" % (datetime.now().strftime("%c"), cur_k, next_k))
+            logging.debug("cmd: %s" % (" ").join(iterate_cmd))
 
-            log_file.close()
+            p = subprocess.Popen(iterate_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            p_output, p_stderr = p.communicate()
+            logging.info(p_stderr)
+            ret_code = p.wait()
+
+            if ret_code != 0:
+                logger.error("Error occurs when running iterator for k = %d to k = %d " % (cur_k, next_k))
+                logger.error("[Exit code %d]" % ret_code)
+                exit(ret_code)
 
         except OSError as o:
             if o.errno == errno.ENOTDIR or o.errno == errno.ENOENT:
-                print("Error: sub-program megahit_iter not found, please recompile MEGAHIT", file=sys.stderr)
+                logger.error("Error: sub-program megahit_iter not found, please recompile MEGAHIT")
             exit(1)
 
     write_cp(cp)
@@ -600,24 +598,24 @@ def assemble(cur_k):
             assembly_cmd.append("--no_bubble")
 
         try:
-            log_file = open(log_file_name(), "a")
-            start_time = datetime.now()
-            print("%s" % (" ").join(assembly_cmd), file=log_file)
-            print("\n---- [%s] Assembling contigs from SdBG for k = %d ----\n" % (start_time.strftime("%c"), cur_k), file=sys.stderr)
-            print("\n---- [%s] Assembling contigs from SdBG for k = %d ----\n" % (start_time.strftime("%c"), cur_k), file=log_file)
-            log_file.flush()
-            ret_code = subprocess.call(assembly_cmd, stdout = log_file)
-            if ret_code != 0:
-                print("Error occurs when assembling contigs for k = %d" % cur_k, file=sys.stderr)
-                print("[Exit code %d]" % ret_code, file=sys.stderr)
-                exit(ret_code)
+            logging.info("\n---- [%s] Assembling contigs from SdBG for k = %d ----\n" % (datetime.now().strftime("%c"), cur_k))
+            logging.debug("cmd: %s" % (" ").join(assembly_cmd))
 
-            log_file.close()
+            p = subprocess.Popen(assembly_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            p_output, p_stderr = p.communicate()
+            logging.info(p_stderr)
+            ret_code = p.wait()
+
+            if ret_code != 0:
+                logger.error("Error occurs when assembling contigs for k = %d" % cur_k)
+                logger.error("[Exit code %d]" % ret_code)
+                exit(ret_code)
             
         except OSError as o:
             if o.errno == errno.ENOTDIR or o.errno == errno.ENOENT:
-                print("Error: sub-program megahit_assemble not found, please recompile MEGAHIT", file=sys.stderr)
+                logger.error("Error: sub-program megahit_assemble not found, please recompile MEGAHIT")
             exit(1)
+
     write_cp(cp)
     cp = cp + 1
     if (not opt.keep_tmp_files) and (cur_k != opt.k_max):
@@ -633,60 +631,66 @@ def local_assemble(cur_k):
                   # "--sparsity", "1",
                   "--kmax", str(min(cur_k + opt.k_step, opt.k_max))]
         try:
-            log_file = open(log_file_name(), "a")
-            start_time = datetime.now()
-            print("%s" % (" ").join(la_cmd), file=log_file)
-            print("\n---- [%s] Local assembling k = %d ----\n" % (start_time.strftime("%c"), cur_k), file=sys.stderr)
-            print("\n---- [%s] Local assembling k = %d ----\n" % (start_time.strftime("%c"), cur_k), file=log_file)
-            log_file.flush()
+            logging.info("\n---- [%s] Local assembling k = %d ----\n" % (datetime.now().strftime("%c"), cur_k))
+            logging.debug("cmd: %s" % (" ").join(la_cmd))
 
             local_contig_file = open(graph_prefix(cur_k) + ".local.fa", "w")
-            ret_code = subprocess.call(la_cmd, stdout = local_contig_file)
+
+            p = subprocess.Popen(la_cmd, stdout=local_contig_file, stderr=subprocess.PIPE)
+            p_output, p_stderr = p.communicate()
+            logging.info(p_stderr)
+            ret_code = p.wait()
+
             if ret_code != 0:
-                print("Error occurs when running local assembly for k = %d to k = %d " % (cur_k, min(cur_k + opt.k_step, opt.k_max)), file=sys.stderr)
-                print("[Exit code %d]" % ret_code, file=sys.stderr)
+                logger.error("Error occurs when running local assembly for k = %d to k = %d " % (cur_k, min(cur_k + opt.k_step, opt.k_max)))
+                logger.error("[Exit code %d]" % ret_code)
                 exit(ret_code)
 
             local_contig_file.close();
-            log_file.close()
 
         except OSError as o:
             if o.errno == errno.ENOTDIR or o.errno == errno.ENOENT:
-                print("Error: sub-program megahit_local_asm not found, please recompile MEGAHIT", file=sys.stderr)
+                logger.error("Error: sub-program megahit_local_asm not found, please recompile MEGAHIT")
             exit(1)
 
     write_cp(cp)
     cp = cp + 1
 
 def merge_final():
-    log_file = open(log_file_name(), "a")
-    start_time = datetime.now()
-    print("\n---- [%s] Merging to output final contigs ----\n" % (start_time.strftime("%c")), file=sys.stderr)
-    print("\n---- [%s] Merging to output final contigs ----\n" % (start_time.strftime("%c")), file=log_file)
+    logging.info("\n---- [%s] Merging to output final contigs ----\n" % (datetime.now().strftime("%c")))
     final_contig_name = opt.out_dir + "final.contigs.fa"
     if opt.out_prefix != "":
         final_contig_name = opt.out_dir + opt.out_prefix + ".contigs.fa"
     os.system("cat " + opt.temp_dir + "*.final.contigs.fa > " + final_contig_name)
     os.system("cat " + graph_prefix(opt.k_max) + ".contigs.fa >> " + final_contig_name)
 
-    log_file.flush()
-    log_file.close()
-
 def main(argv = None):
     if argv is None:
         argv = sys.argv
 
     try:
+        start_time = time.time()
+
         check_bin()
         parse_opt(argv[1:])
         check_opt()
         check_builder()
-
-        start_time = datetime.now()  
-        print(megahit_version_str, file=sys.stderr)
-        print("\n---- [%s] Start assembly. Number of CPU threads %d ----\n" % (start_time.strftime("%c"), opt.num_cpu_threads), file=sys.stderr)
-
         make_out_dir()
+
+        logging.basicConfig(level = logging.NOTSET,
+                            format = '%(message)s',
+                            filename = log_file_name(),
+                            filemode = 'a')
+
+        console = logging.StreamHandler()
+        console.setLevel(logging.INFO)
+        formatter = logging.Formatter('%(message)s')
+        console.setFormatter(formatter)
+        logging.getLogger('').addHandler(console)
+
+        logging.info(megahit_version_str)
+        logging.info("\n---- [%s] Start assembly. Number of CPU threads %d ----\n" % (datetime.now().strftime("%c"), opt.num_cpu_threads))
+
         write_lib()
 
         if not opt.continue_mode:
@@ -714,14 +718,10 @@ def main(argv = None):
         # end while
 
         merge_final()
-
-        log_file = open(log_file_name(), "a")
-        start_time = datetime.now()
-        print("\n---- [%s] ALL DONE ----\n" % (start_time.strftime("%c")), file=sys.stderr)
-        print("\n---- [%s] ALL DONE ----\n" % (start_time.strftime("%c")), file=log_file)
-        log_file.flush()
-        log_file.close()
         open(opt.out_dir + "done", "w").close()
+
+        logging.info("\n---- [%s] ALL DONE. Time elapsed: %f seconds ----\n" % (datetime.now().strftime("%c"), time.time() - start_time))
+
 
     except Usage as err:
         print(sys.argv[0].split("/")[-1] + ": " + str(err.msg), file=sys.stderr)
