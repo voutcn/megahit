@@ -478,8 +478,12 @@ def build_first_graph():
             else:
                 p = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 
-            p_output, p_stderr = p.communicate()
-            logging.info(p_stderr)
+            while True:
+                line = p.stderr.readline().rstrip()
+                if not line:
+                    break;
+                logging.info(line)
+
             ret_code = p.wait()
 
             if ret_code != 0:
@@ -541,8 +545,13 @@ def build_graph(kmer_k, kmer_from, num_edge_files):
             logging.debug("%s" % (" ").join(build_cmd))
 
             p = subprocess.Popen(build_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-            p_output, p_stderr = p.communicate()
-            logging.info(p_stderr)
+            
+            while True:
+                line = p.stderr.readline().rstrip()
+                if not line:
+                    break;
+                logging.info(line)
+
             ret_code = p.wait()
 
             if ret_code != 0:
@@ -581,8 +590,13 @@ def iterate(cur_k, step):
             logging.debug("cmd: %s" % (" ").join(iterate_cmd))
 
             p = subprocess.Popen(iterate_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-            p_output, p_stderr = p.communicate()
-            logging.info(p_stderr)
+            
+            while True:
+                line = p.stderr.readline().rstrip()
+                if not line:
+                    break;
+                logging.info(line)
+
             ret_code = p.wait()
 
             if ret_code != 0:
@@ -639,8 +653,13 @@ def assemble(cur_k):
             logging.debug("cmd: %s" % (" ").join(assembly_cmd))
 
             p = subprocess.Popen(assembly_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-            p_output, p_stderr = p.communicate()
-            logging.info(p_stderr)
+            
+            while True:
+                line = p.stderr.readline().rstrip()
+                if not line:
+                    break;
+                logging.info(line)
+
             ret_code = p.wait()
 
             if ret_code != 0:
@@ -674,8 +693,13 @@ def local_assemble(cur_k):
             local_contig_file = open(graph_prefix(cur_k) + ".local.fa", "w")
 
             p = subprocess.Popen(la_cmd, stdout=local_contig_file, stderr=subprocess.PIPE)
-            p_output, p_stderr = p.communicate()
-            logging.info(p_stderr)
+            
+            while True:
+                line = p.stderr.readline().rstrip()
+                if not line:
+                    break;
+                logging.info(line)
+
             ret_code = p.wait()
 
             if ret_code != 0:
