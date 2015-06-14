@@ -126,11 +126,12 @@ void WriteContig(const std::string &label, int k_size, long long &id, int flag, 
     omp_set_lock(lock);
 
     ++id;
-    fprintf(file, ">k%d_%lld flag=%d multi=%.4lf\n%s\n",
+    fprintf(file, ">k%d_%lld flag=%d multi=%.4lf len=%d\n%s\n",
             k_size,
             id,
             flag,
             multiplicity,
+            (int)label.length(),
             label < rev_label ? label.c_str() : rev_label.c_str());
 
     omp_unset_lock(lock);

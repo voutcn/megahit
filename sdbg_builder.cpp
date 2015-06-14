@@ -255,12 +255,12 @@ int main_seq2sdbg(int argc, char **argv) {
             throw std::logic_error("num edges files cannot be 0!");
         }
 
-        if (opt.kmer_k < 15) {
-            throw std::logic_error("kmer size must be >= 15!");
+        if (opt.kmer_k < 9) {
+            throw std::logic_error("kmer size must be >= 9!");
         }
 
-        if (opt.kmer_from < 15) {
-            throw std::logic_error("previous kmer size must be >= 15!");
+        if (opt.kmer_from < 9) {
+            throw std::logic_error("previous kmer size must be >= 9!");
         }
 
         if (opt.host_mem == 0) {

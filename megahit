@@ -44,6 +44,7 @@ Usage:
     -1                       <pe1>          comma-separated list of paired-end #1 files, paired with files in <pe2>
     -2                       <pe2>          comma-separated list of paired-end #2 files, paired with files in <pe1>
     --12                     <pe12>         comma-separated list of interleaved paired-end files
+    --input-cmd              <cmd>          (not recommended) command that outputs fasta/q reads to stdout taken as SE reads 
 
 Optional Arguments:
   Hardware options:
@@ -465,13 +466,13 @@ def build_first_graph():
             ret_code = p.wait()
 
             if ret_code != 0:
-                logger.error("Error occurs when running \"sdbg_builder count/read2sdbg\"")
-                logger.error("[Exit code %d] " % ret_code)
+                logging.error("Error occurs when running \"sdbg_builder count/read2sdbg\"")
+                logging.error("[Exit code %d] " % ret_code)
                 exit(ret_code)
 
         except OSError as o:
             if o.errno == errno.ENOTDIR or o.errno == errno.ENOENT:
-                logger.error("Error: sub-program sdbg_builder not found, please recompile MEGAHIT")
+                logging.error("Error: sub-program sdbg_builder not found, please recompile MEGAHIT")
             exit(1)
 
     write_cp(cp)
@@ -487,7 +488,6 @@ def build_graph(kmer_k, kmer_from, num_edge_files):
         build_comm_opt = ["--host_mem", str(opt.host_mem),
                              "--mem_flag", str(opt.mem_flag),
                              "--gpu_mem", str(opt.gpu_mem),
-                             "--input_prefix", graph_prefix(kmer_k),
                              "--output_prefix", graph_prefix(kmer_k),
                              "--num_cpu_threads", str(opt.num_cpu_threads),
                              "-k", str(kmer_k), 
@@ -496,12 +496,25 @@ def build_graph(kmer_k, kmer_from, num_edge_files):
 
         build_cmd = [opt.bin_dir + opt.builder, "seq2sdbg"] + build_comm_opt
 
+        file_size = 0
+
+        if (os.path.exists(graph_prefix(kmer_k) + ".edges.0")):
+            build_cmd += ["--input_prefix", graph_prefix(kmer_k)]
+            file_size += os.path.getsize(graph_prefix(kmer_k) + ".edges.0")
+
         if (os.path.exists(graph_prefix(kmer_from) + ".contigs.fa")):
             build_cmd += ["--contig", graph_prefix(kmer_from) + ".contigs.fa"]
+
         if (os.path.exists(graph_prefix(kmer_from) + ".addi.fa")):
             build_cmd += ["--addi_contig", graph_prefix(kmer_from) + ".addi.fa"]
+            file_size += os.path.getsize(graph_prefix(kmer_from) + ".addi.fa")
+
         if (os.path.exists(graph_prefix(kmer_from) + ".local.fa")):
             build_cmd += ["--local_contig", graph_prefix(kmer_from) + ".local.fa"]
+            file_size += os.path.getsize(graph_prefix(kmer_from) + ".local.fa")
+
+        if file_size == 0:
+            return False # not build
 
         if not opt.no_mercy and kmer_k == opt.k_min:
             build_cmd.append("--need_mercy")
@@ -516,13 +529,13 @@ def build_graph(kmer_k, kmer_from, num_edge_files):
             ret_code = p.wait()
 
             if ret_code != 0:
-                logger.error("Error occurs when running \"builder build\" for k = %d" % kmer_k)
-                logger.error("[Exit code %d]" % ret_code)
+                logging.error("Error occurs when running \"builder build\" for k = %d" % kmer_k)
+                logging.error("[Exit code %d]" % ret_code)
                 exit(ret_code)
 
         except OSError as o:
             if o.errno == errno.ENOTDIR or o.errno == errno.ENOENT:
-                logger.error("Error: sub-program builder not found, please recompile MEGAHIT")
+                logging.error("Error: sub-program builder not found, please recompile MEGAHIT")
             exit(1) 
 
     write_cp(cp)
@@ -556,13 +569,13 @@ def iterate(cur_k, step):
             ret_code = p.wait()
 
             if ret_code != 0:
-                logger.error("Error occurs when running iterator for k = %d to k = %d " % (cur_k, next_k))
-                logger.error("[Exit code %d]" % ret_code)
+                logging.error("Error occurs when running iterator for k = %d to k = %d " % (cur_k, next_k))
+                logging.error("[Exit code %d]" % ret_code)
                 exit(ret_code)
 
         except OSError as o:
             if o.errno == errno.ENOTDIR or o.errno == errno.ENOENT:
-                logger.error("Error: sub-program megahit_iter not found, please recompile MEGAHIT")
+                logging.error("Error: sub-program megahit_iter not found, please recompile MEGAHIT")
             exit(1)
 
     write_cp(cp)
@@ -597,6 +610,9 @@ def assemble(cur_k):
         if opt.no_bubble:
             assembly_cmd.append("--no_bubble")
 
+        if opt.no_local:
+            assembly_cmd.append("--output_standalone")
+
         try:
             logging.info("\n---- [%s] Assembling contigs from SdBG for k = %d ----\n" % (datetime.now().strftime("%c"), cur_k))
             logging.debug("cmd: %s" % (" ").join(assembly_cmd))
@@ -607,13 +623,13 @@ def assemble(cur_k):
             ret_code = p.wait()
 
             if ret_code != 0:
-                logger.error("Error occurs when assembling contigs for k = %d" % cur_k)
-                logger.error("[Exit code %d]" % ret_code)
+                logging.error("Error occurs when assembling contigs for k = %d" % cur_k)
+                logging.error("[Exit code %d]" % ret_code)
                 exit(ret_code)
             
         except OSError as o:
             if o.errno == errno.ENOTDIR or o.errno == errno.ENOENT:
-                logger.error("Error: sub-program megahit_assemble not found, please recompile MEGAHIT")
+                logging.error("Error: sub-program megahit_assemble not found, please recompile MEGAHIT")
             exit(1)
 
     write_cp(cp)
@@ -642,15 +658,15 @@ def local_assemble(cur_k):
             ret_code = p.wait()
 
             if ret_code != 0:
-                logger.error("Error occurs when running local assembly for k = %d to k = %d " % (cur_k, min(cur_k + opt.k_step, opt.k_max)))
-                logger.error("[Exit code %d]" % ret_code)
+                logging.error("Error occurs when running local assembly for k = %d to k = %d " % (cur_k, min(cur_k + opt.k_step, opt.k_max)))
+                logging.error("[Exit code %d]" % ret_code)
                 exit(ret_code)
 
             local_contig_file.close();
 
         except OSError as o:
             if o.errno == errno.ENOTDIR or o.errno == errno.ENOENT:
-                logger.error("Error: sub-program megahit_local_asm not found, please recompile MEGAHIT")
+                logging.error("Error: sub-program megahit_local_asm not found, please recompile MEGAHIT")
             exit(1)
 
     write_cp(cp)
@@ -711,7 +727,7 @@ def main(argv = None):
             iterate(cur_k, next_k - cur_k)
 
             if not build_graph(next_k, cur_k, 1):
-                cur_k = next_k
+                opt.k_max = cur_k # for merging cur_k.contigs.fa to final
                 break
             assemble(next_k)
             cur_k = next_k

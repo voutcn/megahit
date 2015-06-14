@@ -332,39 +332,41 @@ static bool ReadReadsAndProcessKernel(IterateGlobalData &globals,
     xlog("Total: %lld, aligned: %lld. Iterative edges: %llu\n", (long long)num_total_reads, (long long)num_aligned_reads, (unsigned long long)iterative_edges.size());
 
     // write iterative edges
-    xlog("Writing iterative edges...\n");
-    FILE *output_edge_file = OpenFileAndCheck(options.output_edge_file().c_str(), "wb");
+    if (iterative_edges.size() > 0) {
+        xlog("Writing iterative edges...\n");
+        FILE *output_edge_file = OpenFileAndCheck(options.output_edge_file().c_str(), "wb");
 
-    // header
-    static const int kWordsPerEdge = ((globals.kmer_k + globals.step + 1) * 2 + kBitsPerMulti_t + 31) / 32;
-    uint32_t next_k = globals.kmer_k + globals.step;
-    fwrite(&next_k, sizeof(uint32_t), 1, output_edge_file);
-    fwrite(&kWordsPerEdge, sizeof(uint32_t), 1, output_edge_file);
+        // header
+        static const int kWordsPerEdge = ((globals.kmer_k + globals.step + 1) * 2 + kBitsPerMulti_t + 31) / 32;
+        uint32_t next_k = globals.kmer_k + globals.step;
+        fwrite(&next_k, sizeof(uint32_t), 1, output_edge_file);
+        fwrite(&kWordsPerEdge, sizeof(uint32_t), 1, output_edge_file);
 
-    uint32_t packed_edge[kWordsPerEdge];
+        uint32_t packed_edge[kWordsPerEdge];
 
-    int last_shift = globals.next_k1 % 16;
-    last_shift = (last_shift == 0 ? 0 : 16 - last_shift) * 2;
-    for (auto iter = iterative_edges.begin(); iter != iterative_edges.end(); ++iter) {
-        memset(packed_edge, 0, sizeof(uint32_t) * kWordsPerEdge);
-        int w = 0;
-        int end_word = 0;
-        for (int j = 0; j < globals.next_k1; ) {
-            w = (w << 2) | iter->kmer.get_base(next_k - j);
-            ++j;
-            if (j % 16 == 0) {
-                packed_edge[end_word] = w;
-                w = 0;
-                end_word++;
+        int last_shift = globals.next_k1 % 16;
+        last_shift = (last_shift == 0 ? 0 : 16 - last_shift) * 2;
+        for (auto iter = iterative_edges.begin(); iter != iterative_edges.end(); ++iter) {
+            memset(packed_edge, 0, sizeof(uint32_t) * kWordsPerEdge);
+            int w = 0;
+            int end_word = 0;
+            for (int j = 0; j < globals.next_k1; ) {
+                w = (w << 2) | iter->kmer.get_base(next_k - j);
+                ++j;
+                if (j % 16 == 0) {
+                    packed_edge[end_word] = w;
+                    w = 0;
+                    end_word++;
+                }
             }
+            packed_edge[end_word] = (w << last_shift);
+            assert((packed_edge[kWordsPerEdge - 1] & kMaxMulti_t) == 0);
+            packed_edge[kWordsPerEdge - 1] |= iter->ann;
+            fwrite(packed_edge, sizeof(uint32_t), kWordsPerEdge, output_edge_file);
         }
-        packed_edge[end_word] = (w << last_shift);
-        assert((packed_edge[kWordsPerEdge - 1] & kMaxMulti_t) == 0);
-        packed_edge[kWordsPerEdge - 1] |= iter->ann;
-        fwrite(packed_edge, sizeof(uint32_t), kWordsPerEdge, output_edge_file);
-    }
 
-    fclose(output_edge_file);
+        fclose(output_edge_file);
+    }
 
     return true;
 }

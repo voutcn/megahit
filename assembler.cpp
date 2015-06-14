@@ -47,8 +47,8 @@ struct AssemblerOptions {
     int merge_len;
     double merge_similar;
     int prune_level;
-    bool excessive_prune;
     double low_local_ratio;
+    bool output_standalone;
 
     AssemblerOptions() {
         output_prefix = "out";
@@ -62,6 +62,7 @@ struct AssemblerOptions {
         low_local_ratio = 0.2;
         min_depth = 1.5;
         is_final_round = false;
+        output_standalone = false;
     }
 
     string contig_file() {
@@ -93,6 +94,7 @@ void ParseOption(int argc, char *argv[]) {
     desc.AddOption("low_local_ratio", "", opt.low_local_ratio, "ratio to define low depth contigs");
     desc.AddOption("min_depth", "", opt.min_depth, "if prune_level is 2, permanently remove low local coverage unitigs under this threshold");
     desc.AddOption("is_final_round", "", opt.is_final_round, "this is the last iteration");
+    desc.AddOption("output_standalone", "", opt.output_standalone, "output standalone contigs to *.final.contigs.fa");
 
     try {
         desc.Parse(argc, argv);
@@ -224,7 +226,8 @@ int main(int argc, char **argv) {
         histogram.clear();
 
         // unitig_graph.OutputContigs(out_contig_file, out_final_contig_file, histogram, false, opt.min_final_len);
-        unitig_graph.OutputContigs(out_contig_file, NULL, histogram, false, opt.min_final_len);
+        unitig_graph.OutputContigs(out_contig_file, opt.output_standalone ? out_final_contig_file : NULL,
+                                   histogram, false, opt.min_final_len);
 
         PrintStat(histogram);
 
@@ -263,11 +266,10 @@ int main(int argc, char **argv) {
             unitig_graph.OutputContigs(out_addi_contig_file, NULL, histogram, true, 0);
         } else {
             // unitig_graph.OutputContigs(out_contig_file, out_final_contig_file, histogram, false, opt.min_final_len);
-            unitig_graph.OutputContigs(out_contig_file, NULL, histogram, false, opt.min_final_len);
+            unitig_graph.OutputContigs(out_contig_file, opt.output_standalone ? out_final_contig_file : NULL, histogram, false, opt.min_final_len);
         }
 
         PrintStat(histogram);
-
         fclose(out_addi_contig_file);
     }
 
