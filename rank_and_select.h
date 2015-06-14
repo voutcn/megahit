@@ -1,6 +1,6 @@
 /*
  *  MEGAHIT
- *  Copyright (C) 2014 The University of Hong Kong
+ *  Copyright (C) 2014 - 2015 The University of Hong Kong
  *
  *  This program is free software: you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -15,6 +15,8 @@
  *  You should have received a copy of the GNU General Public License
  *  along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
+
+/* contact: Dinghua Li <dhli@cs.hku.hk> */
 
 #ifndef DBG_RANK_AND_SELECT_H_
 #define DBG_RANK_AND_SELECT_H_
@@ -219,14 +221,14 @@ class RankAndSelect4Bits {
             }
         }
 
-    #if DIFF_TO_DO_BINARY_SEARCH > 0
+#if DIFF_TO_DO_BINARY_SEARCH > 0
         PrefectchOccValue_(c, interval_l);
         if (interval_r > interval_l) {
             while (OccValue_(c, interval_l + 1) <= ranking) {
                 ++interval_l;
             }
         }
-    #endif
+#endif
 
         int64_t pos = (int64_t)interval_l * kCharPerInterval;
         unsigned long long *cur_word = packed_text_ + pos / kCharPerWord;
@@ -258,7 +260,7 @@ class RankAndSelect4Bits {
     }
 
     int64_t PredLimitedStep(uint8_t c, int64_t pos, int step) {
-        // the last c in [pos-step, pos], return pos-step-1 if not exist 
+        // the last c in [pos-step, pos], return pos-step-1 if not exist
         int64_t end = pos - step;
         if (end < 0) {
             end = 0;
@@ -273,7 +275,7 @@ class RankAndSelect4Bits {
     }
 
     int64_t Succ(uint8_t c, int64_t pos) {
-        // the first c in [pos...length]   
+        // the first c in [pos...length]
         if (((*(packed_text_ + pos / kCharPerWord) >> (pos % kCharPerWord * kBitsPerChar)) & ((1 << kBitsPerChar) - 1)) == c) {
             return pos;
         }
@@ -526,14 +528,14 @@ class RankAndSelect1Bit {
             }
         }
 
-    #if DIFF_TO_DO_BINARY_SEARCH > 0
+#if DIFF_TO_DO_BINARY_SEARCH > 0
         PrefectchOccValue_(interval_l);
         if (interval_r > interval_l) {
             while (OccValue_(interval_l + 1) <= ranking) {
                 ++interval_l;
             }
         }
-    #endif
+#endif
 
         int64_t pos = (int64_t)interval_l * kBitsPerInterval;
         unsigned long long *cur_word = packed_text_ + pos / kBitsPerWord;

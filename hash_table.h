@@ -22,7 +22,7 @@
  * @author Yu Peng (ypeng@cs.hku.hk)
  * @version 1.0.0
  * @date 2011-08-03
- * @last modified by Dinghua LI
+ * @last modified by Dinghua Li
  * @date 2014-10-06
  */
 
@@ -384,7 +384,7 @@ class HashTable {
                 return iterator(this, node);
             }
         }
-        return iterator();   
+        return iterator();
     }
 
     const_iterator find(const key_type &key) const {

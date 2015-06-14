@@ -207,7 +207,7 @@ static bool ReadReadsAndProcessKernel(IterateGlobalData &globals,
         seq_manager.set_package(&packages[input_thread_index]);
         pthread_create(&input_thread, NULL, ReadReadsThread, &seq_manager);
 
-#pragma omp parallel for
+        #pragma omp parallel for
         for (unsigned i = 0; i < (unsigned)rp.size(); ++i) {
             int length = rp.length(i);
             if (length < globals.kmer_k + globals.step + 1) {
@@ -318,7 +318,7 @@ static bool ReadReadsAndProcessKernel(IterateGlobalData &globals,
                 }
             }
             if (aligned) {
-#pragma omp atomic
+                #pragma omp atomic
                 ++num_aligned_reads;
             }
         }
@@ -411,7 +411,7 @@ static void ReadContigsAndBuildHash(IterateGlobalData &globals,
         seq_manager.set_package(&packages[input_thread_index]);
         pthread_create(&input_thread, NULL, ReadContigsThread, &seq_manager);
 
-#pragma omp parallel for
+        #pragma omp parallel for
         for (unsigned i = 0; i < cp.size(); ++i) {
             if ((int)cp.length(i) < globals.kmer_k) {
                 continue;

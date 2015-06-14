@@ -1,6 +1,6 @@
 /*
  *  MEGAHIT
- *  Copyright (C) 2014 The University of Hong Kong
+ *  Copyright (C) 2014 - 2015 The University of Hong Kong
  *
  *  This program is free software: you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -16,6 +16,8 @@
  *  along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+/* contact: Dinghua Li <dhli@cs.hku.hk> */
+
 #ifndef UNITIG_GRAPH_H_
 #define UNITIG_GRAPH_H_
 
@@ -29,10 +31,10 @@
 
 class SuccinctDBG;
 struct UnitigGraphVertex {
-    UnitigGraphVertex(int64_t start_node, int64_t end_node, 
-        int64_t rev_start_node, int64_t rev_end_node, int64_t depth, uint32_t length): 
-            start_node(start_node), end_node(end_node), rev_start_node(rev_start_node), 
-            rev_end_node(rev_end_node), depth(depth), length(length) {
+    UnitigGraphVertex(int64_t start_node, int64_t end_node,
+                      int64_t rev_start_node, int64_t rev_end_node, int64_t depth, uint32_t length):
+        start_node(start_node), end_node(end_node), rev_start_node(rev_start_node),
+        rev_end_node(rev_end_node), depth(depth), length(length) {
         is_deleted = false;
         is_changed = false;
         is_marked = false;
@@ -68,8 +70,8 @@ struct UnitigGraphVertex {
 };
 
 class UnitigGraph {
-public:
-    typedef uint32_t vertexID_t; 
+  public:
+    typedef uint32_t vertexID_t;
 
     UnitigGraph(SuccinctDBG *sdbg): sdbg_(sdbg) {}
     ~UnitigGraph() {
@@ -79,7 +81,9 @@ public:
     }
 
     void InitFromSdBG();
-    uint32_t size() { return vertices_.size(); }
+    uint32_t size() {
+        return vertices_.size();
+    }
     bool RemoveLocalLowDepth(double min_depth, int min_len, int local_width, double local_ratio, int64_t &num_removed, bool permanent_rm = false);
     uint32_t MergeBubbles(bool permanent_rm);
     uint32_t MergeComplexBubbles(double similarity, int merge_level, bool permanent_rm);
@@ -87,12 +91,12 @@ public:
     // output
     void OutputContigs(FILE *contig_file, FILE *final_file, std::map<int64_t, int> &histo, bool change_only, int min_final_len);
 
-private:
+  private:
     // functions
     double LocalDepth_(vertexID_t id, int local_width);
     void Refresh_(bool set_changed = true);
 
-private:
+  private:
     // data
     static const size_t kMaxNumVertices;// = std::numeric_limits<vertexID_t>::max();
     SuccinctDBG *sdbg_;

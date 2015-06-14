@@ -1,6 +1,6 @@
 /*
  *  MEGAHIT
- *  Copyright (C) 2014 The University of Hong Kong
+ *  Copyright (C) 2014 - 2015 The University of Hong Kong
  *
  *  This program is free software: you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -15,6 +15,8 @@
  *  You should have received a copy of the GNU General Public License
  *  along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
+
+/* contact: Dinghua Li <dhli@cs.hku.hk> */
 
 #ifndef SDBG_BUILDER_LV2_GPU_FUNCTIONS_H__
 #define SDBG_BUILDER_LV2_GPU_FUNCTIONS_H__

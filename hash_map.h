@@ -4,7 +4,7 @@
  * @author Yu Peng (ypeng@cs.hku.hk)
  * @version 1.0.0
  * @date 2011-08-24
- * @last modified by Dinghua LI
+ * @last modified by Dinghua Li
  * @date 2014-10-06
  */
 

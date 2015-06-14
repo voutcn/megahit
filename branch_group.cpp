@@ -1,6 +1,6 @@
 /*
  *  MEGAHIT
- *  Copyright (C) 2014 The University of Hong Kong
+ *  Copyright (C) 2014 - 2015 The University of Hong Kong
  *
  *  This program is free software: you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -15,6 +15,8 @@
  *  You should have received a copy of the GNU General Public License
  *  along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
+
+/* contact: Dinghua Li <dhli@cs.hku.hk> */
 
 #include <assert.h>
 #include "branch_group.h"
@@ -158,7 +160,7 @@ bool BranchGroup::RemoveErrorBranches(double cutoff_ratio) {
     //     }
 
     //     not_removed[0] = not_removed[remain_branch];
-    //     not_removed.resize(1);        
+    //     not_removed.resize(1);
     // }
 
     unsigned num_remained = 0;

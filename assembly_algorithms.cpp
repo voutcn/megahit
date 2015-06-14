@@ -1,6 +1,6 @@
 /*
  *  MEGAHIT
- *  Copyright (C) 2014 The University of Hong Kong
+ *  Copyright (C) 2014 - 2015 The University of Hong Kong
  *
  *  This program is free software: you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -15,6 +15,8 @@
  *  You should have received a copy of the GNU General Public License
  *  along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
+
+/* contact: Dinghua Li <dhli@cs.hku.hk> */
 
 #include "assembly_algorithms.h"
 #include <assert.h>
@@ -65,7 +67,7 @@ int64_t Trim(SuccinctDBG &dbg, int len, int min_final_len) {
     omp_init_lock(&path_lock);
     marked.reset(dbg.size);
 
-#pragma omp parallel for reduction(+:number_tips)  
+    #pragma omp parallel for reduction(+:number_tips)
     for (int64_t node_idx = 0; node_idx < dbg.size; ++node_idx) {
         if (dbg.IsValidNode(node_idx) && !marked.get(node_idx) && dbg.IsLast(node_idx) && dbg.OutdegreeZero(node_idx)) {
             vector<int64_t> path = {node_idx};
@@ -95,7 +97,7 @@ int64_t Trim(SuccinctDBG &dbg, int len, int min_final_len) {
         }
     }
 
-#pragma omp parallel for reduction(+:number_tips)
+    #pragma omp parallel for reduction(+:number_tips)
     for (int64_t node_idx = 0; node_idx < dbg.size; ++node_idx) {
         if (dbg.IsValidNode(node_idx) && dbg.IsLast(node_idx) && !marked.get(node_idx) && dbg.IndegreeZero(node_idx)) {
             vector<int64_t> path = {node_idx};
@@ -124,7 +126,7 @@ int64_t Trim(SuccinctDBG &dbg, int len, int min_final_len) {
         }
     }
 
-#pragma omp parallel for
+    #pragma omp parallel for
     for (int64_t node_idx = 0; node_idx < dbg.size; ++node_idx) {
         if (marked.get(node_idx)) {
             dbg.SetInvalid(node_idx);
@@ -164,11 +166,13 @@ int64_t PopBubbles(SuccinctDBG &dbg, int max_bubble_len, double low_depth_ratio)
     omp_lock_t bubble_lock;
     omp_init_lock(&bubble_lock);
     const int kMaxBranchesPerGroup = 4;
-    if (max_bubble_len <= 0) { max_bubble_len = dbg.kmer_k * 2 + 2; }
+    if (max_bubble_len <= 0) {
+        max_bubble_len = dbg.kmer_k * 2 + 2;
+    }
     vector<std::pair<int, int64_t> > bubble_candidates;
     int64_t num_bubbles = 0;
 
-#pragma omp parallel for
+    #pragma omp parallel for
     for (int64_t node_idx = 0; node_idx < dbg.size; ++node_idx) {
         if (dbg.IsValidNode(node_idx) && dbg.IsLast(node_idx) && dbg.Outdegree(node_idx) > 1) {
             BranchGroup bubble(&dbg, node_idx, kMaxBranchesPerGroup, max_bubble_len);

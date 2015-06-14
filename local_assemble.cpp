@@ -1,3 +1,23 @@
+/*
+ *  MEGAHIT
+ *  Copyright (C) 2014 - 2015 The University of Hong Kong
+ *
+ *  This program is free software: you can redistribute it and/or modify
+ *  it under the terms of the GNU General Public License as published by
+ *  the Free Software Foundation, either version 3 of the License, or
+ *  (at your option) any later version.
+ *
+ *  This program is distributed in the hope that it will be useful,
+ *  but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *  GNU General Public License for more details.
+ *
+ *  You should have received a copy of the GNU General Public License
+ *  along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
+/* contact: Dinghua Li <dhli@cs.hku.hk> */
+
 #include <string>
 
 #include "omp.h"
@@ -7,8 +27,8 @@
 #include "utils.h"
 
 struct local_asm_opt_t {
-	std::string contig_file;
-	std::string lib_file_prefix;
+    std::string contig_file;
+    std::string lib_file_prefix;
 
     int kmin;
     int kmax;
@@ -56,7 +76,7 @@ void ParseOption(int argc, char *argv[]) {
             throw std::logic_error("no contig file!");
         }
         if (opt.lib_file_prefix == "") {
-        	throw std::logic_error("no read file!");
+            throw std::logic_error("no read file!");
         }
         if (opt.num_threads == 0) {
             opt.num_threads = omp_get_max_threads();
@@ -73,7 +93,7 @@ void ParseOption(int argc, char *argv[]) {
 static AutoMaxRssRecorder recorder;
 
 int main(int argc, char **argv) {
-	ParseOption(argc, argv);
+    ParseOption(argc, argv);
 
     omp_set_num_threads(opt.num_threads);
 
@@ -82,12 +102,12 @@ int main(int argc, char **argv) {
     la.set_mapping_threshold(opt.similarity, opt.min_mapping_len);
     la.set_num_threads(opt.num_threads);
 
-	la.ReadContigs(opt.contig_file);
+    la.ReadContigs(opt.contig_file);
     la.BuildHashMapper();
-	la.AddReadLib(opt.lib_file_prefix);
-	la.EstimateInsertSize();
+    la.AddReadLib(opt.lib_file_prefix);
+    la.EstimateInsertSize();
     la.MapToContigs();
     la.LocalAssemble();
 
-	return 0;
+    return 0;
 }

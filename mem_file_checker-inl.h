@@ -1,9 +1,6 @@
 /*
- *  mem_file_checker-inl.h
- *
- *  This file is a part of MEGAHIT
- *
- *  Copyright (C) 2014 The University of Hong Kong
+ *  MEGAHIT
+ *  Copyright (C) 2014 - 2015 The University of Hong Kong
  *
  *  This program is free software: you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -18,6 +15,8 @@
  *  You should have received a copy of the GNU General Public License
  *  along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
+
+/* contact: Dinghua Li <dhli@cs.hku.hk> */
 
 #ifndef MEM_FILE_CHECKER_INL_H__
 #define MEM_FILE_CHECKER_INL_H__

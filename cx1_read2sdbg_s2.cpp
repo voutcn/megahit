@@ -104,7 +104,7 @@ int64_t s2_encode_lv1_diff_base(int64_t read_id, read2sdbg_global_t &globals) {
 
 void s2_read_mercy_prepare(read2sdbg_global_t &globals) {
     if (!globals.need_mercy) return;
-    
+
     xtimer_t timer;
     if (cx1_t::kCX1Verbose >= 3) {
         timer.reset();
@@ -155,7 +155,7 @@ void s2_read_mercy_prepare(read2sdbg_global_t &globals) {
             end_idx[tid] = this_end;
         }
 
-#pragma omp parallel for reduction(+:num_mercy)
+        #pragma omp parallel for reduction(+:num_mercy)
         for (int tid = 0; tid < globals.num_cpu_threads; ++tid) {
             std::vector<bool> no_in(globals.max_read_length);
             std::vector<bool> no_out(globals.max_read_length);
@@ -508,7 +508,7 @@ void* s2_lv2_extract_substr(void* _data) {
     int *lv1_p = globals.lv1_items + globals.cx1.rp_[0].rp_bucket_offsets[bp.bp_start_bucket];
     int64_t offset_mask = (1 << globals.offset_num_bits) - 1; // 0000....00011..11
     uint32_t *substrings_p = globals.lv2_substrings +
-                                (globals.cx1.rp_[0].rp_bucket_offsets[bp.bp_start_bucket] - globals.cx1.rp_[0].rp_bucket_offsets[globals.cx1.lv2_start_bucket_]);
+                             (globals.cx1.rp_[0].rp_bucket_offsets[bp.bp_start_bucket] - globals.cx1.rp_[0].rp_bucket_offsets[globals.cx1.lv2_start_bucket_]);
 
     for (int b = bp.bp_start_bucket; b < bp.bp_end_bucket; ++b) {
         for (int t = 0; t < globals.num_cpu_threads; ++t) {

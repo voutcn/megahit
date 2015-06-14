@@ -97,7 +97,7 @@ void read_input_prepare(count_global_t &globals) { // num_items_, num_cpu_thread
     ReadMultipleLibs(globals.read_lib_file, globals.package, globals.lib_info, is_reverse);
     globals.max_read_length = globals.package.max_read_len();
     globals.num_reads = globals.package.size();
-    
+
     xlog("%ld reads, %d max read length\n", globals.num_reads, globals.max_read_length);
 
     // calc words_per_xxx
@@ -339,7 +339,7 @@ void* lv2_extract_substr(void* _data) {
     int *lv1_p = globals.lv1_items + globals.cx1.rp_[0].rp_bucket_offsets[bp.bp_start_bucket];
     int64_t offset_mask = (1 << globals.offset_num_bits) - 1; // 0000....00011..11
     uint32_t *substrings_p = globals.lv2_substrings +
-                                (globals.cx1.rp_[0].rp_bucket_offsets[bp.bp_start_bucket] - globals.cx1.rp_[0].rp_bucket_offsets[globals.cx1.lv2_start_bucket_]);
+                             (globals.cx1.rp_[0].rp_bucket_offsets[bp.bp_start_bucket] - globals.cx1.rp_[0].rp_bucket_offsets[globals.cx1.lv2_start_bucket_]);
     int64_t *read_info_p = globals.lv2_read_info +
                            (globals.cx1.rp_[0].rp_bucket_offsets[bp.bp_start_bucket] - globals.cx1.rp_[0].rp_bucket_offsets[globals.cx1.lv2_start_bucket_]);
 
