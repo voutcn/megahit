@@ -145,12 +145,12 @@ DEPS =   ./Makefile \
 # g++ and its options
 #-------------------------------------------------------------------------------
 CUDALIBFLAG = -L/usr/local/cuda/lib64/ -lcuda -lcudart
-GCC_VER_GTE45 := $(shell echo `$(CXX) -dumpversion | cut -f1-2 -d.` \>= 4.5 | bc)
+GCC_VER := $(shell echo `$(CXX) -dumpversion | cut -f1-2 -d.`)
 
 CXXFLAGS = -O2 -Wall -Wno-unused-function -Wno-array-bounds -D__STDC_FORMAT_MACROS -funroll-loops -fprefetch-loop-arrays -fopenmp -I. -std=c++0x -static-libgcc
 LIB = -lm -lz -lpthread
 
-ifeq ($(GCC_VER_GTE45), 1)
+ifeq "4.5" "$(word 1, $(sort 4.5 $(GCC_VER)))"
 	CXXFLAGS += -static-libstdc++
 endif
 
@@ -164,10 +164,10 @@ DEPS = Makefile
 # CPU & GPU version
 #-------------------------------------------------------------------------------
 ifeq ($(use_gpu), 1)
-all:  megahit_assemble megahit_iter sdbg_builder_gpu sdbg_builder_cpu megahit_local_asm
+all:  megahit_assemble megahit_iter sdbg_builder_gpu sdbg_builder_cpu megahit_local_asm megahit_toolkits
 	chmod +x ./megahit
 else
-all:  megahit_assemble megahit_iter sdbg_builder_cpu megahit_local_asm
+all:  megahit_assemble megahit_iter sdbg_builder_cpu megahit_local_asm megahit_toolkits
 	chmod +x ./megahit
 endif
 
@@ -180,6 +180,16 @@ LIB_IDBA += $(LIB_IDBA_DIR)/contig_graph_branch_group.o
 LIB_IDBA += $(LIB_IDBA_DIR)/contig_info.o
 LIB_IDBA += $(LIB_IDBA_DIR)/hash_graph.o
 LIB_IDBA += $(LIB_IDBA_DIR)/sequence.o
+
+#-------------------------------------------------------------------------------
+# Tookits
+#-------------------------------------------------------------------------------
+TOOLS_DIR = tools
+TOOLKITS = $(TOOLS_DIR)/toolkits.cpp
+TOOLKITS += $(TOOLS_DIR)/contigs_to_fastg.cpp
+TOOLKITS += $(TOOLS_DIR)/read_stat.cpp
+TOOLKITS += $(TOOLS_DIR)/trim_low_qual_tail.cpp
+TOOLKITS += $(TOOLS_DIR)/filter_by_len.cpp
 
 #-------------------------------------------------------------------------------
 # CPU objectives
@@ -203,6 +213,10 @@ megahit_iter: iterate_edges.cpp iterate_edges.h options_description.o city.o seq
 
 megahit_local_asm: local_assembler.o city.o options_description.o sequence_manager.o local_assemble.cpp $(LIB_IDBA) $(DEPS)
 	$(CXX) $(CXXFLAGS) local_assemble.cpp local_assembler.o options_description.o city.o sequence_manager.o $(LIB_IDBA) $(LIB) -o megahit_local_asm
+
+megahit_toolkits: $(TOOLKITS)
+	$(CXX) $(CXXFLAGS) $(TOOLKITS) $(LIB) -o megahit_toolkits
+
 
 #-------------------------------------------------------------------------------
 # Applications for debug usage
@@ -244,11 +258,11 @@ sdbg_builder_gpu: sdbg_builder.cpp cx1_kmer_count_gpu.o cx1_read2sdbg_s1_gpu.o c
 #-------------------------------------------------------------------------------
 
 .PHONY:
-test: megahit_assemble megahit_iter sdbg_builder_cpu megahit_local_asm
+test: megahit_assemble megahit_iter sdbg_builder_cpu megahit_local_asm megahit_toolkits
 	-rm -fr example/megahit_out
 	./megahit --12 example/readsInterleaved.fa -o example/megahit_out -t 4
 
-test_gpu: megahit_assemble megahit_iter sdbg_builder_gpu megahit_local_asm
+test_gpu: megahit_assemble megahit_iter sdbg_builder_gpu megahit_local_asm megahit_toolkits
 	-rm -fr example/megahit_gpu_out
 	./megahit --12 example/readsInterleaved.fa --use-gpu -o example/megahit_gpu_out -t 4
 
@@ -257,4 +271,4 @@ clean:
 	-rm -fr *.i* *.cubin *.cu.c *.cudafe* *.fatbin.c *.ptx *.hash *.cu.cpp *.o .*.o .*.cpp \
 		$(LIB_IDBA) \
 		example/megahit_*out \
-		megahit_assemble megahit_iter sdbg_builder_cpu sdbg_builder_gpu megahit_local_asm
+		megahit_assemble megahit_iter sdbg_builder_cpu sdbg_builder_gpu megahit_local_asm megahit_toolkits

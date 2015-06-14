@@ -2,11 +2,15 @@
 #include <stdlib.h>
 #include <zlib.h>
 #include <algorithm>
-#include "../kseq.h"
+#include "kseq.h"
 
+
+#ifndef KSEQ_INITED
+#define KSEQ_INITED
 KSEQ_INIT(gzFile, gzread)
+#endif
 
-int main(int argc, char **argv) {
+int main_read_stat(int argc, char **argv) {
 	if (argc > 1) {
 		fprintf(stderr, "Usage: cat *.fq | %s\n", argv[0]);
 		exit(1);
@@ -16,7 +20,6 @@ int main(int argc, char **argv) {
     kseq_t *seq = kseq_init(fp); // kseq to read files
     int max_len = 0;
     int min_len = 999999999;
-    int avg_len = 0;
     long long total_len = 0;
     long long num_reads = 0;
 
@@ -27,7 +30,9 @@ int main(int argc, char **argv) {
     	min_len = std::min(seq->seq.l, (size_t)min_len);
     }
 
-    printf("number: %lld\nlongest: %d\nshortest: %d\navg: %f\n", num_reads, max_len, min_len, total_len * 1.0 / num_reads);
+    double avg_len = total_len * 1.0 / num_reads;
+
+    printf("number reads: %lld\ntotal size:%lld\nlongest: %d\nshortest: %d\navg: %lf\n", num_reads, total_len, max_len, min_len, avg_len);
 
     kseq_destroy(seq);
     gzclose(fp);

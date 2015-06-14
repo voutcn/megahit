@@ -5,11 +5,14 @@
 #include <cassert>
 #include <zlib.h>
 
-#include "../kseq.h"
+#include "kseq.h"
 
 using namespace std;
 
+#ifndef KSEQ_INITED
+#define KSEQ_INITED
 KSEQ_INIT(gzFile, gzread)
+#endif
 
 char Comp(char c) {
 	switch (c) {
@@ -27,10 +30,9 @@ char Comp(char c) {
 
 string RevComp(const string &s) {
 	string ret;
-	for (int i = 0; i < s.length(); ++i) {
+	for (unsigned i = 0; i < s.length(); ++i) {
 		ret.push_back(Comp(s[s.length() - 1 - i]));
 	}
-
 	return ret;
 }
 
@@ -41,13 +43,13 @@ string NodeName(int i, int len, double mul, bool is_rc) {
 	else return string(buf);
 }
 
-int main(int argc, char **argv) {
+int main_contig2fastg(int argc, char **argv) {
 	if (argc < 3) {
-		fprintf(stderr, "Usage: %s <max_k> <megahit_contig.fa>\n", argv[0]);
+		fprintf(stderr, "Usage: %s <kmer_size> <k_{kmer_size}.contigs.fa>\n", argv[0]);
 		exit(1);
 	}
 
-	int k = atoi(argv[1]);
+	unsigned k = atoi(argv[1]);
 	gzFile fp = gzopen(argv[2], "r");
 	assert(fp != NULL);
 	kseq_t *seq = kseq_init(fp); // kseq to read files
@@ -64,34 +66,30 @@ int main(int argc, char **argv) {
 		}
 
 		double mul;
-		assert(sscanf(seq->comment.s, "multi=%lf", &mul) == 1);
+		assert(sscanf(seq->comment.s + 7, "multi=%lf", &mul) == 1);
 
 		muls.push_back(mul);
 		ctgs.push_back(string(seq->seq.s));
 	}
 
-	for (int i = 0; i < ctgs.size(); ++i) {
+	for (int i = 0; i < (int)ctgs.size(); ++i) {
 		start_kmer_to_id[ctgs[i].substr(0, k - 1)].push_back(i + 1);
 		start_kmer_to_id[RevComp(ctgs[i].substr(ctgs[i].length() - k + 1))].push_back(-i - 1);
-
-		// fprintf(stderr, "%s\n", ctgs[i].c_str());
-		// fprintf(stderr, "%s\n", ctgs[i].substr(0, k - 1).c_str());
-		// fprintf(stderr, "%s\n", RevComp(ctgs[i].substr(ctgs[i].length() - k + 1)).c_str());
 	}
 
-	for (int i = 0; i < ctgs.size(); ++i) {
+	for (int i = 0; i < (int)ctgs.size(); ++i) {
 		node_names.push_back(NodeName(i + 1, ctgs[i].length(), muls[i], false));
 		rev_node_names.push_back(NodeName(i + 1, ctgs[i].length(), muls[i], true));
 	}
 
-	for (int i = 0; i < ctgs.size(); ++i) {
+	for (int i = 0; i < (int)ctgs.size(); ++i) {
 		for (int dir = 0; dir < 2; ++dir) {
 			string header = dir == 0 ? node_names[i] : rev_node_names[i];
 			header = ">" + header;
 			string s = dir == 0 ? ctgs[i] : RevComp(ctgs[i]);
 			auto mit = start_kmer_to_id.find(s.substr(s.length() - k + 1));
 			if (mit != start_kmer_to_id.end()) {
-				for (int j = 0; j < mit->second.size(); ++j) {
+				for (unsigned j = 0; j < mit->second.size(); ++j) {
 					if (j == 0) {
 						header += ":";
 					} else {

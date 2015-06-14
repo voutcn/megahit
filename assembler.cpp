@@ -38,11 +38,10 @@ using std::string;
 struct AssemblerOptions {
     string sdbg_name;
     string output_prefix;
-    string final_contig_file_name;
     int num_cpu_threads;
 
     int max_tip_len;
-    int min_final_len;
+    int min_standalone;
     double min_depth;
     bool is_final_round;
     bool no_bubble;
@@ -56,7 +55,7 @@ struct AssemblerOptions {
         output_prefix = "out";
         num_cpu_threads = 0;
         max_tip_len = -1;
-        min_final_len = 200;
+        min_standalone = 200;
         no_bubble = false;
         merge_len = 20;
         merge_similar = 0.98;
@@ -88,7 +87,7 @@ void ParseOption(int argc, char *argv[]) {
     desc.AddOption("output_prefix", "o", opt.output_prefix, "output prefix");
     desc.AddOption("num_cpu_threads", "t", opt.num_cpu_threads, "number of cpu threads");
     desc.AddOption("max_tip_len", "", opt.max_tip_len, "max length for tips to be removed. -1 for 2k");
-    desc.AddOption("min_final_len", "", opt.min_final_len, "min length of a final contig");
+    desc.AddOption("min_standalone", "", opt.min_standalone, "min length of a standalone contig to output to final.contigs.fa");
     desc.AddOption("no_bubble", "", opt.no_bubble, "do not remove bubbles");
     desc.AddOption("merge_len", "", opt.merge_len, "merge complex bubbles of length <= merge_len * k");
     desc.AddOption("merge_similar", "", opt.merge_similar, "min similarity of complex bubble merging");
@@ -180,7 +179,7 @@ int main(int argc, char **argv) {
     if (opt.max_tip_len > 0) { // tips removal
         timer.reset();
         timer.start();
-        assembly_algorithms::RemoveTips(dbg, opt.max_tip_len, opt.min_final_len);
+        assembly_algorithms::RemoveTips(dbg, opt.max_tip_len, opt.min_standalone);
         timer.stop();
         xlog("Tips removal done! Time elapsed(sec): %lf\n", timer.elapsed());
     }
@@ -229,9 +228,9 @@ int main(int argc, char **argv) {
         timer.start();
         histogram.clear();
 
-        // unitig_graph.OutputContigs(out_contig_file, out_final_contig_file, histogram, false, opt.min_final_len);
+        // unitig_graph.OutputContigs(out_contig_file, out_final_contig_file, histogram, false, opt.min_standalone);
         unitig_graph.OutputContigs(out_contig_file, opt.output_standalone ? out_final_contig_file : NULL,
-                                   histogram, false, opt.min_final_len);
+                                   histogram, false, opt.min_standalone);
 
         PrintStat(histogram);
 
@@ -269,8 +268,8 @@ int main(int argc, char **argv) {
         if (!opt.is_final_round) {
             unitig_graph.OutputContigs(out_addi_contig_file, NULL, histogram, true, 0);
         } else {
-            // unitig_graph.OutputContigs(out_contig_file, out_final_contig_file, histogram, false, opt.min_final_len);
-            unitig_graph.OutputContigs(out_contig_file, opt.output_standalone ? out_final_contig_file : NULL, histogram, false, opt.min_final_len);
+            // unitig_graph.OutputContigs(out_contig_file, out_final_contig_file, histogram, false, opt.min_standalone);
+            unitig_graph.OutputContigs(out_contig_file, opt.output_standalone ? out_final_contig_file : NULL, histogram, false, opt.min_standalone);
         }
 
         PrintStat(histogram);

@@ -1,13 +1,16 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <zlib.h>
-#include "../kseq.h"
+#include "kseq.h"
 
+#ifndef KSEQ_INITED
+#define KSEQ_INITED
 KSEQ_INIT(gzFile, gzread)
+#endif
 
-int main(int argc, char **argv) {
+int main_trim_lowq_tail(int argc, char **argv) {
 	if (argc < 4) {
-		fprintf(stderr, "Usage: cat *.fq | %s <format=64|33> <qual_threshold> <min_len>\n", argv[0]);
+		fprintf(stderr, "Usage: cat *.fq | %s <format=64|33> <qual_threshold> <min_len_remain>\n", argv[0]);
 		exit(1);
 	}
 
@@ -15,10 +18,10 @@ int main(int argc, char **argv) {
     kseq_t *seq = kseq_init(fp); // kseq to read files
     int qb = atoi(argv[1]);
     int qt = atoi(argv[2]);
-    int min_len = atoi(argv[3]);
+    unsigned min_len = atoi(argv[3]);
 
     while (kseq_read(seq) >= 0) {
-    	int i;
+    	unsigned i;
     	for (i = 0; i < seq->seq.l; ++i) {
     		if (seq->qual.s[i] - qb <= qt) {
     			break;
