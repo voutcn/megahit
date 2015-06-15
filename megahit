@@ -120,7 +120,7 @@ class Options():
         self.low_local_ratio = 0.2
         self.temp_dir = self.out_dir + "tmp/"
         self.keep_tmp_files = False
-        self.builder = "sdbg_builder_cpu"
+        self.builder = "megahit_sdbg_build"
         self.use_gpu = False
         self.mem_flag = 1
         self.continue_mode = False;
@@ -241,7 +241,7 @@ def parse_opt(argv):
             opt.keep_tmp_files = True
         elif option == "--use-gpu":
             opt.use_gpu = True
-            opt.builder = "sdbg_builder_gpu"
+            opt.builder = "megahit_sdbg_build_gpu"
         elif option == "--mem-flag":
             opt.mem_flag = int(value)
         elif option in ("-v", "--version"):
@@ -389,8 +389,8 @@ def prepare_continue():
     print("Continue from check point " + str(opt.last_cp), file=sys.stderr) 
 
 def check_bin():
-    for subprogram in ["megahit_assemble", "megahit_iter", "megahit_local_asm", "megahit_toolkits"]:
-        if not os.path.exists(opt.bin_dir + "megahit_assemble"):
+    for subprogram in ["megahit_asm_core", "megahit_toolkits"]:
+        if not os.path.exists(opt.bin_dir + subprogram):
             raise Usage(megahit_version_str + '\n' + "Cannot find sub-program \"" + subprogram + "\", please recompile.")
 
 def check_builder():
@@ -574,9 +574,8 @@ def iterate(cur_k, step):
     global cp
     if (not opt.continue_mode) or (cp > opt.last_cp):
         next_k = cur_k + step
-        iterator = opt.bin_dir + "megahit_iter"
 
-        iterate_cmd = [iterator,
+        iterate_cmd = [opt.bin_dir + "megahit_asm_core", "iterate",
                        "-c", graph_prefix(cur_k) + ".contigs.fa",
                        "-t", str(opt.num_cpu_threads),
                        "-k", str(cur_k),
@@ -621,7 +620,7 @@ def assemble(cur_k):
         if (opt.max_tip_len >= 0):
             min_standalone = max(opt.max_tip_len + opt.k_max - 1, opt.min_contig_len)
 
-        assembly_cmd = [opt.bin_dir + "megahit_assemble",
+        assembly_cmd = [opt.bin_dir + "megahit_asm_core", "assemble",
                         "-s", graph_prefix(cur_k),
                         "-o", graph_prefix(cur_k),
                         "-t", str(opt.num_cpu_threads),
@@ -680,7 +679,7 @@ def assemble(cur_k):
 def local_assemble(cur_k):
     global cp
     if (not opt.continue_mode) or (cp > opt.last_cp):
-        la_cmd = [opt.bin_dir + "megahit_local_asm",
+        la_cmd = [opt.bin_dir + "megahit_asm_core", "local",
                   "-c", graph_prefix(cur_k) + ".contigs.fa",
                   "-l", graph_prefix(opt.k_min) + ".all_reads",
                   "-t", str(opt.num_cpu_threads),

@@ -158,16 +158,26 @@ ifneq ($(disablempopcnt), 1)
 	CXXFLAGS += -mpopcnt
 endif
 
-DEPS = Makefile
+#-------------------------------------------------------------------------------
+# standalone headers
+#-------------------------------------------------------------------------------
+STANDALONE_H = rank_and_select.h kmer_plus.h kmer.h lib_info.h \
+			   bit_operation.h atomic_bit_vector.h functional.h \
+			   khash.h kseq.h pool.h packed_reads.h sequence_package.h \
+			   utils.h mem_file_checker-inl.h read_lib_functions-inl.h \
+			   sdbg_builder_writers.h mac_pthread_barrier.h edge_reader.h \
+			   histgram.h definitions.h lv2_cpu_sort.h
+
+DEPS = Makefile $(STANDALONE_H)
 
 #-------------------------------------------------------------------------------
 # CPU & GPU version
 #-------------------------------------------------------------------------------
 ifeq ($(use_gpu), 1)
-all:  megahit_assemble megahit_iter sdbg_builder_gpu sdbg_builder_cpu megahit_local_asm megahit_toolkits
+all:  megahit_asm_core megahit_sdbg_build_gpu megahit_sdbg_build megahit_toolkits
 	chmod +x ./megahit
 else
-all:  megahit_assemble megahit_iter sdbg_builder_cpu megahit_local_asm megahit_toolkits
+all:  megahit_asm_core megahit_sdbg_build megahit_toolkits
 	chmod +x ./megahit
 endif
 
@@ -200,23 +210,22 @@ TOOLKITS += $(TOOLS_DIR)/filter_by_len.cpp
 	$(CXX) $(CXXFLAGS) -c $< -o $@
 
 #-------------------------------------------------------------------------------
+# asm_core objectives
+#-------------------------------------------------------------------------------
+LIB_ASM = succinct_dbg.o assembly_algorithms.o branch_group.o options_description.o \
+				  unitig_graph.o sequence_manager.o local_assembler.o city.o
+
+#-------------------------------------------------------------------------------
 # CPU Applications
 #-------------------------------------------------------------------------------
-sdbg_builder_cpu: sdbg_builder.cpp cx1.h lv2_cpu_sort.h cx1_kmer_count.o cx1_read2sdbg_s1.o cx1_read2sdbg_s2.o cx1_seq2sdbg.o options_description.o sequence_manager.o $(DEPS)
-	$(CXX) $(CXXFLAGS) sdbg_builder.cpp cx1_kmer_count.o options_description.o cx1_read2sdbg_s1.o cx1_read2sdbg_s2.o cx1_seq2sdbg.o sequence_manager.o $(LIB) -o sdbg_builder_cpu
+megahit_sdbg_build: sdbg_builder.cpp cx1.h lv2_cpu_sort.h cx1_kmer_count.o cx1_read2sdbg_s1.o cx1_read2sdbg_s2.o cx1_seq2sdbg.o options_description.o sequence_manager.o $(DEPS)
+	$(CXX) $(CXXFLAGS) sdbg_builder.cpp cx1_kmer_count.o options_description.o cx1_read2sdbg_s1.o cx1_read2sdbg_s2.o cx1_seq2sdbg.o sequence_manager.o $(LIB) -o megahit_sdbg_build
 
-megahit_assemble: assembler.cpp succinct_dbg.o rank_and_select.h assembly_algorithms.o branch_group.o options_description.o unitig_graph.o $(DEPS)
-	$(CXX) $(CXXFLAGS) assembler.cpp succinct_dbg.o assembly_algorithms.o branch_group.o options_description.o unitig_graph.o $(LIB) -o megahit_assemble
+megahit_asm_core: $(LIB_ASM) $(LIB_IDBA) asm_core.cpp assembler.cpp local_assemble.cpp iterate_edges.cpp $(DEPS)
+	$(CXX) $(CXXFLAGS) asm_core.cpp assembler.cpp local_assemble.cpp iterate_edges.cpp $(LIB_IDBA) $(LIB_ASM) $(LIB) -o megahit_asm_core
 
-megahit_iter: iterate_edges.cpp iterate_edges.h options_description.o city.o sequence_manager.o $(DEPS)
-	$(CXX) $(CXXFLAGS) iterate_edges.cpp options_description.o city.o sequence_manager.o $(LIB) -o megahit_iter
-
-megahit_local_asm: local_assembler.o city.o options_description.o sequence_manager.o local_assemble.cpp $(LIB_IDBA) $(DEPS)
-	$(CXX) $(CXXFLAGS) local_assemble.cpp local_assembler.o options_description.o city.o sequence_manager.o $(LIB_IDBA) $(LIB) -o megahit_local_asm
-
-megahit_toolkits: $(TOOLKITS)
+megahit_toolkits: $(TOOLKITS) $(DEPS)
 	$(CXX) $(CXXFLAGS) $(TOOLKITS) $(LIB) -o megahit_toolkits
-
 
 #-------------------------------------------------------------------------------
 # Applications for debug usage
@@ -236,33 +245,33 @@ lv2_gpu_functions_$(SUFFIX).o: .lv2_gpu_functions_$(SUFFIX).cpp $(DEPS)
 	$(CXX) $(CXXFLAGS) -c .lv2_gpu_functions_$(SUFFIX).cpp -o lv2_gpu_functions_$(SUFFIX).o
 
 cx1_kmer_count_gpu.o: cx1_kmer_count.cpp $(DEPS)
-	$(CXX) $(CXXFLAGS) -D USE_GPU -c cx1_kmer_count.cpp -lpthread -o cx1_kmer_count_gpu.o
+	$(CXX) $(CXXFLAGS) -D USE_GPU -c cx1_kmer_count.cpp -o cx1_kmer_count_gpu.o
 
 cx1_read2sdbg_s1_gpu.o: cx1_read2sdbg_s1.cpp $(DEPS)
-	$(CXX) $(CXXFLAGS) -D USE_GPU -c cx1_read2sdbg_s1.cpp -lpthread -o cx1_read2sdbg_s1_gpu.o
+	$(CXX) $(CXXFLAGS) -D USE_GPU -c cx1_read2sdbg_s1.cpp -o cx1_read2sdbg_s1_gpu.o
 
 cx1_read2sdbg_s2_gpu.o: cx1_read2sdbg_s2.cpp $(DEPS)
-	$(CXX) $(CXXFLAGS) -D USE_GPU -c cx1_read2sdbg_s2.cpp -lpthread -o cx1_read2sdbg_s2_gpu.o
+	$(CXX) $(CXXFLAGS) -D USE_GPU -c cx1_read2sdbg_s2.cpp -o cx1_read2sdbg_s2_gpu.o
 
 cx1_seq2sdbg_gpu.o: cx1_seq2sdbg.cpp $(DEPS)
-	$(CXX) $(CXXFLAGS) -D USE_GPU -c cx1_seq2sdbg.cpp -lpthread -o cx1_seq2sdbg_gpu.o
+	$(CXX) $(CXXFLAGS) -D USE_GPU -c cx1_seq2sdbg.cpp -o cx1_seq2sdbg_gpu.o
 
 #-------------------------------------------------------------------------------
 # GPU Applications
 #-------------------------------------------------------------------------------
-sdbg_builder_gpu: sdbg_builder.cpp cx1_kmer_count_gpu.o cx1_read2sdbg_s1_gpu.o cx1_read2sdbg_s2_gpu.o cx1_seq2sdbg_gpu.o lv2_gpu_functions_$(SUFFIX).o options_description.o sequence_manager.o $(DEPS)
-	$(CXX) $(CXXFLAGS) $(CUDALIBFLAG) -D USE_GPU sdbg_builder.cpp lv2_gpu_functions_$(SUFFIX).o cx1_kmer_count_gpu.o cx1_read2sdbg_s1_gpu.o cx1_read2sdbg_s2_gpu.o cx1_seq2sdbg_gpu.o options_description.o sequence_manager.o $(LIB) -lpthread -o sdbg_builder_gpu
+megahit_sdbg_build_gpu: sdbg_builder.cpp cx1_kmer_count_gpu.o cx1_read2sdbg_s1_gpu.o cx1_read2sdbg_s2_gpu.o cx1_seq2sdbg_gpu.o lv2_gpu_functions_$(SUFFIX).o options_description.o sequence_manager.o $(DEPS)
+	$(CXX) $(CXXFLAGS) $(CUDALIBFLAG) -D USE_GPU sdbg_builder.cpp lv2_gpu_functions_$(SUFFIX).o cx1_kmer_count_gpu.o cx1_read2sdbg_s1_gpu.o cx1_read2sdbg_s2_gpu.o cx1_seq2sdbg_gpu.o options_description.o sequence_manager.o $(LIB) -o megahit_sdbg_build_gpu
 
 #-------------------------------------------------------------------------------
 # Build binary directory
 #-------------------------------------------------------------------------------
 
 .PHONY:
-test: megahit_assemble megahit_iter sdbg_builder_cpu megahit_local_asm megahit_toolkits
+test: megahit_asm_core megahit_sdbg_build megahit_toolkits
 	-rm -fr example/megahit_out
 	./megahit --12 example/readsInterleaved.fa -o example/megahit_out -t 4
 
-test_gpu: megahit_assemble megahit_iter sdbg_builder_gpu megahit_local_asm megahit_toolkits
+test_gpu: megahit_asm_core megahit_sdbg_build_gpu megahit_toolkits
 	-rm -fr example/megahit_gpu_out
 	./megahit --12 example/readsInterleaved.fa --use-gpu -o example/megahit_gpu_out -t 4
 
@@ -271,4 +280,4 @@ clean:
 	-rm -fr *.i* *.cubin *.cu.c *.cudafe* *.fatbin.c *.ptx *.hash *.cu.cpp *.o .*.o .*.cpp \
 		$(LIB_IDBA) \
 		example/megahit_*out \
-		megahit_assemble megahit_iter sdbg_builder_cpu sdbg_builder_gpu megahit_local_asm megahit_toolkits
+		megahit_asm_core megahit_sdbg_build megahit_sdbg_build_gpu megahit_toolkits

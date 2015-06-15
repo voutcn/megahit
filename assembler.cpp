@@ -35,7 +35,7 @@
 
 using std::string;
 
-struct AssemblerOptions {
+struct asm_opt_t {
     string sdbg_name;
     string output_prefix;
     int num_cpu_threads;
@@ -51,7 +51,7 @@ struct AssemblerOptions {
     double low_local_ratio;
     bool output_standalone;
 
-    AssemblerOptions() {
+    asm_opt_t() {
         output_prefix = "out";
         num_cpu_threads = 0;
         max_tip_len = -1;
@@ -78,9 +78,11 @@ struct AssemblerOptions {
         return output_prefix + ".addi.fa";
     }
 
-} opt;
+};
 
-void ParseOption(int argc, char *argv[]) {
+static asm_opt_t opt;
+
+void ParseAsmOption(int argc, char *argv[]) {
     OptionsDescription desc;
 
     desc.AddOption("sdbg_name", "s", opt.sdbg_name, "succinct de Bruijn graph name");
@@ -140,14 +142,8 @@ void PrintStat(std::map<int64_t, int> &hist) {
     xlog("Maximum length: %llu\n", (unsigned long long)(hist.size() > 0 ? hist.rbegin()->first : 0));
 }
 
-static AutoMaxRssRecorder recorder;
-
-int main(int argc, char **argv) {
-    // set stdout line buffered
-    setvbuf(stdout, NULL, _IONBF, 0);
-    setvbuf(stderr, NULL, _IONBF, 0);
-
-    ParseOption(argc, argv);
+int main_assemble(int argc, char **argv) {
+    ParseAsmOption(argc, argv);
 
     SuccinctDBG dbg;
     xtimer_t timer;

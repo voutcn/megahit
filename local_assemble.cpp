@@ -19,8 +19,7 @@
 /* contact: Dinghua Li <dhli@cs.hku.hk> */
 
 #include <string>
-
-#include "omp.h"
+#include <omp.h>
 
 #include "options_description.h"
 #include "local_assembler.h"
@@ -53,9 +52,11 @@ struct local_asm_opt_t {
         min_mapping_len = 75;
         num_threads = 0;
     }
-} opt;
+};
 
-void ParseOption(int argc, char *argv[]) {
+static local_asm_opt_t opt;
+
+void ParseLocalAsmOptions(int argc, char *argv[]) {
     OptionsDescription desc;
 
     desc.AddOption("contig_file", "c", opt.contig_file, "contig file");
@@ -90,10 +91,8 @@ void ParseOption(int argc, char *argv[]) {
     }
 }
 
-static AutoMaxRssRecorder recorder;
-
-int main(int argc, char **argv) {
-    ParseOption(argc, argv);
+int main_local(int argc, char **argv) {
+    ParseLocalAsmOptions(argc, argv);
 
     omp_set_num_threads(opt.num_threads);
 

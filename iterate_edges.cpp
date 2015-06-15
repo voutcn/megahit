@@ -18,13 +18,13 @@
 
 /* contact: Dinghua Li <dhli@cs.hku.hk> */
 
-#include "iterate_edges.h"
-
 #include <stdio.h>
 #include <pthread.h>
 #include <omp.h>
 #include <stdlib.h>
+#include <stdint.h>
 #include <assert.h>
+#include <zlib.h>
 
 #include <string>
 #include <vector>
@@ -45,9 +45,28 @@
 using std::string;
 using std::vector;
 
-static AutoMaxRssRecorder recorder;
+struct IterateGlobalData {
+    char dna_map[256];
 
-struct Options {
+    std::string contig_file;
+    std::string read_file;
+    std::string read_format;
+    std::string output_prefix;
+
+    int kmer_k;
+    int step;
+    int next_k1; // = next_k + 1
+    int num_cpu_threads;
+
+    // stat
+    int64_t num_of_reads;
+    int64_t num_of_contigs;
+    int64_t num_of_iterative_edges;
+    int64_t num_of_remaining_reads;
+};
+
+
+struct iter_opt_t {
     string contig_file;
     string read_file;
     string read_format;
@@ -56,7 +75,7 @@ struct Options {
     int step;
     string output_prefix;
 
-    Options() {
+    iter_opt_t() {
         read_format = "";
         num_cpu_threads = 0;
         kmer_k = 0;
@@ -70,67 +89,69 @@ struct Options {
     string output_read_file() {
         return output_prefix + ".rr.bin";
     }
-} options;
+};
 
-static void ParseOptions(int argc, char *argv[]) {
+static iter_opt_t opt;
+
+static void ParseIterOptions(int argc, char *argv[]) {
     OptionsDescription desc;
 
-    desc.AddOption("contig_file", "c", options.contig_file, "(*) contigs file, fasta/fastq format, output by assembler");
-    desc.AddOption("read_file", "r", options.read_file, "(*) reads to be aligned. \"-\" for stdin. Can be gzip'ed.");
-    desc.AddOption("read_format", "f", options.read_format, "(*) reads' format. fasta, fastq or binary.");
-    desc.AddOption("num_cpu_threads", "t", options.num_cpu_threads, "number of cpu threads, at least 2. 0 for auto detect.");
-    desc.AddOption("kmer_k", "k", options.kmer_k, "(*) current kmer size.");
-    desc.AddOption("step", "s", options.step, "(*) step for iteration (<= 29). i.e. this iteration is from kmer_k to (kmer_k + step)");
-    desc.AddOption("output_prefix", "o", options.output_prefix, "(*) output_prefix.edges.0 and output_prefix.rr.pb will be created.");
+    desc.AddOption("contig_file", "c", opt.contig_file, "(*) contigs file, fasta/fastq format, output by assembler");
+    desc.AddOption("read_file", "r", opt.read_file, "(*) reads to be aligned. \"-\" for stdin. Can be gzip'ed.");
+    desc.AddOption("read_format", "f", opt.read_format, "(*) reads' format. fasta, fastq or binary.");
+    desc.AddOption("num_cpu_threads", "t", opt.num_cpu_threads, "number of cpu threads, at least 2. 0 for auto detect.");
+    desc.AddOption("kmer_k", "k", opt.kmer_k, "(*) current kmer size.");
+    desc.AddOption("step", "s", opt.step, "(*) step for iteration (<= 29). i.e. this iteration is from kmer_k to (kmer_k + step)");
+    desc.AddOption("output_prefix", "o", opt.output_prefix, "(*) output_prefix.edges.0 and output_prefix.rr.pb will be created.");
 
     try {
         desc.Parse(argc, argv);
-        if (options.step + options.kmer_k >= std::max((int)Kmer<4>::max_size(), (int)GenericKmer::max_size())) {
+        if (opt.step + opt.kmer_k >= std::max((int)Kmer<4>::max_size(), (int)GenericKmer::max_size())) {
             std::ostringstream os;
             os << "kmer_k + step must less than " << std::max((int)Kmer<4>::max_size(), (int)GenericKmer::max_size());
             throw std::logic_error(os.str());
-        } else if (options.contig_file == "") {
+        } else if (opt.contig_file == "") {
             throw std::logic_error("No contig file!");
-        } else if (options.read_file == "") {
+        } else if (opt.read_file == "") {
             throw std::logic_error("No reads file!");
-        } else if (options.kmer_k <= 0) {
+        } else if (opt.kmer_k <= 0) {
             throw std::logic_error("Invalid kmer size!");
-        } else if (options.step <= 0 || options.step > 28 || options.step % 2 == 1) {
+        } else if (opt.step <= 0 || opt.step > 28 || opt.step % 2 == 1) {
             throw std::logic_error("Invalid step size!");
-        } else if (options.output_prefix == "") {
+        } else if (opt.output_prefix == "") {
             throw std::logic_error("No output prefix!");
-        } else if (options.read_format != "binary" && options.read_format != "fasta" && options.read_format != "fastq") {
+        } else if (opt.read_format != "binary" && opt.read_format != "fasta" && opt.read_format != "fastq") {
             throw std::logic_error("Invalid read format!");
         }
 
-        if (options.num_cpu_threads == 0) {
-            options.num_cpu_threads = omp_get_max_threads();
+        if (opt.num_cpu_threads == 0) {
+            opt.num_cpu_threads = omp_get_max_threads();
         }
         // must set the number of threads before the parallel hash table declared
-        if (options.num_cpu_threads > 1) {
-            omp_set_num_threads(options.num_cpu_threads - 1);
+        if (opt.num_cpu_threads > 1) {
+            omp_set_num_threads(opt.num_cpu_threads - 1);
         } else {
             omp_set_num_threads(1);
         }
     } catch (std::exception &e) {
         std::cerr << e.what() << std::endl;
-        std::cerr << "Usage: " << argv[0] << " [options]" << std::endl;
-        std::cerr << "options with (*) are must" << std::endl;
-        std::cerr << "options:" << std::endl;
+        std::cerr << "Usage: " << argv[0] << " [opt]" << std::endl;
+        std::cerr << "opt with (*) are must" << std::endl;
+        std::cerr << "opt:" << std::endl;
         std::cerr << desc << std::endl;
         exit(1);
     }
 }
 
 static void InitGlobalData(IterateGlobalData &globals) {
-    globals.kmer_k = options.kmer_k;
-    globals.step = options.step;
+    globals.kmer_k = opt.kmer_k;
+    globals.step = opt.step;
     globals.next_k1 = globals.kmer_k + globals.step + 1;
-    globals.num_cpu_threads = options.num_cpu_threads;
-    globals.read_format = options.read_format;
-    globals.contig_file = options.contig_file;
-    globals.read_file = options.read_file;
-    globals.output_prefix = options.output_prefix;
+    globals.num_cpu_threads = opt.num_cpu_threads;
+    globals.read_format = opt.read_format;
+    globals.contig_file = opt.contig_file;
+    globals.read_file = opt.read_file;
+    globals.output_prefix = opt.output_prefix;
 }
 
 static void* ReadContigsThread(void* seq_manager) {
@@ -326,7 +347,7 @@ static bool ReadReadsAndProcessKernel(IterateGlobalData &globals,
         num_total_reads += rp.size();
 
         if (num_total_reads % (16 << 22) == 0) {
-            xlog("Total: %lld, aligned: %lld. Iterative edges: %llu\n", (long long)num_total_reads, (long long)num_aligned_reads, (unsigned long long)iterative_edges.size());
+            xlog("Processed: %lld, aligned: %lld. Iterative edges: %llu\n", (long long)num_total_reads, (long long)num_aligned_reads, (unsigned long long)iterative_edges.size());
         }
     }
     xlog("Total: %lld, aligned: %lld. Iterative edges: %llu\n", (long long)num_total_reads, (long long)num_aligned_reads, (unsigned long long)iterative_edges.size());
@@ -334,7 +355,7 @@ static bool ReadReadsAndProcessKernel(IterateGlobalData &globals,
     // write iterative edges
     if (iterative_edges.size() > 0) {
         xlog("Writing iterative edges...\n");
-        FILE *output_edge_file = OpenFileAndCheck(options.output_edge_file().c_str(), "wb");
+        FILE *output_edge_file = OpenFileAndCheck(opt.output_edge_file().c_str(), "wb");
 
         // header
         static const int kWordsPerEdge = ((globals.kmer_k + globals.step + 1) * 2 + kBitsPerMulti_t + 31) / 32;
@@ -461,13 +482,13 @@ bool IterateToNextK(IterateGlobalData &globals) {
     return false;
 }
 
-int main(int argc, char *argv[]) {
+int main_iterate(int argc, char *argv[]) {
     // set stdout line buffered
     setvbuf(stdout, NULL, _IONBF, 0);
     setvbuf(stderr, NULL, _IONBF, 0);
 
     IterateGlobalData globals;
-    ParseOptions(argc, argv);
+    ParseIterOptions(argc, argv);
     InitGlobalData(globals);
 
     while (true) {
