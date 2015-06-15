@@ -103,6 +103,14 @@ struct SequencePackage {
         // start_idx_.shrink_to_fit();
     }
 
+    void reserve_bases(size_t num_bases) {
+        packed_seq.reserve((num_bases + kCharsPerWord) / kCharsPerWord);
+    }
+
+    void reserve_num_seq(size_t num_seq) {
+        start_idx_.reserve(num_seq + 1);
+    }
+
     size_t length(size_t seq_id) {
         if (seq_id < num_fixed_len_items_) {
             return fixed_len_;
@@ -131,6 +139,7 @@ struct SequencePackage {
 
     void BuildLookup() {
         pos_to_id_.clear();
+        pos_to_id_.reserve(start_idx_.back() / kLookupStep + 4);
         size_t abs_offset = num_fixed_len_items_ * fixed_len_;
         size_t cur_id = num_fixed_len_items_;
 

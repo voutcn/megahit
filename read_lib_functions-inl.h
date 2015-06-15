@@ -104,6 +104,10 @@ inline void ReadBinaryLibs(const std::string &file_prefix, SequencePackage &pack
     FILE *lib_info_file = OpenFileAndCheck(FormatString("%s.lib_info", file_prefix.c_str()), "r");
     int64_t start, end;
     int max_read_len;
+    int64_t total_bases, num_reads;
+
+    assert(fscanf(lib_info_file, "%" SCNd64 "%" SCNd64 "", &total_bases, &num_reads) == 2); 
+
     while (fscanf(lib_info_file, "%" SCNd64 "", &start) == 1) {
         char is_pe[32];
         assert(fscanf(lib_info_file, "%" SCNd64 "", &end) == 1);
@@ -113,6 +117,8 @@ inline void ReadBinaryLibs(const std::string &file_prefix, SequencePackage &pack
     }
     fclose(lib_info_file);
 
+    package.reserve_num_seq(num_reads);
+    package.reserve_bases(total_bases);
     SequenceManager seq_manager(&package);
     seq_manager.set_file_type(SequenceManager::kBinaryReads);
     seq_manager.set_file(FormatString("%s.bin", file_prefix.c_str()));
@@ -138,12 +144,13 @@ inline void WriteMultipleLibs(SequencePackage &package, std::vector<lib_info_t> 
     seq_manager.WriteBinarySequences(bin_file, is_reverse);
     fclose(bin_file);
 
-    FILE *se_file = OpenFileAndCheck(FormatString("%s.lib_info", file_prefix.c_str()), "w");
+    FILE *lib_info_file = OpenFileAndCheck(FormatString("%s.lib_info", file_prefix.c_str()), "w");
+    fprintf(lib_info_file, "%zu %zu\n", package.base_size(), package.size());
     for (unsigned i = 0; i < lib_info.size(); ++i) {
-        fprintf(se_file, "%" PRId64 " %" PRId64 " %d %s\n", lib_info[i].from, lib_info[i].to,
+        fprintf(lib_info_file, "%" PRId64 " %" PRId64 " %d %s\n", lib_info[i].from, lib_info[i].to,
                 lib_info[i].max_read_len, lib_info[i].is_pe ? "pe" : "se");
     }
-    fclose(se_file);
+    fclose(lib_info_file);
 }
 
 #endif
