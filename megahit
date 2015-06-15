@@ -35,7 +35,7 @@ import logging
 import time
 from datetime import datetime
 
-megahit_version_str = "MEGAHIT v1.0-alpha"
+megahit_version_str = "MEGAHIT 0.3.0-beta"
 usage_message = '''
 Copyright (c) The University of Hong Kong
 
@@ -43,10 +43,10 @@ Usage:
   megahit [options] {-r <se> | -1 <pe1> -2 <pe2> | --12 <pe12>} [-o <out_dir>]
 
   Input options that can be specified for multiple times:
-    -r/--read                <se>           comma-separated list of single-end files
-    -1                       <pe1>          comma-separated list of paired-end #1 files, paired with files in <pe2>
-    -2                       <pe2>          comma-separated list of paired-end #2 files, paired with files in <pe1>
-    --12                     <pe12>         comma-separated list of interleaved paired-end files
+    -r/--read                <se>           comma-separated list of fasta/q single-end files
+    -1                       <pe1>          comma-separated list of fasta/q paired-end #1 files, paired with files in <pe2>
+    -2                       <pe2>          comma-separated list of fasta/q paired-end #2 files, paired with files in <pe1>
+    --12                     <pe12>         comma-separated list of interleaved fasta/q paired-end files
 
   Input options that can be specified for at most ONE time (not recommended):
     --input-cmd              <cmd>          command that outputs fasta/q reads to stdout; taken by MEGAHIT as SE reads 
@@ -60,7 +60,6 @@ Optional Arguments:
     --use-gpu                               use GPU
     --gpu-mem                <float>        GPU memory in byte to be used. Default: auto detect to use up all free GPU memory. 
     -t/--num-cpu-threads     <int>          number of CPU threads, at least 2. Default: auto detect to use all CPU threads.
-    --kmin-1pass                            use 1pass mode to build SdBG of k_min
 
   Output options:
     -o/--out-dir             <string>       output directory, default: ./megahit_out
@@ -69,10 +68,14 @@ Optional Arguments:
     --keep-tmp-files                        keep all temporary files
 
   Basic assembly options:
+    --k-list                 <int,int,..>   comma-separated list of k; all must be odd; difference between adjacent k <= 28;
+                                            15 <= k <= 127 for all k's; default 21,33,55,77,99
+    --min-count              <int>          minimum multiplicity for filtering (k_min+1)-mers, default: 2
+
+   overwrite --k-list if one of the followings is set:
     --k-min                  <int>          minimum kmer size (<= 127), must be odd number, default: 21
     --k-max                  <int>          maximum kmer size (<= 127), must be odd number, default: 99
     --k-step                 <int>          increment of kmer size of each iteration (<= 28), must be even number, default: 10
-    --min-count              <int>          minimum multiplicity for filtering (k_min+1)-mers, default: 2.
 
   Advanced assembly options:
     --no-mercy                              do not add mercy kmers
@@ -82,6 +85,7 @@ Optional Arguments:
     --low-local-ratio        <float>        ratio threshold to define low local coverage contigs, default: 0.2
     --max-tip-len            <int>          remove tips less than this value; default: 2*k for iteration of kmer_size=k
     --no-local                              disable local assembly
+    --kmin-1pass                            use 1pass mode to build SdBG of k_min
 
 Other Arguments:
     --continue                              continue a MEGAHIT run from its last available check point.
@@ -107,6 +111,8 @@ class Options():
         self.k_min = 21
         self.k_max = 99
         self.k_step = 10
+        self.k_list = [21,33,55,77,99]
+        self.set_list_by_min_max_step = False
         self.min_count = 2
         self.bin_dir = sys.path[0] + "/"
         self.max_tip_len = -1
@@ -174,6 +180,7 @@ def parse_opt(argv):
                                      "k-min=",
                                      "k-max=",
                                      "k-step=",
+                                     "k-list="
                                      "num-cpu-threads=",
                                      "min-count=",
                                      "no-mercy",
@@ -216,10 +223,15 @@ def parse_opt(argv):
             opt.lib = value
         elif option == "--k-min":
             opt.k_min = int(value)
+            opt.set_list_by_min_max_step = True
         elif option == "--k-max":
             opt.k_max = int(value)
+            opt.set_list_by_min_max_step = True
         elif option == "--k-step":
             opt.k_step = int(value)
+            opt.set_list_by_min_max_step = True
+        elif option == "--k-list":
+            opt.k_list = list(map(float, value.split(","))).sort()
         elif option == "--min-count":
             opt.min_count = int(value)
         elif option == "--max-tip-len":
@@ -293,22 +305,42 @@ def check_opt():
             print("Using: " + str(round(float(opt.host_mem)/(1024**3),3)) + "Gb.", file=sys.stderr)
     else:
         opt.host_mem = long(opt.host_mem)
+
+    if opt.set_list_by_min_max_step:
+        if opt.k_step % 2 == 1:
+            raise Usage("k-step must be even number!")
+        if opt.k_min > opt.k_max:
+            raise Usage("Error: k_min > k_max!")
+
+        opt.k_list = list()
+        k = opt.k_min
+        while k < opt.k_max:
+            opt.k_list.append(k)
+            k = k + opt.k_step
+        opt.k_list.append(opt.k_max)
+
+    if len(opt.k_list) == 0:
+        raise Usage("k list should not be empty!")
+
+    if opt.k_list[0] < 15 or opt.k_list[len(opt.k_list) - 1] > 127:
+        raise Usage("All k's should be in range [15, 127]")
+
+    for k in opt.k_list:
+        if k % 2 == 0:
+            raise Usage("All k must be odd number!")
+
+    for i in range(1, len(opt.k_list)):
+        if opt.k_list[i] - opt.k_list[i-1] > 28:
+            raise Usage("k-step/adjacent k difference must be <= 28")
+
+    opt.k_min, opt.k_max = opt.k_list[0], opt.k_list[len(opt.k_list) - 1]
+
     if opt.use_gpu == 0:
         opt.gpu_mem = 0
     if opt.lib != "" and not os.path.exists(opt.lib):
         raise Usage("Can't find file:\n" + opt.lib + "\nPlease try a valid file with -r option.", file=sys.stderr)
-    if opt.k_min < 15:
-        raise Usage("k_min should be at least 15.")
-    if opt.k_max > 127:
-        raise Usage("k_max cannot exceed 127.")
     if opt.k_max < opt.k_min:
         raise Usage("k_min should be no larger than k_max.")
-    if opt.k_min % 2 == 0 or opt.k_max % 2 == 0:
-        raise Usage("k_min and k_max must be odd numbers.")
-    if opt.k_step > 28:
-        raise Usage("step must be less than 29.")
-    if opt.k_step % 2 != 0:
-        raise Usage("step must be an even number.")
     if opt.min_count <= 0:
         raise Usage("min_count must be greater than 0.")
     if opt.prune_level < 0 or opt.prune_level > 2:
@@ -482,7 +514,7 @@ def build_first_graph():
                 line = p.stderr.readline().rstrip()
                 if not line:
                     break;
-                logging.info(line)
+                logging.debug(line)
 
             ret_code = p.wait()
 
@@ -550,7 +582,7 @@ def build_graph(kmer_k, kmer_from, num_edge_files):
                 line = p.stderr.readline().rstrip()
                 if not line:
                     break;
-                logging.info(line)
+                logging.debug(line)
 
             ret_code = p.wait()
 
@@ -594,7 +626,7 @@ def iterate(cur_k, step):
                 line = p.stderr.readline().rstrip()
                 if not line:
                     break;
-                logging.info(line)
+                logging.debug(line)
 
             ret_code = p.wait()
 
@@ -657,7 +689,7 @@ def assemble(cur_k):
                 line = p.stderr.readline().rstrip()
                 if not line:
                     break;
-                logging.info(line)
+                logging.debug(line)
 
             ret_code = p.wait()
 
@@ -676,7 +708,7 @@ def assemble(cur_k):
     if (not opt.keep_tmp_files) and (cur_k != opt.k_max):
         delete_tmp_after_assemble(cur_k)
 
-def local_assemble(cur_k):
+def local_assemble(cur_k, kmer_to):
     global cp
     if (not opt.continue_mode) or (cp > opt.last_cp):
         la_cmd = [opt.bin_dir + "megahit_asm_core", "local",
@@ -684,7 +716,7 @@ def local_assemble(cur_k):
                   "-l", graph_prefix(opt.k_min) + ".all_reads",
                   "-t", str(opt.num_cpu_threads),
                   # "--sparsity", "1",
-                  "--kmax", str(min(cur_k + opt.k_step, opt.k_max))]
+                  "--kmax", str(kmer_to)]
         try:
             logging.info("--- [%s] Local assembling k = %d ---" % (datetime.now().strftime("%c"), cur_k))
             logging.debug("cmd: %s" % (" ").join(la_cmd))
@@ -697,7 +729,7 @@ def local_assemble(cur_k):
                 line = p.stderr.readline().rstrip()
                 if not line:
                     break;
-                logging.info(line)
+                logging.debug(line)
 
             ret_code = p.wait()
 
@@ -750,6 +782,7 @@ def main(argv = None):
 
         logging.info(megahit_version_str)
         logging.info("--- [%s] Start assembly. Number of CPU threads %d ---" % (datetime.now().strftime("%c"), opt.num_cpu_threads))
+        logging.info("--- [%s] k list: %s ---" % (datetime.now().strftime("%c"), ','.join(map(str, opt.k_list))))
 
         write_lib()
 
@@ -758,21 +791,23 @@ def main(argv = None):
         build_first_graph()
         assemble(opt.k_min)
 
-        k_step = opt.k_step
         cur_k = opt.k_min
-        while cur_k < opt.k_max:
-            if not opt.no_local:
-                local_assemble(cur_k)
-            next_k = min(cur_k + k_step, opt.k_max)
-            if next_k > opt.k_max:
-                k_step = opt.k_max - cur_k
-                next_k = opt.k_max
+        next_k_idx = 0
 
-            iterate(cur_k, next_k - cur_k)
+        while cur_k < opt.k_max:
+            next_k_idx += 1
+            next_k = opt.k_list[next_k_idx]
+            k_step = next_k - cur_k
+
+            if not opt.no_local:
+                local_assemble(cur_k, next_k)
+
+            iterate(cur_k, k_step)
 
             if not build_graph(next_k, cur_k, 1):
                 opt.k_max = cur_k # for merging cur_k.contigs.fa to final
                 break
+
             assemble(next_k)
             cur_k = next_k
         # end while
