@@ -73,7 +73,24 @@ void SequenceManager::set_edge_files(const std::string &file_prefix, int num_fil
     edge_reader_inited_ = true;
 }
 
-int64_t SequenceManager::ReadShortReads(int64_t max_num, int64_t max_num_bases, bool append, bool reverse) {
+inline void trimN(const char *s, int len, int &out_bpos, int &out_epos) {
+    out_bpos = len;
+    out_epos = len;
+
+    int i;
+    for (i = 0; i < len; ++i) {
+        if (s[i] == 'N' || s[i] == 'n') {
+            if (out_bpos < len) { break; }
+        } else {
+            if (out_bpos == len) {
+                out_bpos = i;
+            }
+        }
+    }
+    out_epos = i;
+}
+
+int64_t SequenceManager::ReadShortReads(int64_t max_num, int64_t max_num_bases, bool append, bool reverse, bool trimN) {
     if (!append) {
         package_->clear();
     }
@@ -87,15 +104,23 @@ int64_t SequenceManager::ReadShortReads(int64_t max_num, int64_t max_num_bases, 
                 if (kseq_read(kseq_readers_[0]) >= 0) {
                     assert(kseq_read(kseq_readers_[1]) >= 0);
 
-                    if (reverse) {
-                        package_->AppendReverseSeq(kseq_readers_[0]->seq.s, kseq_readers_[0]->seq.l);
-                        package_->AppendReverseSeq(kseq_readers_[1]->seq.s, kseq_readers_[1]->seq.l);
-                    } else {
-                        package_->AppendSeq(kseq_readers_[0]->seq.s, kseq_readers_[0]->seq.l);
-                        package_->AppendSeq(kseq_readers_[1]->seq.s, kseq_readers_[1]->seq.l);
+                    int b0 = 0, e0 = kseq_readers_[0]->seq.l;
+                    int b1 = 0, e1 = kseq_readers_[1]->seq.l;
+
+                    if (trimN) {
+                        ::trimN(kseq_readers_[0]->seq.s, kseq_readers_[0]->seq.l, b0, e0);
+                        ::trimN(kseq_readers_[1]->seq.s, kseq_readers_[1]->seq.l, b0, e0);
                     }
 
-                    num_bases += kseq_readers_[0]->seq.l + kseq_readers_[1]->seq.l;
+                    if (reverse) {
+                        package_->AppendReverseSeq(kseq_readers_[0]->seq.s + b0, e0 - b0);
+                        package_->AppendReverseSeq(kseq_readers_[1]->seq.s + b1, e1 - b1);
+                    } else {
+                        package_->AppendSeq(kseq_readers_[0]->seq.s + b0, e0 - b0);
+                        package_->AppendSeq(kseq_readers_[1]->seq.s + b1, e1 - b1);
+                    }
+
+                    num_bases += e0 - b0 + e1 - b1;
                     if (num_bases >= max_num_bases) {
                         return i + 2;
                     }
@@ -107,13 +132,19 @@ int64_t SequenceManager::ReadShortReads(int64_t max_num, int64_t max_num_bases, 
         } else {
             for (int64_t i = 0; i < max_num; ++i) {
                 if (kseq_read(kseq_readers_[0]) >= 0) {
-                    if (reverse) {
-                        package_->AppendReverseSeq(kseq_readers_[0]->seq.s, kseq_readers_[0]->seq.l);
-                    } else {
-                        package_->AppendSeq(kseq_readers_[0]->seq.s, kseq_readers_[0]->seq.l);
+                    int b = 0, e = kseq_readers_[0]->seq.l;
+
+                    if (trimN) {
+                        ::trimN(kseq_readers_[0]->seq.s, kseq_readers_[0]->seq.l, b, e);
                     }
 
-                    num_bases += kseq_readers_[0]->seq.l;
+                    if (reverse) {
+                        package_->AppendReverseSeq(kseq_readers_[0]->seq.s + b, e - b);
+                    } else {
+                        package_->AppendSeq(kseq_readers_[0]->seq.s + b, e - b);
+                    }
+
+                    num_bases += e - b;
                     if (num_bases >= max_num_bases && i % 2 == 1) {
                         return i + 1;
                     }
