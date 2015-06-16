@@ -421,7 +421,7 @@ def prepare_continue():
     print("Continue from check point " + str(opt.last_cp), file=sys.stderr) 
 
 def check_bin():
-    for subprogram in ["megahit_asm_core", "megahit_toolkits"]:
+    for subprogram in ["megahit_asm_core", "megahit_toolkit"]:
         if not os.path.exists(opt.bin_dir + subprogram):
             raise Usage(megahit_version_str + '\n' + "Cannot find sub-program \"" + subprogram + "\", please recompile.")
 
@@ -833,7 +833,7 @@ def merge_final():
     if opt.out_prefix != "":
         final_contig_name = opt.out_dir + opt.out_prefix + ".contigs.fa"
     os.system("cat " + opt.temp_dir + "*.final.contigs.fa " + graph_prefix(opt.k_max) + ".contigs.fa | " +
-              opt.bin_dir + "megahit_toolkits filterbylen " + str(opt.min_contig_len) + " > " + final_contig_name);
+              opt.bin_dir + "megahit_toolkit filterbylen " + str(opt.min_contig_len) + " > " + final_contig_name);
 
 def main(argv = None):
     if argv is None:

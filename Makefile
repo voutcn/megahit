@@ -174,10 +174,10 @@ DEPS = Makefile $(STANDALONE_H)
 # CPU & GPU version
 #-------------------------------------------------------------------------------
 ifeq ($(use_gpu), 1)
-all:  megahit_asm_core megahit_sdbg_build_gpu megahit_sdbg_build megahit_toolkits
+all:  megahit_asm_core megahit_sdbg_build_gpu megahit_sdbg_build megahit_toolkit
 	chmod +x ./megahit
 else
-all:  megahit_asm_core megahit_sdbg_build megahit_toolkits
+all:  megahit_asm_core megahit_sdbg_build megahit_toolkit
 	chmod +x ./megahit
 endif
 
@@ -195,11 +195,11 @@ LIB_IDBA += $(LIB_IDBA_DIR)/sequence.o
 # Tookits
 #-------------------------------------------------------------------------------
 TOOLS_DIR = tools
-TOOLKITS = $(TOOLS_DIR)/toolkits.cpp
-TOOLKITS += $(TOOLS_DIR)/contigs_to_fastg.cpp
-TOOLKITS += $(TOOLS_DIR)/read_stat.cpp
-TOOLKITS += $(TOOLS_DIR)/trim_low_qual_tail.cpp
-TOOLKITS += $(TOOLS_DIR)/filter_by_len.cpp
+TOOLKIT = $(TOOLS_DIR)/toolkit.cpp
+TOOLKIT += $(TOOLS_DIR)/contigs_to_fastg.cpp
+TOOLKIT += $(TOOLS_DIR)/read_stat.cpp
+TOOLKIT += $(TOOLS_DIR)/trim_low_qual_tail.cpp
+TOOLKIT += $(TOOLS_DIR)/filter_by_len.cpp
 
 #-------------------------------------------------------------------------------
 # CPU objectives
@@ -224,8 +224,8 @@ megahit_sdbg_build: sdbg_builder.cpp cx1.h lv2_cpu_sort.h cx1_kmer_count.o cx1_r
 megahit_asm_core: $(LIB_ASM) $(LIB_IDBA) asm_core.cpp assembler.cpp local_assemble.cpp iterate_edges.cpp $(DEPS)
 	$(CXX) $(CXXFLAGS) asm_core.cpp assembler.cpp local_assemble.cpp iterate_edges.cpp $(LIB_IDBA) $(LIB_ASM) $(LIB) -o megahit_asm_core
 
-megahit_toolkits: $(TOOLKITS) $(DEPS)
-	$(CXX) $(CXXFLAGS) $(TOOLKITS) $(LIB) -o megahit_toolkits
+megahit_toolkit: $(TOOLKIT) $(DEPS)
+	$(CXX) $(CXXFLAGS) $(TOOLKIT) $(LIB) -o megahit_toolkit
 
 #-------------------------------------------------------------------------------
 # Applications for debug usage
@@ -267,11 +267,11 @@ megahit_sdbg_build_gpu: sdbg_builder.cpp cx1_kmer_count_gpu.o cx1_read2sdbg_s1_g
 #-------------------------------------------------------------------------------
 
 .PHONY:
-test: megahit_asm_core megahit_sdbg_build megahit_toolkits
+test: megahit_asm_core megahit_sdbg_build megahit_toolkit
 	-rm -fr example/megahit_out
 	./megahit --12 example/readsInterleaved1.fa.gz,example/readsInterleaved2.fa.bz2,example/readsInterleaved3.fa -o example/megahit_out -t 4
 
-test_gpu: megahit_asm_core megahit_sdbg_build_gpu megahit_toolkits
+test_gpu: megahit_asm_core megahit_sdbg_build_gpu megahit_toolkit
 	-rm -fr example/megahit_gpu_out
 	./megahit --12 example/readsInterleaved1.fa.gz,example/readsInterleaved2.fa.bz2,example/readsInterleaved3.fa --use-gpu -o example/megahit_gpu_out -t 4
 
@@ -280,4 +280,4 @@ clean:
 	-rm -fr *.i* *.cubin *.cu.c *.cudafe* *.fatbin.c *.ptx *.hash *.cu.cpp *.o .*.o .*.cpp \
 		$(LIB_IDBA) \
 		example/megahit_*out \
-		megahit_asm_core megahit_sdbg_build megahit_sdbg_build_gpu megahit_toolkits
+		megahit_asm_core megahit_sdbg_build megahit_sdbg_build_gpu megahit_toolkit
