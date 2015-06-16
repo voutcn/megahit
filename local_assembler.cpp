@@ -333,56 +333,59 @@ inline uint64_t PackMappingResult(uint64_t contig_offset, uint64_t is_mate, uint
            (strand << 44) | read_id;
 }
 
-bool LocalAssembler::AddToMappingDeque_(size_t read_id, const MappingRecord &rec, int local_range) {
+int LocalAssembler::AddToMappingDeque_(size_t read_id, const MappingRecord &rec, int local_range) {
     // xlog("%lu %Lu\n", read_id, rec.contig_id);
     assert(read_id < reads_->size());
     assert(rec.contig_id < contigs_->size());
 
     int contig_len = contigs_->length(rec.contig_id);
     int read_len = reads_->length(read_id);
-    if (rec.contig_to < local_range && rec.query_from != 0) {
+    int ret = 0;
+
+    if (rec.contig_to < local_range && rec.query_from != 0 && rec.query_to == read_len - 1) {
         uint64_t res = PackMappingResult(rec.contig_to, 0, rec.mismatch, rec.strand, read_id);
         omp_set_lock(&locks_[rec.contig_id % kMaxNumLocks]);
         mapped_f_[rec.contig_id].push_back(res);
         omp_unset_lock(&locks_[rec.contig_id % kMaxNumLocks]);
-        return true;
-    } else if (rec.contig_from + local_range >= contig_len && rec.query_to < read_len - 1) {
+        ret++;
+    } else if (rec.contig_from + local_range >= contig_len && rec.query_to < read_len - 1 && rec.query_from == 0) {
         uint64_t res = PackMappingResult(contig_len - 1 - rec.contig_from, 0, rec.mismatch, rec.strand, read_id);
         omp_set_lock(&locks_[rec.contig_id % kMaxNumLocks]);
         mapped_r_[rec.contig_id].push_back(res);
         omp_unset_lock(&locks_[rec.contig_id % kMaxNumLocks]);
-        return true;
+        ret++;
     }
 
-    return false;
+    return ret;
 }
 
-bool LocalAssembler::AddMateToMappingDeque_(size_t read_id, size_t mate_id, const MappingRecord &rec1, const MappingRecord &rec2, bool mapped2, int local_range) {
+int LocalAssembler::AddMateToMappingDeque_(size_t read_id, size_t mate_id, const MappingRecord &rec1, const MappingRecord &rec2, bool mapped2, int local_range) {
     assert(read_id < reads_->size());
     assert(mate_id < reads_->size());
     assert(rec1.contig_id < contigs_->size());
     assert(!mapped2 || rec2.contig_id < contigs_->size());
 
     if (mapped2 && rec2.contig_id == rec1.contig_id)
-        return false;
+        return 0;
 
     int contig_len = contigs_->length(rec1.contig_id);
+    int ret = 0;
 
     if (rec1.contig_to < local_range && rec1.strand == 1) {
         uint64_t res = PackMappingResult(rec1.contig_to, 1, rec1.mismatch, rec1.strand, mate_id);
         omp_set_lock(&locks_[rec1.contig_id % kMaxNumLocks]);
         mapped_f_[rec1.contig_id].push_back(res);
         omp_unset_lock(&locks_[rec1.contig_id % kMaxNumLocks]);
-        return true;
+        ret++;
     } else if (rec1.contig_from + local_range >= contig_len && rec1.strand == 0) {
         uint64_t res = PackMappingResult(contig_len - 1 - rec1.contig_from, 1, rec1.mismatch, rec1.strand, mate_id);
         omp_set_lock(&locks_[rec1.contig_id % kMaxNumLocks]);
         mapped_r_[rec1.contig_id].push_back(res);
         omp_unset_lock(&locks_[rec1.contig_id % kMaxNumLocks]);
-        return true;
+        ret++;
     }
 
-    return false;
+    return ret;
 }
 
 void LocalAssembler::MapToContigs() {

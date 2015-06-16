@@ -117,8 +117,8 @@ struct LocalAssembler {
     void AddToHashMapper_(mapper_t &mapper, unsigned contig_id, int sparsity);
     int Match_(size_t read_id, int query_from, int query_to, size_t contig_id, int ref_from, int ref_to, bool strand);
     int LocalRange_(int lib_id);
-    bool AddToMappingDeque_(size_t read_id, const MappingRecord &rec, int local_range);
-    bool AddMateToMappingDeque_(size_t read_id, size_t mate_id, const MappingRecord &rec1, const MappingRecord &rec2, bool mapped2, int local_range);
+    int AddToMappingDeque_(size_t read_id, const MappingRecord &rec, int local_range);
+    int AddMateToMappingDeque_(size_t read_id, size_t mate_id, const MappingRecord &rec1, const MappingRecord &rec2, bool mapped2, int local_range);
     bool MapToHashMapper_(const mapper_t &mapper, size_t read_id, MappingRecord &rec);
     static void* LocalAssembleThread_(void *task);
 };
