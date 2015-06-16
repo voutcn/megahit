@@ -42,7 +42,7 @@ Copyright (c) The University of Hong Kong
 Usage:
   megahit [options] {-r <se> | -1 <pe1> -2 <pe2> | --12 <pe12>} [-o <out_dir>]
 
-  Input options that can be specified for multiple times:
+  Input options that can be specified for multiple times (supporting plain text and gz/bz2 extensions)
     -r/--read                <se>           comma-separated list of fasta/q single-end files
     -1                       <pe1>          comma-separated list of fasta/q paired-end #1 files, paired with files in <pe2>
     -2                       <pe2>          comma-separated list of fasta/q paired-end #2 files, paired with files in <pe1>
@@ -105,7 +105,6 @@ class Options():
     def __init__(self):
         self.host_mem = 0.9
         self.gpu_mem = 0
-        self.lib = ""
         self.out_dir = "./megahit_out/"
         self.min_contig_len = 200
         self.k_min = 21
@@ -138,6 +137,7 @@ class Options():
         self.pe12 = []
         self.se = []
         self.input_cmd = ""
+        self.inpipe = dict()
 
 opt = Options()
 cp = 0
@@ -180,7 +180,7 @@ def parse_opt(argv):
                                      "k-min=",
                                      "k-max=",
                                      "k-step=",
-                                     "k-list="
+                                     "k-list=",
                                      "num-cpu-threads=",
                                      "min-count=",
                                      "no-mercy",
@@ -219,8 +219,6 @@ def parse_opt(argv):
             opt.num_cpu_threads = int(value)
         elif option == "--kmin-1pass":
             opt.kmin_1pass = True
-        elif option == "--lib":
-            opt.lib = value
         elif option == "--k-min":
             opt.k_min = int(value)
             opt.set_list_by_min_max_step = True
@@ -231,7 +229,8 @@ def parse_opt(argv):
             opt.k_step = int(value)
             opt.set_list_by_min_max_step = True
         elif option == "--k-list":
-            opt.k_list = list(map(float, value.split(","))).sort()
+            opt.k_list = list(map(int, value.split(",")))
+            opt.k_list.sort()
         elif option == "--min-count":
             opt.min_count = int(value)
         elif option == "--max-tip-len":
@@ -337,8 +336,6 @@ def check_opt():
 
     if opt.use_gpu == 0:
         opt.gpu_mem = 0
-    if opt.lib != "" and not os.path.exists(opt.lib):
-        raise Usage("Can't find file:\n" + opt.lib + "\nPlease try a valid file with -r option.", file=sys.stderr)
     if opt.k_max < opt.k_min:
         raise Usage("k_min should be no larger than k_max.")
     if opt.min_count <= 0:
@@ -366,6 +363,9 @@ def check_opt():
     for r in opt.pe1 + opt.pe2 + opt.se + opt.pe12:
         if not os.path.exists(r):
             raise Usage("Cannot find file " + r)
+
+    if opt.input_cmd == "" and len(opt.pe1 + opt.pe2 + opt.se + opt.pe12) == 0:
+        raise Usage("No input files or input command!")
 
 def detect_available_mem():
     mem = long()
@@ -455,22 +455,52 @@ def delete_tmp_after_assemble(kmer_k):
 def delete_tmp_after_iter(kmer_k):
     delect_file_if_exist(graph_prefix(kmer_k) + ".rr.pb")
 
-def write_cp(cp):
+def write_cp():
+    global cp
     cpf = open(opt.temp_dir + "cp.txt", "a")
     print(str(cp) + "\t" + "done", file=cpf);
+    cp = cp + 1
     cpf.close()
+
+def inpipe_cmd(file_name):
+    if file_name.endswith('.gz'):
+        return 'gzip -cd ' + file_name
+    elif file_name.endswith('.bz2'):
+        return 'bzip2 -cd ' + file_name
+    else:
+        return ""
 
 def write_lib():
     opt.lib = opt.temp_dir + "reads.lib"
     lib = open(opt.lib, "w")
-    for r in opt.pe12:
-        print("interleaved " + r, file=lib)
+    for i in range(0, len(opt.pe12)):
+        if inpipe_cmd(opt.pe12[i]) != "":
+            print("interleaved " + opt.temp_dir + "inpipe.pe12." + str(i), file=lib)
+        else:
+            print("interleaved " + opt.pe12[i], file=lib)
+
     for i in range(0, len(opt.pe1)):
-        print("pe " + opt.pe1[i] + " " + opt.pe2[i], file=lib)
-    for r in opt.se:
-        print("se " + r, file=lib)
+        if inpipe_cmd(opt.pe1[i]) != "":
+            f1 = opt.temp_dir + "inpipe.pe1." + str(i)
+        else:
+            f1 = opt.pe1[i]
+
+        if inpipe_cmd(opt.pe2[i]) != "":
+            f2 = opt.temp_dir + "inpipe.pe2." + str(i)
+        else:
+            f2 = opt.pe2[i]
+
+        print("pe " + f1 + " " + f2, file=lib)
+
+    for i in range(0, len(opt.se)):
+        if inpipe_cmd(opt.se[i]) != "":
+            print("se " + opt.temp_dir + "inpipe.se." + str(i), file=lib)
+        else:
+            print("se " + opt.se[i], file=lib)
+
     if opt.input_cmd != "":
         print("se " + "-", file=lib)
+
     lib.close()
 
 def build_first_graph():
@@ -496,6 +526,26 @@ def build_first_graph():
             cmd = [opt.bin_dir + opt.builder, "count"] + count_opt
 
         try:
+            # create inpipe
+            for i in range(0, len(opt.pe12)):
+                if inpipe_cmd(opt.pe12[i]) != "":
+                    delect_file_if_exist(opt.temp_dir + "inpipe.pe12." + str(i))
+                    os.mkfifo(opt.temp_dir + "inpipe.pe12." + str(i))
+
+            for i in range(0, len(opt.pe1)):
+                if inpipe_cmd(opt.pe1[i]) != "":
+                    delect_file_if_exist(opt.temp_dir + "inpipe.pe1." + str(i))
+                    os.mkfifo(opt.temp_dir + "inpipe.pe1." + str(i))
+                
+                if inpipe_cmd(opt.pe2[i]) != "":
+                    delect_file_if_exist(opt.temp_dir + "inpipe.pe2." + str(i))
+                    os.mkfifo(opt.temp_dir + "inpipe.pe2." + str(i))
+
+            for i in range(0, len(opt.se)):
+                if inpipe_cmd(opt.se[i]) != "":
+                    delect_file_if_exist(opt.temp_dir + "inpipe.se." + str(i))
+                    os.mkfifo(opt.temp_dir + "inpipe.se." + str(i))
+
             if opt.kmin_1pass:
                 logging.info("--- [%s] Extracting solid (k+1)-mers and building sdbg for k = %d ---" % (datetime.now().strftime("%c"), opt.k_min))
             else:
@@ -509,6 +559,40 @@ def build_first_graph():
                 p = subprocess.Popen(cmd, stdin = input_thread.stdout, stdout = subprocess.PIPE, stderr=subprocess.PIPE)
             else:
                 p = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+
+            # output to inpipe
+            for i in range(0, len(opt.pe12)):
+                if inpipe_cmd(opt.pe12[i]) != "":
+                    ip_file12 = open(opt.temp_dir + "inpipe.pe12." + str(i), "w")
+                    ip_thread12 = subprocess.Popen(inpipe_cmd(opt.pe12[i]), shell = True, stdout = ip_file12)
+                    ip_thread12.wait()
+                    ip_file12.close()
+                    delect_file_if_exist(opt.temp_dir + "inpipe.pe12." + str(i))
+
+            for i in range(0, len(opt.pe1)):
+                if inpipe_cmd(opt.pe1[i]) != "":
+                    ip_file1 = open(opt.temp_dir + "inpipe.pe1." + str(i), "w")
+                    ip_thread1 = subprocess.Popen(inpipe_cmd(opt.pe1[i]), shell = True, stdout = ip_file1)
+                
+                if inpipe_cmd(opt.pe2[i]) != "":
+                    ip_file2 = open(opt.temp_dir + "inpipe.pe2." + str(i), "w")
+                    ip_thread2 = subprocess.Popen(inpipe_cmd(opt.pe2[i]), shell = True, stdout = ip_file2)
+
+                if inpipe_cmd(opt.pe1[i]) != "":
+                    ip_thread1.wait()
+                    ip_file1.close()
+
+                if inpipe_cmd(opt.pe2[i]) != "":
+                    ip_thread2.wait()
+                    ip_file2.close()
+
+            for i in range(0, len(opt.se)):
+                if input_cmd(opt.se[i]) != "":
+                    ip_file_se = open(opt.temp_dir + "inpipe.se." + str(i), "w")
+                    ip_thread_se = subprocess.Popen(inpipe_cmd(opt.se[i]), shell = True, stdout = ip_file_se)
+                    ip_thread_se.wait()
+                    ip_file_se.close()
+                    delect_file_if_exist(opt.temp_dir + "inpipe.se." + str(i))
 
             while True:
                 line = p.stderr.readline().rstrip()
@@ -528,8 +612,7 @@ def build_first_graph():
                 logging.error("Error: sub-program sdbg_builder not found, please recompile MEGAHIT")
             exit(1)
 
-    write_cp(cp)
-    cp = cp + 1
+    write_cp()
     if not opt.kmin_1pass:
         build_graph(opt.k_min, opt.k_min, phase1_out_threads)
     elif not opt.keep_tmp_files:
@@ -596,8 +679,7 @@ def build_graph(kmer_k, kmer_from, num_edge_files):
                 logging.error("Error: sub-program builder not found, please recompile MEGAHIT")
             exit(1) 
 
-    write_cp(cp)
-    cp = cp + 1
+    write_cp()
     if not opt.keep_tmp_files:
         delete_tmp_after_build(kmer_k)
     return True
@@ -640,8 +722,7 @@ def iterate(cur_k, step):
                 logging.error("Error: sub-program megahit_iter not found, please recompile MEGAHIT")
             exit(1)
 
-    write_cp(cp)
-    cp = cp + 1
+    write_cp()
     if not opt.keep_tmp_files:
         delete_tmp_after_iter(cur_k)
 
@@ -703,8 +784,7 @@ def assemble(cur_k):
                 logging.error("Error: sub-program megahit_assemble not found, please recompile MEGAHIT")
             exit(1)
 
-    write_cp(cp)
-    cp = cp + 1
+    write_cp()
     if (not opt.keep_tmp_files) and (cur_k != opt.k_max):
         delete_tmp_after_assemble(cur_k)
 
@@ -745,8 +825,7 @@ def local_assemble(cur_k, kmer_to):
                 logging.error("Error: sub-program megahit_local_asm not found, please recompile MEGAHIT")
             exit(1)
 
-    write_cp(cp)
-    cp = cp + 1
+    write_cp()
 
 def merge_final():
     logging.info("--- [%s] Merging to output final contigs ---" % (datetime.now().strftime("%c")))
@@ -813,6 +892,18 @@ def main(argv = None):
         # end while
 
         merge_final()
+        write_cp()
+
+        if (not opt.continue_mode) or (cp > opt.last_cp):
+            contig_dir = opt.out_dir + "intermediate_contigs/"
+            if not os.path.exists(contig_dir):
+                os.mkdir(contig_dir)
+                os.system('mv -f ' + opt.temp_dir + "*.fa " + contig_dir)
+        write_cp()
+
+        if os.path.exists(opt.temp_dir):
+            shutil.rmtree(opt.temp_dir)
+
         open(opt.out_dir + "done", "w").close()
 
         logging.info("--- [%s] ALL DONE. Time elapsed: %f seconds ---" % (datetime.now().strftime("%c"), time.time() - start_time))
