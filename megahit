@@ -68,14 +68,12 @@ Optional Arguments:
     --keep-tmp-files                        keep all temporary files
 
   Basic assembly options:
-    --k-list                 <int,int,..>   comma-separated list of k; all must be odd; difference between adjacent k <= 28;
-                                            15 <= k <= 127 for all k's; default 21,33,49,65,81,97
     --min-count              <int>          minimum multiplicity for filtering (k_min+1)-mers, default 2
-
-   overwrite --k-list if one of the followings is set:
     --k-min                  <int>          minimum kmer size (<= 127), must be odd number, default 21
     --k-max                  <int>          maximum kmer size (<= 127), must be odd number, default 99
     --k-step                 <int>          increment of kmer size of each iteration (<= 28), must be even number, default 10
+    --k-list                 <int,int,..>   comma-separated list of kmer size (all must be odd, in the range 15-127, increment <= 28);
+                                            overwriting `--k-min', `--k-max' and `--k-step'
 
   Advanced assembly options:
     --no-mercy                              do not add mercy kmers
@@ -109,9 +107,9 @@ class Options():
         self.min_contig_len = 200
         self.k_min = 21
         self.k_max = 99
-        self.k_step = 10
-        self.k_list = [21,33,49,65,81,97]
-        self.set_list_by_min_max_step = False
+        self.k_step = 20
+        self.k_list = list()
+        self.set_list_by_min_max_step = True
         self.min_count = 2
         self.bin_dir = sys.path[0] + "/"
         self.max_tip_len = -1
@@ -221,16 +219,14 @@ def parse_opt(argv):
             opt.kmin_1pass = True
         elif option == "--k-min":
             opt.k_min = int(value)
-            opt.set_list_by_min_max_step = True
         elif option == "--k-max":
             opt.k_max = int(value)
-            opt.set_list_by_min_max_step = True
         elif option == "--k-step":
             opt.k_step = int(value)
-            opt.set_list_by_min_max_step = True
         elif option == "--k-list":
             opt.k_list = list(map(int, value.split(",")))
             opt.k_list.sort()
+            opt.set_list_by_min_max_step = True
         elif option == "--min-count":
             opt.min_count = int(value)
         elif option == "--max-tip-len":
