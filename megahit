@@ -226,7 +226,7 @@ def parse_opt(argv):
         elif option == "--k-list":
             opt.k_list = list(map(int, value.split(",")))
             opt.k_list.sort()
-            opt.set_list_by_min_max_step = True
+            opt.set_list_by_min_max_step = False
         elif option == "--min-count":
             opt.min_count = int(value)
         elif option == "--max-tip-len":
@@ -523,24 +523,30 @@ def build_first_graph():
 
         try:
             # create inpipe
+            fifos = list()
+
             for i in range(0, len(opt.pe12)):
                 if inpipe_cmd(opt.pe12[i]) != "":
                     delect_file_if_exist(opt.temp_dir + "inpipe.pe12." + str(i))
                     os.mkfifo(opt.temp_dir + "inpipe.pe12." + str(i))
+                    fifos.append(opt.temp_dir + "inpipe.pe12." + str(i))
 
             for i in range(0, len(opt.pe1)):
                 if inpipe_cmd(opt.pe1[i]) != "":
                     delect_file_if_exist(opt.temp_dir + "inpipe.pe1." + str(i))
                     os.mkfifo(opt.temp_dir + "inpipe.pe1." + str(i))
+                    fifos.append(opt.temp_dir + "inpipe.pe1." + str(i))
                 
                 if inpipe_cmd(opt.pe2[i]) != "":
                     delect_file_if_exist(opt.temp_dir + "inpipe.pe2." + str(i))
                     os.mkfifo(opt.temp_dir + "inpipe.pe2." + str(i))
+                    fifos.append(opt.temp_dir + "inpipe.pe2." + str(i))
 
             for i in range(0, len(opt.se)):
                 if inpipe_cmd(opt.se[i]) != "":
                     delect_file_if_exist(opt.temp_dir + "inpipe.se." + str(i))
                     os.mkfifo(opt.temp_dir + "inpipe.se." + str(i))
+                    fifos.append(opt.temp_dir + "inpipe.se." + str(i))
 
             if opt.kmin_1pass:
                 logging.info("--- [%s] Extracting solid (k+1)-mers and building sdbg for k = %d ---" % (datetime.now().strftime("%c"), opt.k_min))
@@ -557,38 +563,27 @@ def build_first_graph():
                 p = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 
             # output to inpipe
+            pipes = list()
+
             for i in range(0, len(opt.pe12)):
                 if inpipe_cmd(opt.pe12[i]) != "":
-                    ip_file12 = open(opt.temp_dir + "inpipe.pe12." + str(i), "w")
-                    ip_thread12 = subprocess.Popen(inpipe_cmd(opt.pe12[i]), shell = True, stdout = ip_file12)
-                    ip_thread12.wait()
-                    ip_file12.close()
-                    delect_file_if_exist(opt.temp_dir + "inpipe.pe12." + str(i))
+                    ip_thread12 = subprocess.Popen(inpipe_cmd(opt.pe12[i]) + " > " + opt.temp_dir + "inpipe.pe12." + str(i), shell = True)
+                    pipes.append(ip_thread12)
 
             for i in range(0, len(opt.pe1)):
                 if inpipe_cmd(opt.pe1[i]) != "":
-                    ip_file1 = open(opt.temp_dir + "inpipe.pe1." + str(i), "w")
-                    ip_thread1 = subprocess.Popen(inpipe_cmd(opt.pe1[i]), shell = True, stdout = ip_file1)
+                    ip_thread1 = subprocess.Popen(inpipe_cmd(opt.pe1[i]) + " > " + opt.temp_dir + "inpipe.pe1." + str(i), shell = True)
+                    pipes.append(ip_thread1)
                 
                 if inpipe_cmd(opt.pe2[i]) != "":
-                    ip_file2 = open(opt.temp_dir + "inpipe.pe2." + str(i), "w")
-                    ip_thread2 = subprocess.Popen(inpipe_cmd(opt.pe2[i]), shell = True, stdout = ip_file2)
-
-                if inpipe_cmd(opt.pe1[i]) != "":
-                    ip_thread1.wait()
-                    ip_file1.close()
-
-                if inpipe_cmd(opt.pe2[i]) != "":
-                    ip_thread2.wait()
-                    ip_file2.close()
+                    ip_thread2 = subprocess.Popen(inpipe_cmd(opt.pe2[i]) + " > " + opt.temp_dir + "inpipe.pe2." + str(i), shell = True)
+                    pipes.append(ip_thread2)
 
             for i in range(0, len(opt.se)):
                 if input_cmd(opt.se[i]) != "":
                     ip_file_se = open(opt.temp_dir + "inpipe.se." + str(i), "w")
-                    ip_thread_se = subprocess.Popen(inpipe_cmd(opt.se[i]), shell = True, stdout = ip_file_se)
-                    ip_thread_se.wait()
-                    ip_file_se.close()
-                    delect_file_if_exist(opt.temp_dir + "inpipe.se." + str(i))
+                    ip_thread_se = subprocess.Popen(inpipe_cmd(opt.se[i]) + " > " + opt.temp_dir + "inpipe.se." + str(i), shell = True)
+                    pipes.append(ip_thread_se)
 
             while True:
                 line = p.stderr.readline().rstrip()
@@ -601,7 +596,17 @@ def build_first_graph():
             if ret_code != 0:
                 logging.error("Error occurs when running \"sdbg_builder count/read2sdbg\"")
                 logging.error("[Exit code %d] " % ret_code)
+
+                for f in fifos:
+                    delect_file_if_exist(f)
+
                 exit(ret_code)
+
+            for f in fifos:
+                delect_file_if_exist(f)
+            for p in pipes:
+                if p.wait() != 0:
+                    raise Usage("Error occurs when reading inputs")
 
         except OSError as o:
             if o.errno == errno.ENOTDIR or o.errno == errno.ENOENT:
@@ -897,13 +902,12 @@ def main(argv = None):
                 os.system('mv -f ' + opt.temp_dir + "*.fa " + contig_dir)
         write_cp()
 
-        if os.path.exists(opt.temp_dir):
+        if not opt.keep_tmp_files and os.path.exists(opt.temp_dir):
             shutil.rmtree(opt.temp_dir)
 
         open(opt.out_dir + "done", "w").close()
 
         logging.info("--- [%s] ALL DONE. Time elapsed: %f seconds ---" % (datetime.now().strftime("%c"), time.time() - start_time))
-
 
     except Usage as err:
         print(sys.argv[0].split("/")[-1] + ": " + str(err.msg), file=sys.stderr)
