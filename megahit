@@ -27,9 +27,9 @@ import getopt
 import subprocess
 import errno
 import os, glob
-import warnings
 import shutil
 import locale
+import signal
 import multiprocessing
 import logging
 import time
@@ -567,22 +567,22 @@ def build_first_graph():
 
             for i in range(0, len(opt.pe12)):
                 if inpipe_cmd(opt.pe12[i]) != "":
-                    ip_thread12 = subprocess.Popen(inpipe_cmd(opt.pe12[i]) + " > " + opt.temp_dir + "inpipe.pe12." + str(i), shell = True)
+                    ip_thread12 = subprocess.Popen(inpipe_cmd(opt.pe12[i]) + " > " + opt.temp_dir + "inpipe.pe12." + str(i), shell = True, preexec_fn = os.setsid)
                     pipes.append(ip_thread12)
 
             for i in range(0, len(opt.pe1)):
                 if inpipe_cmd(opt.pe1[i]) != "":
-                    ip_thread1 = subprocess.Popen(inpipe_cmd(opt.pe1[i]) + " > " + opt.temp_dir + "inpipe.pe1." + str(i), shell = True)
+                    ip_thread1 = subprocess.Popen(inpipe_cmd(opt.pe1[i]) + " > " + opt.temp_dir + "inpipe.pe1." + str(i), shell = True, preexec_fn = os.setsid)
                     pipes.append(ip_thread1)
                 
                 if inpipe_cmd(opt.pe2[i]) != "":
-                    ip_thread2 = subprocess.Popen(inpipe_cmd(opt.pe2[i]) + " > " + opt.temp_dir + "inpipe.pe2." + str(i), shell = True)
+                    ip_thread2 = subprocess.Popen(inpipe_cmd(opt.pe2[i]) + " > " + opt.temp_dir + "inpipe.pe2." + str(i), shell = True, preexec_fn = os.setsid)
                     pipes.append(ip_thread2)
 
             for i in range(0, len(opt.se)):
                 if input_cmd(opt.se[i]) != "":
                     ip_file_se = open(opt.temp_dir + "inpipe.se." + str(i), "w")
-                    ip_thread_se = subprocess.Popen(inpipe_cmd(opt.se[i]) + " > " + opt.temp_dir + "inpipe.se." + str(i), shell = True)
+                    ip_thread_se = subprocess.Popen(inpipe_cmd(opt.se[i]) + " > " + opt.temp_dir + "inpipe.se." + str(i), shell = True, preexec_fn = os.setsid)
                     pipes.append(ip_thread_se)
 
             while True:
@@ -597,16 +597,18 @@ def build_first_graph():
                 logging.error("Error occurs when running \"sdbg_builder count/read2sdbg\"")
                 logging.error("[Exit code %d] " % ret_code)
 
+                for p in pipes:
+                    os.killpg(p.pid, signal.SIGTERM)
                 for f in fifos:
                     delect_file_if_exist(f)
 
                 exit(ret_code)
 
-            for f in fifos:
-                delect_file_if_exist(f)
             for p in pipes:
                 if p.wait() != 0:
                     raise Usage("Error occurs when reading inputs")
+            for f in fifos:
+                delect_file_if_exist(f)
 
         except OSError as o:
             if o.errno == errno.ENOTDIR or o.errno == errno.ENOENT:
