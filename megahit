@@ -62,28 +62,28 @@ Optional Arguments:
     -t/--num-cpu-threads     <int>          number of CPU threads, at least 2. Default: auto detect to use all CPU threads.
 
   Output options:
-    -o/--out-dir             <string>       output directory, default: ./megahit_out
+    -o/--out-dir             <string>       output directory, default ./megahit_out
     --out-prefix             <string>       output prefix (the contig file will be OUT_DIR/OUT_PREFIX.contigs.fa)
-    --min-contig-len         <int>          minimum length of contigs to output, default: 200
+    --min-contig-len         <int>          minimum length of contigs to output, default 200
     --keep-tmp-files                        keep all temporary files
 
   Basic assembly options:
     --k-list                 <int,int,..>   comma-separated list of k; all must be odd; difference between adjacent k <= 28;
-                                            15 <= k <= 127 for all k's; default 21,33,55,77,99
-    --min-count              <int>          minimum multiplicity for filtering (k_min+1)-mers, default: 2
+                                            15 <= k <= 127 for all k's; default 21,33,49,65,81,97
+    --min-count              <int>          minimum multiplicity for filtering (k_min+1)-mers, default 2
 
    overwrite --k-list if one of the followings is set:
-    --k-min                  <int>          minimum kmer size (<= 127), must be odd number, default: 21
-    --k-max                  <int>          maximum kmer size (<= 127), must be odd number, default: 99
-    --k-step                 <int>          increment of kmer size of each iteration (<= 28), must be even number, default: 10
+    --k-min                  <int>          minimum kmer size (<= 127), must be odd number, default 21
+    --k-max                  <int>          maximum kmer size (<= 127), must be odd number, default 99
+    --k-step                 <int>          increment of kmer size of each iteration (<= 28), must be even number, default 10
 
   Advanced assembly options:
     --no-mercy                              do not add mercy kmers
     --no-bubble                             do not merge bubbles
-    --merge-level            <l,s>          merge complex bubbles of length <= l*kmer_size and similarity >= s, default: 20,0.98
+    --merge-level            <l,s>          merge complex bubbles of length <= l*kmer_size and similarity >= s, default 20,0.98
     --prune-level            <int>          strength of local low depth pruning (0-2), default 2
-    --low-local-ratio        <float>        ratio threshold to define low local coverage contigs, default: 0.2
-    --max-tip-len            <int>          remove tips less than this value; default: 2*k for iteration of kmer_size=k
+    --low-local-ratio        <float>        ratio threshold to define low local coverage contigs, default 0.2
+    --max-tip-len            <int>          remove tips less than this value; default 2*k for iteration of kmer_size=k
     --no-local                              disable local assembly
     --kmin-1pass                            use 1pass mode to build SdBG of k_min
 
@@ -110,7 +110,7 @@ class Options():
         self.k_min = 21
         self.k_max = 99
         self.k_step = 10
-        self.k_list = [21,33,55,77,99]
+        self.k_list = [21,33,49,65,81,97]
         self.set_list_by_min_max_step = False
         self.min_count = 2
         self.bin_dir = sys.path[0] + "/"
