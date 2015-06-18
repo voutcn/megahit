@@ -1,3 +1,15 @@
+### 0.3.0-beta / 2015-06-18 HKT
+
+New features:
+
+* `--max-read-len` parameter no longer required
+* `--memory` option set to 0.9 by default
+* make use of PE informations (with local assembly)
+* `--prune-level` and `--merge-level` for setting pruning and merging intensity
+* `--kmin-1pass` option for assembling ultra low-coverage datasets in less memory
+* supporting bzip2 input files
+* useful tools in `megahit_toolkit`, including contig2fastg for conversion of contig files into SPAdes-like fastg
+
 ### 0.2.1 / 2015-03-18
 Bug Fixes:
 
