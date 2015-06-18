@@ -33,7 +33,7 @@ If MEGAHIT is successfully compiled, it can be run by the following command:
 
 or type `make test` in MEGAHIT's source directory for a quick test and `./megahit -h` for usage message.
 
-If you need install MEGAHIT to another directory after compilation, please copy `megahit`, `megahit_asm_core` and `megahit_sdbg_build` (and `megahit_sdbg_build_gpu`) to the destination.
+If you need to install MEGAHIT to another directory after compilation, please copy `megahit`, `megahit_asm_core`, `megahit_toolkit` and `megahit_sdbg_build` (and `megahit_sdbg_build_gpu` for GPU counterpart) to the destination.
 
 ### Using GPU Version
 To use the GPU version, run `make use_gpu=1` to compile MEGAHIT, and run MEGAHIT with `--use-gpu`. GPU version has only been tested in Linux.
@@ -42,9 +42,9 @@ Assembly Tips
 ------------------------
 ###Choosing *k*
 MEGAHIT uses multiple *k*-mer strategy. Minimum *k*, maximum *k* and the step for iteration can be set by options `--k-min`, `--k-max` and `--k-step` respectively. *k* must be odd numbers while the step must be an even number. 
-* For ultra complex metagenomics data such as soil, a larger *k<sub>min</sub>*, say 27, is recommended to reduce the complexity of the *de Bruijn* graph. Quality trimming is also recommended
-* For high-depth generic data, large `--k-min` (25 to 31) is recommended
-* Smaller `--k-step`, say 10, is more friendly to low-coverage datasets
+* for ultra complex metagenomics data such as soil, a larger *k<sub>min</sub>*, say 27, is recommended to reduce the complexity of the *de Bruijn* graph. Quality trimming is also recommended
+* for high-depth generic data, large `--k-min` (25 to 31) is recommended
+* smaller `--k-step`, say 10, is more friendly to low-coverage datasets
 
 ###Filtering (*k<sub>min</sub>*+1)-mer
 (*k<sub>min</sub>*+1)-mer with multiplicity lower than *d* (default 2, specified by `--min-count` option) will be discarded. You should be cautious to set *d* less than 2, which will lead to a much larger and noisy graph. We recommend using the default value 2 for metagenomics assembly. If you want to use MEGAHIT to do generic assembly, please change this value according to the sequencing depth. (recommend `--min-count 3` for >40x).
@@ -71,7 +71,7 @@ License
 -----------------------
 MEGAHIT is released under GPLv3. Several third-party codes are used, including:
 
+* [IDBA package](http://i.cs.hku.hk/~alse/hkubrg/projects/idba/) under GPLv2
 * [CUB](https://github.com/NVlabs/cub) under "New BSD" license
 * [klib](https://github.com/attractivechaos/klib) under MIT license
-* [IDBA package](http://i.cs.hku.hk/~alse/hkubrg/projects/idba/) under GPLv2
 * [CityHash](https://code.google.com/p/cityhash/) under MIT license
