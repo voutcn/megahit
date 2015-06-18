@@ -580,8 +580,7 @@ def build_first_graph():
                     pipes.append(ip_thread2)
 
             for i in range(0, len(opt.se)):
-                if input_cmd(opt.se[i]) != "":
-                    ip_file_se = open(opt.temp_dir + "inpipe.se." + str(i), "w")
+                if inpipe_cmd(opt.se[i]) != "":
                     ip_thread_se = subprocess.Popen(inpipe_cmd(opt.se[i]) + " > " + opt.temp_dir + "inpipe.se." + str(i), shell = True, preexec_fn = os.setsid)
                     pipes.append(ip_thread_se)
 
