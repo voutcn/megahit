@@ -21,12 +21,15 @@
 #include <cstdlib>
 #include <cassert>
 
+#include "kseq.h"
+#include "utils.h"
+
 using namespace std;
 
-int main(int argc, char const *argv[])
+int main_binary_edge_to_ascii(int argc, char const *argv[])
 {
     if (argc < 5) {
-        fprintf(stderr, "Usage: %s [edge_file_prefix] [num_files] [has_header] [kmer_k]\n", argv[0]);
+        fprintf(stderr, "Usage: %s <edge_file_prefix> <num_files> <has_header=0|1> <kmer_k>\n", argv[0]);
         exit(1);
     }
 
@@ -36,12 +39,9 @@ int main(int argc, char const *argv[])
     int kmer_k = atoi(argv[4]);
     int words_per_edge = ((kmer_k + 1) * 2 + 16 + 31) / 32;
     unsigned int buf[1024];
-    static char acgt[] = "ACGT";
 
     for (int i = 0; i < num_files; ++i) {
-        char file_name[1024];
-        sprintf(file_name, "%s.%d", file_prefix, i);
-        FILE *cur_file = fopen(file_name, "rb");
+        FILE *cur_file = fopen(FormatString("%s.%d", file_prefix, i), "rb");
         assert(cur_file != NULL);
 
         if (has_header && i == 0) {
@@ -54,11 +54,11 @@ int main(int argc, char const *argv[])
 
         while (fread(buf, sizeof(unsigned int), words_per_edge, cur_file) == words_per_edge) {
             for (int k = 0; k < kmer_k + 1; ++k) {
-                printf("%c", acgt[3 - ((buf[k / 16] >> (15 - k % 16) * 2) & 3)]);
+                printf("%c", "ACGT"[3 - ((buf[k / 16] >> (15 - k % 16) * 2) & 3)]);
             }
             puts("");
             for (int k = kmer_k; k >= 0; --k) {
-                printf("%c", acgt[((buf[k / 16] >> (15 - k % 16) * 2) & 3)]);
+                printf("%c", "ACGT"[((buf[k / 16] >> (15 - k % 16) * 2) & 3)]);
             }
             puts("");
         }

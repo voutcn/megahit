@@ -1,8 +1,6 @@
 /*
- *  succinct_dbg.h
- *  This file is a part of MEGAHIT
- *  
- *  Copyright (C) 2014 The University of Hong Kong
+ *  MEGAHIT
+ *  Copyright (C) 2014 - 2015 The University of Hong Kong
  *
  *  This program is free software: you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -18,17 +16,21 @@
  *  along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+/* contact: Dinghua Li <dhli@cs.hku.hk> */
+
 #ifndef SUCCINCT_DBG_H_
 #define SUCCINCT_DBG_H_
 #include <assert.h>
 #include <vector>
+#include "definitions.h"
 #include "rank_and_select.h"
+#include "khash.h"
 
 using std::vector;
+KHASH_MAP_INIT_INT64(k64v16, multi_t); // declare khash
 
 class SuccinctDBG {
   public:
-    typedef uint16_t multi_t;
     // constants
     static const int kAlphabetSize = 4;
     static const int kWAlphabetSize = 9;
@@ -55,9 +57,10 @@ class SuccinctDBG {
 
         if (need_to_free_mul_) {
             free(edge_multiplicities_);
+            kh_destroy(k64v16, large_multi_h_);
         }
     }
-    
+
     void LoadFromFile(const char *dbg_name);
     void init(unsigned long long *w, unsigned long long *last, long long *f, int64_t size, int kmer_k) {
         w_ = w;
@@ -120,11 +123,15 @@ class SuccinctDBG {
     }
 
     int EdgeMultiplicity(int64_t x) {
-        return edge_multiplicities_[x];
+        if (__builtin_expect(edge_multiplicities_[x] != kMulti2Sp, 1)) {
+            return edge_multiplicities_[x];
+        } else {
+            return kh_value(large_multi_h_, kh_get(k64v16, large_multi_h_, x));
+        }
     }
 
     int NodeMultiplicity(int64_t x);
-    
+
     int64_t Forward(int64_t x) { // the last node x points to
         uint8_t a = GetW(x);
         if (a > 4) {
@@ -165,6 +172,7 @@ class SuccinctDBG {
     void FreeMul() {
         if (need_to_free_mul_) {
             free(edge_multiplicities_);
+            kh_destroy(k64v16, large_multi_h_);
         }
         need_to_free_mul_ = false;
     }
@@ -176,7 +184,9 @@ class SuccinctDBG {
     unsigned long long *is_dollar_;
     unsigned long long *invalid_;
     uint32_t *dollar_node_seq_;
-    multi_t *edge_multiplicities_;
+    multi2_t *edge_multiplicities_;
+    khash_t(k64v16) *large_multi_h_;
+
     long long f_[kAlphabetSize + 2];
 
     unsigned int num_dollar_nodes_;
@@ -184,8 +194,8 @@ class SuccinctDBG {
 
     // auxiliary memory
     RankAndSelect4Bits rs_w_;
-    RankAndSelect1Bit rs_last_;
-    RankAndSelect1Bit rs_is_dollar_;
+    RankAndSelect1Bit<false> rs_last_;
+    RankAndSelect1Bit<true> rs_is_dollar_;
     bool need_to_free_;
     bool need_to_free_mul_;
 

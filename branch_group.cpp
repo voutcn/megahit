@@ -1,6 +1,6 @@
 /*
  *  MEGAHIT
- *  Copyright (C) 2014 The University of Hong Kong
+ *  Copyright (C) 2014 - 2015 The University of Hong Kong
  *
  *  This program is free software: you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -15,6 +15,8 @@
  *  You should have received a copy of the GNU General Public License
  *  along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
+
+/* contact: Dinghua Li <dhli@cs.hku.hk> */
 
 #include <assert.h>
 #include "branch_group.h"
@@ -99,7 +101,9 @@ bool BranchGroup::Search() {
                     break;
                 }
             }
-            if (converged) { break; }
+            if (converged) {
+                break;
+            }
         }
     }
     return converged && begin_node_ != end_node_;
@@ -127,6 +131,38 @@ bool BranchGroup::RemoveErrorBranches(double cutoff_ratio) {
         }
     }
 
+    // if (not_removed.size() > 1) {
+    //     int64_t biggest_id = -1;
+    //     unsigned remain_branch = 0;
+    //     for (unsigned i = 0; i < not_removed.size(); ++i) {
+    //         int j = not_removed[i];
+    //         int64_t b = -1;
+
+    //         int64_t node = branches_[j][1];
+    //         b = std::max(std::max(b, node), sdbg_->ReverseComplement(node));
+
+    //         node = branches_[j][branches_[j].size() - 2];
+    //         b = std::max(std::max(b, node), sdbg_->ReverseComplement(node));
+
+    //         if (b > biggest_id) {
+    //             biggest_id = b;
+    //             remain_branch = i;
+    //         }
+    //     }
+
+    //     for (unsigned i = 0; i < not_removed.size(); ++i) {
+    //         if (i == remain_branch) {
+    //             continue;
+    //         }
+    //         for (unsigned j = 1; j + 1 < branches_[not_removed[i]].size(); ++j) {
+    //             sdbg_->SetInvalid(branches_[not_removed[i]][j]);
+    //         }
+    //     }
+
+    //     not_removed[0] = not_removed[remain_branch];
+    //     not_removed.resize(1);
+    // }
+
     unsigned num_remained = 0;
     for (unsigned i = 0; i < not_removed.size(); ++i) {
         if (num_remained != not_removed[i]) {
@@ -137,6 +173,7 @@ bool BranchGroup::RemoveErrorBranches(double cutoff_ratio) {
         }
         ++num_remained;
     }
+
     branches_.resize(num_remained);
 
     if (num_remained == 1) {

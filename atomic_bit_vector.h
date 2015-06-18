@@ -1,8 +1,6 @@
 /*
- *  atomic_bit_vector.h
- *  This file is a part of MEGAHIT
- *  
- *  Copyright (C) 2014 The University of Hong Kong
+ *  MEGAHIT
+ *  Copyright (C) 2014 - 2015 The University of Hong Kong
  *
  *  This program is free software: you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -18,6 +16,8 @@
  *  along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+/* contact: Dinghua Li <dhli@cs.hku.hk> */
+
 #ifndef ATOMIC_BIT_VECTOR_H_
 #define ATOMIC_BIT_VECTOR_H_
 
@@ -29,7 +29,7 @@
 #include "mem_file_checker-inl.h"
 
 class AtomicBitVector {
-public:
+  public:
     typedef uint8_t word_t;
 
     AtomicBitVector(size_t size = 0): size_(size) {
@@ -45,20 +45,28 @@ public:
     }
 
     ~AtomicBitVector() {
-        if (data_ != NULL) { free(data_); }
+        if (data_ != NULL) {
+            free(data_);
+        }
     }
 
-    size_t size() { return size_; }
+    size_t size() {
+        return size_;
+    }
 
     bool get(size_t i) {
         return bool((data_[i / kBitsPerWord] >> i % kBitsPerWord) & 1);
     }
 
-    bool lock(size_t i) {
-        while (!((data_[i / kBitsPerWord] >> i % kBitsPerWord) & 1)) {
-            word_t old_value = data_[i / kBitsPerWord];
-            word_t new_value = data_[i / kBitsPerWord] | (word_t(1) << (i % kBitsPerWord));
-            if (__sync_bool_compare_and_swap(data_ + i / kBitsPerWord, old_value, new_value)) { return true; }
+    bool try_lock(size_t i) {
+        // assert(i / kBitsPerWord < num_words_);
+        word_t *p = data_ + i / kBitsPerWord;
+        while (!((*p >> i % kBitsPerWord) & 1)) {
+            word_t old_value = *p;
+            word_t new_value = old_value | (word_t(1) << (i % kBitsPerWord));
+            if (__sync_bool_compare_and_swap(p, old_value, new_value)) {
+                return true;
+            }
         }
         return false;
     }
@@ -68,6 +76,7 @@ public:
     }
 
     void unset(size_t i) {
+        // assert(i / kBitsPerWord < num_words_);
         word_t mask = ~(word_t(1) << (i % kBitsPerWord));
         __sync_fetch_and_and(data_ + i / kBitsPerWord, mask);
     }
@@ -98,8 +107,8 @@ public:
             std::swap(capacity_, rhs.capacity_);
         }
     }
-    
-private:
+
+  private:
     static const int kBitsPerByte = 8;
     static const int kBitsPerWord = sizeof(word_t) * kBitsPerByte;
     size_t size_;

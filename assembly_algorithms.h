@@ -1,6 +1,6 @@
 /*
  *  MEGAHIT
- *  Copyright (C) 2014 The University of Hong Kong
+ *  Copyright (C) 2014 - 2015 The University of Hong Kong
  *
  *  This program is free software: you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -15,6 +15,8 @@
  *  You should have received a copy of the GNU General Public License
  *  along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
+
+/* contact: Dinghua Li <dhli@cs.hku.hk> */
 
 #ifndef ASSEMBLY_ALGORITHMS_H_
 #define ASSEMBLY_ALGORITHMS_H_
@@ -33,23 +35,11 @@ int64_t NextSimplePathNode(SuccinctDBG &dbg, int64_t curr_node); // return -1 if
 int64_t PrevSimplePathNode(SuccinctDBG &dbg, int64_t curr_node); // return -1 if cannot extend, else the incoming edge index (whose last may not be 1)
 
 // tips removal
-int64_t Trim(SuccinctDBG &dbg, int len, int min_final_contig_len);
-int64_t RemoveTips(SuccinctDBG &dbg, int max_tip_len, int min_final_contig_len);
+int64_t Trim(SuccinctDBG &dbg, int len, int min_final_standalone);
+int64_t RemoveTips(SuccinctDBG &dbg, int max_tip_len, int min_final_standalone);
 
 // bubble merging
 int64_t PopBubbles(SuccinctDBG &dbg, int max_bubble_len, double low_depth_ratio = 1);
-
-// assembly
-
-void AssembleFromUnitigGraph(SuccinctDBG &dbg, FILE *contigs_file, FILE *multi_file, FILE *final_contig_file, int min_final_contig_len);
-void AssembleFinalFromUnitigGraph(SuccinctDBG &dbg, FILE *final_contig_file, int min_final_contig_len);
-void RemoveLowLocalAndOutputChanged(SuccinctDBG &dbg, FILE *contigs_file, FILE *multi_file, FILE *final_contig_file, FILE *addi_contig_file, FILE *addi_multi_file, 
-                                    double min_depth, int min_len, double local_ratio, int min_final_contig_len);
-void RemoveLowLocalAndOutputFinal(SuccinctDBG &dbg, FILE *final_contig_file, 
-                                  double min_depth, int min_len, double local_ratio, int min_final_contig_len);
-
-// print stat
-void PrintStat(long long genome_size = 0);
 
 }
 

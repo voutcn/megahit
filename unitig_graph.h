@@ -1,6 +1,6 @@
 /*
  *  MEGAHIT
- *  Copyright (C) 2014 The University of Hong Kong
+ *  Copyright (C) 2014 - 2015 The University of Hong Kong
  *
  *  This program is free software: you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -16,6 +16,8 @@
  *  along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+/* contact: Dinghua Li <dhli@cs.hku.hk> */
+
 #ifndef UNITIG_GRAPH_H_
 #define UNITIG_GRAPH_H_
 
@@ -23,17 +25,19 @@
 #include <map>
 #include <limits>
 #include <assert.h>
+#include <omp.h>
 
 #include "hash_map.h"
 
 class SuccinctDBG;
 struct UnitigGraphVertex {
-    UnitigGraphVertex(int64_t start_node, int64_t end_node, 
-        int64_t rev_start_node, int64_t rev_end_node, int64_t depth, uint32_t length): 
-            start_node(start_node), end_node(end_node), rev_start_node(rev_start_node), 
-            rev_end_node(rev_end_node), depth(depth), length(length) {
+    UnitigGraphVertex(int64_t start_node, int64_t end_node,
+                      int64_t rev_start_node, int64_t rev_end_node, int64_t depth, uint32_t length):
+        start_node(start_node), end_node(end_node), rev_start_node(rev_start_node),
+        rev_end_node(rev_end_node), depth(depth), length(length) {
         is_deleted = false;
         is_changed = false;
+        is_marked = false;
         is_dead = false;
         is_loop = false;
         is_palindrome = false;
@@ -44,40 +48,61 @@ struct UnitigGraphVertex {
     int64_t depth: 60; // if is_loop, depth is equal to average depth
     bool is_deleted: 1;
     bool is_changed: 1;
+    bool is_marked: 1;
     bool is_dead: 1;
     bool is_loop: 1;
-    uint32_t length: 31;
+    uint32_t length: 30;
     bool is_palindrome: 1;
+
+    UnitigGraphVertex ReverseComplement() {
+        UnitigGraphVertex ret = *this;
+        std::swap(ret.start_node, ret.rev_start_node);
+        std::swap(ret.end_node, ret.rev_end_node);
+        return ret;
+    }
+
+    int64_t Representation() {
+        int64_t ret = std::max(start_node, end_node);
+        ret = std::max(rev_start_node, ret);
+        ret = std::max(rev_end_node, ret);
+        return ret;
+    }
 };
 
 class UnitigGraph {
-public:
-    typedef uint32_t vertexID_t; 
+  public:
+    typedef uint32_t vertexID_t;
 
     UnitigGraph(SuccinctDBG *sdbg): sdbg_(sdbg) {}
-    ~UnitigGraph() {}
+    ~UnitigGraph() {
+        for (vertexID_t i = 0; i < locks_.size(); ++i) {
+            omp_destroy_lock(&locks_[i]);
+        }
+    }
 
     void InitFromSdBG();
-    uint32_t size() { return vertices_.size(); }
-    bool RemoveLocalLowDepth(int min_depth, int min_len, int local_width, double local_ratio, int64_t &num_removed);
+    uint32_t size() {
+        return vertices_.size();
+    }
+    bool RemoveLocalLowDepth(double min_depth, int min_len, int local_width, double local_ratio, int64_t &num_removed, bool permanent_rm = false);
+    uint32_t MergeBubbles(bool permanent_rm);
+    uint32_t MergeComplexBubbles(double similarity, int merge_level, bool permanent_rm);
 
     // output
-    void OutputInitUnitigs(FILE *contig_file, FILE *multi_file, std::map<int64_t, int> &histo);
-    void OutputChangedUnitigs(FILE *addi_contig_file, FILE *addi_multi_file, std::map<int64_t, int> &histo);
-    void OutputInitUnitigs(FILE *contig_file, FILE *multi_file, FILE *final_contig_file, std::map<int64_t, int> &histo, int min_final_contig_len);
-    void OutputFinalUnitigs(FILE *final_contig_file, std::map<int64_t, int> &histo, int min_final_contig_len);
+    void OutputContigs(FILE *contig_file, FILE *final_file, std::map<int64_t, int> &histo, bool change_only, int min_final_standalone);
 
-private:
+  private:
     // functions
-    double LocalDepth_(UnitigGraphVertex &path, int local_width);
-    void Refresh_();
+    double LocalDepth_(vertexID_t id, int local_width);
+    void Refresh_(bool set_changed = true);
 
-private:
+  private:
     // data
     static const size_t kMaxNumVertices;// = std::numeric_limits<vertexID_t>::max();
     SuccinctDBG *sdbg_;
     HashMap<int64_t, vertexID_t> start_node_map_;
     std::vector<UnitigGraphVertex> vertices_;
+    std::vector<omp_lock_t> locks_;
 };
 
 #endif // UNITIG_GRAPH_H_

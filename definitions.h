@@ -1,6 +1,6 @@
 /*
  *  MEGAHIT
- *  Copyright (C) 2014 The University of Hong Kong
+ *  Copyright (C) 2014 - 2015 The University of Hong Kong
  *
  *  This program is free software: you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -16,16 +16,23 @@
  *  along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef DEFINITIONS_H_
-#define DEFINITIONS_H_
+/* contact: Dinghua Li <dhli@cs.hku.hk> */
+
+#ifndef MEGAHIT_DEFINITIONS_H__
+#define MEGAHIT_DEFINITIONS_H__
 
 #include <stdint.h>
 
-typedef uint16_t multi_t;
-const int kBitsPerMulti_t = 16;
-const int kMaxMulti_t = 65535;
+#include "kmer.h"
 
-typedef uint32_t edge_word_t;
+typedef uint16_t multi_t;
+static const int kBitsPerMulti_t = 16;
+static const int kMaxMulti_t = 65535;
+
+typedef uint8_t multi2_t;
+static const int kMaxMulti2_t = 254;
+static const multi2_t kMulti2Sp = 255;
+
 static const int kBitsPerEdgeWord = 32;
 static const int kBitsPerEdgeChar = 2;
 static const int kCharsPerEdgeWord = 16;
@@ -35,4 +42,19 @@ static const char dna_chars[] = "ACGT";
 
 static const int kMaxNumCPUThreads = 255;
 
-#endif // DEFINITIONS_H_
+namespace contig_flag {
+
+static const int kIsolated = 0x1;
+static const int kLoop = 0x2;
+
+}
+
+static const int kMaxK = 127;
+static const int kUint32PerKmerMaxK = (kMaxK + 1 + 15) / 16;
+static const int kUint64PerIdbaKmerMaxK = (kMaxK * 2 + 16 + 63) / 64;
+
+typedef Kmer<kUint32PerKmerMaxK, uint32_t> GenericKmer;
+
+#define LONG_READS
+
+#endif // MEGAHIT_DEFINITIONS_H__

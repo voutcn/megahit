@@ -1,6 +1,6 @@
 /*
  *  MEGAHIT
- *  Copyright (C) 2014 The University of Hong Kong
+ *  Copyright (C) 2014 - 2015 The University of Hong Kong
  *
  *  This program is free software: you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -16,6 +16,8 @@
  *  along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+/* contact: Dinghua Li <dhli@cs.hku.hk> */
+
 #include <parallel/algorithm>
 #include <assert.h>
 #include "definitions.h"
@@ -27,15 +29,15 @@ struct CompareHigh32Bits {
     }
 };
 
-void lv2_cpu_sort(edge_word_t *lv2_substrings, uint32_t *permutation, uint64_t *cpu_sort_space, int words_per_substring, int64_t lv2_num_items) {
-#pragma omp parallel for
+inline void lv2_cpu_sort(uint32_t *lv2_substrings, uint32_t *permutation, uint64_t *cpu_sort_space, int words_per_substring, int64_t lv2_num_items) {
+    #pragma omp parallel for
     for (uint32_t i = 0; i < lv2_num_items; ++i) {
         cpu_sort_space[i] = i;
     }
 
     for (int64_t iteration = words_per_substring - 1; iteration >= 0; --iteration) {
-        edge_word_t *lv2_substr_p = lv2_substrings + lv2_num_items * iteration;
-#pragma omp parallel for
+        uint32_t *lv2_substr_p = lv2_substrings + lv2_num_items * iteration;
+        #pragma omp parallel for
         for (uint32_t i = 0; i < lv2_num_items; ++i) {
             cpu_sort_space[i] &= 0xFFFFFFFF;
             cpu_sort_space[i] |= uint64_t(*(lv2_substr_p + cpu_sort_space[i])) << 32;
@@ -45,7 +47,7 @@ void lv2_cpu_sort(edge_word_t *lv2_substrings, uint32_t *permutation, uint64_t *
     }
 
     // copy answer back to host
-#pragma omp parallel for
+    #pragma omp parallel for
     for (uint32_t i = 0; i < lv2_num_items; ++i) {
         permutation[i] = cpu_sort_space[i] & 0xFFFFFFFF;
     }
