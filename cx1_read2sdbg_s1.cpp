@@ -98,8 +98,6 @@ void s1_read_input_prepare(read2sdbg_global_t &globals) {
     globals.max_read_length = globals.package.max_read_len();
     globals.num_reads = globals.package.size();
 
-    xlog("Total number of reads: %lld\n", (long long)globals.num_reads);
-
     int bits_read_length = 1; // bit needed to store read_length
     while ((1 << bits_read_length) - 1 < globals.max_read_length) {
         ++bits_read_length;
@@ -111,6 +109,8 @@ void s1_read_input_prepare(read2sdbg_global_t &globals) {
     globals.num_k1_per_read = globals.max_read_length - globals.kmer_k;
     globals.is_solid.reset(globals.num_k1_per_read * globals.num_reads);
     globals.mem_packed_reads = DivCeiling(globals.num_k1_per_read * globals.num_reads, 8) + globals.package.size_in_byte();
+
+    xlog("Total number of reads: %lld\n", (long long)globals.num_reads);
 
     // set cx1 param
     globals.cx1.num_cpu_threads_ = globals.num_cpu_threads;
@@ -228,6 +228,12 @@ void s1_init_global_and_set_cx1(read2sdbg_global_t &globals) {
     } else {
         // use all
         globals.cx1.adjust_mem(mem_remained, lv2_bytes_per_item, min_lv1_items, min_lv2_items);
+    }
+
+    if (cx1_t::kCX1Verbose >= 2) {
+        xlog("Memory for reads: %lld\n", globals.mem_packed_reads);
+        xlog("max # lv.1 items = %lld\n", globals.cx1.max_lv1_items_);
+        xlog("max # lv.2 items = %lld\n", globals.cx1.max_lv2_items_);
     }
 
     // --- alloc memory ---
@@ -389,6 +395,8 @@ void* s1_lv2_extract_substr(void* _data) {
                 int read_length = globals.package.length(read_id);
                 int num_chars_to_copy = globals.kmer_k - 1;
                 unsigned char prev, next, head, tail; // (k+1)=abScd, prev=a, head=b, tail=c, next=d
+
+                assert(offset < read_length);
 
                 if (offset > 1) {
                     head = globals.package.get_base(read_id, offset - 1);
