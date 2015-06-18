@@ -162,7 +162,7 @@ def make_out_dir():
 
 def parse_opt(argv):
     try:
-        opts, args = getopt.getopt(argv, "hm:o:r:t:v1:2:", 
+        opts, args = getopt.getopt(argv, "hm:o:r:t:v1:2:l:", 
                                     ["help",
                                      "read=",
                                      "12=",
@@ -170,7 +170,6 @@ def parse_opt(argv):
                                      "memory=",
                                      "out-dir=",
                                      "min-contig-len=",
-                                     "cpu-only",
                                      "use-gpu",
                                      "num-cpu-threads=",
                                      "gpu-mem=",
@@ -192,7 +191,10 @@ def parse_opt(argv):
                                      "mem-flag=",
                                      "continue",
                                      "version",
-                                     "out-prefix="])
+                                     "out-prefix=",
+                                     "max-read-len=",
+                                     "no-low-local",
+                                     "cpu-only"])
     except getopt.error as msg:
         raise Usage(megahit_version_str + '\n' + str(msg))
     if len(opts) == 0:
