@@ -35,7 +35,7 @@ import logging
 import time
 from datetime import datetime
 
-megahit_version_str = "MEGAHIT 0.3.0-beta"
+megahit_version_str = "MEGAHIT 0.3.0-beta2"
 usage_message = '''
 Copyright (c) The University of Hong Kong
 

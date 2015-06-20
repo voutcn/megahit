@@ -1,3 +1,7 @@
+### 0.3.0-beta2 / 2015-06-20 HKT
+
+* added the missing file `citycrc.h`
+
 ### 0.3.0-beta / 2015-06-18 HKT
 
 New features:
