@@ -109,7 +109,7 @@ int64_t SequenceManager::ReadShortReads(int64_t max_num, int64_t max_num_bases, 
 
                     if (trimN) {
                         ::trimN(kseq_readers_[0]->seq.s, kseq_readers_[0]->seq.l, b0, e0);
-                        ::trimN(kseq_readers_[1]->seq.s, kseq_readers_[1]->seq.l, b0, e0);
+                        ::trimN(kseq_readers_[1]->seq.s, kseq_readers_[1]->seq.l, b1, e1);
                     }
 
                     if (reverse) {
