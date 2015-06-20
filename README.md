@@ -21,19 +21,19 @@ make
 
 Notably, for MAC OS X, the `g++` in the path is probably the sym-link of `clang`, which do not support OpenMP. Users should have the "real" G++ installed and use `make CXX=/PATH/TO/G++` to specify the compiler.
 
-### Stable releases
+If you need to install MEGAHIT to another directory after compilation, please copy `megahit`, `megahit_asm_core`, `megahit_toolkit` and `megahit_sdbg_build` (and `megahit_sdbg_build_gpu` for GPU counterpart) to the destination.
+
+### Stable binary releases
 Please refer to the [release page](https://github.com/voutcn/megahit/releases).
 
 ### Running MEGAHIT
 If MEGAHIT is successfully compiled, it can be run by the following command:
 
 ```
-./megahit [options] {-r <se.fq> | -1 <pe1.fq> -2 <pe2.fq> | --12 <pe12.fq> }
+./megahit [options] {-1 <pe_1.fq> -2 <pe_2.fq> | --12 <pe12.fq> | -r <se.fq>}
 ```
 
-or type `make test` in MEGAHIT's source directory for a quick test and `./megahit -h` for usage message.
-
-If you need to install MEGAHIT to another directory after compilation, please copy `megahit`, `megahit_asm_core`, `megahit_toolkit` and `megahit_sdbg_build` (and `megahit_sdbg_build_gpu` for GPU counterpart) to the destination.
+The `-1/-2/--12` and `-r` parameters accept files in fasta (`.fasta`, `.fa`, `.fna`) or fastq (`.fastq`, `.fq`) formats. They also supports gzip files (with `.gz` extensions) and bzip2 files (with `.bz2` extensions). Please run `./megahit -h` for detailed usage message.
 
 ### Using GPU Version
 To use the GPU version, run `make use_gpu=1` to compile MEGAHIT, and run MEGAHIT with `--use-gpu`. GPU version has only been tested in Linux.
@@ -53,15 +53,12 @@ MEGAHIT uses multiple *k*-mer strategy. Minimum *k*, maximum *k* and the step fo
 This is specially designed for metagenomics assembly to recover low coverage sequence. For generic dataset >= 30x,  MEGAHIT may generate better results with `--no-mercy` option.
 
 ###*k*-min 1pass mode
-This mode can be activated by option `--kmin-1pass`. It is more memory efficient for ultra low-depth dataset, such as soil metagenomics data.
+This mode can be activated by option `--kmin-1pass`. It is more memory efficient for ultra low-depth datasets, such as soil metagenomics data.
 
-FAQ
------------------------
-Please refer to [our wiki](https://github.com/voutcn/megahit/wiki).
 
-Reporting Issues
+FAQ & Reporting issues
 -----------------------
-If you have any questions or suggestions, please [report an issue](https://github.com/voutcn/megahit/issues) on Github.
+For other questions, please first refer to [our wiki](https://github.com/voutcn/megahit/wiki). Please [report an issue](https://github.com/voutcn/megahit/issues) in github when necessary.
 
 Citing MEGAHIT
 -----------------------
