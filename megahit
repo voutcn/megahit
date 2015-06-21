@@ -40,13 +40,13 @@ usage_message = '''
 Copyright (c) The University of Hong Kong
 
 Usage:
-  megahit [options] {-r <se> | -1 <pe1> -2 <pe2> | --12 <pe12>} [-o <out_dir>]
+  megahit [options] {-1 <pe1> -2 <pe2> | --12 <pe12> | -r <se>} [-o <out_dir>]
 
   Input options that can be specified for multiple times (supporting plain text and gz/bz2 extensions)
-    -r/--read                <se>           comma-separated list of fasta/q single-end files
     -1                       <pe1>          comma-separated list of fasta/q paired-end #1 files, paired with files in <pe2>
     -2                       <pe2>          comma-separated list of fasta/q paired-end #2 files, paired with files in <pe1>
     --12                     <pe12>         comma-separated list of interleaved fasta/q paired-end files
+    -r/--read                <se>           comma-separated list of fasta/q single-end files
 
   Input options that can be specified for at most ONE time (not recommended):
     --input-cmd              <cmd>          command that outputs fasta/q reads to stdout; taken by MEGAHIT as SE reads 
@@ -73,7 +73,7 @@ Optional Arguments:
     --k-max                  <int>          maximum kmer size (<= 127), must be odd number, default 99
     --k-step                 <int>          increment of kmer size of each iteration (<= 28), must be even number, default 10
     --k-list                 <int,int,..>   comma-separated list of kmer size (all must be odd, in the range 15-127, increment <= 28);
-                                            overwriting `--k-min', `--k-max' and `--k-step'
+                                            overwrites `--k-min', `--k-max' and `--k-step'
 
   Advanced assembly options:
     --no-mercy                              do not add mercy kmers
@@ -205,7 +205,8 @@ def parse_opt(argv):
 
     for option, value in opts:
         if option in ("-h", "--help"):
-            raise Usage(megahit_version_str + '\n' + usage_message)
+            print(megahit_version_str + '\n' + usage_message)
+            exit(0)
         elif option in ("-o", "--out-dir"):
             if opt.continue_mode == 0:
                 opt.out_dir = value + "/"
