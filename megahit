@@ -122,6 +122,7 @@ class Options():
         self.num_cpu_threads = False
         self.low_local_ratio = 0.2
         self.temp_dir = self.out_dir + "tmp/"
+        self.contig_dir = self.out_dir + "intermediate_contigs/"
         self.keep_tmp_files = False
         self.builder = "megahit_sdbg_build"
         self.use_gpu = False
@@ -159,6 +160,11 @@ def make_out_dir():
         pass
     else:
         os.mkdir(opt.temp_dir)
+
+    if os.path.exists(opt.contig_dir):
+        pass
+    else:
+        os.mkdir(opt.contig_dir)
 
 def parse_opt(argv):
     try:
@@ -280,6 +286,7 @@ def parse_opt(argv):
             exit(1)
 
     opt.temp_dir = opt.out_dir + "tmp/"
+    opt.contig_dir = opt.out_dir + "intermediate_contigs/"
 
     if need_continue:
         prepare_continue()
@@ -433,6 +440,9 @@ def check_builder():
 
 def graph_prefix(kmer_k):
     return opt.temp_dir + "k" + str(kmer_k)
+
+def contig_prefix(kmer_k):
+    return opt.contig_dir + "k" + str(kmer_k)
 
 def delect_file_if_exist(file_name):
     if os.path.exists(file_name):
@@ -643,16 +653,16 @@ def build_graph(kmer_k, kmer_from, num_edge_files):
             build_cmd += ["--input_prefix", graph_prefix(kmer_k)]
             file_size += os.path.getsize(graph_prefix(kmer_k) + ".edges.0")
 
-        if (os.path.exists(graph_prefix(kmer_from) + ".contigs.fa")):
-            build_cmd += ["--contig", graph_prefix(kmer_from) + ".contigs.fa"]
+        if (os.path.exists(contig_prefix(kmer_from) + ".contigs.fa")):
+            build_cmd += ["--contig", contig_prefix(kmer_from) + ".contigs.fa"]
 
-        if (os.path.exists(graph_prefix(kmer_from) + ".addi.fa")):
-            build_cmd += ["--addi_contig", graph_prefix(kmer_from) + ".addi.fa"]
-            file_size += os.path.getsize(graph_prefix(kmer_from) + ".addi.fa")
+        if (os.path.exists(contig_prefix(kmer_from) + ".addi.fa")):
+            build_cmd += ["--addi_contig", contig_prefix(kmer_from) + ".addi.fa"]
+            file_size += os.path.getsize(contig_prefix(kmer_from) + ".addi.fa")
 
-        if (os.path.exists(graph_prefix(kmer_from) + ".local.fa")):
-            build_cmd += ["--local_contig", graph_prefix(kmer_from) + ".local.fa"]
-            file_size += os.path.getsize(graph_prefix(kmer_from) + ".local.fa")
+        if (os.path.exists(contig_prefix(kmer_from) + ".local.fa")):
+            build_cmd += ["--local_contig", contig_prefix(kmer_from) + ".local.fa"]
+            file_size += os.path.getsize(contig_prefix(kmer_from) + ".local.fa")
 
         if file_size == 0:
             return False # not build
@@ -695,7 +705,7 @@ def iterate(cur_k, step):
         next_k = cur_k + step
 
         iterate_cmd = [opt.bin_dir + "megahit_asm_core", "iterate",
-                       "-c", graph_prefix(cur_k) + ".contigs.fa",
+                       "-c", contig_prefix(cur_k) + ".contigs.fa",
                        "-t", str(opt.num_cpu_threads),
                        "-k", str(cur_k),
                        "-s", str(step),
@@ -740,7 +750,7 @@ def assemble(cur_k):
 
         assembly_cmd = [opt.bin_dir + "megahit_asm_core", "assemble",
                         "-s", graph_prefix(cur_k),
-                        "-o", graph_prefix(cur_k),
+                        "-o", contig_prefix(cur_k),
                         "-t", str(opt.num_cpu_threads),
                         "--max_tip_len", str(opt.max_tip_len),
                         "--min_standalone", str(min_standalone),
@@ -797,7 +807,7 @@ def local_assemble(cur_k, kmer_to):
     global cp
     if (not opt.continue_mode) or (cp > opt.last_cp):
         la_cmd = [opt.bin_dir + "megahit_asm_core", "local",
-                  "-c", graph_prefix(cur_k) + ".contigs.fa",
+                  "-c", contig_prefix(cur_k) + ".contigs.fa",
                   "-l", graph_prefix(opt.k_min) + ".all_reads",
                   "-t", str(opt.num_cpu_threads),
                   # "--sparsity", "1",
@@ -806,7 +816,7 @@ def local_assemble(cur_k, kmer_to):
             logging.info("--- [%s] Local assembling k = %d ---" % (datetime.now().strftime("%c"), cur_k))
             logging.debug("cmd: %s" % (" ").join(la_cmd))
 
-            local_contig_file = open(graph_prefix(cur_k) + ".local.fa", "w")
+            local_contig_file = open(contig_prefix(cur_k) + ".local.fa", "w")
 
             p = subprocess.Popen(la_cmd, stdout=local_contig_file, stderr=subprocess.PIPE)
             
@@ -833,12 +843,32 @@ def local_assemble(cur_k, kmer_to):
     write_cp()
 
 def merge_final():
-    logging.info("--- [%s] Merging to output final contigs ---" % (datetime.now().strftime("%c")))
-    final_contig_name = opt.out_dir + "final.contigs.fa"
-    if opt.out_prefix != "":
-        final_contig_name = opt.out_dir + opt.out_prefix + ".contigs.fa"
-    os.system("cat " + opt.temp_dir + "*.final.contigs.fa " + graph_prefix(opt.k_max) + ".contigs.fa | " +
-              opt.bin_dir + "megahit_toolkit filterbylen " + str(opt.min_contig_len) + " > " + final_contig_name);
+    global cp
+    if (not opt.continue_mode) or (cp > opt.last_cp):
+        logging.info("--- [%s] Merging to output final contigs ---" % (datetime.now().strftime("%c")))
+        final_contig_name = opt.out_dir + "final.contigs.fa"
+        if opt.out_prefix != "":
+            final_contig_name = opt.out_dir + opt.out_prefix + ".contigs.fa"
+
+        with open(final_contig_name, "w") as final_contigs:
+            merge_cmd = "cat " + opt.contig_dir + "*.final.contigs.fa " + contig_prefix(opt.k_max) + ".contigs.fa | " + \
+                        opt.bin_dir + "megahit_toolkit filterbylen " + str(opt.min_contig_len)
+            p = subprocess.Popen(merge_cmd, shell = True, stdout = final_contigs, stderr = subprocess.PIPE)
+
+            while True:
+                line = p.stderr.readline().rstrip()
+                if not line:
+                    break;
+                logging.info("--- [STAT] " + line)
+
+            ret_code = p.wait()
+
+        if ret_code != 0:
+            logging.error("Error occurs when merging final contigs")
+            logging.error("[Exit code %d]" % ret_code)
+            exit(ret_code)
+
+    write_cp()
 
 def main(argv = None):
     if argv is None:
@@ -897,14 +927,6 @@ def main(argv = None):
         # end while
 
         merge_final()
-        write_cp()
-
-        if (not opt.continue_mode) or (cp > opt.last_cp):
-            contig_dir = opt.out_dir + "intermediate_contigs/"
-            if not os.path.exists(contig_dir):
-                os.mkdir(contig_dir)
-                os.system('mv -f ' + opt.temp_dir + "*.fa " + contig_dir)
-        write_cp()
 
         if not opt.keep_tmp_files and os.path.exists(opt.temp_dir):
             shutil.rmtree(opt.temp_dir)

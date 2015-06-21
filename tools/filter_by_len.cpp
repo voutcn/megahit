@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <zlib.h>
 #include <algorithm>
+#include "histgram.h"
 #include "kseq.h"
 
 
@@ -20,11 +21,19 @@ int main_filter_by_len(int argc, char **argv) {
     kseq_t *seq = kseq_init(fp); // kseq to read files
     unsigned min_len = atoi(argv[1]);
 
+    Histgram<long long> hist;
+
     while (kseq_read(seq) >= 0) {
         if (seq->seq.l >= min_len) {
+            hist.insert(seq->seq.l);
             printf(">%s %s\n%s\n", seq->name.s, seq->comment.s, seq->seq.s);
         }
     }
+
+    long long total_bases = hist.sum();
+
+    fprintf(stderr, "%d contigs, total %lld bp, min %lld bp, max %lld bp, avg %.2lf bp, N50 %lld bp\n",
+                    (int)hist.size(), total_bases, hist.minimum(), hist.maximum(), hist.mean(), hist.Nx(total_bases * 0.5));
 
     kseq_destroy(seq);
     gzclose(fp);

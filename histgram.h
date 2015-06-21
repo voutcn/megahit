@@ -85,6 +85,13 @@ class Histgram {
         return sum / size();
     }
 
+    double sum() const {
+        double sum_ = 0;
+        for (typename std::map<value_type, unsigned>::const_iterator iter = map_.begin(); iter != map_.end(); ++iter)
+            sum_ += 1.0 * iter->first * iter->second;
+        return sum_;
+    }
+
     double variance() const {
         double sum = 0;
         double square_sum = 0;
@@ -135,7 +142,7 @@ class Histgram {
         return (sum != 0) ? total/sum : 0;
     }
 
-    double Nx(double x) {
+    value_type Nx(double x) {
         double total = 0;
         for (typename std::map<value_type, unsigned>::const_reverse_iterator iter = map_.rbegin(); iter != map_.rend(); ++iter) {
             total += iter->second * iter->first;
