@@ -483,12 +483,16 @@ def write_lib():
     opt.lib = opt.temp_dir + "reads.lib"
     lib = open(opt.lib, "w")
     for i in range(0, len(opt.pe12)):
+        logging.info("--- [LIB INFO] interleaved PE reads: " + opt.pe12[i])
+
         if inpipe_cmd(opt.pe12[i]) != "":
             print("interleaved " + opt.temp_dir + "inpipe.pe12." + str(i), file=lib)
         else:
             print("interleaved " + opt.pe12[i], file=lib)
 
     for i in range(0, len(opt.pe1)):
+        logging.info("--- [LIB INFO] PE reads: " + opt.pe1[i] + ", " + opt.pe2[i])
+
         if inpipe_cmd(opt.pe1[i]) != "":
             f1 = opt.temp_dir + "inpipe.pe1." + str(i)
         else:
@@ -502,12 +506,16 @@ def write_lib():
         print("pe " + f1 + " " + f2, file=lib)
 
     for i in range(0, len(opt.se)):
+        logging.info("--- [LIB INFO] Single-end reads: " + opt.se[i])
+
         if inpipe_cmd(opt.se[i]) != "":
             print("se " + opt.temp_dir + "inpipe.se." + str(i), file=lib)
         else:
             print("se " + opt.se[i], file=lib)
 
     if opt.input_cmd != "":
+        logging.info("--- [LIB INFO] Single-end reads input by cmd: \'" + input_cmd + "\'")
+
         print("se " + "-", file=lib)
 
     lib.close()
