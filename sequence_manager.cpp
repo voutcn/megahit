@@ -149,10 +149,13 @@ int64_t SequenceManager::ReadShortReads(int64_t max_num, int64_t max_num_bases, 
                         return i + 1;
                     }
                 } else {
+                    assert(r_type != kInterleaved || i % 2 == 0);
                     return i;
                 }
             }
         }
+
+        assert(r_type != kInterleaved || max_num % 2 == 0);
         return max_num;
     } else if (f_type == kBinaryReads) {
         assert(!reverse);
