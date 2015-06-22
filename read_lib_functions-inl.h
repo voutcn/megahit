@@ -44,7 +44,7 @@ inline void ReadMultipleLibs(const std::string &lib_file, SequencePackage &packa
         xerr_and_exit("File to open read_lib file: %s\n", lib_file.c_str());
     }
 
-    std::string buf;
+    std::string metadata;
     std::string type;
     std::string file_name1;
     std::string file_name2;
@@ -55,7 +55,8 @@ inline void ReadMultipleLibs(const std::string &lib_file, SequencePackage &packa
     package.clear();
     lib_info.clear();
 
-    while (lib_config >> type) {
+    while (std::getline(lib_config, metadata)) {
+        assert(lib_config >> type);
         if (type == "pe") {
             assert(lib_config >> file_name1 >> file_name2);
 
@@ -95,14 +96,17 @@ inline void ReadMultipleLibs(const std::string &lib_file, SequencePackage &packa
         }
 
         if (type == "pe" && (end - start + 1) % 2 != 0) {
-            xerr_and_exit("PE library %s/%s number of reads doesn't match!\n", file_name1.c_str(), file_name2.c_str());
+            xerr("PE library number of reads is odd: %lld!\n", end - start + 1);
+            xerr_and_exit("File(s): %s\n", metadata.c_str())
         }
 
         if (type == "interleaved" && (end - start + 1) % 2 != 0) {
-            xerr_and_exit("PE library %s number of reads doesn't match!\n", file_name1.c_str());
+            xerr("PE library number of reads is odd: %lld!\n", end - start + 1);
+            xerr_and_exit("File(s): %s\n", metadata.c_str())
         }
 
-        lib_info.push_back(lib_info_t(&package, start, end, max_read_len, type != "se"));
+        lib_info.push_back(lib_info_t(&package, start, end, max_read_len, type != "se", metadata));
+        std::getline(lib_config, metadata); // eliminate the "\n"
     }
 }
 
@@ -110,21 +114,20 @@ inline void ReadBinaryLibs(const std::string &file_prefix, SequencePackage &pack
     package.clear();
     lib_info.clear();
 
-    FILE *lib_info_file = OpenFileAndCheck(FormatString("%s.lib_info", file_prefix.c_str()), "r");
+    std::ifstream lib_info_file(file_prefix + ".lib_info");
     int64_t start, end;
     int max_read_len;
     int64_t total_bases, num_reads;
+    std::string metadata, pe_or_se;
 
-    assert(fscanf(lib_info_file, "%" SCNd64 "%" SCNd64 "", &total_bases, &num_reads) == 2); 
+    assert(lib_info_file >> total_bases >> num_reads);
+    std::getline(lib_info_file, metadata); // eliminate the "\n"
 
-    while (fscanf(lib_info_file, "%" SCNd64 "", &start) == 1) {
-        char is_pe[32];
-        assert(fscanf(lib_info_file, "%" SCNd64 "", &end) == 1);
-        assert(fscanf(lib_info_file, "%d", &max_read_len) == 1);
-        assert(fscanf(lib_info_file, " %s", is_pe) == 1);
-        lib_info.push_back(lib_info_t(&package, start, end, max_read_len, strcmp(is_pe, "pe") == 0));
+    while (std::getline(lib_info_file, metadata)) {
+        assert(lib_info_file >> start >> end >> max_read_len >> pe_or_se);
+        lib_info.push_back(lib_info_t(&package, start, end, max_read_len, pe_or_se == "pe", metadata));
+        std::getline(lib_info_file, metadata); // eliminate the "\n"
     }
-    fclose(lib_info_file);
 
     package.reserve_num_seq(num_reads);
     package.reserve_bases(total_bases);
@@ -156,6 +159,7 @@ inline void WriteMultipleLibs(SequencePackage &package, std::vector<lib_info_t> 
     FILE *lib_info_file = OpenFileAndCheck(FormatString("%s.lib_info", file_prefix.c_str()), "w");
     fprintf(lib_info_file, "%zu %zu\n", package.base_size(), package.size());
     for (unsigned i = 0; i < lib_info.size(); ++i) {
+        fprintf(lib_info_file, "%s\n", lib_info[i].metadata.c_str());
         fprintf(lib_info_file, "%" PRId64 " %" PRId64 " %d %s\n", lib_info[i].from, lib_info[i].to,
                 lib_info[i].max_read_len, lib_info[i].is_pe ? "pe" : "se");
     }

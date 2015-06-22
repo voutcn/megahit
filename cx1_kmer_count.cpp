@@ -99,6 +99,12 @@ void read_input_prepare(count_global_t &globals) { // num_items_, num_cpu_thread
     globals.num_reads = globals.package.size();
 
     xlog("%ld reads, %d max read length\n", globals.num_reads, globals.max_read_length);
+    xlog("Read libs:\n")
+    for (unsigned i = 0; i < globals.lib_info.size(); ++i) {
+        xlog("");
+        xlog_ext("%s: %s, %lld reads\n", globals.lib_info[i].is_pe ? "Paired-end" : "Single-end",
+                                         globals.lib_info[i].metadata.c_str(), globals.lib_info[i].to - globals.lib_info[i].from + 1);
+    }
 
     // calc words_per_xxx
     int bits_read_length = 1; // bit needed to store read_length

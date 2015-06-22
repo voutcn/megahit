@@ -110,7 +110,13 @@ void s1_read_input_prepare(read2sdbg_global_t &globals) {
     globals.is_solid.reset(globals.num_k1_per_read * globals.num_reads);
     globals.mem_packed_reads = DivCeiling(globals.num_k1_per_read * globals.num_reads, 8) + globals.package.size_in_byte();
 
-    xlog("Total number of reads: %lld, bases: %lld\n", (long long)globals.num_reads, (long long)globals.package.base_size());
+    xlog("%ld reads, %d max read length, %lld total bases\n", globals.num_reads, globals.max_read_length, globals.package.base_size());
+    xlog("Read libs:\n")
+    for (unsigned i = 0; i < globals.lib_info.size(); ++i) {
+        xlog("");
+        xlog_ext("%s: %s, %lld reads\n", globals.lib_info[i].is_pe ? "Paired-end" : "Single-end",
+                                         globals.lib_info[i].metadata.c_str(), globals.lib_info[i].to - globals.lib_info[i].from + 1);
+    }
 
     // set cx1 param
     globals.cx1.num_cpu_threads_ = globals.num_cpu_threads;
