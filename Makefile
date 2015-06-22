@@ -21,7 +21,7 @@
 #
 # Makefile usage
 #
-# make <target>[use_gpu=<0|1>] [disablempopcnt=<0|1>] [sm=<XXX,...>] [abi=<0|1>] [open64=<0|1>] [verbose=<0|1>] [keep=<0|1>]
+# make <target>[use_gpu=<0|1>] [version=xxx] [disablempopcnt=<0|1>] [sm=<XXX,...>] [abi=<0|1>] [open64=<0|1>] [verbose=<0|1>] [keep=<0|1>]
 #
 #-------------------------------------------------------------------------------
 
@@ -32,7 +32,7 @@
 ifeq ($(use_gpu), 1)
 	NVCC = "$(shell which nvcc)"
 	NVCC_VERSION = $(strip $(shell nvcc --version | grep release | sed 's/.*release //' |  sed 's/,.*//'))
-endif 
+endif
 
 # detect OS
 OSUPPER = $(shell uname -s 2>/dev/null | tr [:lower:] [:upper:])
@@ -274,6 +274,24 @@ test: megahit_asm_core megahit_sdbg_build megahit_toolkit
 test_gpu: megahit_asm_core megahit_sdbg_build_gpu megahit_toolkit
 	-rm -fr example/megahit_gpu_out
 	./megahit --12 example/readsInterleaved1.fa.gz,example/readsInterleaved2.fa.bz2,example/readsInterleaved3.fa --use-gpu -o example/megahit_gpu_out -t 4
+
+.PHONY:
+release: megahit_asm_core megahit_sdbg_build megahit_sdbg_build_gpu megahit_toolkit megahit
+	rm -rf megahit_$(version)_$(OSUPPER)_CUDA$(NVCC_VERSION)_sm$(SM_ARCH)_$(CPU_ARCH_SUFFIX)-bin
+	mkdir -p megahit_$(version)_$(OSUPPER)_CUDA$(NVCC_VERSION)_sm$(SM_ARCH)_$(CPU_ARCH_SUFFIX)-bin
+	cp megahit_asm_core megahit_sdbg_build megahit_sdbg_build_gpu megahit_toolkit megahit \
+	   megahit_$(version)_$(OSUPPER)_CUDA$(NVCC_VERSION)_sm$(SM_ARCH)_$(CPU_ARCH_SUFFIX)-bin
+	tar zvcf megahit_$(version)_$(OSUPPER)_CUDA$(NVCC_VERSION)_sm$(SM_ARCH)_$(CPU_ARCH_SUFFIX)-bin.tar.gz \
+	         megahit_$(version)_$(OSUPPER)_CUDA$(NVCC_VERSION)_sm$(SM_ARCH)_$(CPU_ARCH_SUFFIX)-bin
+
+.PHONY:
+release_cpu: megahit_asm_core megahit_sdbg_build megahit_toolkit megahit
+	rm -rf megahit_$(version)_$(OSUPPER)_CPUONLY_$(CPU_ARCH_SUFFIX)-bin
+	mkdir -p megahit_$(version)_$(OSUPPER)_CPUONLY_$(CPU_ARCH_SUFFIX)-bin
+	cp megahit_asm_core megahit_sdbg_build megahit_toolkit megahit\
+	   megahit_$(version)_$(OSUPPER)_CPUONLY_$(CPU_ARCH_SUFFIX)-bin
+	tar zvcf megahit_$(version)_$(OSUPPER)_CPUONLY_$(CPU_ARCH_SUFFIX)-bin.tar.gz \
+	         megahit_$(version)_$(OSUPPER)_CPUONLY_$(CPU_ARCH_SUFFIX)-bin
 
 .PHONY:
 clean:

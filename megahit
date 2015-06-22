@@ -35,7 +35,7 @@ import logging
 import time
 from datetime import datetime
 
-megahit_version_str = "MEGAHIT 0.3.0-beta2"
+megahit_version_str = "MEGAHIT 0.3.0-beta3"
 usage_message = '''
 Copyright (c) The University of Hong Kong
 
@@ -872,7 +872,7 @@ def merge_final():
             p = subprocess.Popen(merge_cmd, shell = True, stdout = final_contigs, stderr = subprocess.PIPE)
 
             while True:
-                line = p.stderr.readline().rstrip()
+                line = p.stderr.readline().rstrip().decode('utf-8')
                 if not line:
                     break;
                 logging.info("--- [STAT] " + line)
