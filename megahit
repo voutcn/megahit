@@ -90,6 +90,7 @@ Other Arguments:
                                             please set the output directory correctly when using this option.
     -h/--help                               print the usage message
     -v/--version                            print version
+    --verbose                               verbose mode
 '''
 
 if sys.version > '3':
@@ -131,6 +132,7 @@ class Options():
         self.last_cp = -1;
         self.out_prefix = ""
         self.kmin_1pass = False
+        self.verbose = False
         self.pe1 = []
         self.pe2 = []
         self.pe12 = []
@@ -198,6 +200,7 @@ def parse_opt(argv):
                                      "continue",
                                      "version",
                                      "out-prefix=",
+                                     "verbose",
                                      "max-read-len=",
                                      "no-low-local",
                                      "cpu-only"])
@@ -263,6 +266,8 @@ def parse_opt(argv):
         elif option in ("-v", "--version"):
             print(megahit_version_str)
             exit(0)
+        elif option == "--verbose":
+            opt.verbose = True
         elif option == "--continue":
             if opt.continue_mode == 0: # avoid check again again again...
                 need_continue = True
@@ -898,6 +903,9 @@ def main(argv = None):
 
         console = logging.StreamHandler()
         console.setLevel(logging.INFO)
+        if opt.verbose:
+            console.setLevel(logging.NOTSET)
+
         formatter = logging.Formatter('%(message)s')
         console.setFormatter(formatter)
         logging.getLogger('').addHandler(console)
