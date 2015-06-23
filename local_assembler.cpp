@@ -508,7 +508,7 @@ void LocalAssembler::LocalAssemble() {
     std::deque<Sequence> out_contigs;
     std::deque<ContigInfo> out_contig_infos;
 
-    #pragma omp parallel for private(seq, contig_end, reads, out_contigs, out_contig_infos)
+#pragma omp parallel for private(seq, contig_end, reads, out_contigs, out_contig_infos) schedule(static, 1)
     for (uint64_t cid = 0; cid < contigs_->size(); ++cid) {
         int cl = contigs_->length(cid);
 
