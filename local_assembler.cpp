@@ -410,7 +410,7 @@ void LocalAssembler::MapToContigs() {
         MappingRecord rec1, rec2;
         size_t num_added = 0, num_mapped = 0;
 
-        #pragma omp parallel for private(rec1, rec2) reduction(+: num_added, num_mapped)
+#pragma omp parallel for private(rec1, rec2) reduction(+: num_added, num_mapped) schedule(static, 1)
         for (int64_t i = lib_info_[lib_id].from; i <= lib_info_[lib_id].to; i += 2) {
             bool map1 = MapToHashMapper_(mapper_, i, rec1);
             bool map2 = (i+1) <= lib_info_[lib_id].to ? MapToHashMapper_(mapper_, i+1, rec2) : false;
@@ -508,7 +508,7 @@ void LocalAssembler::LocalAssemble() {
     std::deque<Sequence> out_contigs;
     std::deque<ContigInfo> out_contig_infos;
 
-#pragma omp parallel for private(seq, contig_end, reads, out_contigs, out_contig_infos) schedule(static, 1)
+#pragma omp parallel for private(seq, contig_end, reads, out_contigs, out_contig_infos) schedule(dynamic)
     for (uint64_t cid = 0; cid < contigs_->size(); ++cid) {
         int cl = contigs_->length(cid);
 
