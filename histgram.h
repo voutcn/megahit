@@ -216,8 +216,15 @@ class Histgram {
     bool empty() const {
         return map_.empty();
     }
+
     uint32_t size() const {
         return size_;
+    }
+
+    void clear() {
+        map_.clear();
+        size_ = 0;
+        lock_ = 0;
     }
 
   private:

@@ -23,7 +23,6 @@
 #include <string>
 #include <algorithm>
 #include <iostream>
-#include <map>
 #include <stdexcept>
 
 #include "succinct_dbg.h"
@@ -32,6 +31,7 @@
 #include "options_description.h"
 #include "mem_file_checker-inl.h"
 #include "unitig_graph.h"
+#include "histgram.h"
 
 using std::string;
 
@@ -113,33 +113,12 @@ void ParseAsmOption(int argc, char *argv[]) {
     }
 }
 
-void PrintStat(std::map<int64_t, int> &hist) {
+void PrintStat(Histgram<int64_t> &h) {
     // total length
-    int64_t total_length = 0;
-    int64_t total_contigs = 0;
-    int64_t average_length = 0;
-    for (auto it = hist.begin(); it != hist.end(); ++it) {
-        total_length += it->first * it->second;
-        total_contigs += it->second;
-    }
+    int64_t sum = h.sum();
 
-    if (total_contigs > 0) {
-        average_length = total_length / total_contigs;
-    }
-
-    // N50
-    int64_t n50 = -1;
-    int64_t acc_length = 0;
-    for (auto it = hist.rbegin(); it != hist.rend(); ++it) {
-        acc_length += it->first * it->second;
-        if (n50 == -1 && acc_length * 2 >= total_length) {
-            n50 = it->first;
-            break;
-        }
-    }
-
-    xlog("Total length: %lld, N50: %lld, Mean: %lld, number of contigs: %lld\n", (long long)total_length, (long long)n50, (long long)average_length, (long long)total_contigs);
-    xlog("Maximum length: %llu\n", (unsigned long long)(hist.size() > 0 ? hist.rbegin()->first : 0));
+    xlog("Total length: %lld, N50: %lld, Mean: %lld, number of contigs: %lld\n", (long long)sum, (long long)h.Nx(sum * 0.5), (long long)h.mean(), (long long)h.size());
+    xlog("Maximum length: %llu\n", h.maximum());
 }
 
 int main_assemble(int argc, char **argv) {
@@ -215,20 +194,20 @@ int main_assemble(int argc, char **argv) {
     }
 
     // output contigs
-    std::map<int64_t, int> histogram;
+    Histgram<int64_t> hist;
     FILE *out_contig_file = OpenFileAndCheck(opt.contig_file().c_str(), "w");
     FILE *out_final_contig_file = OpenFileAndCheck(opt.final_contig_file().c_str(), "w");
 
     if (!(opt.is_final_round && opt.prune_level >= 1)) { // otherwise output after local low depth pruning
         timer.reset();
         timer.start();
-        histogram.clear();
+        hist.clear();
 
-        // unitig_graph.OutputContigs(out_contig_file, out_final_contig_file, histogram, false, opt.min_standalone);
+        // unitig_graph.OutputContigs(out_contig_file, out_final_contig_file, hist, false, opt.min_standalone);
         unitig_graph.OutputContigs(out_contig_file, opt.output_standalone ? out_final_contig_file : NULL,
-                                   histogram, false, opt.min_standalone);
+                                   hist, false, opt.min_standalone);
 
-        PrintStat(histogram);
+        PrintStat(hist);
 
         timer.stop();
         xlog("Time to output: %lf\n", timer.elapsed());
@@ -259,16 +238,16 @@ int main_assemble(int argc, char **argv) {
         xlog("Number of local low depth unitigs removed: %lld, complex bubbles removed: %u, time: %lf\n",
              (long long)num_removed, num_complex_bubbles, timer.elapsed());
 
-        histogram.clear();
+        hist.clear();
 
         if (!opt.is_final_round) {
-            unitig_graph.OutputContigs(out_addi_contig_file, NULL, histogram, true, 0);
+            unitig_graph.OutputContigs(out_addi_contig_file, NULL, hist, true, 0);
         } else {
-            // unitig_graph.OutputContigs(out_contig_file, out_final_contig_file, histogram, false, opt.min_standalone);
-            unitig_graph.OutputContigs(out_contig_file, opt.output_standalone ? out_final_contig_file : NULL, histogram, false, opt.min_standalone);
+            // unitig_graph.OutputContigs(out_contig_file, out_final_contig_file, hist, false, opt.min_standalone);
+            unitig_graph.OutputContigs(out_contig_file, opt.output_standalone ? out_final_contig_file : NULL, hist, false, opt.min_standalone);
         }
 
-        PrintStat(histogram);
+        PrintStat(hist);
         fclose(out_addi_contig_file);
     }
 
