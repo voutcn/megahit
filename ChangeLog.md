@@ -1,3 +1,10 @@
+### 0.3.0-beta3 / 2015-06-22 HKT
+
+* `--verbose` option
+* fixed a bug when reading paired-end reads of different length
+* print assembly stats to the end of the screen message
+* print read libraries info to the screen message, and number of reads in each libraries to the log file
+
 ### 0.3.0-beta2 / 2015-06-20 HKT
 
 * added the missing file `citycrc.h`
