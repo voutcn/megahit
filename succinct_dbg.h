@@ -37,7 +37,7 @@ class SuccinctDBG {
     static const int kWBitsPerChar = 4;
     static const int kWCharsPerWord = sizeof(unsigned long long) * kBitsPerByte / kWBitsPerChar;
     static const int kWCharMask = 0xF;
-    static const int kMaxKmerK = 128;
+    static const int kMaxKmerK = kMaxK + 1;
     static const int kCharsPerUint32 = 16;
     static const int kBitsPerChar = 2;
 
