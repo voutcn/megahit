@@ -42,6 +42,7 @@ OSUPPER = $(shell uname -s 2>/dev/null | tr [:lower:] [:upper:])
 #-------------------------------------------------------------------------------
 
 CUDA_INC = "$(shell dirname $(NVCC))/../include"
+CUDA_LIB = "$(shell dirname $(NVCC))/../lib64"
 INC = -I$(CUDA_INC) -I.
 
 #-------------------------------------------------------------------------------
@@ -144,7 +145,7 @@ DEPS =   ./Makefile \
 #-------------------------------------------------------------------------------
 # g++ and its options
 #-------------------------------------------------------------------------------
-CUDALIBFLAG = -L/usr/local/cuda/lib64/ -lcuda -lcudart
+CUDALIBFLAG = -L$(CUDA_LIB) -lcuda -lcudart
 GCC_VER := $(shell echo `$(CXX) -dumpversion | cut -f1-2 -d.`)
 
 CXXFLAGS = -O2 -Wall -Wno-unused-function -Wno-array-bounds -D__STDC_FORMAT_MACROS -funroll-loops -fprefetch-loop-arrays -fopenmp -I. -std=c++0x -static-libgcc
