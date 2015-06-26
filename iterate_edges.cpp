@@ -188,79 +188,6 @@ static void* ReadReadsThread(void* seq_manager) {
     return NULL;
 }
 
-template<uint32_t kNumKmerWord_n, typename kmer_word_n_t>
-struct OutputIterEdgesFunc {
-    typedef KmerPlus<kNumKmerWord_n, kmer_word_n_t, uint16_t> item_t;
-
-    int edge_size;
-    int last_shift;
-    int words_per_edge;
-    int num_threads;
-    FILE *edge_file;
-    std::vector<uint32_t> v_packed_edge_;
-    uint32_t *buf_;
-    int buf_size_, buf_idx_;
-
-    omp_lock_t output_lock;
-
-    OutputIterEdgesFunc(int edge_size, int num_threads, FILE *edge_file):
-        edge_size(edge_size), num_threads(num_threads), edge_file(edge_file) {
-        last_shift = edge_size % 16;
-        last_shift = (last_shift == 0 ? 0 : 16 - last_shift) * 2;
-        words_per_edge = (edge_size * 2 + kBitsPerMulti_t + 31) / 32;
-
-        v_packed_edge_.resize(num_threads * words_per_edge);
-        buf_idx_ = 0;
-        buf_size_ = words_per_edge * num_threads * 1024;
-        buf_ = (uint32_t*) MallocAndCheck(sizeof(uint32_t) * buf_size_);
-
-        omp_init_lock(&output_lock);
-    }
-
-    ~OutputIterEdgesFunc() {
-        flush();
-        omp_destroy_lock(&output_lock);
-        free(buf_);
-    }
-
-    void flush() {
-        if (buf_idx_ > 0) {
-            fwrite(buf_, sizeof(uint32_t), buf_idx_, edge_file);
-            buf_idx_ = 0;
-        }
-    }
-
-    void operator() (const item_t &kp) {
-        uint32_t *packed_edge = &v_packed_edge_[omp_get_thread_num() * words_per_edge];
-        memset(packed_edge, 0, sizeof(packed_edge[0]) * words_per_edge);
-
-        int w = 0;
-        int end_word = 0;
-        for (int j = 0; j < edge_size; ) {
-            w = (w << 2) | kp.kmer.get_base(edge_size - 1 - j);
-            ++j;
-            if (j % 16 == 0) {
-                packed_edge[end_word] = w;
-                w = 0;
-                end_word++;
-            }
-        }
-        packed_edge[end_word] = (w << last_shift);
-        assert((packed_edge[words_per_edge - 1] & kMaxMulti_t) == 0);
-        packed_edge[words_per_edge - 1] |= kp.ann;
-
-        omp_set_lock(&output_lock);
-
-        memcpy(buf_ + buf_idx_, packed_edge, sizeof(uint32_t) * words_per_edge);
-        buf_idx_ += words_per_edge;
-        if (buf_size_ == buf_idx_) {
-            flush();
-        }
-
-        omp_unset_lock(&output_lock);
-    }
-};
-
 template<uint32_t kNumKmerWord_n, typename kmer_word_n_t, uint32_t kNumKmerWord_p, typename kmer_word_p_t>
 static bool ReadReadsAndProcessKernel(IterateGlobalData &globals,
                                       HashTable<KmerPlus<kNumKmerWord_p, kmer_word_p_t, uint64_t>, Kmer<kNumKmerWord_p, kmer_word_p_t> > &crusial_kmers) {
@@ -431,14 +358,33 @@ static bool ReadReadsAndProcessKernel(IterateGlobalData &globals,
         FILE *output_edge_file = OpenFileAndCheck(opt.output_edge_file().c_str(), "wb");
 
         // header
-        static const int kWordsPerEdge = (globals.next_k1 * 2 + kBitsPerMulti_t + 31) / 32;
+        static const int kWordsPerEdge = ((globals.kmer_k + globals.step + 1) * 2 + kBitsPerMulti_t + 31) / 32;
         uint32_t next_k = globals.kmer_k + globals.step;
         fwrite(&next_k, sizeof(uint32_t), 1, output_edge_file);
         fwrite(&kWordsPerEdge, sizeof(uint32_t), 1, output_edge_file);
 
-        OutputIterEdgesFunc<kNumKmerWord_n, kmer_word_n_t> out_func(globals.next_k1, globals.num_cpu_threads, output_edge_file);
-        iterative_edges.for_each(out_func);
-        out_func.flush();
+        uint32_t packed_edge[kWordsPerEdge];
+
+        int last_shift = globals.next_k1 % 16;
+        last_shift = (last_shift == 0 ? 0 : 16 - last_shift) * 2;
+        for (auto iter = iterative_edges.begin(); iter != iterative_edges.end(); ++iter) {
+            memset(packed_edge, 0, sizeof(uint32_t) * kWordsPerEdge);
+            int w = 0;
+            int end_word = 0;
+            for (int j = 0; j < globals.next_k1; ) {
+                w = (w << 2) | iter->kmer.get_base(next_k - j);
+                ++j;
+                if (j % 16 == 0) {
+                    packed_edge[end_word] = w;
+                    w = 0;
+                    end_word++;
+                }
+            }
+            packed_edge[end_word] = (w << last_shift);
+            assert((packed_edge[kWordsPerEdge - 1] & kMaxMulti_t) == 0);
+            packed_edge[kWordsPerEdge - 1] |= iter->ann;
+            fwrite(packed_edge, sizeof(uint32_t), kWordsPerEdge, output_edge_file);
+        }
 
         fclose(output_edge_file);
     }
