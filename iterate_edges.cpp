@@ -197,7 +197,10 @@ struct OutputIterEdgesFunc {
     int words_per_edge;
     int num_threads;
     FILE *edge_file;
-    std::vector<std::vector<uint32_t> > v_packed_edge;
+    std::vector<uint32_t> v_packed_edge_;
+    uint32_t *buf_;
+    int buf_size_, buf_idx_;
+
     omp_lock_t output_lock;
 
     OutputIterEdgesFunc(int edge_size, int num_threads, FILE *edge_file):
@@ -206,22 +209,30 @@ struct OutputIterEdgesFunc {
         last_shift = (last_shift == 0 ? 0 : 16 - last_shift) * 2;
         words_per_edge = (edge_size * 2 + kBitsPerMulti_t + 31) / 32;
 
-        v_packed_edge.resize(num_threads);
-
-        for (unsigned i = 0; i < v_packed_edge.size(); ++i) {
-            v_packed_edge[i] = std::vector<uint32_t>(words_per_edge, 0);
-        }
+        v_packed_edge_.resize(num_threads * words_per_edge);
+        buf_idx_ = 0;
+        buf_size_ = words_per_edge * num_threads * 1024;
+        buf_ = (uint32_t*) MallocAndCheck(sizeof(uint32_t) * buf_size_);
 
         omp_init_lock(&output_lock);
     }
 
     ~OutputIterEdgesFunc() {
+        flush();
         omp_destroy_lock(&output_lock);
+        free(buf_);
+    }
+
+    void flush() {
+        if (buf_idx_ > 0) {
+            fwrite(buf_, sizeof(uint32_t), buf_idx_, edge_file);
+            buf_idx_ = 0;
+        }
     }
 
     void operator() (const item_t &kp) {
-        uint32_t *packed_edge = &v_packed_edge[omp_get_thread_num()][0];
-        std::fill(v_packed_edge[omp_get_thread_num()].begin(), v_packed_edge[omp_get_thread_num()].end(), 0);
+        uint32_t *packed_edge = &v_packed_edge_[omp_get_thread_num() * words_per_edge];
+        memset(packed_edge, 0, sizeof(packed_edge[0]) * words_per_edge);
 
         int w = 0;
         int end_word = 0;
@@ -239,7 +250,13 @@ struct OutputIterEdgesFunc {
         packed_edge[words_per_edge - 1] |= kp.ann;
 
         omp_set_lock(&output_lock);
-        fwrite(packed_edge, sizeof(uint32_t), words_per_edge, edge_file);
+
+        memcpy(buf_ + buf_idx_, packed_edge, sizeof(uint32_t) * words_per_edge);
+        buf_idx_ += words_per_edge;
+        if (buf_size_ == buf_idx_) {
+            flush();
+        }
+
         omp_unset_lock(&output_lock);
     }
 };
@@ -421,6 +438,7 @@ static bool ReadReadsAndProcessKernel(IterateGlobalData &globals,
 
         OutputIterEdgesFunc<kNumKmerWord_n, kmer_word_n_t> out_func(globals.next_k1, globals.num_cpu_threads, output_edge_file);
         iterative_edges.for_each(out_func);
+        out_func.flush();
 
         fclose(output_edge_file);
     }
