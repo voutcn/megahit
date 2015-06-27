@@ -438,7 +438,9 @@ def check_bin():
 
 def get_version():
     global megahit_version_str
-    megahit_version_str = "MEGAHIT " + subprocess.Popen([opt.bin_dir + "megahit_asm_core", "dumpversion"], stdout=subprocess.PIPE).communicate()[0].rstrip()
+    megahit_version_str = "MEGAHIT " + \
+                          subprocess.Popen([opt.bin_dir + "megahit_asm_core", "dumpversion"],
+                                           stdout=subprocess.PIPE).communicate()[0].rstrip().decode('utf-8')
 
 def check_builder():
     if not os.path.exists(opt.bin_dir + opt.builder):
