@@ -109,13 +109,6 @@ void InitLookupTable(int64_t *lookup_table, SequencePackage &p) {
         return;
     }
 
-    // for (int64_t i = 0; i < p.size(); ++i) {
-    //     for (int j = 0; j < p.length(i); ++j) {
-    //         putchar("ACGT"[p.get_base(i, j)]);
-    //     }
-    //     puts("");
-    // }
-
     Kmer<1, uint32_t> kmer;
     kmer.init(&p.packed_seq[0], 0, 16);
 
@@ -442,6 +435,15 @@ void read_seq_and_prepare(seq2sdbg_global_t &globals) {
     globals.package.BuildLookup();
     globals.num_seq = globals.package.size();
 
+    globals.mem_packed_seq = globals.package.size_in_byte() + globals.multiplicity.size() * sizeof(multi_t);
+    int64_t mem_low_bound = globals.mem_packed_seq
+                          + kNumBuckets * sizeof(int64_t) * (globals.num_cpu_threads * 3 + 1);
+    mem_low_bound *= 1.05;
+
+    if (mem_low_bound > globals.host_mem) {
+        xerr_and_exit("%lld bytes is not enough for CX1 sorting, please set -m parameter to at least %lld\n", globals.host_mem, mem_low_bound);
+    }
+
     // --- set cx1 param ---
     globals.cx1.num_cpu_threads_ = globals.num_cpu_threads;
     globals.cx1.num_output_threads_ = globals.num_output_threads;
@@ -517,10 +519,10 @@ void init_global_and_set_cx1(seq2sdbg_global_t &globals) {
     }
 
     // --- memory stuff ---
-    globals.mem_packed_seq = globals.package.size_in_byte() + globals.multiplicity.size() * sizeof(multi_t);
     int64_t mem_remained = globals.host_mem
                            - globals.mem_packed_seq
                            - kNumBuckets * sizeof(int64_t) * (globals.num_cpu_threads * 3 + 1);
+
     int64_t min_lv1_items = globals.tot_bucket_size / (kMaxLv1ScanTime - 0.5);
     int64_t min_lv2_items = std::max(globals.max_bucket_size, kMinLv2BatchSize);
 

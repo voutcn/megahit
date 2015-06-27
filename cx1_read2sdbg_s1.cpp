@@ -116,7 +116,7 @@ void s1_read_input_prepare(read2sdbg_global_t &globals) {
     mem_low_bound *= 1.05;
 
     if (mem_low_bound > globals.host_mem) {
-        xwarning("%lld bytes is not enough for CX1 sorting, please set -m parameter to at least %lld\n", globals.host_mem, mem_low_bound);
+        xerr_and_exit("%lld bytes is not enough for CX1 sorting, please set -m parameter to at least %lld\n", globals.host_mem, mem_low_bound);
     }
 
     xlog("%ld reads, %d max read length, %lld total bases\n", globals.num_reads, globals.max_read_length, globals.package.base_size());

@@ -123,7 +123,7 @@ void read_input_prepare(count_global_t &globals) { // num_items_, num_cpu_thread
     mem_low_bound *= 1.05;
 
     if (mem_low_bound > globals.host_mem) {
-        xwarning("%lld bytes is not enough for CX1 sorting, please set -m parameter to at least %lld\n", globals.host_mem, mem_low_bound);
+        xerr_and_exit("%lld bytes is not enough for CX1 sorting, please set -m parameter to at least %lld\n", globals.host_mem, mem_low_bound);
     }
 
     // set cx1 param
