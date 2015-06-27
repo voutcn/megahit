@@ -110,6 +110,15 @@ void s1_read_input_prepare(read2sdbg_global_t &globals) {
     globals.is_solid.reset(globals.num_k1_per_read * globals.num_reads);
     globals.mem_packed_reads = DivCeiling(globals.num_k1_per_read * globals.num_reads, 8) + globals.package.size_in_byte();
 
+    int64_t mem_low_bound = globals.mem_packed_reads
+                    + kNumBuckets * sizeof(int64_t) * (globals.num_cpu_threads * 3 + 1)
+                    + (kMaxMulti_t + 1) * (globals.num_output_threads + 1) * sizeof(int64_t);
+    mem_low_bound *= 1.05;
+
+    if (mem_low_bound > globals.host_mem) {
+        xwarning("%lld bytes is not enough for CX1 sorting, please set -m parameter to at least %lld\n", globals.host_mem, mem_low_bound);
+    }
+
     xlog("%ld reads, %d max read length, %lld total bases\n", globals.num_reads, globals.max_read_length, globals.package.base_size());
     xlog("Read libs:\n")
     for (unsigned i = 0; i < globals.lib_info.size(); ++i) {

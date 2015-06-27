@@ -116,6 +116,16 @@ void read_input_prepare(count_global_t &globals) { // num_items_, num_cpu_thread
 
     globals.mem_packed_reads = globals.package.size_in_byte();
 
+    int64_t mem_low_bound = globals.mem_packed_reads
+                            + globals.num_reads * sizeof(unsigned char) * 2 // first_in0 & last_out0
+                            + kNumBuckets * sizeof(int64_t) * (globals.num_cpu_threads * 3 + 1)
+                            + (kMaxMulti_t + 1) * (globals.num_output_threads + 1) * sizeof(int64_t);
+    mem_low_bound *= 1.05;
+
+    if (mem_low_bound > globals.host_mem) {
+        xwarning("%lld bytes is not enough for CX1 sorting, please set -m parameter to at least %lld\n", globals.host_mem, mem_low_bound);
+    }
+
     // set cx1 param
     globals.cx1.num_cpu_threads_ = globals.num_cpu_threads;
     globals.cx1.num_output_threads_ = globals.num_output_threads;

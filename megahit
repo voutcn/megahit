@@ -622,7 +622,7 @@ def build_first_graph():
             ret_code = p.wait()
 
             if ret_code != 0:
-                logging.error("Error occurs when running \"sdbg_builder count/read2sdbg\"")
+                logging.error("Error occurs when running \"sdbg_builder count/read2sdbg\", please refer to %s for detail" % log_file_name())
                 logging.error("[Exit code %d] " % ret_code)
 
                 for p in pipes:
@@ -701,7 +701,7 @@ def build_graph(kmer_k, kmer_from, num_edge_files):
             ret_code = p.wait()
 
             if ret_code != 0:
-                logging.error("Error occurs when running \"builder build\" for k = %d" % kmer_k)
+                logging.error("Error occurs when running \"builder build\" for k = %d; please refer to %s for detail" % (kmer_k, log_file_name()))
                 logging.error("[Exit code %d]" % ret_code)
                 exit(ret_code)
 
@@ -744,7 +744,7 @@ def iterate(cur_k, step):
             ret_code = p.wait()
 
             if ret_code != 0:
-                logging.error("Error occurs when running iterator for k = %d to k = %d " % (cur_k, next_k))
+                logging.error("Error occurs when running iterator for k = %d to k = %d, please refer to %s for detail" % (cur_k, next_k, log_file_name()))
                 logging.error("[Exit code %d]" % ret_code)
                 exit(ret_code)
 
@@ -780,7 +780,7 @@ def assemble(cur_k):
             assembly_cmd.append(str(opt.min_count))
         else:
             assembly_cmd.append("--min_depth")
-            assembly_cmd.append("1.5")
+            assembly_cmd.append(str(min(1.5, opt.min_count)))
 
         if cur_k == opt.k_max:
             assembly_cmd.append("--is_final_round")
@@ -806,7 +806,7 @@ def assemble(cur_k):
             ret_code = p.wait()
 
             if ret_code != 0:
-                logging.error("Error occurs when assembling contigs for k = %d" % cur_k)
+                logging.error("Error occurs when assembling contigs for k = %d, please refer to %s for detail" % (cur_k, log_file_name()))
                 logging.error("[Exit code %d]" % ret_code)
                 exit(ret_code)
             
@@ -845,7 +845,7 @@ def local_assemble(cur_k, kmer_to):
             ret_code = p.wait()
 
             if ret_code != 0:
-                logging.error("Error occurs when running local assembly for k = %d to k = %d " % (cur_k, min(cur_k + opt.k_step, opt.k_max)))
+                logging.error("Error occurs when running local assembly for k = %d to k = %d, please refer to %s for detail" % (cur_k, min(cur_k + opt.k_step, opt.k_max), log_file_name()))
                 logging.error("[Exit code %d]" % ret_code)
                 exit(ret_code)
 
@@ -880,7 +880,7 @@ def merge_final():
             ret_code = p.wait()
 
         if ret_code != 0:
-            logging.error("Error occurs when merging final contigs")
+            logging.error("Error occurs when merging final contigs, please refer to %s for detail" % log_file_name())
             logging.error("[Exit code %d]" % ret_code)
             exit(ret_code)
 
