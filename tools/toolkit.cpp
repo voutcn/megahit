@@ -22,6 +22,8 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "definitions.h"
+
 int main_contig2fastg(int argc, char** argv);
 int main_read_stat(int argc, char **argv);
 int main_trim_lowq_tail(int argc, char **argv);
@@ -33,7 +35,8 @@ void show_help(const char *program_name) {
 	                "       contig2fastg          convert MEGAHIT's k*.contigs.fa to fastg format that can be viewed by Bandage\n"
 	                "       readstat              calculate read stats (# of reads, bases, longest, shortest, average)\n"
 	                "       trim                  trim low quality tail of fastq reads\n"
-	                "       filterbylen           filter contigs by length\n",
+	                "       filterbylen           filter contigs by length\n"
+	                "       dumpversion           dump version\n",
 	                program_name);
 }
 
@@ -51,6 +54,9 @@ int main(int argc, char **argv) {
 		return main_trim_lowq_tail(argc - 1, argv + 1);
 	} else if (strcmp(argv[1], "filterbylen") == 0) {
 		return main_filter_by_len(argc - 1, argv + 1);
+	} else if (strcmp(argv[1], "dumpversion") == 0) {
+		printf("%s\n", PACKAGE_VERSION);
+		return 0;
 	} else {
 		show_help(argv[0]);
 		return 1;

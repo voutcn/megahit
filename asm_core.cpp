@@ -23,6 +23,7 @@
 #include <string.h>
 
 #include "utils.h"
+#include "definitions.h"
 
 int main_assemble(int argc, char** argv);
 int main_local(int argc, char **argv);
@@ -33,11 +34,10 @@ void show_help(const char *program_name) {
 					"    sub-programs:\n"
 	                "       assemble              assemble from SdBG\n"
 	                "       local                 local asssembly\n"
-	                "       iterate               extract iterative edges\n",
+	                "       iterate               extract iterative edges\n"
+	                "       dumpversion           dump version\n",
 	                program_name);
 }
-
-AutoMaxRssRecorder recorder;
 
 int main(int argc, char **argv) {
 	if (argc < 2) {
@@ -51,6 +51,9 @@ int main(int argc, char **argv) {
 		return main_local(argc - 1 , argv + 1);
 	} else if (strcmp(argv[1], "iterate") == 0) {
 		return main_iterate(argc - 1, argv + 1);
+	} else if (strcmp(argv[1], "dumpversion") == 0) {
+		printf("%s\n", PACKAGE_VERSION);
+		return 0;
 	} else {
 		show_help(argv[0]);
 		exit(1);

@@ -92,6 +92,8 @@ void ParseLocalAsmOptions(int argc, char *argv[]) {
 }
 
 int main_local(int argc, char **argv) {
+    AutoMaxRssRecorder recorder;
+    
     ParseLocalAsmOptions(argc, argv);
 
     omp_set_num_threads(opt.num_threads);

@@ -483,6 +483,8 @@ bool IterateToNextK(IterateGlobalData &globals) {
 }
 
 int main_iterate(int argc, char *argv[]) {
+    AutoMaxRssRecorder recorder;
+    
     // set stdout line buffered
     setvbuf(stdout, NULL, _IONBF, 0);
     setvbuf(stderr, NULL, _IONBF, 0);

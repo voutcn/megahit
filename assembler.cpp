@@ -122,6 +122,8 @@ void PrintStat(Histgram<int64_t> &h) {
 }
 
 int main_assemble(int argc, char **argv) {
+    AutoMaxRssRecorder recorder;
+    
     ParseAsmOption(argc, argv);
 
     SuccinctDBG dbg;

@@ -31,10 +31,11 @@
 #include "lv2_gpu_functions.h"
 #include "options_description.h"
 #include "utils.h"
-
-AutoMaxRssRecorder recorder;
+#include "definitions.h"
 
 int main_kmer_count(int argc, char **argv) {
+    AutoMaxRssRecorder recorder;
+
     // parse option
     OptionsDescription desc;
     count_opt_t opt;
@@ -121,6 +122,8 @@ int main_kmer_count(int argc, char **argv) {
 }
 
 int main_read2sdbg(int argc, char **argv) {
+    AutoMaxRssRecorder recorder;
+
     // parse option the same as kmer_count
     OptionsDescription desc;
     read2sdbg_opt_t opt;
@@ -219,6 +222,8 @@ int main_read2sdbg(int argc, char **argv) {
 }
 
 int main_seq2sdbg(int argc, char **argv) {
+    AutoMaxRssRecorder recorder;
+
     OptionsDescription desc;
     seq2sdbg_opt_t opt;
 
@@ -333,6 +338,7 @@ void DisplayHelp(char *program_name) {
     fprintf(stderr, "       %s count          kmer counting\n", program_name);
     fprintf(stderr, "       %s read2sdbg      build sdbg from reads\n", program_name);
     fprintf(stderr, "       %s seq2sdbg       build sdbg from megahit contigs + edges\n", program_name);
+    fprintf(stderr, "       %s dumpversion       dump version\n", program_name);
 }
 
 int main(int argc, char** argv) {
@@ -347,7 +353,10 @@ int main(int argc, char** argv) {
         return main_read2sdbg(argc - 1, argv + 1);
     if (std::string(argv[1]) == "seq2sdbg")
         return main_seq2sdbg(argc - 1, argv + 1);
-    else {
+    else if (strcmp(argv[1], "dumpversion") == 0) {
+        printf("%s\n", PACKAGE_VERSION);
+        return 0;
+    } else {
         DisplayHelp(argv[0]);
         exit(1);
     }

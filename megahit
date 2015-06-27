@@ -35,7 +35,7 @@ import logging
 import time
 from datetime import datetime
 
-megahit_version_str = "MEGAHIT 0.3.1-rc"
+megahit_version_str = ""
 usage_message = '''
 Copyright (c) The University of Hong Kong
 
@@ -429,12 +429,16 @@ def prepare_continue():
                 if len(a) == 2 and a[1] == "done":
                     opt.last_cp = int(a[0])
         cpf.close()
-    print("Continue from check point " + str(opt.last_cp), file=sys.stderr) 
+    print("Continue from check point " + str(opt.last_cp), file=sys.stderr)
 
 def check_bin():
     for subprogram in ["megahit_asm_core", "megahit_toolkit"]:
         if not os.path.exists(opt.bin_dir + subprogram):
-            raise Usage(megahit_version_str + '\n' + "Cannot find sub-program \"" + subprogram + "\", please recompile.")
+            raise Usage("Cannot find sub-program \"" + subprogram + "\", please recompile.")
+
+def get_version():
+    global megahit_version_str
+    megahit_version_str = "MEGAHIT " + subprocess.Popen([opt.bin_dir + "megahit_asm_core", "dumpversion"], stdout=subprocess.PIPE).communicate()[0].rstrip()
 
 def check_builder():
     if not os.path.exists(opt.bin_dir + opt.builder):
@@ -894,6 +898,7 @@ def main(argv = None):
         start_time = time.time()
 
         check_bin()
+        get_version()
         parse_opt(argv[1:])
         check_opt()
         check_builder()
