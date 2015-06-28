@@ -508,6 +508,12 @@ void LocalAssembler::LocalAssemble() {
     std::deque<Sequence> out_contigs;
     std::deque<ContigInfo> out_contig_infos;
 
+    std::ofstream local_file(local_filename_);
+    std::ofstream local_info(local_filename_ + ".info");
+
+    long long num_bases = 0;
+    long long num_contigs = 0;
+
 #pragma omp parallel for private(seq, contig_end, reads, out_contigs, out_contig_infos) schedule(dynamic)
     for (uint64_t cid = 0; cid < contigs_->size(); ++cid) {
         int cl = contigs_->length(cid);
@@ -559,13 +565,20 @@ void LocalAssembler::LocalAssemble() {
                 if (out_contigs[j].size() > (unsigned)min_contig_len_ &&
                         out_contigs[j].size() > (unsigned)local_kmax_) {
                     while (__sync_lock_test_and_set(&output_lock_, 1)) while (output_lock_);
-                    WriteFasta(std::cout,
+                    WriteFasta(local_file,
                                out_contigs[j],
                                FormatString("lc_%" PRIu64 "_strand_%d_id_%" PRIu64 " flag=0 multi=1",
                                             cid, strand, j));
+                    num_contigs++;
+                    num_bases += out_contigs[j].size();
                     __sync_lock_release(&output_lock_);
                 }
             }
         }
     }
+
+    local_info << num_contigs << ' ' << num_bases << std::endl;
+
+    local_info.close();
+    local_file.close();
 }

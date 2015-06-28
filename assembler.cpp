@@ -198,6 +198,7 @@ int main_assemble(int argc, char **argv) {
     // output contigs
     Histgram<int64_t> hist;
     FILE *out_contig_file = OpenFileAndCheck(opt.contig_file().c_str(), "w");
+    FILE *out_contig_info = OpenFileAndCheck((opt.contig_file() + ".info").c_str(), "w");
     FILE *out_final_contig_file = OpenFileAndCheck(opt.final_contig_file().c_str(), "w");
 
     if (!(opt.is_final_round && opt.prune_level >= 1)) { // otherwise output after local low depth pruning
@@ -210,6 +211,7 @@ int main_assemble(int argc, char **argv) {
                                    hist, false, opt.min_standalone);
 
         PrintStat(hist);
+        fprintf(out_contig_info, "%lld %lld\n", (long long)hist.size(), (long long)hist.sum());
 
         timer.stop();
         xlog("Time to output: %lf\n", timer.elapsed());
@@ -218,6 +220,7 @@ int main_assemble(int argc, char **argv) {
     // remove local low depth & output additional contigs
     if (opt.prune_level >= 1) {
         FILE *out_addi_contig_file = OpenFileAndCheck(opt.addi_contig_file().c_str(), "w");
+        FILE *out_addi_contig_info = OpenFileAndCheck((opt.addi_contig_file() + ".info").c_str(), "w");
 
         timer.reset();
         timer.start();
@@ -250,10 +253,14 @@ int main_assemble(int argc, char **argv) {
         }
 
         PrintStat(hist);
+        fprintf(out_addi_contig_info, "%lld %lld\n", (long long)hist.size(), (long long)hist.sum());
+        
         fclose(out_addi_contig_file);
+        fclose(out_addi_contig_info);
     }
 
     fclose(out_contig_file);
+    fclose(out_contig_info);
     fclose(out_final_contig_file);
 
     return 0;

@@ -361,6 +361,58 @@ void read_seq_and_prepare(seq2sdbg_global_t &globals) {
     SequenceManager seq_manager(&globals.package);
     seq_manager.set_multiplicity_vector(&globals.multiplicity);
 
+    // reserve space
+    {
+        long long bases_to_reserve = 0;
+        long long num_contigs_to_reserve = 0;
+        long long num_multiplicities_to_reserve = 0;
+
+        if (globals.input_prefix != "") {
+            long long k_size, num_edges;
+            FILE *edge_info = OpenFileAndCheck((globals.input_prefix + ".edges.info").c_str(), "r");
+            assert(fscanf(edge_info, "%lld%lld", &k_size, &num_edges) == 2);
+            if (globals.need_mercy) { num_edges *= 1.1; } // it is rare that # mercy > 10%
+            bases_to_reserve += num_edges * (k_size + 1);
+            num_multiplicities_to_reserve += num_edges;
+            fclose(edge_info);
+        }
+
+        if (globals.contig != "") {
+            long long num_contigs, num_bases;
+            FILE *contig_info = OpenFileAndCheck((globals.contig + ".info").c_str(), "r");
+            assert(fscanf(contig_info, "%lld%lld", &num_contigs, &num_bases) == 2);
+            bases_to_reserve += num_bases;
+            num_contigs_to_reserve += num_contigs;
+            num_multiplicities_to_reserve += num_contigs;
+            fclose(contig_info);
+        }
+
+        if (globals.addi_contig != "") {
+            long long num_contigs, num_bases;
+            FILE *contig_info = OpenFileAndCheck((globals.addi_contig + ".info").c_str(), "r");
+            assert(fscanf(contig_info, "%lld%lld", &num_contigs, &num_bases) == 2);
+            bases_to_reserve += num_bases;
+            num_contigs_to_reserve += num_contigs;
+            num_multiplicities_to_reserve += num_contigs;
+            fclose(contig_info);
+        }
+
+        if (globals.local_contig != "") {
+            long long num_contigs, num_bases;
+            FILE *contig_info = OpenFileAndCheck((globals.local_contig + ".info").c_str(), "r");
+            assert(fscanf(contig_info, "%lld%lld", &num_contigs, &num_bases) == 2);
+            bases_to_reserve += num_bases;
+            num_contigs_to_reserve += num_contigs;
+            num_multiplicities_to_reserve += num_contigs;
+            fclose(contig_info);
+        }
+
+        globals.package.reserve_num_seq(num_contigs_to_reserve);
+        globals.package.reserve_bases(bases_to_reserve);
+        globals.multiplicity.reserve(num_multiplicities_to_reserve);
+
+    }
+
     if (globals.input_prefix != "") {
         seq_manager.set_file_type(globals.need_mercy ? SequenceManager::kSortedEdges : SequenceManager::kMegahitEdges);
         seq_manager.set_edge_files(globals.input_prefix + ".edges", globals.num_edge_files);
@@ -498,7 +550,7 @@ void init_global_and_set_cx1(seq2sdbg_global_t &globals) {
 #ifndef USE_GPU
     globals.cx1.max_lv2_items_ = std::max(globals.max_bucket_size, kMinLv2BatchSize);
 #else
-    int64_t lv2_mem = globals.gpu_mem - 1073741824; // should reserver ~1G for GPU sorting
+    int64_t lv2_mem = globals.gpu_mem - 1073741824; // should reserve ~1G for GPU sorting
     globals.cx1.max_lv2_items_ = std::min(lv2_mem / cx1_t::kGPUBytePerItem, std::max(globals.max_bucket_size, kMinLv2BatchSizeGPU));
     if (globals.max_bucket_size > globals.cx1.max_lv2_items_) {
         xerr_and_exit("Bucket too large for GPU: contains %lld items. Please try CPU version.\n", globals.max_bucket_size);

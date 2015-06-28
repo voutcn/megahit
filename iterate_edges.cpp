@@ -82,8 +82,8 @@ struct iter_opt_t {
         step = 0;
     }
 
-    string output_edge_file() {
-        return output_prefix + ".edges.0";
+    string edge_file_prefix() {
+        return output_prefix + ".edges";
     }
 
     string output_read_file() {
@@ -355,7 +355,8 @@ static bool ReadReadsAndProcessKernel(IterateGlobalData &globals,
     // write iterative edges
     if (iterative_edges.size() > 0) {
         xlog("Writing iterative edges...\n");
-        FILE *output_edge_file = OpenFileAndCheck(opt.output_edge_file().c_str(), "wb");
+        FILE *output_edge_file = OpenFileAndCheck((opt.edge_file_prefix() + ".0").c_str(), "wb");
+        FILE *output_edge_info = OpenFileAndCheck((opt.edge_file_prefix() + ".info").c_str(), "w");
 
         // header
         static const int kWordsPerEdge = ((globals.kmer_k + globals.step + 1) * 2 + kBitsPerMulti_t + 31) / 32;
@@ -386,7 +387,10 @@ static bool ReadReadsAndProcessKernel(IterateGlobalData &globals,
             fwrite(packed_edge, sizeof(uint32_t), kWordsPerEdge, output_edge_file);
         }
 
+        fprintf(output_edge_info, "%d %lld\n", next_k, (long long)iterative_edges.size());
+
         fclose(output_edge_file);
+        fclose(output_edge_info);
     }
 
     return true;

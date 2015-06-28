@@ -656,12 +656,16 @@ void post_proc(count_global_t &globals) {
         xlog("Total number of solid edges: %llu\n", num_solid_edges);
     }
 
-    FILE *counting_file = OpenFileAndCheck(globals.output_prefix+".counting").c_str(), "w");
+    FILE *counting_file = OpenFileAndCheck((globals.output_prefix+".counting").c_str(), "w");
     for (int64_t i = 1, acc = 0; i <= kMaxMulti_t; ++i) {
         acc += globals.edge_counting[i];
         fprintf(counting_file, "%lld %lld\n", (long long)i, (long long)acc);
     }
     fclose(counting_file);
+
+    FILE *edge_info = OpenFileAndCheck((globals.output_prefix+".edges.info").c_str(), "w");
+    fprintf(edge_info, "%d %lld\n", globals.kmer_k, (long long)num_solid_edges);
+    fclose(edge_info);
 
     // --- cleaning ---
     pthread_mutex_destroy(&globals.lv1_items_scanning_lock);

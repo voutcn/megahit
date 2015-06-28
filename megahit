@@ -862,15 +862,14 @@ def local_assemble(cur_k, kmer_to):
                   "-c", contig_prefix(cur_k) + ".contigs.fa",
                   "-l", opt.lib,
                   "-t", str(opt.num_cpu_threads),
+                  "-o", contig_prefix(cur_k) + ".local.fa",
                   # "--sparsity", "1",
                   "--kmax", str(kmer_to)]
         try:
             logging.info("--- [%s] Local assembling k = %d ---" % (datetime.now().strftime("%c"), cur_k))
             logging.debug("cmd: %s" % (" ").join(la_cmd))
 
-            local_contig_file = open(contig_prefix(cur_k) + ".local.fa", "w")
-
-            p = subprocess.Popen(la_cmd, stdout=local_contig_file, stderr=subprocess.PIPE)
+            p = subprocess.Popen(la_cmd, stderr=subprocess.PIPE)
             
             while True:
                 line = p.stderr.readline().rstrip()
@@ -884,8 +883,6 @@ def local_assemble(cur_k, kmer_to):
                 logging.error("Error occurs when running local assembly for k = %d to k = %d, please refer to %s for detail" % (cur_k, min(cur_k + opt.k_step, opt.k_max), log_file_name()))
                 logging.error("[Exit code %d]" % ret_code)
                 exit(ret_code)
-
-            local_contig_file.close();
 
         except OSError as o:
             if o.errno == errno.ENOTDIR or o.errno == errno.ENOENT:

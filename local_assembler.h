@@ -107,6 +107,10 @@ struct LocalAssembler {
         num_threads_ = num_threads;
     }
 
+    void set_local_file(const std::string &local_filename) {
+        local_filename_ = local_filename;
+    }
+
     void ReadContigs(const std::string &file_name);
     void BuildHashMapper(bool show_stat = true);
     void AddReadLib(const std::string &file_prefix);
