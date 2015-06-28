@@ -110,7 +110,105 @@ inline void ReadMultipleLibs(const std::string &lib_file, SequencePackage &packa
     }
 }
 
-inline void ReadBinaryLibs(const std::string &file_prefix, SequencePackage &package, std::vector<lib_info_t> &lib_info) {
+inline void ReadAndWriteMultipleLibs(const std::string &lib_file, bool is_reverse,
+                                     const std::string &out_prefix, bool verbose) {
+    std::ifstream lib_config(lib_file);
+    if (!lib_config.is_open()) {
+        xerr_and_exit("File to open read_lib file: %s\n", lib_file.c_str());
+    }
+
+    FILE *bin_file = OpenFileAndCheck(FormatString("%s.bin", out_prefix.c_str()), "wb");
+
+    SequencePackage package;
+    std::vector<lib_info_t> lib_info;
+
+    std::string metadata;
+    std::string type;
+    std::string file_name1;
+    std::string file_name2;
+
+    int64_t total_reads = 0;
+    int64_t total_bases = 0;
+    bool trimN = true;
+    SequenceManager seq_manager(&package);
+    package.clear();
+    lib_info.clear();
+
+    while (std::getline(lib_config, metadata)) {
+        assert(lib_config >> type);
+        if (type == "pe") {
+            assert(lib_config >> file_name1 >> file_name2);
+
+            seq_manager.set_readlib_type(SequenceManager::kPaired);
+            seq_manager.set_file_type(SequenceManager::kFastxReads);
+            seq_manager.set_pe_files(file_name1, file_name2);
+
+        } else if (type == "se") {
+            assert(lib_config >> file_name1);
+
+            seq_manager.set_readlib_type(SequenceManager::kSingle);
+            seq_manager.set_file_type(SequenceManager::kFastxReads);
+            seq_manager.set_file(file_name1);
+
+        } else if (type == "interleaved") {
+            assert(lib_config >> file_name1);
+
+            seq_manager.set_readlib_type(SequenceManager::kInterleaved);
+            seq_manager.set_file_type(SequenceManager::kFastxReads);
+            seq_manager.set_file(file_name1);
+
+        } else {
+            xerr("Cannot identify read library type %s\n", type.c_str());
+            xerr_and_exit("Valid types: pe, se, interleaved\n");
+        }
+
+        int64_t start = total_reads;
+        int64_t reads_this_batch = 0;
+        int reads_per_bach = 1 << 22;
+        int bases_per_bach = 1 << 28;
+        int max_read_len = 0;
+
+        while (true) {
+            reads_this_batch = seq_manager.ReadShortReads(reads_per_bach, bases_per_bach, false, is_reverse, trimN);
+            if (reads_this_batch == 0) { break; }
+            total_reads += reads_this_batch;
+            total_bases += package.base_size();
+            seq_manager.WriteBinarySequences(bin_file, is_reverse);
+            max_read_len = std::max(max_read_len, (int)package.max_read_len());
+        }
+
+        seq_manager.clear();
+
+        if (type == "pe" && (total_reads - start) % 2 != 0) {
+            xerr("PE library number of reads is odd: %lld!\n", total_reads - start);
+            xerr_and_exit("File(s): %s\n", metadata.c_str())
+        }
+
+        if (type == "interleaved" && (total_reads - start) % 2 != 0) {
+            xerr("PE library number of reads is odd: %lld!\n", total_reads - start);
+            xerr_and_exit("File(s): %s\n", metadata.c_str())
+        }
+
+        if (verbose) {
+            xlog("Lib %d (%s): %s, %lld reads, %d max length\n",
+                  lib_info.size(), metadata.c_str(), type.c_str(), total_reads - start, max_read_len);
+        }
+
+        lib_info.push_back(lib_info_t(&package, start, total_reads - 1, max_read_len, type != "se", metadata));
+        std::getline(lib_config, metadata); // eliminate the "\n"
+    }
+
+    FILE *lib_info_file = OpenFileAndCheck(FormatString("%s.lib_info", out_prefix.c_str()), "w");
+    fprintf(lib_info_file, "%zu %zu\n", total_bases, total_reads);
+    for (unsigned i = 0; i < lib_info.size(); ++i) {
+        fprintf(lib_info_file, "%s\n", lib_info[i].metadata.c_str());
+        fprintf(lib_info_file, "%" PRId64 " %" PRId64 " %d %s\n", lib_info[i].from, lib_info[i].to,
+                lib_info[i].max_read_len, lib_info[i].is_pe ? "pe" : "se");
+    }
+    fclose(lib_info_file);
+}
+
+inline void ReadBinaryLibs(const std::string &file_prefix, SequencePackage &package, std::vector<lib_info_t> &lib_info, bool is_reverse = false) {
     package.clear();
     lib_info.clear();
 
@@ -136,18 +234,7 @@ inline void ReadBinaryLibs(const std::string &file_prefix, SequencePackage &pack
     seq_manager.set_file(FormatString("%s.bin", file_prefix.c_str()));
 
     bool append_to_package = false;
-    bool is_reverse = false;
     seq_manager.ReadShortReads(1LL << 60, 1LL << 60, append_to_package, is_reverse);
-
-    // for (int i = 0; i < package.length(0); ++i) {
-    // 	xerr_and_exit("%c", "ACGT"[package.get_base(0, i)]);
-    // }
-    // xerr_and_exit("\n");
-
-    // for (int i = 0; i < package.length(1); ++i) {
-    // 	xerr_and_exit("%c", "ACGT"[package.get_base(1, i)]);
-    // }
-    // xerr_and_exit("\n");
 }
 
 inline void WriteMultipleLibs(SequencePackage &package, std::vector<lib_info_t> &lib_info, const std::string &file_prefix, bool is_reverse) {

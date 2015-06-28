@@ -94,17 +94,11 @@ int64_t encode_lv1_diff_base(int64_t read_id, count_global_t &g) {
 
 void read_input_prepare(count_global_t &globals) { // num_items_, num_cpu_threads_ and num_output_threads_ must be set here
     bool is_reverse = true;
-    ReadMultipleLibs(globals.read_lib_file, globals.package, globals.lib_info, is_reverse);
+    ReadBinaryLibs(globals.read_lib_file, globals.package, globals.lib_info, is_reverse);
     globals.max_read_length = globals.package.max_read_len();
     globals.num_reads = globals.package.size();
 
     xlog("%ld reads, %d max read length\n", globals.num_reads, globals.max_read_length);
-    xlog("Read libs:\n")
-    for (unsigned i = 0; i < globals.lib_info.size(); ++i) {
-        xlog("");
-        xlog_ext("%s: %s, %lld reads\n", globals.lib_info[i].is_pe ? "Paired-end" : "Single-end",
-                                         globals.lib_info[i].metadata.c_str(), globals.lib_info[i].to - globals.lib_info[i].from + 1);
-    }
 
     // calc words_per_xxx
     int bits_read_length = 1; // bit needed to store read_length
@@ -662,18 +656,12 @@ void post_proc(count_global_t &globals) {
         xlog("Total number of solid edges: %llu\n", num_solid_edges);
     }
 
-    FILE *counting_file = OpenFileAndCheck((std::string(globals.output_prefix)+".counting").c_str(), "w");
+    FILE *counting_file = OpenFileAndCheck(globals.output_prefix+".counting").c_str(), "w");
     for (int64_t i = 1, acc = 0; i <= kMaxMulti_t; ++i) {
         acc += globals.edge_counting[i];
         fprintf(counting_file, "%lld %lld\n", (long long)i, (long long)acc);
     }
     fclose(counting_file);
-
-    if (cx1_t::kCX1Verbose >= 2) {
-        xlog("Output reads to binary file...\n");
-        bool is_reverse = true;
-        WriteMultipleLibs(globals.package, globals.lib_info, globals.output_prefix + ".all_reads", is_reverse);
-    }
 
     // --- cleaning ---
     pthread_mutex_destroy(&globals.lv1_items_scanning_lock);

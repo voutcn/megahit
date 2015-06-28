@@ -491,10 +491,10 @@ def inpipe_cmd(file_name):
         return ""
 
 def write_lib():
+    global opt
     opt.lib = opt.temp_dir + "reads.lib"
     lib = open(opt.lib, "w")
     for i in range(0, len(opt.pe12)):
-        logging.info("--- [LIB INFO] interleaved PE reads: " + opt.pe12[i])
         print(opt.pe12[i], file=lib)
 
         if inpipe_cmd(opt.pe12[i]) != "":
@@ -503,7 +503,6 @@ def write_lib():
             print("interleaved " + opt.pe12[i], file=lib)
 
     for i in range(0, len(opt.pe1)):
-        logging.info("--- [LIB INFO] PE reads: " + opt.pe1[i] + ", " + opt.pe2[i])
 
         if inpipe_cmd(opt.pe1[i]) != "":
             f1 = opt.temp_dir + "inpipe.pe1." + str(i)
@@ -519,7 +518,6 @@ def write_lib():
         print("pe " + f1 + " " + f2, file=lib)
 
     for i in range(0, len(opt.se)):
-        logging.info("--- [LIB INFO] Single-end reads: " + opt.se[i])
         print(opt.se[i], file=lib)
 
         if inpipe_cmd(opt.se[i]) != "":
@@ -528,33 +526,17 @@ def write_lib():
             print("se " + opt.se[i], file=lib)
 
     if opt.input_cmd != "":
-        logging.info("--- [LIB INFO] Single-end reads input by cmd: \'" + opt.input_cmd + "\'")
         print('\"' + opt.input_cmd + '\"', file=lib)
         print("se " + "-", file=lib)
 
     lib.close()
 
-def build_first_graph():
+def build_lib():
     global cp
-    phase1_out_threads = max(1, int(opt.num_cpu_threads / 3))
     if (not opt.continue_mode) or (cp > opt.last_cp):
-        count_opt = ["-k", str(opt.k_min),
-                     "-m", str(opt.min_count),
-                     "--host_mem", str(opt.host_mem),
-                     "--mem_flag", str(opt.mem_flag),
-                     "--gpu_mem", str(opt.gpu_mem),
-                     "--output_prefix", graph_prefix(opt.k_min),
-                     "--num_cpu_threads", str(opt.num_cpu_threads),
-                     "--num_output_threads", str(phase1_out_threads),
-                     "--read_lib_file", str(opt.lib)]
-
-        cmd = []
-        if opt.kmin_1pass:
-            cmd = [opt.bin_dir + opt.builder, "read2sdbg"] + count_opt
-            if not opt.no_mercy:
-                cmd.append("--need_mercy")
-        else:
-            cmd = [opt.bin_dir + opt.builder, "count"] + count_opt
+        build_lib_cmd = [opt.bin_dir + "megahit_asm_core", "buildlib",
+                         opt.lib,
+                         opt.lib]
 
         try:
             # create inpipe
@@ -583,19 +565,10 @@ def build_first_graph():
                     os.mkfifo(opt.temp_dir + "inpipe.se." + str(i))
                     fifos.append(opt.temp_dir + "inpipe.se." + str(i))
 
-            if opt.kmin_1pass:
-                logging.info("--- [%s] Extracting solid (k+1)-mers and building sdbg for k = %d ---" % (datetime.now().strftime("%c"), opt.k_min))
-            else:
-                logging.info("--- [%s] Extracting solid (k+1)-mers for k = %d ---" % (datetime.now().strftime("%c"), opt.k_min))
+            logging.info("--- [%s] Converting reads to binaries ---" % datetime.now().strftime("%c"))
+            logging.debug("%s" % (" ").join(build_lib_cmd))
 
-            logging.debug("cmd: %s" % (" ").join(cmd))
-
-            if opt.input_cmd != "":
-                logging.debug("input cmd: " + opt.input_cmd)
-                input_thread = subprocess.Popen(opt.input_cmd, shell = True, stdout = subprocess.PIPE)
-                p = subprocess.Popen(cmd, stdin = input_thread.stdout, stdout = subprocess.PIPE, stderr=subprocess.PIPE)
-            else:
-                p = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            p = subprocess.Popen(build_lib_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 
             # output to inpipe
             pipes = list()
@@ -618,18 +591,18 @@ def build_first_graph():
                 if inpipe_cmd(opt.se[i]) != "":
                     ip_thread_se = subprocess.Popen(inpipe_cmd(opt.se[i]) + " > " + opt.temp_dir + "inpipe.se." + str(i), shell = True, preexec_fn = os.setsid)
                     pipes.append(ip_thread_se)
-
+            
             while True:
                 line = p.stderr.readline().rstrip()
                 if not line:
                     break;
-                logging.debug(line)
+                logging.info(line)
 
             ret_code = p.wait()
 
             if ret_code != 0:
-                logging.error("Error occurs when running \"sdbg_builder count/read2sdbg\", please refer to %s for detail" % log_file_name())
-                logging.error("[Exit code %d] " % ret_code)
+                logging.error("Error occurs when running \"megahit_asm_core buildlib\"; please refer to %s for detail" % log_file_name())
+                logging.error("[Exit code %d]" % ret_code)
 
                 for p in pipes:
                     os.killpg(p.pid, signal.SIGTERM)
@@ -643,6 +616,63 @@ def build_first_graph():
                     raise Usage("Error occurs when reading inputs")
             for f in fifos:
                 delect_file_if_exist(f)
+
+        except OSError as o:
+            if o.errno == errno.ENOTDIR or o.errno == errno.ENOENT:
+                logging.error("Error: sub-program megahit_asm_core not found, please recompile MEGAHIT")
+            exit(1)
+
+    write_cp()
+
+def build_first_graph():
+    global cp
+    phase1_out_threads = max(1, int(opt.num_cpu_threads / 3))
+    if (not opt.continue_mode) or (cp > opt.last_cp):
+        count_opt = ["-k", str(opt.k_min),
+                     "-m", str(opt.min_count),
+                     "--host_mem", str(opt.host_mem),
+                     "--mem_flag", str(opt.mem_flag),
+                     "--gpu_mem", str(opt.gpu_mem),
+                     "--output_prefix", graph_prefix(opt.k_min),
+                     "--num_cpu_threads", str(opt.num_cpu_threads),
+                     "--num_output_threads", str(phase1_out_threads),
+                     "--read_lib_file", opt.lib]
+
+        cmd = []
+        if opt.kmin_1pass:
+            cmd = [opt.bin_dir + opt.builder, "read2sdbg"] + count_opt
+            if not opt.no_mercy:
+                cmd.append("--need_mercy")
+        else:
+            cmd = [opt.bin_dir + opt.builder, "count"] + count_opt
+
+        try:
+            if opt.kmin_1pass:
+                logging.info("--- [%s] Extracting solid (k+1)-mers and building sdbg for k = %d ---" % (datetime.now().strftime("%c"), opt.k_min))
+            else:
+                logging.info("--- [%s] Extracting solid (k+1)-mers for k = %d ---" % (datetime.now().strftime("%c"), opt.k_min))
+
+            logging.debug("cmd: %s" % (" ").join(cmd))
+
+            if opt.input_cmd != "":
+                logging.debug("input cmd: " + opt.input_cmd)
+                input_thread = subprocess.Popen(opt.input_cmd, shell = True, stdout = subprocess.PIPE)
+                p = subprocess.Popen(cmd, stdin = input_thread.stdout, stdout = subprocess.PIPE, stderr=subprocess.PIPE)
+            else:
+                p = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+
+            while True:
+                line = p.stderr.readline().rstrip()
+                if not line:
+                    break;
+                logging.debug(line)
+
+            ret_code = p.wait()
+
+            if ret_code != 0:
+                logging.error("Error occurs when running \"sdbg_builder count/read2sdbg\", please refer to %s for detail" % log_file_name())
+                logging.error("[Exit code %d] " % ret_code)
+                exit(ret_code)
 
         except OSError as o:
             if o.errno == errno.ENOTDIR or o.errno == errno.ENOENT:
@@ -732,7 +762,7 @@ def iterate(cur_k, step):
                        "-k", str(cur_k),
                        "-s", str(step),
                        "-o", graph_prefix(next_k),
-                       "-r", graph_prefix(opt.k_min) + ".all_reads.bin",
+                       "-r", opt.lib + ".bin",
                        "-f", "binary"]
 
         try:
@@ -830,7 +860,7 @@ def local_assemble(cur_k, kmer_to):
     if (not opt.continue_mode) or (cp > opt.last_cp):
         la_cmd = [opt.bin_dir + "megahit_asm_core", "local",
                   "-c", contig_prefix(cur_k) + ".contigs.fa",
-                  "-l", graph_prefix(opt.k_min) + ".all_reads",
+                  "-l", opt.lib,
                   "-t", str(opt.num_cpu_threads),
                   # "--sparsity", "1",
                   "--kmax", str(kmer_to)]
@@ -925,6 +955,7 @@ def main(argv = None):
         logging.info("--- [%s] k list: %s ---" % (datetime.now().strftime("%c"), ','.join(map(str, opt.k_list))))
 
         write_lib()
+        build_lib()
 
         if not opt.continue_mode:
             write_opt(argv[1:]) # for --continue

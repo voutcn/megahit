@@ -28,6 +28,7 @@
 int main_assemble(int argc, char** argv);
 int main_local(int argc, char **argv);
 int main_iterate(int argc, char **argv);
+int main_build_lib(int argc, char **argv);
 
 void show_help(const char *program_name) {
 	fprintf(stderr, "Usage: %s <sub_program> [sub options]\n"
@@ -35,6 +36,7 @@ void show_help(const char *program_name) {
 	                "       assemble              assemble from SdBG\n"
 	                "       local                 local asssembly\n"
 	                "       iterate               extract iterative edges\n"
+	                "       buildlib              build read library\n"
 	                "       dumpversion           dump version\n",
 	                program_name);
 }
@@ -51,6 +53,8 @@ int main(int argc, char **argv) {
 		return main_local(argc - 1 , argv + 1);
 	} else if (strcmp(argv[1], "iterate") == 0) {
 		return main_iterate(argc - 1, argv + 1);
+	} else if (strcmp(argv[1], "buildlib") == 0) {
+		return main_build_lib(argc - 1, argv + 1);
 	} else if (strcmp(argv[1], "dumpversion") == 0) {
 		printf("%s\n", PACKAGE_VERSION);
 		return 0;

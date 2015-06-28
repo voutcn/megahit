@@ -845,12 +845,6 @@ void s2_post_proc(read2sdbg_global_t &globals) {
         xlog("Total number of $v edges: %llu\n", globals.num_dollar_nodes);
     }
 
-    if (cx1_t::kCX1Verbose >= 2) {
-        xlog("Output reads to binary file...\n");
-        bool is_reverse = true;
-        WriteMultipleLibs(globals.package, globals.lib_info, globals.output_prefix + ".all_reads", is_reverse);
-    }
-
     // --- clean ---
     pthread_mutex_destroy(&globals.lv1_items_scanning_lock);
     free(globals.lv1_items);
