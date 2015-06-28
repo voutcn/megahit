@@ -25,7 +25,9 @@
 
 #include "kmer.h"
 
-#define PACKAGE_VERSION "0.3.1-rc2"
+#ifndef PACKAGE_VERSION
+#define PACKAGE_VERSION "0.3.2-beta"
+#endif
 
 typedef uint16_t multi_t;
 static const int kBitsPerMulti_t = 16;

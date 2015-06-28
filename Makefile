@@ -34,6 +34,8 @@ ifeq ($(use_gpu), 1)
 	NVCC_VERSION = $(strip $(shell nvcc --version | grep release | sed 's/.*release //' |  sed 's/,.*//'))
 endif
 
+version = $(shell git describe --tag || echo "git_not_found" 2>/dev/null)
+
 # detect OS
 OSUPPER = $(shell uname -s 2>/dev/null | tr [:lower:] [:upper:])
 
@@ -157,6 +159,10 @@ endif
 
 ifneq ($(disablempopcnt), 1)
 	CXXFLAGS += -mpopcnt
+endif
+
+ifneq ($(version), git_not_found)
+	CXXFLAGS += -DPACKAGE_VERSION="\"$(version)\""
 endif
 
 #-------------------------------------------------------------------------------
