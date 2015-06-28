@@ -156,7 +156,6 @@ int64_t SequenceManager::ReadShortReads(int64_t max_num, int64_t max_num_bases, 
 
         return max_num;
     } else if (f_type == kBinaryReads) {
-        assert(!reverse);
         uint32_t read_len;
         for (int64_t i = 0; i < max_num; ++i) {
             if (gzread(files_[0], &read_len, sizeof(read_len)) == 0) {
@@ -168,7 +167,11 @@ int64_t SequenceManager::ReadShortReads(int64_t max_num, int64_t max_num_bases, 
                 buf_.resize(num_words);
             }
             assert((unsigned)gzread(files_[0], &buf_[0], sizeof(uint32_t) * num_words) == num_words * sizeof(uint32_t));
-            package_->AppendSeq(&buf_[0], read_len);
+            if (!reverse) {
+                package_->AppendSeq(&buf_[0], read_len);
+            } else {
+                package_->AppendRevSeq(&buf_[0], read_len);
+            }
             num_bases += read_len;
             if (read_len >= max_num_bases && i % 2 == 1) {
                 return i + 1;
