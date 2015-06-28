@@ -40,6 +40,7 @@ struct local_asm_opt_t {
     double min_mapping_len;
 
     int num_threads;
+    std::string output_file;
 
     local_asm_opt_t() {
         kmin = 11;
@@ -51,6 +52,7 @@ struct local_asm_opt_t {
         similarity = 0.95;
         min_mapping_len = 75;
         num_threads = 0;
+        output_file = "";
     }
 };
 
@@ -70,6 +72,7 @@ void ParseLocalAsmOptions(int argc, char *argv[]) {
     desc.AddOption("sparsity", "", opt.sparsity, "sparsity of hash mapper");
     desc.AddOption("similarity", "", opt.similarity, "alignment similarity threshold");
     desc.AddOption("num_threads", "t", opt.num_threads, "");
+    desc.AddOption("output_file", "o", opt.output_file, "");
 
     try {
         desc.Parse(argc, argv);
@@ -79,12 +82,15 @@ void ParseLocalAsmOptions(int argc, char *argv[]) {
         if (opt.lib_file_prefix == "") {
             throw std::logic_error("no read file!");
         }
+        if (opt.output_file == "") {
+            throw std::logic_error("no output file!");
+        }
         if (opt.num_threads == 0) {
             opt.num_threads = omp_get_max_threads();
         }
     } catch (std::exception &e) {
         std::cerr << e.what() << std::endl;
-        std::cerr << "Usage: " << argv[0] << " -c contigs.fa -r reads.fq > out.local_contig.fa" << std::endl;
+        std::cerr << "Usage: " << argv[0] << " -c contigs.fa -r reads.fq -o out.local_contig.fa" << std::endl;
         std::cerr << "options:" << std::endl;
         std::cerr << desc << std::endl;
         exit(1);
@@ -92,6 +98,8 @@ void ParseLocalAsmOptions(int argc, char *argv[]) {
 }
 
 int main_local(int argc, char **argv) {
+    AutoMaxRssRecorder recorder;
+    
     ParseLocalAsmOptions(argc, argv);
 
     omp_set_num_threads(opt.num_threads);
@@ -100,6 +108,7 @@ int main_local(int argc, char **argv) {
     la.set_kmer(opt.kmin, opt.kmax, opt.step);
     la.set_mapping_threshold(opt.similarity, opt.min_mapping_len);
     la.set_num_threads(opt.num_threads);
+    la.set_local_file(opt.output_file);
 
     la.ReadContigs(opt.contig_file);
     la.BuildHashMapper();

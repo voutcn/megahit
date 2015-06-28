@@ -25,6 +25,8 @@
 #include <assert.h>
 #include <vector>
 
+#include "bit_operation.h"
+
 /**
  * @brief hold a set of sequences
  */
@@ -91,7 +93,7 @@ struct SequencePackage {
     }
 
     size_t size_in_byte() {
-        return sizeof(word_t) * packed_seq.size() + sizeof(uint64_t) * start_idx_.size() + sizeof(uint64_t) * pos_to_id_.size();
+        return sizeof(word_t) * packed_seq.capacity() + sizeof(uint64_t) * start_idx_.capacity() + sizeof(uint64_t) * pos_to_id_.capacity();
     }
 
     size_t max_read_len() {
@@ -201,6 +203,15 @@ struct SequencePackage {
         start_idx_.back() += len;
     }
 
+    void AppendFixedLenRevSeq(const word_t *s, int len) {
+        assert(len == fixed_len_);
+        assert(!fixed_len_sealed_);
+
+        AddRevSeqToPackedSeq_(s, len);
+        ++num_fixed_len_items_;
+        start_idx_.back() += len;
+    }
+
     void AppendSeq(const char *s, int len) {
         fixed_len_sealed_ = true;
         AddSeqToPackedSeq_(s, len);
@@ -218,6 +229,13 @@ struct SequencePackage {
     void AppendSeq(const word_t *s, int len) {
         fixed_len_sealed_ = true;
         AddSeqToPackedSeq_(s, len);
+        uint64_t end = start_idx_.back() + len;
+        start_idx_.push_back(end);
+    }
+
+    void AppendRevSeq(const word_t *s, int len) {
+        fixed_len_sealed_ = true;
+        AddRevSeqToPackedSeq_(s, len);
         uint64_t end = start_idx_.back() + len;
         start_idx_.push_back(end);
     }
@@ -294,6 +312,27 @@ struct SequencePackage {
         }
     }
 
+    void AddRevSeqToPackedSeq_(const word_t *rs, int len) {
+        std::vector<word_t> s(rs, rs + (len + kCharsPerWord - 1) / kCharsPerWord);
+
+        for (int j = 0; j < (int)s.size(); ++j) {
+            s[j] = bit_operation::Reverse(s[j]);
+        }
+        for (int j = 0, k = s.size() - 1; j < k; ++j, --k) {
+            std::swap(s[j], s[k]);
+        }
+
+        unsigned shift = (kCharsPerWord - len % kCharsPerWord)  * 2;
+        if (shift != kBitsPerWord) {
+            for (int j = 0; j < (int)s.size() - 1; ++j) {
+                s[j] = (s[j] << shift) | (s[j+1] >> (kBitsPerWord - shift));
+            }
+            s.back() <<= shift;
+        }
+
+        AddSeqToPackedSeq_(&s[0], len);
+    }
+
     void get_seq(std::vector<word_t> &s, size_t seq_id, int begin = 0, int end = -1) {
         if (end == -1) {
             end = length(seq_id) - 1;
@@ -326,12 +365,6 @@ struct SequencePackage {
             s.back() >>= shift_clean;
             s.back() <<= shift_clean;
         }
-
-        // for (int j = 0; j < end - begin + 1; ++j) {
-        // 	if ((s[j/16] >> (15-j%16) * 2 & 3) != get_base(seq_id, begin + j)) {
-        // 		printf("j: %d, first_shift: %d\n", j, first_shift);
-        // 	}
-        // }
     }
 };
 

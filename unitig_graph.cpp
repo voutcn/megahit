@@ -858,14 +858,12 @@ void UnitigGraph::Refresh_(bool set_changed) {
     omp_destroy_lock(&reassemble_lock);
 }
 
-void UnitigGraph::OutputContigs(FILE *contig_file, FILE *final_file, std::map<int64_t, int> &histo,
+void UnitigGraph::OutputContigs(FILE *contig_file, FILE *final_file, Histgram<int64_t> &histo,
                                 bool change_only, int min_final_standalone) {
     omp_lock_t output_lock;
-    omp_lock_t hist_lock;
     long long output_id = 0;
 
     omp_init_lock(&output_lock);
-    omp_init_lock(&hist_lock);
     histo.clear();
 
     assert(!(change_only && final_file != NULL)); // if output changed contigs, must not output final contigs
@@ -886,9 +884,7 @@ void UnitigGraph::OutputContigs(FILE *contig_file, FILE *final_file, std::map<in
             FoldPalindrome(label, sdbg_->kmer_k, vertices_[i].is_loop);
         }
 
-        omp_set_lock(&hist_lock);
-        ++histo[label.length()];
-        omp_unset_lock(&hist_lock);
+        histo.insert(label.length());
 
         if (change_only && !vertices_[i].is_changed) {
             continue;
@@ -941,5 +937,4 @@ void UnitigGraph::OutputContigs(FILE *contig_file, FILE *final_file, std::map<in
     }
 
     omp_destroy_lock(&output_lock);
-    omp_destroy_lock(&hist_lock);
 }

@@ -42,6 +42,7 @@ OSUPPER = $(shell uname -s 2>/dev/null | tr [:lower:] [:upper:])
 #-------------------------------------------------------------------------------
 
 CUDA_INC = "$(shell dirname $(NVCC))/../include"
+CUDA_LIB = "$(shell dirname $(NVCC))/../lib64"
 INC = -I$(CUDA_INC) -I.
 
 #-------------------------------------------------------------------------------
@@ -144,7 +145,7 @@ DEPS =   ./Makefile \
 #-------------------------------------------------------------------------------
 # g++ and its options
 #-------------------------------------------------------------------------------
-CUDALIBFLAG = -L/usr/local/cuda/lib64/ -lcuda -lcudart
+CUDALIBFLAG = -L$(CUDA_LIB) -lcuda -lcudart
 GCC_VER := $(shell echo `$(CXX) -dumpversion | cut -f1-2 -d.`)
 
 CXXFLAGS = -O2 -Wall -Wno-unused-function -Wno-array-bounds -D__STDC_FORMAT_MACROS -funroll-loops -fprefetch-loop-arrays -fopenmp -I. -std=c++0x -static-libgcc
@@ -221,8 +222,8 @@ LIB_ASM = succinct_dbg.o assembly_algorithms.o branch_group.o options_descriptio
 megahit_sdbg_build: sdbg_builder.cpp cx1.h lv2_cpu_sort.h cx1_kmer_count.o cx1_read2sdbg_s1.o cx1_read2sdbg_s2.o cx1_seq2sdbg.o options_description.o sequence_manager.o $(DEPS)
 	$(CXX) $(CXXFLAGS) sdbg_builder.cpp cx1_kmer_count.o options_description.o cx1_read2sdbg_s1.o cx1_read2sdbg_s2.o cx1_seq2sdbg.o sequence_manager.o $(LIB) -o megahit_sdbg_build
 
-megahit_asm_core: $(LIB_ASM) $(LIB_IDBA) asm_core.cpp assembler.cpp local_assemble.cpp iterate_edges.cpp $(DEPS)
-	$(CXX) $(CXXFLAGS) asm_core.cpp assembler.cpp local_assemble.cpp iterate_edges.cpp $(LIB_IDBA) $(LIB_ASM) $(LIB) -o megahit_asm_core
+megahit_asm_core: $(LIB_ASM) $(LIB_IDBA) asm_core.cpp assembler.cpp local_assemble.cpp iterate_edges.cpp build_read_lib.cpp $(DEPS)
+	$(CXX) $(CXXFLAGS) asm_core.cpp assembler.cpp local_assemble.cpp iterate_edges.cpp build_read_lib.cpp $(LIB_IDBA) $(LIB_ASM) $(LIB) -o megahit_asm_core
 
 megahit_toolkit: $(TOOLKIT) $(DEPS)
 	$(CXX) $(CXXFLAGS) $(TOOLKIT) $(LIB) -o megahit_toolkit

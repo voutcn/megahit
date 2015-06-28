@@ -1,41 +1,36 @@
-MEGAHIT
-=========
-
-MEGAHIT is a single node assembler for large and complex metagenomics NGS reads, such as soil. It makes use of succinct *de Bruijn* graph (SdBG) to achieve low memory assembly. The graph construction algorithm can self-adjust to use all available or moderate memory, and can be accelerated if a CUDA-enable GPU is provided. The GPU-accelerated version of MEGAHIT has been tested on NVIDIA GTX680 (4G memory) and Tesla K40c (12G memory) with CUDA 5.5, 6.0 and 6.5.
-
 [![Build Status](https://travis-ci.org/voutcn/megahit.svg)](https://travis-ci.org/voutcn/megahit)
 [![Build Status](https://drone.io/github.com/voutcn/megahit/status.png)](https://drone.io/github.com/voutcn/megahit/latest)
 
-##Getting Started
+## Getting Started
 
-#### Dependency
-MEGAHIT is suitable for 64-bit Linux and MAC OS X. It requires [zlib](http://www.zlib.net/), python 2.6 or greater and G++ 4.4 or greater (with `-std=c++0x` and [OpenMP](http://openmp.org) support). The GPU version further requires [CUDA](https://developer.nvidia.com/cuda-toolkit) 5.5 or greater.
-
-#### Compiling from Source Codes
 ```
 git clone https://github.com/voutcn/megahit.git
 cd megahit
 make
+./megahit -1 pe_1.fq.gz -2 pe_2.fq.gz -o megahit_out
 ```
 
+## Introduction
+MEGAHIT is a single node assembler for large and complex metagenomics NGS reads, such as soil. It makes use of succinct *de Bruijn* graph (SdBG) to achieve low memory assembly. MEGAHIT can **optionally** utilize a CUDA-enabled GPU to accelerate its SdBG contstruction. The GPU-accelerated version of MEGAHIT has been tested on NVIDIA GTX680 (4G memory) and Tesla K40c (12G memory) with CUDA 5.5, 6.0 and 6.5.
+
+## Dependency & Installation
+MEGAHIT is suitable for 64-bit Linux and MAC OS X. It requires [zlib](http://www.zlib.net/), python 2.6 or greater and G++ 4.4 or greater (with `-std=c++0x` and [OpenMP](http://openmp.org) support).
 Notably, for MAC OS X, the `g++` in the path is probably the sym-link of `clang`, which do not support OpenMP. Users should have the "real" G++ installed and use `make CXX=/PATH/TO/G++` to specify the compiler.
 
-If you need to install MEGAHIT to another directory after compilation, please copy `megahit`, `megahit_asm_core`, `megahit_toolkit` and `megahit_sdbg_build` (and `megahit_sdbg_build_gpu` for GPU counterpart) to the destination.
+The GPU counterpart further requires [CUDA](https://developer.nvidia.com/cuda-toolkit) 5.5 or greater. Please use `make use_gpu=1` to compile it, and turn on `--use-gpu` to activate GPU acceleration when running MEGAHIT.
 
-#### Stable binary releases
-Please refer to the [release page](https://github.com/voutcn/megahit/releases).
+Binary release can be found at the [release page](https://github.com/voutcn/megahit/releases). 
 
-#### Running MEGAHIT
+To install MEGAHIT to another directory, please copy *megahit*, *megahit_asm_core*, *megahit_toolkit* and *megahit_sdbg_build* (and *megahit_sdbg_build_gpu* for GPU counterpart) to the destination.
+
+## Running MEGAHIT
 If MEGAHIT is successfully compiled, it can be run by the following command:
 
 ```
 ./megahit [options] {-1 <pe_1.fq> -2 <pe_2.fq> | --12 <pe12.fq> | -r <se.fq>}
 ```
 
-The `-1/-2/--12` and `-r` parameters accept files in fasta (`.fasta`, `.fa`, `.fna`) or fastq (`.fastq`, `.fq`) formats. They also supports gzip files (with `.gz` extensions) and bzip2 files (with `.bz2` extensions). Please run `./megahit -h` for detailed usage message.
-
-#### Using GPU Version
-To use the GPU version, run `make use_gpu=1` to compile MEGAHIT, and run MEGAHIT with `--use-gpu`. GPU version has only been tested in Linux.
+`-1/-2`, `--12` and `-r` are parameters for inputting paired-end, interleaved-paired-end and single-end files. They accept files in fasta (*.fasta*, *.fa*, *.fna*) or fastq (*.fastq*, *.fq*) formats. They also supports gzip files (with *.gz* extensions) and bzip2 files (with *.bz2* extensions). Please run `./megahit -h` for detailed usage message.
 
 ##Assembly Tips
 

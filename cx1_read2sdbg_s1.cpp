@@ -94,9 +94,11 @@ int64_t s1_encode_lv1_diff_base(int64_t read_id, read2sdbg_global_t &g) {
 
 void s1_read_input_prepare(read2sdbg_global_t &globals) {
     bool is_reverse = true;
-    ReadMultipleLibs(globals.read_lib_file, globals.package, globals.lib_info, is_reverse);
+    ReadBinaryLibs(globals.read_lib_file, globals.package, globals.lib_info, is_reverse);
     globals.max_read_length = globals.package.max_read_len();
     globals.num_reads = globals.package.size();
+
+    xlog("%ld reads, %d max read length, %lld total bases\n", globals.num_reads, globals.max_read_length, globals.package.base_size());
 
     int bits_read_length = 1; // bit needed to store read_length
     while ((1 << bits_read_length) - 1 < globals.max_read_length) {
@@ -110,12 +112,13 @@ void s1_read_input_prepare(read2sdbg_global_t &globals) {
     globals.is_solid.reset(globals.num_k1_per_read * globals.num_reads);
     globals.mem_packed_reads = DivCeiling(globals.num_k1_per_read * globals.num_reads, 8) + globals.package.size_in_byte();
 
-    xlog("%ld reads, %d max read length, %lld total bases\n", globals.num_reads, globals.max_read_length, globals.package.base_size());
-    xlog("Read libs:\n")
-    for (unsigned i = 0; i < globals.lib_info.size(); ++i) {
-        xlog("");
-        xlog_ext("%s: %s, %lld reads\n", globals.lib_info[i].is_pe ? "Paired-end" : "Single-end",
-                                         globals.lib_info[i].metadata.c_str(), globals.lib_info[i].to - globals.lib_info[i].from + 1);
+    int64_t mem_low_bound = globals.mem_packed_reads
+                    + kNumBuckets * sizeof(int64_t) * (globals.num_cpu_threads * 3 + 1)
+                    + (kMaxMulti_t + 1) * (globals.num_output_threads + 1) * sizeof(int64_t);
+    mem_low_bound *= 1.05;
+
+    if (mem_low_bound > globals.host_mem) {
+        xerr_and_exit("%lld bytes is not enough for CX1 sorting, please set -m parameter to at least %lld\n", globals.host_mem, mem_low_bound);
     }
 
     // set cx1 param
