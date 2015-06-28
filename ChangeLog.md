@@ -1,3 +1,8 @@
+### 0.3.2-beta / 2015-06-28 HKT
+
+* fine tune local assembly multi-thread schedules
+* fine tune SdBG builder memory usage
+
 ### 0.3.0-beta3 / 2015-06-22 HKT
 
 * `--verbose` option
