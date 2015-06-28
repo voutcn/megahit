@@ -488,7 +488,7 @@ def inpipe_cmd(file_name):
     elif file_name.endswith('.bz2'):
         return 'bzip2 -cd ' + file_name
     else:
-        return ""
+        return "cat " + file_name
 
 def write_lib():
     global opt

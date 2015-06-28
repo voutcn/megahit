@@ -371,7 +371,7 @@ void read_seq_and_prepare(seq2sdbg_global_t &globals) {
             long long k_size, num_edges;
             FILE *edge_info = OpenFileAndCheck((globals.input_prefix + ".edges.info").c_str(), "r");
             assert(fscanf(edge_info, "%lld%lld", &k_size, &num_edges) == 2);
-            if (globals.need_mercy) { num_edges *= 1.1; } // it is rare that # mercy > 10%
+            if (globals.need_mercy) { num_edges *= 1.25; } // it is rare that # mercy > 25%
             bases_to_reserve += num_edges * (k_size + 1);
             num_multiplicities_to_reserve += num_edges;
             fclose(edge_info);
