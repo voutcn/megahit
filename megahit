@@ -951,11 +951,12 @@ def main(argv = None):
         logging.info("--- [%s] Start assembly. Number of CPU threads %d ---" % (datetime.now().strftime("%c"), opt.num_cpu_threads))
         logging.info("--- [%s] k list: %s ---" % (datetime.now().strftime("%c"), ','.join(map(str, opt.k_list))))
 
+        if not opt.continue_mode:
+            write_opt(argv[1:]) # for --continue
+
         write_lib()
         build_lib()
 
-        if not opt.continue_mode:
-            write_opt(argv[1:]) # for --continue
         build_first_graph()
         assemble(opt.k_min)
 
