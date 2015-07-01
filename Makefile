@@ -34,7 +34,7 @@ ifeq ($(use_gpu), 1)
 	NVCC_VERSION = $(strip $(shell nvcc --version | grep release | sed 's/.*release //' |  sed 's/,.*//'))
 endif
 
-version = $(shell git describe --tag || echo "git_not_found" 2>/dev/null)
+version = $(shell git describe --tag 2>/dev/null || echo "git_not_found" 2>/dev/null)
 
 # detect OS
 OSUPPER = $(shell uname -s 2>/dev/null | tr [:lower:] [:upper:])
