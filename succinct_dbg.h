@@ -72,6 +72,10 @@ class SuccinctDBG {
         }
         rs_w_.Build(w_, size);
         rs_last_.Build(last_, size);
+
+        for (int i = 0; i < kAlphabetSize + 2; ++i) {
+            rank_f_[i] = rs_last_.Rank(f_[i] - 1);
+        }
     }
 
     uint8_t GetW(int64_t x) {
@@ -138,12 +142,12 @@ class SuccinctDBG {
             a -= 4;
         }
         int64_t count_a = rs_w_.Rank(a, x);
-        return rs_last_.Select(rs_last_.Rank(f_[a] - 1) + count_a - 1);
+        return rs_last_.Select(rank_f_[a] + count_a - 1);
     }
 
     int64_t Backward(int64_t x) { // the first node points to x
         uint8_t a = GetNodeLastChar(x);
-        int64_t count_a = rs_last_.Rank(x - 1) - rs_last_.Rank(f_[a] - 1);
+        int64_t count_a = rs_last_.Rank(x - 1) - rank_f_[a];
         return rs_w_.Select(a, count_a);
     }
 
@@ -188,6 +192,7 @@ class SuccinctDBG {
     khash_t(k64v16) *large_multi_h_;
 
     long long f_[kAlphabetSize + 2];
+    long long rank_f_[kAlphabetSize + 2]; // = rs_last_.Rank(f_[i] - 1)
 
     unsigned int num_dollar_nodes_;
     int uint32_per_dollar_nodes_;
