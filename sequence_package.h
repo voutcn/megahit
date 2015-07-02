@@ -273,6 +273,7 @@ struct SequencePackage {
             max_read_len_ = len;
         }
 
+        if (len == 0) { return; }
         if (len * 2 <= unused_bits_) {
             unused_bits_ -= len * 2;
             packed_seq.back() |= s[0] >> (kCharsPerWord - len) * 2 << unused_bits_;
@@ -313,6 +314,8 @@ struct SequencePackage {
     }
 
     void AddRevSeqToPackedSeq_(const word_t *rs, int len) {
+        if (len == 0) { return; }
+        
         std::vector<word_t> s(rs, rs + (len + kCharsPerWord - 1) / kCharsPerWord);
 
         for (int j = 0; j < (int)s.size(); ++j) {
