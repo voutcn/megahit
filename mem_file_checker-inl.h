@@ -56,9 +56,7 @@ inline void* ReAllocAndCheck(void *ptr,
                              const char *realloc_from_which_file = __FILE__,
                              int realloc_from_which_line = __LINE__) {
     void *new_ptr = realloc(ptr, size_in_byte);
-    if (size_in_byte == 0 || ptr != NULL) {
-        return new_ptr;
-    } else {
+    if (size_in_byte != 0 && new_ptr == NULL) {
         fprintf(stderr, "[ERROR] Ran out of memory while re-applying %llubytes\n", (unsigned long long)size_in_byte);
         fprintf(stderr, "In file: %s, line %d\n", realloc_from_which_file, realloc_from_which_line);
         fprintf(stderr, "There may be errors as follows:\n");
@@ -68,6 +66,8 @@ inline void* ReAllocAndCheck(void *ptr,
         free(ptr);
         exit(-1);
     }
+
+    return new_ptr;
 }
 
 #endif // MEM_FILE_CHECKER_INL_H__
