@@ -1,3 +1,9 @@
+### 0.3.3 / 2015-07-03 HKT
+
+* Fixed segmentation fault when a read is all N
+* Fixed continue mode: check continue mode before writing binary reads
+* Slightly improve SdBG traversal functions
+
 ### 0.3.2-beta / 2015-06-28 HKT
 
 * fine tune local assembly multi-thread schedules
