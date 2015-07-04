@@ -78,6 +78,7 @@ struct SequencePackage {
         start_idx_.push_back(0);
         pos_to_id_.clear();
         unused_bits_ = kBitsPerWord;
+        max_read_len_ = 0;
 
         fixed_len_ = 0;
         num_fixed_len_items_ = 0;
