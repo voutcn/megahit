@@ -874,7 +874,7 @@ void UnitigGraph::OutputContigs(FILE *contig_file, FILE *final_file, Histgram<in
             continue;
         }
 
-        double multi = std::min((double)kMaxMulti_t, (double)vertices_[i].depth / vertices_[i].length + 0.5);
+        double multi = std::min((double)kMaxMulti_t, (double)vertices_[i].depth / vertices_[i].length);
         if (change_only) {
             multi = 1;
         }

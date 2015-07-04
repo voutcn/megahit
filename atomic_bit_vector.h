@@ -37,7 +37,6 @@ class AtomicBitVector {
         capacity_ = num_words_;
         if (num_words_ != 0) {
             data_ = (word_t*) MallocAndCheck(sizeof(word_t) * num_words_, __FILE__, __LINE__);
-            assert(data_ != NULL);
             memset(data_, 0, sizeof(word_t) * num_words_);
         } else {
             data_ = NULL;
@@ -85,11 +84,7 @@ class AtomicBitVector {
         size_ = size;
         num_words_ = (size + kBitsPerWord - 1) / kBitsPerWord;
         if (capacity_ < num_words_) {
-            word_t *new_data = (word_t*) MallocAndCheck(sizeof(word_t) * num_words_, __FILE__, __LINE__);
-            assert(new_data != NULL);
-            if (data_ != NULL) {
-                free(data_);
-            }
+            word_t *new_data = (word_t*) ReAllocAndCheck(data_, sizeof(word_t) * num_words_, __FILE__, __LINE__);
             data_ = new_data;
             capacity_ = num_words_;
         }
