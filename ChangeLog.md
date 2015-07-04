@@ -1,4 +1,4 @@
-### 0.3.3 / 2015-07-03 HKT
+### 0.3.3 / 2015-07-04 HKT
 
 * Fixed segmentation fault when a read is all N
 * Fixed continue mode: check continue mode before writing binary reads
