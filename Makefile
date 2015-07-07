@@ -39,6 +39,16 @@ version = $(shell git describe --tag 2>/dev/null || echo "git_not_found" 2>/dev/
 # detect OS
 OSUPPER = $(shell uname -s 2>/dev/null | tr [:lower:] [:upper:])
 
+# force 64bits
+CPU_ARCH = -m64
+CPU_ARCH_SUFFIX = x86_64
+
+IS_PPC64 := $(shell echo `$(CXX) -v 2>&1 | grep powerpc64 | wc -l`)
+ifneq (0, $IS_PPC64)
+	CPU_ARCH_SUFFIX = ppc64
+	CPU_ARCH = -mpowerpc64
+endif
+
 #-------------------------------------------------------------------------------
 # Includes
 #-------------------------------------------------------------------------------
@@ -88,10 +98,6 @@ endif
 #-------------------------------------------------------------------------------
 
 NVCCFLAGS = -Xptxas -v -Xcudafe -\# -cuda --ptxas-options=-v
-
-# force 64bits
-CPU_ARCH = -m64
-CPU_ARCH_SUFFIX = x86_64
 
 ifeq (,$(findstring 3.0, $(NVCC_VERSION)))
 ifneq ($(abi), 1)
@@ -158,7 +164,11 @@ ifeq "4.5" "$(word 1, $(sort 4.5 $(GCC_VER)))"
 endif
 
 ifneq ($(disablempopcnt), 1)
-	CXXFLAGS += -mpopcnt
+	ifeq (0, $(IS_PPC64))
+		CXXFLAGS += -mpopcnt $(CPU_ARCH)
+	else
+		CXXFLAGS += -mpopcntd $(CPU_ARCH)
+	endif
 endif
 
 ifneq ($(version), git_not_found)
