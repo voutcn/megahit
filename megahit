@@ -568,7 +568,12 @@ def build_lib():
             logging.info("--- [%s] Converting reads to binaries ---" % datetime.now().strftime("%c"))
             logging.debug("%s" % (" ").join(build_lib_cmd))
 
-            p = subprocess.Popen(build_lib_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            if opt.input_cmd != "":
+                logging.debug("input cmd: " + opt.input_cmd)
+                input_thread = subprocess.Popen(opt.input_cmd, shell = True, stdout = subprocess.PIPE)
+                p = subprocess.Popen(build_lib_cmd, stdin = input_thread.stdout, stdout = subprocess.PIPE, stderr=subprocess.PIPE)
+            else:
+                p = subprocess.Popen(build_lib_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 
             # output to inpipe
             pipes = list()
@@ -653,13 +658,8 @@ def build_first_graph():
                 logging.info("--- [%s] Extracting solid (k+1)-mers for k = %d ---" % (datetime.now().strftime("%c"), opt.k_min))
 
             logging.debug("cmd: %s" % (" ").join(cmd))
+            p = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 
-            if opt.input_cmd != "":
-                logging.debug("input cmd: " + opt.input_cmd)
-                input_thread = subprocess.Popen(opt.input_cmd, shell = True, stdout = subprocess.PIPE)
-                p = subprocess.Popen(cmd, stdin = input_thread.stdout, stdout = subprocess.PIPE, stderr=subprocess.PIPE)
-            else:
-                p = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 
             while True:
                 line = p.stderr.readline().rstrip()
