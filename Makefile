@@ -44,7 +44,7 @@ CPU_ARCH = -m64
 CPU_ARCH_SUFFIX = x86_64
 
 IS_PPC64 := $(shell echo `$(CXX) -v 2>&1 | grep powerpc64 | wc -l`)
-ifneq (0, $IS_PPC64)
+ifneq (0, $(IS_PPC64))
 	CPU_ARCH_SUFFIX = ppc64
 	CPU_ARCH = -mpowerpc64
 endif
@@ -156,7 +156,7 @@ DEPS =   ./Makefile \
 CUDALIBFLAG = -L$(CUDA_LIB) -lcuda -lcudart
 GCC_VER := $(shell echo `$(CXX) -dumpversion | cut -f1-2 -d.`)
 
-CXXFLAGS = -O2 -Wall -Wno-unused-function -Wno-array-bounds -D__STDC_FORMAT_MACROS -funroll-loops -fprefetch-loop-arrays -fopenmp -I. -std=c++0x -static-libgcc
+CXXFLAGS = -O2 -Wall -Wno-unused-function -Wno-array-bounds -D__STDC_FORMAT_MACROS -funroll-loops -fprefetch-loop-arrays -fopenmp -I. -std=c++0x -static-libgcc $(CPU_ARCH)
 LIB = -lm -lz -lpthread
 
 ifeq "4.5" "$(word 1, $(sort 4.5 $(GCC_VER)))"
@@ -165,9 +165,9 @@ endif
 
 ifneq ($(disablempopcnt), 1)
 	ifeq (0, $(IS_PPC64))
-		CXXFLAGS += -mpopcnt $(CPU_ARCH)
+		CXXFLAGS += -mpopcnt
 	else
-		CXXFLAGS += -mpopcntd $(CPU_ARCH)
+		CXXFLAGS += -mpopcntd
 	endif
 endif
 

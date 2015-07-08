@@ -32,23 +32,28 @@ struct CompareHigh32Bits {
 inline void lv2_cpu_sort(uint32_t *lv2_substrings, uint32_t *permutation, uint64_t *cpu_sort_space, int words_per_substring, int64_t lv2_num_items) {
     #pragma omp parallel for
     for (uint32_t i = 0; i < lv2_num_items; ++i) {
-        cpu_sort_space[i] = i;
+        permutation[i] = i;
     }
 
     for (int64_t iteration = words_per_substring - 1; iteration >= 0; --iteration) {
         uint32_t *lv2_substr_p = lv2_substrings + lv2_num_items * iteration;
         #pragma omp parallel for
         for (uint32_t i = 0; i < lv2_num_items; ++i) {
-            cpu_sort_space[i] &= 0xFFFFFFFF;
-            cpu_sort_space[i] |= uint64_t(*(lv2_substr_p + cpu_sort_space[i])) << 32;
+            cpu_sort_space[i] = uint64_t(*(lv2_substr_p + permutation[i])) << 32;
+            cpu_sort_space[i] |= i;
         }
         // pss::parallel_stable_sort(cpu_sort_space, cpu_sort_space + lv2_num_items, CompareHigh32Bits());
-        __gnu_parallel::stable_sort(cpu_sort_space, cpu_sort_space + lv2_num_items, CompareHigh32Bits());
-    }
+        __gnu_parallel::sort(cpu_sort_space, cpu_sort_space + lv2_num_items);
 
-    // copy answer back to host
-    #pragma omp parallel for
-    for (uint32_t i = 0; i < lv2_num_items; ++i) {
-        permutation[i] = cpu_sort_space[i] & 0xFFFFFFFF;
+        #pragma omp parallel for
+        for (uint32_t i = 0; i < lv2_num_items; ++i) {
+            cpu_sort_space[i] &= 0xFFFFFFFFULL;
+            cpu_sort_space[i] |= uint64_t(permutation[cpu_sort_space[i]]) << 32;
+        }
+
+        #pragma omp parallel for
+        for (uint32_t i = 0; i < lv2_num_items; ++i) {
+            permutation[i] = cpu_sort_space[i] >> 32;
+        }
     }
 }
