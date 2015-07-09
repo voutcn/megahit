@@ -62,7 +62,7 @@ namespace cx1_kmer_count {
 static const int kBucketPrefixLength = 8;
 static const int kBucketBase = 4;
 static const int kNumBuckets = 65536; // pow(4, 8)
-static const int64_t kMinLv2BatchSize = 2 * 1024 * 1024;
+static const int64_t kMinLv2BatchSize = 256 * 1024 * 1024;
 static const int64_t kMinLv2BatchSizeGPU = 64 * 1024 * 1024;
 static const int64_t kDefaultLv1ScanTime = 8;
 static const int64_t kMaxLv1ScanTime = 64;
@@ -147,6 +147,7 @@ void    read_input_prepare(count_global_t &g); // num_items_, num_cpu_threads_ a
 void*   lv0_calc_bucket_size(void*); // pthread working function
 void    init_global_and_set_cx1(count_global_t &g);
 void*   lv1_fill_offset(void*); // pthread working function
+void    lv1_direct_sort_and_count(count_global_t &g);
 void*   lv2_extract_substr(void*); // pthread working function
 void    lv2_sort(count_global_t &g);
 void    lv2_pre_output_partition(count_global_t &g);

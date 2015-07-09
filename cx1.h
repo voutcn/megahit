@@ -85,6 +85,7 @@ struct CX1 {
     int num_cpu_threads_;
     int num_output_threads_;
     int64_t max_lv1_items_, max_lv2_items_;
+    bool lv1_just_go_;
 
     // other data
     int64_t *bucket_sizes_;
@@ -104,12 +105,15 @@ struct CX1 {
     void* (*lv0_calc_bucket_size_func_) (void*);
     void (*init_global_and_set_cx1_func_) (global_data_t &); // xxx set here
     void* (*lv1_fill_offset_func_) (void*);
+    void (*lv1_sort_and_proc) (global_data_t &);
     void* (*lv2_extract_substr_func_) (void*);
     void (*lv2_sort_func_) (global_data_t &);
     void (*lv2_pre_output_partition_func_) (global_data_t &); // op_ set here
     void* (*lv2_output_func_) (void*);
     void (*lv2_post_output_func_) (global_data_t &);
     void (*post_proc_func_) (global_data_t &);
+
+    CX1() : lv1_just_go_(false) {}
 
     // === single thread functions ===
     inline void adjust_mem(int64_t mem_avail, int64_t lv2_bytes_per_item, int64_t min_lv1_items, int64_t min_lv2_items) {
@@ -380,56 +384,60 @@ struct CX1 {
                 lv1_timer.start();
             }
 
-            // --- lv2 loop ---
-            int lv2_iteration = 0;
-            lv2_start_bucket_ = lv1_start_bucket_;
-            while (lv2_start_bucket_ < lv1_end_bucket_) {
-                xtimer_t lv2_timer;
+            if (lv1_just_go_) {
+                lv1_sort_and_proc(*g_);
+            } else {
+                // --- lv2 loop ---
+                int lv2_iteration = 0;
+                lv2_start_bucket_ = lv1_start_bucket_;
+                while (lv2_start_bucket_ < lv1_end_bucket_) {
+                    xtimer_t lv2_timer;
 
-                lv2_iteration++;
-                lv2_end_bucket_ = find_end_buckets_(lv2_start_bucket_, lv1_end_bucket_, max_lv2_items_, lv2_num_items_);
-                if (lv2_num_items_ == 0) {
-                    fprintf(stderr, "Bucket %d too large for lv2: %lld > %lld\n", lv2_end_bucket_, (long long)bucket_sizes_[lv2_end_bucket_], (long long)max_lv2_items_);
-                    exit(1);
+                    lv2_iteration++;
+                    lv2_end_bucket_ = find_end_buckets_(lv2_start_bucket_, lv1_end_bucket_, max_lv2_items_, lv2_num_items_);
+                    if (lv2_num_items_ == 0) {
+                        fprintf(stderr, "Bucket %d too large for lv2: %lld > %lld\n", lv2_end_bucket_, (long long)bucket_sizes_[lv2_end_bucket_], (long long)max_lv2_items_);
+                        exit(1);
+                    }
+
+                    if (kCX1Verbose >= 4) {
+                        lv2_timer.reset();
+                        lv2_timer.start();
+                        xlog("Lv2 fetching substrings from bucket %d to %d\n", lv2_start_bucket_, lv2_end_bucket_);
+                    }
+
+                    // --- extract lv2 substr and sort ---
+                    lv2_extract_substr_mt_();
+
+                    if (kCX1Verbose >= 4) {
+                        lv2_timer.stop();
+                        xlog("Lv2 fetching substrings done. Time elapsed: %.4f\n", lv2_timer.elapsed());
+                        lv2_timer.reset();
+                        lv2_timer.start();
+                    }
+
+                    lv2_sort_func_(*g_);
+
+                    if (kCX1Verbose >= 4) {
+                        lv2_timer.stop();
+                        xlog("Lv2 sorting done. Time elapsed: %.4f\n", lv2_timer.elapsed());
+                        lv2_timer.reset();
+                        lv2_timer.start();
+                    }
+
+                    // --- the output is pipelined, join the previous one ---
+                    if (output_thread_created) {
+                        lv2_output_join_();
+                        lv2_post_output_func_(*g_);
+                    }
+
+                    // --- the create new output threads ---
+                    lv2_pre_output_partition_func_(*g_);
+                    lv2_output_mt_();
+                    output_thread_created = true;
+
+                    lv2_start_bucket_ = lv2_end_bucket_;
                 }
-
-                if (kCX1Verbose >= 4) {
-                    lv2_timer.reset();
-                    lv2_timer.start();
-                    xlog("Lv2 fetching substrings from bucket %d to %d\n", lv2_start_bucket_, lv2_end_bucket_);
-                }
-
-                // --- extract lv2 substr and sort ---
-                lv2_extract_substr_mt_();
-
-                if (kCX1Verbose >= 4) {
-                    lv2_timer.stop();
-                    xlog("Lv2 fetching substrings done. Time elapsed: %.4f\n", lv2_timer.elapsed());
-                    lv2_timer.reset();
-                    lv2_timer.start();
-                }
-
-                lv2_sort_func_(*g_);
-
-                if (kCX1Verbose >= 4) {
-                    lv2_timer.stop();
-                    xlog("Lv2 sorting done. Time elapsed: %.4f\n", lv2_timer.elapsed());
-                    lv2_timer.reset();
-                    lv2_timer.start();
-                }
-
-                // --- the output is pipelined, join the previous one ---
-                if (output_thread_created) {
-                    lv2_output_join_();
-                    lv2_post_output_func_(*g_);
-                }
-
-                // --- the create new output threads ---
-                lv2_pre_output_partition_func_(*g_);
-                lv2_output_mt_();
-                output_thread_created = true;
-
-                lv2_start_bucket_ = lv2_end_bucket_;
             }
 
             if (kCX1Verbose >= 3) {

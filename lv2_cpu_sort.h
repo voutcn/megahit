@@ -19,6 +19,7 @@
 /* contact: Dinghua Li <dhli@cs.hku.hk> */
 
 #include <parallel/algorithm>
+#include <algorithm>
 #include <assert.h>
 #include "definitions.h"
 // #include "parallel_stable_sort/parallel_stable_sort.h"
@@ -52,6 +53,32 @@ inline void lv2_cpu_sort(uint32_t *lv2_substrings, uint32_t *permutation, uint64
         }
 
         #pragma omp parallel for
+        for (uint32_t i = 0; i < lv2_num_items; ++i) {
+            permutation[i] = cpu_sort_space[i] >> 32;
+        }
+    }
+}
+
+inline void lv2_cpu_sort_st(uint32_t *lv2_substrings, uint32_t *permutation, uint64_t *cpu_sort_space, int words_per_substring, int64_t lv2_num_items) {
+    for (uint32_t i = 0; i < lv2_num_items; ++i) {
+        permutation[i] = i;
+    }
+
+    for (int64_t iteration = words_per_substring - 1; iteration >= 0; --iteration) {
+        uint32_t *lv2_substr_p = lv2_substrings + lv2_num_items * iteration;
+
+        for (uint32_t i = 0; i < lv2_num_items; ++i) {
+            cpu_sort_space[i] = uint64_t(*(lv2_substr_p + permutation[i])) << 32;
+            cpu_sort_space[i] |= i;
+        }
+        // pss::parallel_stable_sort(cpu_sort_space, cpu_sort_space + lv2_num_items, CompareHigh32Bits());
+        std::sort(cpu_sort_space, cpu_sort_space + lv2_num_items);
+
+        for (uint32_t i = 0; i < lv2_num_items; ++i) {
+            cpu_sort_space[i] &= 0xFFFFFFFFULL;
+            cpu_sort_space[i] |= uint64_t(permutation[cpu_sort_space[i]]) << 32;
+        }
+
         for (uint32_t i = 0; i < lv2_num_items; ++i) {
             permutation[i] = cpu_sort_space[i] >> 32;
         }
