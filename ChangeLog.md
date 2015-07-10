@@ -1,3 +1,8 @@
+### 0.3.3-a / 2015-07-04 HKT
+
+* Hotfix of incorrect max read length of multiple library
+* Hotfix of `--input-cmd` idling
+
 ### 0.3.3 / 2015-07-04 HKT
 
 * Fixed segmentation fault when a read is all N
