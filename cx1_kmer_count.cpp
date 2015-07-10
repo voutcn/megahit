@@ -183,13 +183,17 @@ void init_global_and_set_cx1(count_global_t &globals) {
         // TODO: auto switch to CPU version
     }
 #endif
+
     globals.words_per_substring = DivCeiling((globals.kmer_k + 1) * kBitsPerEdgeChar, kBitsPerEdgeWord);
     globals.words_per_edge = DivCeiling((globals.kmer_k + 1) * kBitsPerEdgeChar + kBitsPerMulti_t, kBitsPerEdgeWord);
     // lv2 bytes: substring, permutation, readinfo
     int64_t lv2_bytes_per_item = (globals.words_per_substring) * sizeof(uint32_t) + sizeof(uint32_t) + sizeof(int64_t);
+
+
+#ifdef USE_GPU
     lv2_bytes_per_item = lv2_bytes_per_item * 2; // double buffering
-#ifndef USE_GPU
-    lv2_bytes_per_item += sizeof(uint64_t) * 2; // CPU memory is used to simulate GPU
+else
+    lv2_bytes_per_item += sizeof(uint64_t); // CPU memory is used to simulate GPU
 #endif
 
     if (cx1_t::kCX1Verbose >= 2) {
