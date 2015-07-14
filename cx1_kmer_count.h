@@ -102,6 +102,15 @@ struct count_global_t {
     SequencePackage package;
     std::vector<lib_info_t> lib_info;
 
+    // lv1 new sorting scheme
+    int64_t max_sorting_items;
+    int64_t mem_sorting_items;
+
+    uint32_t *substr_all;
+    uint32_t *permutations_all;
+    uint64_t *cpu_sort_space_all;
+    int64_t *readinfo_all;
+
 #ifndef LONG_READS
     unsigned char *first_0_out;
     unsigned char *last_0_in; // first potential 0-out-degree k-mer and last potential 0-in-degree k-mer

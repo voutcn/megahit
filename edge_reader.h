@@ -28,6 +28,7 @@
 #include "utils.h"
 #include "mem_file_checker-inl.h"
 #include "definitions.h"
+#include "cx1_kmer_count.h"
 
 struct EdgeReader2 {
     std::vector<gzFile> edges_files;
@@ -36,8 +37,10 @@ struct EdgeReader2 {
     std::vector<int> edge_idx;
     int kmer_k, words_per_edge, words_per_true_edge;
     static const int kBufferSize = 4096;
+    static const int kPrefixLen = cx1_kmer_count::kBucketPrefixLength;
     uint32_t *buffer;
     int min_idx_;
+    uint32_t cur_prefix_; // the length-l prefix of cur items
 
     void init(const std::string &prefix, int num_files) {
         edges_files.resize(num_files);
@@ -63,6 +66,7 @@ struct EdgeReader2 {
             }
         }
         min_idx_ = -1;
+        cur_prefix_ = 1 << kPrefixLen * 2;
     }
 
     void destroy() {
@@ -115,11 +119,17 @@ struct EdgeReader2 {
             return NULL;
         }
 
+        if (min_idx_ >= 0 && min_idx_ < (int)edges_files.size() &&
+            cur_prefix_ == (*cur_p[min_idx_] >> (32 - kPrefixLen * 2))) {
+            return cur_p[min_idx_];
+        }
+
         min_idx_ = 0;
         for (int i = 1; i < (int)edges_files.size(); ++i) {
             if (compare_(i, min_idx_)) {
                 min_idx_ = i;
             }
+            cur_prefix_ = *cur_p[min_idx_] >> (32 - kPrefixLen * 2);
         }
 
         return cur_p[min_idx_];

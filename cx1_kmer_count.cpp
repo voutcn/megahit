@@ -168,13 +168,25 @@ void init_global_and_set_cx1(count_global_t &globals) {
     // --- calculate lv2 memory ---
     globals.max_bucket_size = *std::max_element(globals.cx1.bucket_sizes_, globals.cx1.bucket_sizes_ + kNumBuckets);
     globals.tot_bucket_size = 0;
+    int num_non_empty = 0;
     for (int i = 0; i < kNumBuckets; ++i) {
         globals.tot_bucket_size += globals.cx1.bucket_sizes_[i];
+        if (globals.cx1.bucket_sizes_[i] > 0) {
+            num_non_empty++;
+        }
     }
 
 #ifndef USE_GPU
     globals.cx1.lv1_just_go_ = true;
-    globals.cx1.max_lv2_items_ = std::max(globals.max_bucket_size, kMinLv2BatchSize);
+    num_non_empty = std::max(1, num_non_empty);
+    for (int i = 0; i < kNumBuckets; ++i) {
+        if (globals.cx1.bucket_sizes_[i] > 2 * globals.tot_bucket_size / num_non_empty) {
+            // xlog("Bucket %d size = %lld > %lld = 2 * avg\n", i, (long long)globals.cx1.bucket_sizes_[i], (long long)2 * globals.tot_bucket_size / num_non_empty);
+        }
+    }
+
+    // distribute partitions to different threads
+    globals.max_sorting_items = globals.max_bucket_size * globals.num_cpu_threads;
 #else
     int64_t lv2_mem = globals.gpu_mem - 1073741824; // should reserver ~1G for GPU sorting
     globals.cx1.max_lv2_items_ = std::min(lv2_mem / cx1_t::kGPUBytePerItem, std::max(globals.max_bucket_size, kMinLv2BatchSizeGPU));
@@ -188,17 +200,12 @@ void init_global_and_set_cx1(count_global_t &globals) {
     globals.words_per_edge = DivCeiling((globals.kmer_k + 1) * kBitsPerEdgeChar + kBitsPerMulti_t, kBitsPerEdgeWord);
     // lv2 bytes: substring, permutation, readinfo
     int64_t lv2_bytes_per_item = (globals.words_per_substring) * sizeof(uint32_t) + sizeof(uint32_t) + sizeof(int64_t);
-
-
-#ifdef USE_GPU
-    lv2_bytes_per_item = lv2_bytes_per_item * 2; // double buffering
-else
-    lv2_bytes_per_item += sizeof(uint64_t); // CPU memory is used to simulate GPU
-#endif
-
     if (cx1_t::kCX1Verbose >= 2) {
         xlog("%d words per substring, %d words per edge\n", globals.words_per_substring, globals.words_per_edge);
     }
+
+#ifdef USE_GPU
+    lv2_bytes_per_item = lv2_bytes_per_item * 2; // double buffering
     // --- memory stuff ---
     int64_t mem_remained = globals.host_mem
                            - globals.mem_packed_reads
@@ -243,17 +250,60 @@ else
     globals.permutation_db = (uint32_t *) MallocAndCheck(globals.cx1.max_lv2_items_ * sizeof(uint32_t), __FILE__, __LINE__);
     globals.lv2_read_info = (int64_t *) MallocAndCheck(globals.cx1.max_lv2_items_ * sizeof(int64_t), __FILE__, __LINE__);
     globals.lv2_read_info_db = (int64_t *) MallocAndCheck(globals.cx1.max_lv2_items_ * sizeof(int64_t), __FILE__, __LINE__);
+    alloc_gpu_buffers(globals.gpu_key_buffer1, globals.gpu_key_buffer2, globals.gpu_value_buffer1, globals.gpu_value_buffer2, (size_t)globals.cx1.max_lv2_items_);
+#else
+
+    lv2_bytes_per_item += sizeof(uint64_t); // CPU memory is used to simulate GPU
+    globals.mem_sorting_items = lv2_bytes_per_item * globals.max_sorting_items;
+
+    int64_t mem_remained = globals.host_mem
+                           - globals.mem_packed_reads
+                           - globals.mem_sorting_items
+                           - globals.num_reads * sizeof(unsigned char) * 2 // first_in0 & last_out0
+                           - kNumBuckets * sizeof(int64_t) * (globals.num_cpu_threads * 3 + 1)
+                           - (kMaxMulti_t + 1) * (globals.num_output_threads + 1) * sizeof(int64_t);
+    int64_t min_lv1_items = globals.tot_bucket_size / (kMaxLv1ScanTime - 0.5);
+
+    if (globals.mem_flag == 1) {
+        // auto set memory
+        globals.cx1.max_lv1_items_ = int64_t(globals.tot_bucket_size / (kDefaultLv1ScanTime - 0.5));
+        int64_t mem_needed = globals.cx1.max_lv1_items_ * cx1_t::kLv1BytePerItem;
+        if (mem_needed > mem_remained) {
+            globals.cx1.max_lv1_items_ = mem_remained / cx1_t::kLv1BytePerItem;
+        }
+
+    } else if (globals.mem_flag == 0) {
+        // min memory
+        globals.cx1.max_lv1_items_ = int64_t(globals.tot_bucket_size / (kMaxLv1ScanTime - 0.5));
+        int64_t mem_needed = globals.cx1.max_lv1_items_ * cx1_t::kLv1BytePerItem;
+        if (mem_needed > mem_remained) {
+            globals.cx1.max_lv1_items_ = mem_remained / cx1_t::kLv1BytePerItem;
+        }
+
+    } else {
+        // use all
+        globals.cx1.adjust_mem(mem_remained, 0, min_lv1_items, 0);
+    }
+
+    if (globals.cx1.max_lv1_items_ < min_lv1_items) {
+        xerr_and_exit("No enough memory to process.");
+    }
+
+
+    globals.lv1_items = (int*) MallocAndCheck(globals.cx1.max_lv1_items_ * sizeof(int), __FILE__, __LINE__);
+    globals.substr_all = (uint32_t*) MallocAndCheck(sizeof(uint32_t) * globals.max_sorting_items * globals.words_per_substring, __FILE__, __LINE__);
+    globals.permutations_all = (uint32_t*) MallocAndCheck(sizeof(uint32_t) * globals.max_sorting_items, __FILE__, __LINE__);
+    globals.cpu_sort_space_all = (uint64_t*) MallocAndCheck(sizeof(uint64_t) * globals.max_sorting_items, __FILE__, __LINE__);
+    globals.readinfo_all = (int64_t*) MallocAndCheck(sizeof(int64_t) * globals.max_sorting_items, __FILE__, __LINE__);
+#endif
+
+    // --- malloc read first_in / last_out ---
 #ifdef LONG_READS
     globals.first_0_out = (uint16_t*) MallocAndCheck(globals.num_reads * sizeof(uint16_t), __FILE__, __LINE__);
     globals.last_0_in = (uint16_t*) MallocAndCheck(globals.num_reads * sizeof(uint16_t), __FILE__, __LINE__);
 #else
     globals.first_0_out = (unsigned char*) MallocAndCheck(globals.num_reads * sizeof(unsigned char), __FILE__, __LINE__);
     globals.last_0_in = (unsigned char*) MallocAndCheck(globals.num_reads * sizeof(unsigned char), __FILE__, __LINE__);
-#endif
-#ifndef USE_GPU
-    globals.cpu_sort_space = (uint64_t*) MallocAndCheck(sizeof(uint64_t) * globals.cx1.max_lv2_items_, __FILE__, __LINE__);
-#else
-    alloc_gpu_buffers(globals.gpu_key_buffer1, globals.gpu_key_buffer2, globals.gpu_value_buffer1, globals.gpu_value_buffer2, (size_t)globals.cx1.max_lv2_items_);
 #endif
     memset(globals.first_0_out, 0xFF, globals.num_reads * sizeof(globals.first_0_out[0]));
     memset(globals.last_0_in, 0xFF, globals.num_reads * sizeof(globals.last_0_in[0]));
@@ -631,46 +681,24 @@ void* lv2_output(void* _op) {
 }
 
 void lv1_direct_sort_and_count(count_global_t &globals) {
-#ifndef USE_GPU
-    std::vector<uint32_t> substrings;
-    std::vector<int64_t> read_infos;
-    std::vector<uint32_t> permutation;
-    std::vector<uint64_t> cpu_sort_space;
-
     omp_set_num_threads(globals.num_cpu_threads);
 
-#pragma omp parallel for private(substrings, read_infos, permutation, cpu_sort_space) schedule(dynamic, 1)
+#pragma omp parallel for schedule(dynamic, 1)
     for (int b = globals.cx1.lv1_start_bucket_; b < globals.cx1.lv1_end_bucket_; ++b) {
         if (globals.cx1.bucket_sizes_[b] == 0) {
             continue;
         }
 
-        if (substrings.size() < (size_t)globals.cx1.bucket_sizes_[b] * globals.words_per_substring) {
-            substrings.reserve((size_t)globals.cx1.bucket_sizes_[b] * globals.words_per_substring);
-        }
+        int tid = omp_get_thread_num();
+        uint32_t *substr_ptr = globals.substr_all + tid * globals.max_bucket_size * globals.words_per_substring;
+        int64_t *readinfo_ptr = globals.readinfo_all + tid * globals.max_bucket_size;
+        uint32_t *permutation_ptr = globals.permutations_all + tid * globals.max_bucket_size;
+        uint64_t *cpu_sort_space_ptr = globals.cpu_sort_space_all + tid * globals.max_bucket_size;
 
-        if (read_infos.capacity() < (unsigned)globals.cx1.bucket_sizes_[b]) {
-            read_infos.reserve(globals.cx1.bucket_sizes_[b]);
-        }
-
-        if (cpu_sort_space.capacity() < (unsigned)globals.cx1.bucket_sizes_[b]) {
-            cpu_sort_space.reserve(globals.cx1.bucket_sizes_[b]);
-        }
-
-        if (permutation.capacity() < (unsigned)globals.cx1.bucket_sizes_[b]) {
-            permutation.reserve(globals.cx1.bucket_sizes_[b]);
-        }
-
-        substrings.resize(globals.cx1.bucket_sizes_[b] * globals.words_per_substring);
-        read_infos.resize(globals.cx1.bucket_sizes_[b]);
-        permutation.resize(globals.cx1.bucket_sizes_[b]);
-        cpu_sort_space.resize(globals.cx1.bucket_sizes_[b]);
-
-        lv2_extract_substr_(&substrings[0], &read_infos[0], globals, b, b + 1, globals.cx1.bucket_sizes_[b]);
-        lv2_cpu_sort_st(&substrings[0], &permutation[0], &cpu_sort_space[0], globals.words_per_substring, globals.cx1.bucket_sizes_[b]);
-        lv2_output_(0, globals.cx1.bucket_sizes_[b], omp_get_thread_num(), globals, &substrings[0], &permutation[0], &read_infos[0], globals.cx1.bucket_sizes_[b]);
+        lv2_extract_substr_(substr_ptr, readinfo_ptr, globals, b, b + 1, globals.cx1.bucket_sizes_[b]);
+        lv2_cpu_sort_st(substr_ptr, permutation_ptr, cpu_sort_space_ptr, globals.words_per_substring, globals.cx1.bucket_sizes_[b]);
+        lv2_output_(0, globals.cx1.bucket_sizes_[b], tid, globals, substr_ptr, permutation_ptr, readinfo_ptr, globals.cx1.bucket_sizes_[b]);
     }
-#endif
 }
 
 void lv2_post_output(count_global_t &globals) {
@@ -729,12 +757,20 @@ void post_proc(count_global_t &globals) {
     // --- cleaning ---
     pthread_mutex_destroy(&globals.lv1_items_scanning_lock);
     free(globals.lv1_items);
+#ifdef USE_GPU
     free(globals.lv2_substrings);
     free(globals.permutation);
     free(globals.permutation_db);
     free(globals.lv2_substrings_db);
     free(globals.lv2_read_info);
     free(globals.lv2_read_info_db);
+    free_gpu_buffers(globals.gpu_key_buffer1, globals.gpu_key_buffer2, globals.gpu_value_buffer1, globals.gpu_value_buffer2);
+#else
+    free(globals.substr_all);
+    free(globals.permutations_all);
+    free(globals.readinfo_all);
+    free(globals.cpu_sort_space_all);
+#endif
     free(globals.first_0_out);
     free(globals.last_0_in);
     free(globals.edge_counting);
@@ -743,12 +779,6 @@ void post_proc(count_global_t &globals) {
         globals.word_writer[t].destroy();
     }
     free(globals.word_writer);
-
-#ifndef USE_GPU
-    free(globals.cpu_sort_space);
-#else
-    free_gpu_buffers(globals.gpu_key_buffer1, globals.gpu_key_buffer2, globals.gpu_value_buffer1, globals.gpu_value_buffer2);
-#endif
 }
 
 } // namespace::cx1_kmer_count
