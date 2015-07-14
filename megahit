@@ -606,9 +606,12 @@ def build_lib():
                 logging.error("[Exit code %d]" % ret_code)
                 exit(ret_code)
 
-            for p in pipes:
-                if p.wait() != 0:
-                    raise Usage("Error occurs when reading inputs")
+            while len(pipes) > 0:
+                pp = pipes.pop()
+                pp_ret = pp.wait()
+                if pp_ret != 0:
+                    logging.error("Error occurs when reading inputs")
+                    exit(pp_ret)
 
         except OSError as o:
             if o.errno == errno.ENOTDIR or o.errno == errno.ENOENT:
