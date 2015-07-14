@@ -287,8 +287,7 @@ def parse_opt(argv):
             opt.input_cmd = value
 
         else:
-            print("Invalid option %s", option, file=sys.stderr)
-            exit(1)
+            raise Usage("Invalid option %s", option)
 
     opt.temp_dir = opt.out_dir + "tmp/"
     opt.contig_dir = opt.out_dir + "intermediate_contigs/"
@@ -296,20 +295,17 @@ def parse_opt(argv):
     if need_continue:
         prepare_continue()
     elif opt.continue_mode == 0 and os.path.exists(opt.out_dir):
-        print("Output directory " + opt.out_dir + " already exists, please change the parameter -o to another value to avoid overwriting.", file=sys.stderr)
-        exit(1)
+        raise Usage("Output directory " + opt.out_dir + " already exists, please change the parameter -o to another value to avoid overwriting.")
 
 def check_opt():
     global opt
     if opt.host_mem <= 0:
         raise Usage("Please specify a positive number for -m flag.")
-        exit(1)
     elif opt.host_mem < 1:
         total_mem = detect_available_mem()
         opt.host_mem = long(total_mem * opt.host_mem)
         if total_mem <= 0:
             raise Usage("Failed to detect available memory. Please specify the value in bytes using -m flag.")
-            exit(1)
         else:
             print(str(round(total_mem/(1024**3),3)) + "Gb memory in total.", file=sys.stderr)
             print("Using: " + str(round(float(opt.host_mem)/(1024**3),3)) + "Gb.", file=sys.stderr)
@@ -444,10 +440,10 @@ def get_version():
 
 def check_builder():
     if not os.path.exists(opt.bin_dir + opt.builder):
-        print(megahit_version_str + '\n' + "Cannot find sub-program \"%s\", please recompile." % opt.builder, file=sys.stderr)
+        usg = megahit_version_str + '\n' + "Cannot find sub-program \"%s\", please recompile." % opt.builder
         if opt.use_gpu == 0:
-            print("Or if you want to use the GPU version, please run MEGAHIT with \"--use-gpu\"", file=sys.stderr)
-        exit(1)
+            usg += "\nOr if you want to use the GPU version, please run MEGAHIT with \"--use-gpu\""
+        raise Usage(usg)
 
 def graph_prefix(kmer_k):
     return opt.temp_dir + "k" + str(kmer_k)
@@ -538,9 +534,10 @@ def build_lib():
                          opt.lib,
                          opt.lib]
 
+        fifos = list()
+        pipes = list()
         try:
             # create inpipe
-            fifos = list()
 
             for i in range(0, len(opt.pe12)):
                 if inpipe_cmd(opt.pe12[i]) != "":
@@ -576,7 +573,6 @@ def build_lib():
                 p = subprocess.Popen(build_lib_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 
             # output to inpipe
-            pipes = list()
 
             for i in range(0, len(opt.pe12)):
                 if inpipe_cmd(opt.pe12[i]) != "":
@@ -608,24 +604,25 @@ def build_lib():
             if ret_code != 0:
                 logging.error("Error occurs when running \"megahit_asm_core buildlib\"; please refer to %s for detail" % log_file_name())
                 logging.error("[Exit code %d]" % ret_code)
-
-                for p in pipes:
-                    os.killpg(p.pid, signal.SIGTERM)
-                for f in fifos:
-                    delect_file_if_exist(f)
-
                 exit(ret_code)
 
             for p in pipes:
                 if p.wait() != 0:
                     raise Usage("Error occurs when reading inputs")
-            for f in fifos:
-                delect_file_if_exist(f)
 
         except OSError as o:
             if o.errno == errno.ENOTDIR or o.errno == errno.ENOENT:
                 logging.error("Error: sub-program megahit_asm_core not found, please recompile MEGAHIT")
             exit(1)
+        except KeyboardInterrupt:
+            p.terminate()
+            exit(1)
+
+        finally:
+            for p in pipes:
+                os.killpg(p.pid, signal.SIGTERM)
+            for f in fifos:
+                delect_file_if_exist(f)
 
     write_cp()
 
@@ -679,6 +676,9 @@ def build_first_graph():
         except OSError as o:
             if o.errno == errno.ENOTDIR or o.errno == errno.ENOENT:
                 logging.error("Error: sub-program sdbg_builder not found, please recompile MEGAHIT")
+            exit(1)
+        except KeyboardInterrupt:
+            p.terminate()
             exit(1)
 
     write_cp()
@@ -746,7 +746,10 @@ def build_graph(kmer_k, kmer_from, num_edge_files):
         except OSError as o:
             if o.errno == errno.ENOTDIR or o.errno == errno.ENOENT:
                 logging.error("Error: sub-program builder not found, please recompile MEGAHIT")
-            exit(1) 
+            exit(1)
+        except KeyboardInterrupt:
+            p.terminate()
+            exit(1)
 
     write_cp()
     if not opt.keep_tmp_files:
@@ -852,6 +855,9 @@ def assemble(cur_k):
             if o.errno == errno.ENOTDIR or o.errno == errno.ENOENT:
                 logging.error("Error: sub-program megahit_assemble not found, please recompile MEGAHIT")
             exit(1)
+        except KeyboardInterrupt:
+            p.terminate()
+            exit(1)
 
     write_cp()
     if (not opt.keep_tmp_files) and (cur_k != opt.k_max):
@@ -889,6 +895,9 @@ def local_assemble(cur_k, kmer_to):
         except OSError as o:
             if o.errno == errno.ENOTDIR or o.errno == errno.ENOENT:
                 logging.error("Error: sub-program megahit_local_asm not found, please recompile MEGAHIT")
+            exit(1)
+        except KeyboardInterrupt:
+            p.terminate()
             exit(1)
 
     write_cp()
