@@ -686,7 +686,7 @@ def build_first_graph():
 
     write_cp()
     if not opt.kmin_1pass:
-        build_graph(opt.k_min, opt.k_min, phase1_out_threads)
+        build_graph(opt.k_min, 0, phase1_out_threads)
     elif not opt.keep_tmp_files:
         delete_tmp_after_build(opt.k_min)
 
