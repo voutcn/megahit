@@ -84,3 +84,38 @@ inline void lv2_cpu_sort_st(uint32_t *lv2_substrings, uint32_t *permutation, uin
         }
     }
 }
+
+inline void sort_digit(uint32_t *arr, uint32_t *permutation, uint32_t *buf, uint64_t *buckets, int64_t num_items, int shift_bits) {
+    memset(buckets, 0, sizeof(buckets[0]) * (1 << 16));
+    for (int64_t i = 0; i < num_items; ++i) {
+        buckets[(arr[permutation[i]] >> shift_bits) & 0xFFFF]++;
+    }
+
+    int64_t acc = 0;
+    for (unsigned i = 0; i < (1 << 16); ++i) {
+        int64_t tmp = acc;
+        acc += buckets[i];
+        buckets[i] = tmp;
+    }
+
+    for (int64_t i = 0; i < num_items; ++i) {
+        buf[buckets[(arr[permutation[i]] >> shift_bits) & 0xFFFF]++] = permutation[i];
+    }
+}
+
+inline void lv2_cpu_radix_sort_st(uint32_t *lv2_substrings, uint32_t *permutation, uint32_t *cpu_sort_space, int words_per_substring, int64_t lv2_num_items) {
+    uint64_t buckets[1 << 16];
+
+    for (uint32_t i = 0; i < lv2_num_items; ++i) {
+        permutation[i] = i;
+    }
+
+    for (int64_t iteration = words_per_substring - 1; iteration >= 0; --iteration) {
+        uint32_t *lv2_substr_p = lv2_substrings + lv2_num_items * iteration;
+
+        // 1 pass low  16 bits
+        sort_digit(lv2_substr_p, permutation, cpu_sort_space, buckets, lv2_num_items, 0);
+        // 2 pass high 16 bits
+        sort_digit(lv2_substr_p, cpu_sort_space, permutation, buckets, lv2_num_items, 16);
+    }
+}

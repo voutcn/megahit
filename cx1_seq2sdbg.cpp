@@ -368,13 +368,13 @@ void read_seq_and_prepare(seq2sdbg_global_t &globals) {
         long long num_multiplicities_to_reserve = 0;
 
         if (globals.input_prefix != "") {
-            long long k_size, num_edges;
-            FILE *edge_info = OpenFileAndCheck((globals.input_prefix + ".edges.info").c_str(), "r");
-            assert(fscanf(edge_info, "%lld%lld", &k_size, &num_edges) == 2);
+            EdgeReader edge_reader;
+            edge_reader.set_file_prefix(globals.input_prefix);
+            edge_reader.read_info();
+            int64_t num_edges = edge_reader.num_edges();
             if (globals.need_mercy) { num_edges *= 1.25; } // it is rare that # mercy > 25%
-            bases_to_reserve += num_edges * (k_size + 1);
+            bases_to_reserve += num_edges * (edge_reader.kmer_size() + 1);
             num_multiplicities_to_reserve += num_edges;
-            fclose(edge_info);
         }
 
         if (globals.contig != "") {
@@ -415,7 +415,7 @@ void read_seq_and_prepare(seq2sdbg_global_t &globals) {
 
     if (globals.input_prefix != "") {
         seq_manager.set_file_type(globals.need_mercy ? SequenceManager::kSortedEdges : SequenceManager::kMegahitEdges);
-        seq_manager.set_edge_files(globals.input_prefix + ".edges", globals.num_edge_files);
+        seq_manager.set_edge_files(globals.input_prefix);
         seq_manager.ReadEdgesWithFixedLen(1LL << 60, true);
         seq_manager.clear();
     }
@@ -1006,6 +1006,158 @@ void* lv2_output(void* _op) {
     }
     return NULL;
 }
+
+/*
+void output_(int64_t from, int64_t to, seq2sdbg_global_t &globals, uint32_t *substr, uint32_t *permutation, int tid, int num_items) {
+    int start_idx, end_idx;
+    int has_solid_a = 0; // has solid (k+1)-mer aSb
+    int has_solid_b = 0; // has solid aSb
+    int last_a[4], outputed_b;
+    uint16_t last_prefix = 0xFFFFU;
+    uint16_t prefix_marker = 0xFFFFU;
+
+    for (start_idx = from; start_idx < to; start_idx = end_idx) {
+        end_idx = start_idx + 1;
+        uint32_t *item = substr + permutation[start_idx];
+        if (ExtractPrefix(item) != last_prefix) {
+            last_prefix = ExtractPrefix(item);
+            fwrite(&prefix_marker, sizeof(uint16_t), 1, globals.sdbg_files[tid]);
+            fwrite(&last_prefix, sizeof(uint16_t), 1, globals.sdbg_files[tid]);
+        }
+
+        while (end_idx < to &&
+                !IsDiffKMinusOneMer(
+                    item,
+                    substr + permutation[end_idx],
+                    num_items,
+                    globals.kmer_k)) {
+            ++end_idx;
+        }
+
+        // clean marking
+        has_solid_a = has_solid_b = 0;
+        outputed_b = 0;
+        for (int i = start_idx; i < end_idx; ++i) {
+            uint32_t *cur_item = substr + permutation[i];
+            int a = Extract_a(cur_item, globals.words_per_substring, num_items, globals.kmer_k);
+            int b = Extract_b(cur_item, globals.words_per_substring, num_items);
+
+            if (a != kSentinelValue && b != kSentinelValue) {
+                has_solid_a |= 1 << a;
+                has_solid_b |= 1 << b;
+            }
+            if (a != kSentinelValue &&
+                    (b != kSentinelValue || !(has_solid_a & (1 << a)))) {
+                last_a[a] = i;
+            }
+        }
+
+        for (int i = start_idx, j; i < end_idx; i = j) {
+            uint32_t *cur_item = substr + permutation[i];
+            int a = Extract_a(cur_item, globals.words_per_substring, num_items, globals.kmer_k);
+            int b = Extract_b(cur_item, globals.words_per_substring, num_items);
+
+            j = i + 1;
+            while (j < end_idx) {
+                uint32_t *next_item = substr + permutation[j];
+                if (Extract_a(next_item, globals.words_per_substring, num_items, globals.kmer_k) != a ||
+                        Extract_b(next_item, globals.words_per_substring, num_items) != b) {
+                    break;
+                } else {
+                    ++j;
+                }
+            }
+
+            int w, last, is_dollar = 0;
+
+            if (a == kSentinelValue) {
+                assert(b != kSentinelValue);
+                if (has_solid_b & (1 << b)) {
+                    continue;
+                }
+                is_dollar = 1;
+            }
+
+            if (b == kSentinelValue) {
+                assert(a != kSentinelValue);
+                if (has_solid_a & (1 << a)) {
+                    continue;
+                }
+            }
+
+            outputed_b |= 1 << b;
+            w = (b == kSentinelValue) ? 0 : ((outputed_b & (1 << b)) ? b + 5 : b + 1);
+            last = (a == kSentinelValue) ? 0 : ((last_a[a] == j - 1) ? 1 : 0);
+
+            uint16_t sdbg_entry = = w | (last << 4) | (is_dollar << 5);
+
+            if (is_dollar) {
+
+            }
+
+            if (is_dollar)
+
+            assert(!(globals.lv2_aux[i] & (1 << 7)));
+            globals.lv2_aux[i] = w | (last << 4) | (is_dollar << 5) | (1 << 7);
+        }
+    }
+
+    pthread_barrier_wait(&globals.output_barrier);
+
+    if (op_start_index == 0) {
+        xtimer_t local_timer;
+        local_timer.reset();
+        local_timer.start();
+        for (int i = 0; i < num_items; ++i) {
+            if (globals.lv2_aux[i] & (1 << 7)) {
+                uint32_t *item = substr + permutation[i];
+                while (ExtractFirstChar(item) > globals.cur_suffix_first_char) {
+                    ++globals.cur_suffix_first_char;
+                    fprintf(globals.output_f_file, "%lld\n", (long long)globals.total_number_edges);
+                }
+
+                multi_t counting_db = kMaxMulti_t - std::min(kMaxMulti_t,
+                                      ExtractCounting(item, globals.words_per_substring, num_items));
+                // output
+                globals.sdbg_writer.outputW(globals.lv2_aux[i] & 0xF);
+                globals.sdbg_writer.outputLast((globals.lv2_aux[i] >> 4) & 1);
+                globals.sdbg_writer.outputIsDollar((globals.lv2_aux[i] >> 5) & 1);
+                if (counting_db <= kMaxMulti2_t) {
+                    multi2_t c = counting_db;
+                    fwrite(&c, sizeof(multi2_t), 1, globals.output_multiplicity_file);
+                } else {
+                    int64_t c = counting_db | (globals.total_number_edges << 16);
+                    fwrite(&c, sizeof(int64_t), 1, globals.output_multiplicity_file2);
+                    fwrite(&kMulti2Sp, sizeof(multi2_t), 1, globals.output_multiplicity_file);
+                }
+
+                globals.total_number_edges++;
+                globals.num_chars_in_w[globals.lv2_aux[i] & 0xF]++;
+                globals.num_ones_in_last += (globals.lv2_aux[i] >> 4) & 1;
+
+                if ((globals.lv2_aux[i] >> 5) & 1) {
+                    globals.num_dollar_nodes++;
+                    if (globals.num_dollar_nodes >= kMaxDummyEdges) {
+                        xerr_and_exit("Too many dummy nodes (>= %lld)! The graph contains too many tips!\n", (long long)kMaxDummyEdges);
+                    }
+                    for (int64_t i = 0; i < globals.words_per_dummy_node; ++i) {
+                        globals.dummy_nodes_writer.output(item[i * num_items]);
+                    }
+                }
+                if ((globals.lv2_aux[i] & 0xF) == 0) {
+                    globals.num_dummy_edges++;
+                }
+            }
+        }
+        local_timer.stop();
+
+        if (cx1_t::kCX1Verbose >= 4) {
+            xlog("SdBG calc linear part: %lf\n", local_timer.elapsed());
+        }
+    }
+    return NULL;
+}
+*/
 
 void lv2_post_output(seq2sdbg_global_t &globals) {
     pthread_barrier_destroy(&globals.output_barrier);

@@ -27,7 +27,7 @@
 #include <string>
 #include "definitions.h"
 #include "cx1.h"
-#include "sdbg_builder_writers.h"
+#include "edge_io.h"
 #include "sequence_package.h"
 #include "lib_info.h"
 
@@ -62,7 +62,7 @@ namespace cx1_kmer_count {
 static const int kBucketPrefixLength = 8;
 static const int kBucketBase = 4;
 static const int kNumBuckets = 65536; // pow(4, 8)
-static const int64_t kMinLv2BatchSize = 256 * 1024 * 1024;
+static const int64_t kMinLv2BatchSize = 64 * 1024 * 1024;
 static const int64_t kMinLv2BatchSizeGPU = 64 * 1024 * 1024;
 static const int64_t kDefaultLv1ScanTime = 8;
 static const int64_t kMaxLv1ScanTime = 64;
@@ -95,6 +95,7 @@ struct count_global_t {
     int offset_num_bits; // the number of bits needed to store the offset of a base in the read/(k+1)-mer (i.e. log(read_length))
     int64_t max_bucket_size;
     int64_t tot_bucket_size;
+    int64_t max_bucket_size_for_dynamic_sort;
     int read_length_mask;
     int64_t num_reads; // total number of reads
 
@@ -108,7 +109,7 @@ struct count_global_t {
 
     uint32_t *substr_all;
     uint32_t *permutations_all;
-    uint64_t *cpu_sort_space_all;
+    uint32_t *cpu_sort_space_all;
     int64_t *readinfo_all;
 
 #ifndef LONG_READS
@@ -148,7 +149,7 @@ struct count_global_t {
     int64_t *thread_edge_counting;
 
     // output
-    WordWriter *word_writer;
+    EdgeWriter edge_writer;
 };
 
 int64_t encode_lv1_diff_base(int64_t read_id, count_global_t &g);

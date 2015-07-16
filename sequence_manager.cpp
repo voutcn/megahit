@@ -63,13 +63,14 @@ void SequenceManager::set_pe_files(const std::string &file_name1, const std::str
     }
 }
 
-void SequenceManager::set_edge_files(const std::string &file_prefix, int num_files) {
+void SequenceManager::set_edge_files(const std::string &file_prefix) {
     assert(f_type == kSortedEdges || f_type == kMegahitEdges);
     assert(files_.size() == 0);
     assert(kseq_readers_.size() == 0);
 
     assert(!edge_reader_inited_);
-    edge_reader_.init(file_prefix, num_files);
+    edge_reader_.set_file_prefix(file_prefix);
+    edge_reader_.read_info();
     edge_reader_inited_ = true;
 }
 
@@ -195,8 +196,8 @@ int64_t SequenceManager::ReadEdges(int64_t max_num, bool append) {
             if (next_edge == NULL) {
                 return i;
             }
-            package_->AppendSeq(next_edge, edge_reader_.kmer_k + 1);
-            multi_->push_back(next_edge[edge_reader_.words_per_edge - 1] & kMaxMulti_t);
+            package_->AppendSeq(next_edge, edge_reader_.kmer_size() + 1);
+            multi_->push_back(next_edge[edge_reader_.words_per_edge() - 1] & kMaxMulti_t);
         }
         return max_num;
     } else if (f_type == kSortedEdges) {
@@ -205,8 +206,8 @@ int64_t SequenceManager::ReadEdges(int64_t max_num, bool append) {
             if (next_edge == NULL) {
                 return i;
             }
-            package_->AppendSeq(next_edge, edge_reader_.kmer_k + 1);
-            multi_->push_back(next_edge[edge_reader_.words_per_edge - 1] & kMaxMulti_t);
+            package_->AppendSeq(next_edge, edge_reader_.kmer_size() + 1);
+            multi_->push_back(next_edge[edge_reader_.words_per_edge() - 1] & kMaxMulti_t);
         }
         return max_num;
     }
@@ -227,8 +228,8 @@ int64_t SequenceManager::ReadEdgesWithFixedLen(int64_t max_num, bool append) {
             if (next_edge == NULL) {
                 return i;
             }
-            package_->AppendFixedLenSeq(next_edge, edge_reader_.kmer_k + 1);
-            multi_->push_back(next_edge[edge_reader_.words_per_edge - 1] & kMaxMulti_t);
+            package_->AppendFixedLenSeq(next_edge, edge_reader_.kmer_size() + 1);
+            multi_->push_back(next_edge[edge_reader_.words_per_edge() - 1] & kMaxMulti_t);
         }
         return max_num;
     } else if (f_type == kSortedEdges) {
@@ -237,8 +238,8 @@ int64_t SequenceManager::ReadEdgesWithFixedLen(int64_t max_num, bool append) {
             if (next_edge == NULL) {
                 return i;
             }
-            package_->AppendFixedLenSeq(next_edge, edge_reader_.kmer_k + 1);
-            multi_->push_back(next_edge[edge_reader_.words_per_edge - 1] & kMaxMulti_t);
+            package_->AppendFixedLenSeq(next_edge, edge_reader_.kmer_size() + 1);
+            multi_->push_back(next_edge[edge_reader_.words_per_edge() - 1] & kMaxMulti_t);
         }
         return max_num;
     }

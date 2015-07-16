@@ -29,7 +29,7 @@
 #include "definitions.h"
 #include "kseq.h"
 #include "sequence_package.h"
-#include "edge_reader.h"
+#include "edge_io.h"
 
 #ifndef KSEQ_INITED
 #define KSEQ_INITED
@@ -61,7 +61,7 @@ struct SequenceManager {
     std::vector<multi_t> *multi_; // edges or contigs' multiplicity
     std::vector<gzFile> files_; // for reading sorted edges
     std::vector<kseq_t*> kseq_readers_; // for paired reading
-    EdgeReader2 edge_reader_;
+    EdgeReader edge_reader_;
     bool edge_reader_inited_;
 
     std::vector<uint32_t> buf_;		// for reading binary reads
@@ -72,6 +72,7 @@ struct SequenceManager {
         multi_ = NULL;
         files_.clear();
         kseq_readers_.clear();
+        edge_reader_.destroy();
         edge_reader_inited_ = false;
         min_len_ = 0;
         k_from_ = 1;
@@ -112,7 +113,7 @@ struct SequenceManager {
 
     void set_file(const std::string &file_name);
     void set_pe_files(const std::string &file_name1, const std::string &file_name2);
-    void set_edge_files(const std::string &file_prefix, int num);
+    void set_edge_files(const std::string &file_prefix);
     void set_kmer_size(int kmer_from, int kmer_to) {
         k_from_ = kmer_from;    // only apply to reading megahit contigs
         k_to_ = kmer_to;
