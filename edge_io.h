@@ -27,6 +27,9 @@ class EdgeWriter {
   	int32_t num_threads_;
   	int32_t num_buckets_;
 
+  	bool unsorted_;
+  	int64_t num_unsorted_edges_;
+
   	std::string file_prefix_;
   	std::vector<FILE*> files_;
   	std::vector<int32_t> cur_bucket_;
@@ -36,7 +39,7 @@ class EdgeWriter {
   	bool is_opened_;
 
   public:
-  	EdgeWriter(): is_opened_(false) {};
+  	EdgeWriter(): unsorted_(false), is_opened_(false) {};
   	~EdgeWriter() { destroy(); }
 
   	void set_kmer_size(int32_t k) {
@@ -54,6 +57,13 @@ class EdgeWriter {
 
   	void set_num_buckets(int num_buckets) {
   		num_buckets_ = num_buckets;
+  	}
+
+  	void set_unsorted() {
+  		num_buckets_ = 0;
+  		p_rec_.clear();
+  		unsorted_ = true;
+  		num_unsorted_edges_ = 0;
   	}
 
   	void init_files() {
@@ -85,6 +95,11 @@ class EdgeWriter {
   		++p_rec_[bucket].total_number;
   	}
 
+  	void write_unsorted(uint32_t *edge_ptr, int tid) {
+  		fwrite(edge_ptr, sizeof(uint32_t), words_per_edge_, files_[tid]);
+  		++num_unsorted_edges_;
+  	}
+
   	void destroy() {
   		if (is_opened_) {
   			for (int i = 0; i < num_threads_; ++i) {
@@ -92,11 +107,15 @@ class EdgeWriter {
 	  		}
 
 	  		int64_t num_edges = 0;
-	  		for (unsigned i = 0; i < p_rec_.size(); ++i) {
-	  			num_edges += p_rec_[i].total_number;
+	  		if (!unsorted_) {
+		  		for (unsigned i = 0; i < p_rec_.size(); ++i) {
+		  			num_edges += p_rec_[i].total_number;
+		  		}
+	  		} else {
+	  			num_edges = num_unsorted_edges_;
 	  		}
 
-	  		FILE *info = OpenFileAndCheck(FormatString("%s.edge.info", file_prefix_.c_str()), "w");
+	  		FILE *info = OpenFileAndCheck(FormatString("%s.edges.info", file_prefix_.c_str()), "w");
 	  		fprintf(info, "kmer_size %d\n", (int)kmer_size_);
 	  		fprintf(info, "words_per_edge %d\n", (int)words_per_edge_);
 	  		fprintf(info, "num_threads %d\n", (int)num_threads_);
@@ -150,20 +169,24 @@ class EdgeReader {
   	}
 
   	void read_info() {
-  		FILE *info = OpenFileAndCheck(FormatString("%s.edge.info", file_prefix_.c_str()), "r");
-  		assert(fscanf(info, "kmer_size %d", &kmer_size_) == 1);
-  		assert(fscanf(info, "words_per_edge %d", &words_per_edge_) == 1);
-  		assert(fscanf(info, "num_threads %d", &num_files_) == 1);
-  		assert(fscanf(info, "num_bucket %d", &num_buckets_) == 1);
-  		assert(fscanf(info, "num_edges %lld", &num_edges_) == 1);
+  		FILE *info = OpenFileAndCheck(FormatString("%s.edges.info", file_prefix_.c_str()), "r");
+  		assert(fscanf(info, "kmer_size %d\n", &kmer_size_) == 1);
+  		assert(fscanf(info, "words_per_edge %d\n", &words_per_edge_) == 1);
+  		assert(fscanf(info, "num_threads %d\n", &num_files_) == 1);
+  		assert(fscanf(info, "num_bucket %d\n", &num_buckets_) == 1);
+  		assert(fscanf(info, "num_edges %lld\n", &num_edges_) == 1);
   		p_rec_.resize(num_buckets_);
   		for (int i = 0; i < num_buckets_; ++i) {
   			unsigned dummy;
-  			assert(fscanf(info, "%u %d %lld %lld", &dummy, &p_rec_[i].thread_id, &p_rec_[i].starting_offset, &p_rec_[i].total_number) == 4);
+  			assert(fscanf(info, "%u %d %lld %lld\n", &dummy, &p_rec_[i].thread_id, &p_rec_[i].starting_offset, &p_rec_[i].total_number) == 4);
   		}
 
   		buf_.resize(words_per_edge_);
   		fclose(info);
+  	}
+
+  	bool is_unsorted() {
+  		return num_buckets_ == 0;
   	}
 
   	int kmer_size() { return kmer_size_; }
@@ -174,46 +197,58 @@ class EdgeReader {
   		if (cur_bucket_ >= num_buckets_) { return NULL; }
 
   		if (cur_bucket_ == -1 || cur_bucket_cnt_ >= p_rec_[cur_bucket_].total_number) {
-  			++cur_bucket_;
-  			cur_bucket_cnt_ = 0;
-  			if (cur_bucket_ >= num_buckets_) { return NULL; }
-
   			if (cur_file_ != NULL) {
   				fclose(cur_file_);
   			}
+  			cur_file_ = NULL;
 
-  			cur_file_ = OpenFileAndCheck(FormatString("%s.edge.%d", file_prefix_.c_str(), p_rec_[cur_bucket_].thread_id), "rb");
+  			++cur_bucket_;
+  			while (cur_bucket_ < num_buckets_ && p_rec_[cur_bucket_].thread_id < 0) {
+  				++cur_bucket_;
+  			}
+
+  			if (cur_bucket_ >= num_buckets_) { return NULL; }
+  			cur_bucket_cnt_ = 0;
+
+  			cur_file_ = OpenFileAndCheck(FormatString("%s.edges.%d", file_prefix_.c_str(), p_rec_[cur_bucket_].thread_id), "rb");
   			fseek(cur_file_, sizeof(uint32_t) * words_per_edge_ * p_rec_[cur_bucket_].starting_offset, SEEK_SET);
   			assert(!ferror(cur_file_));
   		}
 
   		assert(fread(&buf_[0], sizeof(uint32_t), words_per_edge_, cur_file_) == (unsigned)words_per_edge_);
-  		++cur_bucket_;
+  		++cur_bucket_cnt_;
   		return &buf_[0];
   	}
 
   	uint32_t *NextUnsortedEdge() {
   		if (cur_file_num_ < 0) {
   			cur_file_num_ = 0;
-  			cur_file_ = OpenFileAndCheck(FormatString("%s.edge.%d", file_prefix_.c_str(), 0), "rb");
+  			cur_file_ = OpenFileAndCheck(FormatString("%s.edges.%d", file_prefix_.c_str(), 0), "rb");
   		}
 
-  		while (fread(&buf_[0], sizeof(uint32_t), words_per_edge_, cur_file_) != (unsigned)words_per_edge_ && cur_file_num_ < num_files_) {
-  			fclose(cur_file_);
-  			cur_file_num_++;
-  			cur_file_ = OpenFileAndCheck(FormatString("%s.edge.%d", file_prefix_.c_str(), cur_file_num_), "rb");
-  		}
-
-  		if (cur_file_num_ < num_files_) {
-  			return &buf_[0];
-  		} else {
+  		if (cur_file_num_ >= num_files_) {
   			return NULL;
-  		} 
+  		}
+
+  		while (fread(&buf_[0], sizeof(uint32_t), words_per_edge_, cur_file_) != (unsigned)words_per_edge_) {
+  			fclose(cur_file_);
+  			cur_file_ = NULL;
+
+  			cur_file_num_++;
+  			if (cur_file_num_ >= num_files_) {
+  				return NULL;
+  			}
+
+  			cur_file_ = OpenFileAndCheck(FormatString("%s.edges.%d", file_prefix_.c_str(), cur_file_num_), "rb");
+  		}
+
+  		return &buf_[0];
   	}
 
   	void destroy() {
   		if (cur_file_ != NULL) {
   			fclose(cur_file_);
+  			cur_file_ = NULL;
   		}
   	}
 };
