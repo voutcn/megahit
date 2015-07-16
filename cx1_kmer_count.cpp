@@ -195,6 +195,7 @@ void init_global_and_set_cx1(count_global_t &globals) {
     globals.max_sorting_items = std::max(3 * globals.tot_bucket_size / num_non_empty/*globals.max_bucket_size*/ * globals.num_cpu_threads, globals.max_bucket_size * 2);
     globals.max_bucket_size_for_dynamic_sort = globals.max_sorting_items / globals.num_cpu_threads;
 #else
+    globals.cx1.lv1_just_go_ = false;
     int64_t lv2_mem = globals.gpu_mem - 1073741824; // should reserver ~1G for GPU sorting
     globals.cx1.max_lv2_items_ = std::min(lv2_mem / cx1_t::kGPUBytePerItem, std::max(globals.max_bucket_size, kMinLv2BatchSizeGPU));
     if (globals.max_bucket_size > globals.cx1.max_lv2_items_) {
@@ -510,33 +511,29 @@ void lv2_pre_output_partition(count_global_t &globals) {
     std::swap(globals.lv2_read_info_db, globals.lv2_read_info);
 
     // distribute partition
-    int64_t last_end_index = 0;
     int64_t items_per_thread = globals.lv2_num_items_db / globals.num_output_threads;
+    int64_t acc = 0, t = 0;
+    globals.cx1.op_[t].op_start_index = 0;
 
-    for (int t = 0; t < globals.num_output_threads - 1; ++t) {
-        int64_t this_start_index = last_end_index;
-        int64_t this_end_index = this_start_index + items_per_thread;
-        if (this_end_index > globals.lv2_num_items_db) {
-            this_end_index = globals.lv2_num_items_db;
-        }
-        if (this_end_index > 0) {
-            while (this_end_index < globals.lv2_num_items_db) {
-                uint32_t *prev_item = globals.lv2_substrings_db + (globals.permutation_db[this_end_index - 1]);
-                uint32_t *item = globals.lv2_substrings_db + (globals.permutation_db[this_end_index]);
-                if (IsDifferentEdges(prev_item, item, globals.words_per_substring, globals.lv2_num_items_db)) {
-                    break;
-                }
-                ++this_end_index;
+    for (int b = globals.cx1.lv2_start_bucket_; b < globals.cx1.lv2_end_bucket_; ++b) {
+        if (globals.cx1.bucket_sizes_[b] + acc > (t + 1) * items_per_thread) {
+            globals.cx1.op_[t].op_end_index = acc;
+            ++t;
+
+            globals.cx1.op_[t].op_start_index = acc;
+            if (t == globals.num_output_threads - 1) {
+                break;
             }
         }
-        globals.cx1.op_[t].op_start_index = this_start_index;
-        globals.cx1.op_[t].op_end_index = this_end_index;
-        last_end_index = this_end_index;
+        acc += globals.cx1.bucket_sizes_[b];
     }
 
-    // last partition
-    globals.cx1.op_[globals.num_output_threads - 1].op_start_index = last_end_index;
-    globals.cx1.op_[globals.num_output_threads - 1].op_end_index = globals.lv2_num_items_db;
+    globals.cx1.op_[t].op_end_index = globals.lv2_num_items_db;
+
+    for (++t; t < globals.num_output_threads; ++t) {
+        globals.cx1.op_[t].op_end_index = globals.lv2_num_items_db;
+        globals.cx1.op_[t].op_start_index = globals.lv2_num_items_db;
+    }
 }
 
 void lv2_output_(int64_t start_index, int64_t end_index, int thread_id, count_global_t &globals,
@@ -673,6 +670,8 @@ void* lv2_output(void* _op) {
     int64_t op_end_index = op->op_end_index;
     int thread_id = op->op_id;
 
+    xlog("tid:%d s:%d e:%d\n", thread_id, op_start_index, op_end_index);
+
     lv2_output_(op_start_index, op_end_index, thread_id, globals, globals.lv2_substrings_db, globals.permutation_db, globals.lv2_read_info_db, globals.lv2_num_items_db);
 
     if (cx1_t::kCX1Verbose >= 4) {
@@ -682,6 +681,7 @@ void* lv2_output(void* _op) {
     return NULL;
 }
 
+#ifndef USE_GPU
 struct lv1_sort_data_t {
     uint32_t *substr_ptr;
     int64_t *readinfo_ptr;
@@ -702,8 +702,10 @@ void* lv1_sort_thread(void *data) {
 
     return NULL;
 }
+#endif
 
 void lv1_direct_sort_and_count(count_global_t &globals) {
+#ifndef USE_GPU
     omp_set_num_threads(globals.num_cpu_threads);
 #pragma omp parallel for schedule(dynamic, 1)
     for (int b = globals.cx1.lv1_start_bucket_; b < globals.cx1.lv1_end_bucket_; ++b) {
@@ -763,6 +765,7 @@ void lv1_direct_sort_and_count(count_global_t &globals) {
             pthread_join(pt[i], NULL);
         }
     }
+#endif
 }
 
 void lv2_post_output(count_global_t &globals) {
