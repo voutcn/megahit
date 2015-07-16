@@ -147,11 +147,15 @@ class EdgeReader {
   	std::string file_prefix_;
   	std::vector<PartitionRecord> p_rec_;
   	std::vector<uint32_t> buf_;
+  	int buf_idx_;
+  	int buf_size_;
 
   	int cur_bucket_;
   	int cur_file_num_; // used for unsorted edges
   	long long cur_bucket_cnt_;
   	FILE *cur_file_;
+
+  	static const int kEdgesInBuf = 4096;
 
   public:
   	EdgeReader() {
@@ -181,7 +185,9 @@ class EdgeReader {
   			assert(fscanf(info, "%u %d %lld %lld\n", &dummy, &p_rec_[i].thread_id, &p_rec_[i].starting_offset, &p_rec_[i].total_number) == 4);
   		}
 
-  		buf_.resize(words_per_edge_);
+  		buf_.resize(words_per_edge_ * kEdgesInBuf);
+  		buf_size_ = 0;
+  		buf_idx_ = 0;
   		fclose(info);
   	}
 
@@ -196,11 +202,13 @@ class EdgeReader {
   	uint32_t *NextSortedEdge() {
   		if (cur_bucket_ >= num_buckets_) { return NULL; }
 
-  		if (cur_bucket_ == -1 || cur_bucket_cnt_ >= p_rec_[cur_bucket_].total_number) {
+  		while (cur_bucket_ == -1 || cur_bucket_cnt_ >= p_rec_[cur_bucket_].total_number) {
   			if (cur_file_ != NULL) {
   				fclose(cur_file_);
+  				cur_file_ = NULL;
   			}
-  			cur_file_ = NULL;
+			buf_idx_ = 0;
+			buf_size_ = 0;
 
   			++cur_bucket_;
   			while (cur_bucket_ < num_buckets_ && p_rec_[cur_bucket_].thread_id < 0) {
@@ -215,9 +223,21 @@ class EdgeReader {
   			assert(!ferror(cur_file_));
   		}
 
-  		assert(fread(&buf_[0], sizeof(uint32_t), words_per_edge_, cur_file_) == (unsigned)words_per_edge_);
+  		if (buf_idx_ == buf_size_) {
+  			buf_size_ = kEdgesInBuf;
+  			if (buf_size_ > p_rec_[cur_bucket_].total_number - cur_bucket_cnt_) {
+  				buf_size_ = p_rec_[cur_bucket_].total_number - cur_bucket_cnt_;
+  			}
+  			buf_size_ *= words_per_edge_;
+  			assert(buf_size_ != 0);
+
+  			assert(fread(&buf_[0], sizeof(uint32_t), buf_size_, cur_file_) == (unsigned)buf_size_);
+  			buf_idx_ = 0;
+  		}
+
   		++cur_bucket_cnt_;
-  		return &buf_[0];
+  		buf_idx_ += words_per_edge_;
+  		return &buf_[buf_idx_ - words_per_edge_];
   	}
 
   	uint32_t *NextUnsortedEdge() {
@@ -230,10 +250,16 @@ class EdgeReader {
   			return NULL;
   		}
 
-  		while (fread(&buf_[0], sizeof(uint32_t), words_per_edge_, cur_file_) != (unsigned)words_per_edge_) {
+  		while (buf_idx_ >= buf_size_) {
+  			buf_idx_ = 0;
+  			buf_size_ = fread(&buf_[0], sizeof(uint32_t), kEdgesInBuf * words_per_edge_, cur_file_);
+
+  			if (buf_size_ != 0) {
+  				break;
+  			}
+
   			fclose(cur_file_);
   			cur_file_ = NULL;
-
   			cur_file_num_++;
   			if (cur_file_num_ >= num_files_) {
   				return NULL;
@@ -242,7 +268,8 @@ class EdgeReader {
   			cur_file_ = OpenFileAndCheck(FormatString("%s.edges.%d", file_prefix_.c_str(), cur_file_num_), "rb");
   		}
 
-  		return &buf_[0];
+  		buf_idx_ += words_per_edge_;
+  		return &buf_[buf_idx_ - words_per_edge_];
   	}
 
   	void destroy() {
