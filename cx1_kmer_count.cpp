@@ -670,8 +670,6 @@ void* lv2_output(void* _op) {
     int64_t op_end_index = op->op_end_index;
     int thread_id = op->op_id;
 
-    xlog("tid:%d s:%d e:%d\n", thread_id, op_start_index, op_end_index);
-
     lv2_output_(op_start_index, op_end_index, thread_id, globals, globals.lv2_substrings_db, globals.permutation_db, globals.lv2_read_info_db, globals.lv2_num_items_db);
 
     if (cx1_t::kCX1Verbose >= 4) {
