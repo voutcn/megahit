@@ -544,8 +544,12 @@ void init_global_and_set_cx1(seq2sdbg_global_t &globals) {
     // --- calculate lv2 memory ---
     globals.max_bucket_size = *std::max_element(globals.cx1.bucket_sizes_, globals.cx1.bucket_sizes_ + kNumBuckets);
     globals.tot_bucket_size = 0;
+    int num_non_empty = 0;
     for (int i = 0; i < kNumBuckets; ++i) {
         globals.tot_bucket_size += globals.cx1.bucket_sizes_[i];
+        if (globals.cx1.bucket_sizes_[i] > 0) {
+            num_non_empty++;
+        }
     }
 
     globals.words_per_substring = DivCeiling(globals.kmer_k * kBitsPerEdgeChar + kBWTCharNumBits + 1 + kBitsPerMulti_t, kBitsPerEdgeWord);
@@ -595,12 +599,6 @@ void init_global_and_set_cx1(seq2sdbg_global_t &globals) {
         globals.cx1.adjust_mem(mem_remained, lv2_bytes_per_item, min_lv1_items, min_lv2_items);
     }
 
-    if (cx1_t::kCX1Verbose >= 2) {
-        xlog("Memory for sequence: %lld\n", globals.mem_packed_seq);
-        xlog("max # lv.1 items = %lld\n", globals.cx1.max_lv1_items_);
-        xlog("max # lv.2 items = %lld\n", globals.cx1.max_lv2_items_);
-    }
-
     // --- alloc memory ---
     globals.lv1_items = (int*) MallocAndCheck(globals.cx1.max_lv1_items_ * sizeof(int), __FILE__, __LINE__);
     globals.lv2_substrings = (uint32_t*) MallocAndCheck(globals.cx1.max_lv2_items_ * globals.words_per_substring * sizeof(uint32_t), __FILE__, __LINE__);
@@ -608,14 +606,26 @@ void init_global_and_set_cx1(seq2sdbg_global_t &globals) {
     globals.lv2_substrings_db = (uint32_t*) MallocAndCheck(globals.cx1.max_lv2_items_ * globals.words_per_substring * sizeof(uint32_t), __FILE__, __LINE__);
     globals.permutation_db = (uint32_t *) MallocAndCheck(globals.cx1.max_lv2_items_ * sizeof(uint32_t), __FILE__, __LINE__);
     alloc_gpu_buffers(globals.gpu_key_buffer1, globals.gpu_key_buffer2, globals.gpu_value_buffer1, globals.gpu_value_buffer2, (size_t)globals.cx1.max_lv2_items_);
+
 #else
+    num_non_empty = std::max(1, num_non_empty);
+    for (int i = 0; i < kNumBuckets; ++i) {
+        if (globals.cx1.bucket_sizes_[i] > 2 * globals.tot_bucket_size / num_non_empty) {
+            // xlog("Bucket %d size = %lld > %lld = 2 * avg\n", i, (long long)globals.cx1.bucket_sizes_[i], (long long)2 * globals.tot_bucket_size / num_non_empty);
+        }
+    }
+
+    int64_t lv2_bytes_per_item = globals.words_per_substring * sizeof(uint32_t) + sizeof(uint32_t) + sizeof(uint32_t);
+    
+    globals.max_sorting_items = globals.max_bucket_size * globals.num_cpu_threads;
+    globals.mem_sorting_items = lv2_bytes_per_item * globals.max_sorting_items;
+    globals.max_bucket_size_for_dynamic_sort = globals.max_sorting_items / globals.num_cpu_threads;
     globals.cx1.lv1_just_go_ = true;
     globals.num_output_threads = globals.num_cpu_threads;
 
-    int64_t lv2_bytes_per_item = globals.words_per_substring * sizeof(uint32_t) + sizeof(uint32_t) + sizeof(uint32_t);
-    globals.mem_packed_seq = lv2_bytes_per_item * globals.max_bucket_size;
     int64_t mem_remained = globals.host_mem
                            - globals.mem_packed_seq
+                           - globals.mem_sorting_items
                            - kNumBuckets * sizeof(int64_t) * (globals.num_cpu_threads * 3 + 1);
     int64_t min_lv1_items = globals.tot_bucket_size / (kMaxLv1ScanTime - 0.5);
 
@@ -645,14 +655,23 @@ void init_global_and_set_cx1(seq2sdbg_global_t &globals) {
     }
 
     globals.lv1_items = (int*) MallocAndCheck(globals.cx1.max_lv1_items_ * sizeof(int), __FILE__, __LINE__);
-    globals.substr_all = (uint32_t*) MallocAndCheck(sizeof(uint32_t) * globals.max_bucket_size * globals.num_cpu_threads * globals.words_per_substring, __FILE__, __LINE__);
-    globals.permutations_all = (uint32_t*) MallocAndCheck(sizeof(uint32_t) * globals.max_bucket_size * globals.num_cpu_threads, __FILE__, __LINE__);
-    globals.cpu_sort_space_all = (uint32_t*) MallocAndCheck(sizeof(uint32_t) * globals.max_bucket_size * globals.num_cpu_threads, __FILE__, __LINE__);
+    globals.substr_all = (uint32_t*) MallocAndCheck(sizeof(uint32_t) * globals.max_sorting_items * globals.words_per_substring, __FILE__, __LINE__);
+    globals.permutations_all = (uint32_t*) MallocAndCheck(sizeof(uint32_t) * globals.max_sorting_items, __FILE__, __LINE__);
+    globals.cpu_sort_space_all = (uint32_t*) MallocAndCheck(sizeof(uint32_t) * globals.max_sorting_items, __FILE__, __LINE__);
 
     // --- init lock ---
     pthread_mutex_init(&globals.lv1_items_scanning_lock, NULL);
 
 #endif
+    if (cx1_t::kCX1Verbose >= 2) {
+        xlog("Memory for sequence: %lld\n", globals.mem_packed_seq);
+        xlog("max # lv.1 items = %lld\n", globals.cx1.max_lv1_items_);
+#ifdef USE_GPU
+        xlog("max # lv.2 items = %lld\n", globals.cx1.max_lv2_items_);
+#else
+        xlog("max bucket: %lld, bucket size per thread: %lld\n", (long long)globals.max_bucket_size, (long long)globals.max_bucket_size_for_dynamic_sort);
+#endif
+    }
 
     // --- init output ---
     globals.sdbg_writer.set_num_threads(globals.num_output_threads);

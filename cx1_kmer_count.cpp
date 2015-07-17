@@ -176,34 +176,6 @@ void init_global_and_set_cx1(count_global_t &globals) {
         }
     }
 
-    // FILE *buc = fopen("bucket.txt", "w");
-    // fprintf(buc, "avg %lld\n", globals.tot_bucket_size/ num_non_empty);
-    // for (int i = 0; i < kNumBuckets; ++i) {
-    //     fprintf(buc, "%d %lld\n", i, globals.cx1.bucket_sizes_[i]);
-    // }
-    // fclose(buc);
-
-#ifndef USE_GPU
-    globals.cx1.lv1_just_go_ = true;
-    num_non_empty = std::max(1, num_non_empty);
-    for (int i = 0; i < kNumBuckets; ++i) {
-        if (globals.cx1.bucket_sizes_[i] > 2 * globals.tot_bucket_size / num_non_empty) {
-            // xlog("Bucket %d size = %lld > %lld = 2 * avg\n", i, (long long)globals.cx1.bucket_sizes_[i], (long long)2 * globals.tot_bucket_size / num_non_empty);
-        }
-    }
-
-    globals.max_sorting_items = std::max(3 * globals.tot_bucket_size / num_non_empty/*globals.max_bucket_size*/ * globals.num_cpu_threads, globals.max_bucket_size * 2);
-    globals.max_bucket_size_for_dynamic_sort = globals.max_sorting_items / globals.num_cpu_threads;
-#else
-    globals.cx1.lv1_just_go_ = false;
-    int64_t lv2_mem = globals.gpu_mem - 1073741824; // should reserver ~1G for GPU sorting
-    globals.cx1.max_lv2_items_ = std::min(lv2_mem / cx1_t::kGPUBytePerItem, std::max(globals.max_bucket_size, kMinLv2BatchSizeGPU));
-    if (globals.max_bucket_size > globals.cx1.max_lv2_items_) {
-        xerr_and_exit("Bucket too large for GPU: contains %lld items. Please try CPU version.\n", globals.max_bucket_size);
-        // TODO: auto switch to CPU version
-    }
-#endif
-
     globals.words_per_substring = DivCeiling((globals.kmer_k + 1) * kBitsPerEdgeChar, kBitsPerEdgeWord);
     globals.words_per_edge = DivCeiling((globals.kmer_k + 1) * kBitsPerEdgeChar + kBitsPerMulti_t, kBitsPerEdgeWord);
     // lv2 bytes: substring, permutation, readinfo
@@ -212,7 +184,22 @@ void init_global_and_set_cx1(count_global_t &globals) {
         xlog("%d words per substring, %d words per edge\n", globals.words_per_substring, globals.words_per_edge);
     }
 
+    // FILE *buc = fopen("bucket.txt", "w");
+    // fprintf(buc, "avg %lld\n", globals.tot_bucket_size/ num_non_empty);
+    // for (int i = 0; i < kNumBuckets; ++i) {
+    //     fprintf(buc, "%d %lld\n", i, globals.cx1.bucket_sizes_[i]);
+    // }
+    // fclose(buc);
+
 #ifdef USE_GPU
+    globals.cx1.lv1_just_go_ = false;
+    int64_t lv2_mem = globals.gpu_mem - 1073741824; // should reserver ~1G for GPU sorting
+    globals.cx1.max_lv2_items_ = std::min(lv2_mem / cx1_t::kGPUBytePerItem, std::max(globals.max_bucket_size, kMinLv2BatchSizeGPU));
+    if (globals.max_bucket_size > globals.cx1.max_lv2_items_) {
+        xerr_and_exit("Bucket too large for GPU: contains %lld items. Please try CPU version.\n", globals.max_bucket_size);
+        // TODO: auto switch to CPU version
+    }
+
     lv2_bytes_per_item = lv2_bytes_per_item * 2; // double buffering
     // --- memory stuff ---
     int64_t mem_remained = globals.host_mem
@@ -244,12 +231,6 @@ void init_global_and_set_cx1(count_global_t &globals) {
         globals.cx1.adjust_mem(mem_remained, lv2_bytes_per_item, min_lv1_items, min_lv2_items);
     }
 
-    if (cx1_t::kCX1Verbose >= 2) {
-        xlog("Memory for reads: %lld\n", globals.mem_packed_reads);
-        xlog("max # lv.1 items = %lld\n", globals.cx1.max_lv1_items_);
-        xlog("max # lv.2 items = %lld\n", globals.cx1.max_lv2_items_);
-    }
-
     // --- alloc memory ---
     globals.lv1_items = (int*) MallocAndCheck(globals.cx1.max_lv1_items_ * sizeof(int), __FILE__, __LINE__);
     globals.lv2_substrings = (uint32_t*) MallocAndCheck(globals.cx1.max_lv2_items_ * globals.words_per_substring * sizeof(uint32_t), __FILE__, __LINE__);
@@ -260,6 +241,17 @@ void init_global_and_set_cx1(count_global_t &globals) {
     globals.lv2_read_info_db = (int64_t *) MallocAndCheck(globals.cx1.max_lv2_items_ * sizeof(int64_t), __FILE__, __LINE__);
     alloc_gpu_buffers(globals.gpu_key_buffer1, globals.gpu_key_buffer2, globals.gpu_value_buffer1, globals.gpu_value_buffer2, (size_t)globals.cx1.max_lv2_items_);
 #else
+
+    globals.cx1.lv1_just_go_ = true;
+    num_non_empty = std::max(1, num_non_empty);
+    for (int i = 0; i < kNumBuckets; ++i) {
+        if (globals.cx1.bucket_sizes_[i] > 2 * globals.tot_bucket_size / num_non_empty) {
+            // xlog("Bucket %d size = %lld > %lld = 2 * avg\n", i, (long long)globals.cx1.bucket_sizes_[i], (long long)2 * globals.tot_bucket_size / num_non_empty);
+        }
+    }
+
+    globals.max_sorting_items = std::max(3 * globals.tot_bucket_size / num_non_empty/*globals.max_bucket_size*/ * globals.num_cpu_threads, globals.max_bucket_size * 2);
+    globals.max_bucket_size_for_dynamic_sort = globals.max_sorting_items / globals.num_cpu_threads;
 
     lv2_bytes_per_item += sizeof(uint32_t); // CPU memory is used to simulate GPU
     globals.mem_sorting_items = lv2_bytes_per_item * globals.max_sorting_items;
@@ -297,13 +289,21 @@ void init_global_and_set_cx1(count_global_t &globals) {
         xerr_and_exit("No enough memory to process.");
     }
 
-
     globals.lv1_items = (int*) MallocAndCheck(globals.cx1.max_lv1_items_ * sizeof(int), __FILE__, __LINE__);
     globals.substr_all = (uint32_t*) MallocAndCheck(sizeof(uint32_t) * globals.max_sorting_items * globals.words_per_substring, __FILE__, __LINE__);
     globals.permutations_all = (uint32_t*) MallocAndCheck(sizeof(uint32_t) * globals.max_sorting_items, __FILE__, __LINE__);
     globals.cpu_sort_space_all = (uint32_t*) MallocAndCheck(sizeof(uint32_t) * globals.max_sorting_items, __FILE__, __LINE__);
     globals.readinfo_all = (int64_t*) MallocAndCheck(sizeof(int64_t) * globals.max_sorting_items, __FILE__, __LINE__);
 #endif
+
+    if (cx1_t::kCX1Verbose >= 2) {
+        xlog("Memory for reads: %lld\n", globals.mem_packed_reads);
+        xlog("max # lv.1 items = %lld\n", globals.cx1.max_lv1_items_);
+#ifdef USE_GPU
+        xlog("max # lv.2 items = %lld\n", globals.cx1.max_lv2_items_);
+#endif
+        xlog("max bucket: %lld, bucket size per thread: %lld\n", (long long)globals.max_bucket_size, (long long)globals.max_bucket_size_for_dynamic_sort);
+    }
 
     // --- malloc read first_in / last_out ---
 #ifdef LONG_READS

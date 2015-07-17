@@ -22,13 +22,6 @@
 #include <algorithm>
 #include <assert.h>
 #include "definitions.h"
-// #include "parallel_stable_sort/parallel_stable_sort.h"
-
-struct CompareHigh32Bits {
-    bool operator() (uint64_t a, uint64_t b) {
-        return (a >> 32) < (b >> 32);
-    }
-};
 
 inline void lv2_cpu_sort(uint32_t *lv2_substrings, uint32_t *permutation, uint64_t *cpu_sort_space, int words_per_substring, int64_t lv2_num_items) {
     #pragma omp parallel for
@@ -85,6 +78,25 @@ inline void lv2_cpu_sort_st(uint32_t *lv2_substrings, uint32_t *permutation, uin
     }
 }
 
+struct CmpSubStr {
+    uint32_t *substr;
+    int64_t num_items;
+    int words_per_substring;
+    CmpSubStr(uint32_t *substr, int64_t num_items, int words_per_substring):
+        substr(substr), num_items(num_items), words_per_substring(words_per_substring) {}
+
+    bool operator() (uint32_t x, uint32_t y) {
+        int64_t idx = 0;
+        for (int i = 0; i < words_per_substring; ++i, idx += num_items) {
+            uint32_t xx = substr[x + idx];
+            uint32_t yy =substr[y + idx];
+            if (xx > yy) { return false; }
+            else if (yy > xx) { return true; }
+        }
+        return false;
+    }
+};
+
 inline void sort_digit(uint32_t *arr, uint32_t *permutation, uint32_t *buf, uint64_t *buckets, int64_t num_items, int shift_bits) {
     memset(buckets, 0, sizeof(buckets[0]) * (1 << 16));
     for (int64_t i = 0; i < num_items; ++i) {
@@ -108,6 +120,11 @@ inline void lv2_cpu_radix_sort_st(uint32_t *lv2_substrings, uint32_t *permutatio
 
     for (uint32_t i = 0; i < lv2_num_items; ++i) {
         permutation[i] = i;
+    }
+
+    if (lv2_num_items < 65536) {
+        std::sort(permutation, permutation + lv2_num_items, CmpSubStr(lv2_substrings, lv2_num_items, words_per_substring));
+        return;
     }
 
     for (int64_t iteration = words_per_substring - 1; iteration >= 0; --iteration) {
