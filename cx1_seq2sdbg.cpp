@@ -708,15 +708,10 @@ void* lv1_fill_offset(void* _data) {
 //     return y;
 // }
 
+void lv2_extract_substr(int from_bucket, int to_bucket, seq2sdbg_global_t &globals, uint32_t *substr, int num_items) {
+    int *lv1_p = globals.lv1_items + globals.cx1.rp_[0].rp_bucket_offsets[from_bucket];
 
-void* lv2_extract_substr(void* _data) {
-    bucketpartition_data_t &bp = *((bucketpartition_data_t*) _data);
-    seq2sdbg_global_t &globals = *(bp.globals);
-    int *lv1_p = globals.lv1_items + globals.cx1.rp_[0].rp_bucket_offsets[bp.bp_start_bucket];
-    uint32_t *substrings_p = globals.lv2_substrings +
-                             (globals.cx1.rp_[0].rp_bucket_offsets[bp.bp_start_bucket] - globals.cx1.rp_[0].rp_bucket_offsets[globals.cx1.lv2_start_bucket_]);
-
-    for (int bucket = bp.bp_start_bucket; bucket < bp.bp_end_bucket; ++bucket) {
+    for (int bucket = from_bucket; bucket < to_bucket; ++bucket) {
         for (int t = 0; t < globals.num_cpu_threads; ++t) {
             int64_t full_offset = globals.cx1.rp_[t].rp_lv1_differential_base;
             int num = globals.cx1.rp_[t].rp_bucket_sizes[bucket];
@@ -752,10 +747,10 @@ void* lv2_extract_substr(void* _data) {
                         prev_char = globals.package.get_base(seq_id, offset - 1);
                     }
 
-                    CopySubstring(substrings_p, edge_p, offset + start_offset, num_chars_to_copy,
-                                  globals.cx1.lv2_num_items_, words_this_seq, globals.words_per_substring);
+                    CopySubstring(substr, edge_p, offset + start_offset, num_chars_to_copy,
+                                  num_items, words_this_seq, globals.words_per_substring);
 
-                    uint32_t *last_word = substrings_p + int64_t(globals.words_per_substring - 1) * globals.cx1.lv2_num_items_;
+                    uint32_t *last_word = substr + int64_t(globals.words_per_substring - 1) * num_items;
                     *last_word |= int(num_chars_to_copy == globals.kmer_k) << (kBWTCharNumBits + kBitsPerMulti_t);
                     *last_word |= prev_char << kBitsPerMulti_t;
                     *last_word |= std::max(0, kMaxMulti_t - counting); // then larger counting come first after sorting
@@ -773,25 +768,26 @@ void* lv2_extract_substr(void* _data) {
                         assert(num_chars_to_copy == globals.kmer_k - 1);
                         offset = 0;
                     }
-                    CopySubstringRC(substrings_p, edge_p, offset + start_offset, num_chars_to_copy,
-                                    globals.cx1.lv2_num_items_, words_this_seq, globals.words_per_substring);
+                    CopySubstringRC(substr, edge_p, offset + start_offset, num_chars_to_copy,
+                                    num_items, words_this_seq, globals.words_per_substring);
 
-                    uint32_t *last_word = substrings_p + int64_t(globals.words_per_substring - 1) * globals.cx1.lv2_num_items_;
+                    uint32_t *last_word = substr + int64_t(globals.words_per_substring - 1) * num_items;
                     *last_word |= int(num_chars_to_copy == globals.kmer_k) << (kBWTCharNumBits + kBitsPerMulti_t);
                     *last_word |= prev_char << kBitsPerMulti_t;
                     *last_word |= std::max(0, kMaxMulti_t - counting);
                 }
-
-                // if ((*substrings_p >> (32 - kBucketPrefixLength * 2)) != BucketToPrefix(bucket)) {
-                //     xwarning("WRONG substring wrong:%d right:%d read_id:%lld offset:%d strand: %d num_chars_to_copy:%d\n", *substrings_p >> (32 - kBucketPrefixLength * 2),  BucketToPrefix(bucket), seq_id, offset, strand, num_chars_to_copy);
-                //     GenericKmer kmer;
-                //     kmer.init(edge_p, offset + start_offset, kBucketPrefixLength);
-                //     xwarning("%d\n", kmer.data_[0] >> (32 - kBucketPrefixLength * 2));
-                // }
-                substrings_p++;
+                substr++;
             }
         }
     }
+}
+
+void* lv2_extract_substr(void* _data) {
+    bucketpartition_data_t &bp = *((bucketpartition_data_t*) _data);
+    seq2sdbg_global_t &globals = *(bp.globals);
+    uint32_t *substrings_p = globals.lv2_substrings +
+                             (globals.cx1.rp_[0].rp_bucket_offsets[bp.bp_start_bucket] - globals.cx1.rp_[0].rp_bucket_offsets[globals.cx1.lv2_start_bucket_]);
+    lv2_extract_substr(bp.bp_start_bucket, bp.bp_end_bucket, globals, substrings_p, globals.cx1.lv2_num_items_);
     return NULL;
 }
 

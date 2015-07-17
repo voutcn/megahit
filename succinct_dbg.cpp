@@ -26,6 +26,7 @@
 #include <string>
 #include <algorithm>
 
+#include "sdbg_multi_io.h"
 #include "mem_file_checker-inl.h"
 
 int SuccinctDBG::NodeMultiplicity(int64_t x) {
@@ -358,10 +359,6 @@ void SuccinctDBG::LoadFromFile(const char *dbg_name) {
     FILE *dollar_node_seq_file = OpenFileAndCheck((std::string(dbg_name) + ".dn").c_str(), "rb");
     FILE *edge_multiplicity_file = OpenFileAndCheck((std::string(dbg_name) + ".mul").c_str(), "rb");
     FILE *edge_multiplicity_file2 = OpenFileAndCheck((std::string(dbg_name) + ".mul2").c_str(), "rb");
-    assert(w_file != NULL);
-    assert(last_file != NULL);
-    assert(f_file != NULL);
-    assert(dollar_node_seq_file != NULL);
 
     for (int i = 0; i < kAlphabetSize + 2; ++i) {
         assert(fscanf(f_file, "%lld", &f_[i]) == 1);
@@ -378,11 +375,6 @@ void SuccinctDBG::LoadFromFile(const char *dbg_name) {
     invalid_ = (unsigned long long*) MallocAndCheck(sizeof(unsigned long long) * word_needed_last, __FILE__, __LINE__);
     edge_multiplicities_ = (multi2_t*) MallocAndCheck(sizeof(multi2_t) * size, __FILE__, __LINE__);
     large_multi_h_ = kh_init(k64v16);
-
-    assert(w_ != NULL);
-    assert(last_ != NULL);
-    assert(is_dollar_ != NULL);
-    assert(invalid_ != NULL);
 
     size_t word_read = fread(w_, sizeof(unsigned long long), word_needed_w, w_file);
     assert(word_read == word_needed_w);
@@ -408,7 +400,6 @@ void SuccinctDBG::LoadFromFile(const char *dbg_name) {
     // read dollar nodes sequences
     assert(fread(&uint32_per_dollar_nodes_, sizeof(uint32_t), 1, dollar_node_seq_file) == 1);
     dollar_node_seq_ = (uint32_t*) MallocAndCheck(sizeof(uint32_t) * num_dollar_nodes_ * uint32_per_dollar_nodes_, __FILE__, __LINE__);
-    assert(dollar_node_seq_ != NULL);
 
     word_read = fread(dollar_node_seq_, sizeof(uint32_t), (size_t)num_dollar_nodes_ * uint32_per_dollar_nodes_, dollar_node_seq_file);
     assert(word_read == (size_t)num_dollar_nodes_ * uint32_per_dollar_nodes_);
@@ -428,6 +419,70 @@ void SuccinctDBG::LoadFromFile(const char *dbg_name) {
         fclose(edge_multiplicity_file2);
     }
 }
+
+void SuccinctDBG::LoadFromMultiFile(const char *dbg_name) {
+    SdbgReader sdbg_reader;
+    sdbg_reader.set_file_prefix(std::string(dbg_name));
+    sdbg_reader.read_info();
+    sdbg_reader.init_files();
+
+    for (int i = 0; i < 6; ++i) {
+        f_[i] = sdbg_reader.f()[i];
+    }
+
+    kmer_k = sdbg_reader.kmer_size();
+    size = sdbg_reader.num_items();
+    num_dollar_nodes_ = sdbg_reader.num_tips();
+    uint32_per_dollar_nodes_ = sdbg_reader.words_per_tip_label();
+
+    size_t word_needed_w = (size + kWCharsPerWord - 1) / kWCharsPerWord;
+    size_t word_needed_last = (size + kBitsPerULL - 1) / kBitsPerULL;
+
+    w_ = (unsigned long long*) MallocAndCheck(sizeof(unsigned long long) * word_needed_w, __FILE__, __LINE__);
+    last_ = (unsigned long long*) MallocAndCheck(sizeof(unsigned long long) * word_needed_last, __FILE__, __LINE__);
+    is_dollar_ = (unsigned long long*) MallocAndCheck(sizeof(unsigned long long) * word_needed_last, __FILE__, __LINE__);
+    invalid_ = (unsigned long long*) MallocAndCheck(sizeof(unsigned long long) * word_needed_last, __FILE__, __LINE__);
+    edge_multiplicities_ = (multi2_t*) MallocAndCheck(sizeof(multi2_t) * size, __FILE__, __LINE__);
+    dollar_node_seq_ = (uint32_t*) MallocAndCheck(sizeof(uint32_t) * num_dollar_nodes_ * sdbg_reader.words_per_tip_label(), __FILE__, __LINE__);
+    large_multi_h_ = kh_init(k64v16);
+
+    memset(w_, 0, sizeof(unsigned long long) * word_needed_w);
+    memset(last_, 0, sizeof(unsigned long long) * word_needed_last);
+    memset(is_dollar_, 0, sizeof(unsigned long long) * word_needed_last);
+
+    int w, last, tip;
+    multi2_t mul;
+    multi_t large_mul;
+
+    int64_t tip_label_offset = 0;
+
+    for (long long i = 0; i < size; ++i) {
+        assert(sdbg_reader.NextItem(w, last, tip, mul, large_mul, dollar_node_seq_ + tip_label_offset));
+        w_[i / kWCharsPerWord] |= (unsigned long long)w << (i % kWCharsPerWord * kWBitsPerChar);
+        last_[i / kBitsPerULL] |= (unsigned long long)last << (i % kBitsPerULL);
+        is_dollar_[i / kBitsPerULL] |= (unsigned long long)tip << (i % kBitsPerULL);
+        edge_multiplicities_[i] = mul;
+        
+        if (tip) {
+            tip_label_offset += sdbg_reader.words_per_tip_label();
+        }
+
+        if (mul == kMulti2Sp) {
+            int ret;
+            khint_t k = kh_put(k64v16, large_multi_h_, i, &ret);
+            kh_value(large_multi_h_, k) = large_mul;
+        }
+    }
+    assert(!sdbg_reader.NextItem(w, last, tip, mul, large_mul, NULL));
+    assert(tip_label_offset == num_dollar_nodes_ * sdbg_reader.words_per_tip_label());
+
+    memcpy(invalid_, is_dollar_, sizeof(unsigned long long) * word_needed_last);
+    rs_is_dollar_.Build(is_dollar_, size);
+
+    init(w_, last_, f_, size, kmer_k);
+    need_to_free_ = true;
+}
+
 
 void SuccinctDBG::PrefixRangeSearch_(uint8_t c, int64_t &l, int64_t &r) {
     int64_t low = l - 1;

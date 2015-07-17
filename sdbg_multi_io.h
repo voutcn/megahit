@@ -15,12 +15,12 @@
 
 struct SdbgPartitionRecord {
 	int thread_id;
-	int64_t starting_offset;
-	int64_t num_items;
-	int64_t num_tips;
-	int64_t num_large_mul;
-	int64_t num_last1;
-	int64_t num_w[9];
+	long long starting_offset;
+	long long num_items;
+	long long num_tips;
+	long long num_large_mul;
+	long long num_last1;
+	long long num_w[9];
 
 	SdbgPartitionRecord(): thread_id(-1), starting_offset(0), num_items(0),
 	    num_tips(0), num_large_mul(0), num_last1(0) {
@@ -96,7 +96,7 @@ class SdbgWriter {
 		}
 
 		if (tip) {
-			fwrite(&packed_tip_label, sizeof(uint32_t), words_per_tip_label_, files_[tid]);
+			fwrite(packed_tip_label, sizeof(uint32_t), words_per_tip_label_, files_[tid]);
 			++p_rec_[bucket].num_tips;
 			cur_thread_offset_[tid] += sizeof(uint32_t) * words_per_tip_label_;
 		}
@@ -143,6 +143,8 @@ class SdbgWriter {
 			FILE *sdbg_info = OpenFileAndCheck((file_prefix_ + ".sdbg_info").c_str(), "w");
 			fprintf(sdbg_info, "k %d\n", kmer_size_);
 			fprintf(sdbg_info, "words_per_tip_label %d\n", words_per_tip_label_);
+			fprintf(sdbg_info, "num_buckets %d\n", num_buckets_);
+			fprintf(sdbg_info, "num_threads %d\n", num_threads_);
 
 			int64_t total_edges = 0;
 			int64_t total_tips = 0;
@@ -173,6 +175,131 @@ class SdbgWriter {
 		  	p_rec_.clear();
 
 			is_opened_ = false;
+		}
+	}
+};
+
+class SdbgReader {
+  private:
+  	std::string file_prefix_;
+  	int kmer_size_;
+  	int words_per_tip_label_;
+  	long long num_items_;
+  	long long num_tips_;
+  	long long num_large_mul_;
+  	long long f_[6];
+  	int num_files_;
+  	int num_buckets_;
+
+  	int cur_bucket_;
+	long long cur_bucket_cnt_;  	
+
+  	std::vector<SdbgPartitionRecord> p_rec_;
+  	std::vector<FILE*> files_;
+  	FILE *cur_file_;
+
+  	bool is_opened_;
+  public:
+  	SdbgReader(): is_opened_(false) {}
+  	~SdbgReader() { destroy(); }
+
+  	void set_file_prefix(const std::string &prefix) { file_prefix_ = prefix; }
+
+  	void read_info() {
+		FILE *sdbg_info = OpenFileAndCheck((file_prefix_ + ".sdbg_info").c_str(), "r");
+		assert(fscanf(sdbg_info, "k %d\n", &kmer_size_) == 1);
+		assert(fscanf(sdbg_info, "words_per_tip_label %d\n", &words_per_tip_label_) == 1);
+		assert(fscanf(sdbg_info, "num_buckets %d\n", &num_buckets_) == 1);
+		assert(fscanf(sdbg_info, "num_threads %d\n", &num_files_) == 1);
+		assert(fscanf(sdbg_info, "total_size %lld\n", &num_items_) == 1);
+		assert(fscanf(sdbg_info, "num_tips %lld\n", &num_tips_) == 1);
+		assert(fscanf(sdbg_info, "large_multi %lld\n", &num_large_mul_) == 1);
+
+		p_rec_.resize(num_buckets_);
+		long long acc = 0;
+		f_[0] = -1;
+		f_[1] = 0;
+		for (int i = 0; i < num_buckets_; ++i) {
+			int dummy;
+			assert(fscanf(sdbg_info, "%d %d %lld %lld %lld %lld\n", &dummy,
+				&p_rec_[i].thread_id,
+				&p_rec_[i].starting_offset,
+				&p_rec_[i].num_items, 
+				&p_rec_[i].num_tips, 
+				&p_rec_[i].num_large_mul) == 6);
+			acc += p_rec_[i].num_items;
+			f_[i / (num_buckets_ / 4) + 2] = acc;
+		}
+
+		fclose(sdbg_info);
+  	}
+
+  	int kmer_size() const { return kmer_size_; }
+  	int words_per_tip_label() const { return words_per_tip_label_; }
+  	long long num_items() const { return num_items_; }
+  	long long num_tips() const { return num_tips_; }
+  	long long num_large_mul() const { return num_large_mul_; }
+  	const long long *f() const { return f_; }
+
+  	void init_files() {
+  		assert(!is_opened_);
+  		files_.resize(num_files_);
+  		for (int i = 0; i < num_files_; ++i) {
+  			files_[i] = OpenFileAndCheck(FormatString("%s.sdbg.%d", file_prefix_.c_str(), i), "rb");
+  		}
+
+  		cur_bucket_ = -1;
+  		cur_bucket_cnt_ = 0;
+  		is_opened_ = true;
+  	}
+
+	bool NextItem(int &w, int &last, int &tip, multi2_t &mul, multi_t &large_mul, uint32_t *tip_label) {
+		if (cur_bucket_ >= num_buckets_) {
+			return false;
+		}
+
+		while (cur_bucket_ == -1 || cur_bucket_cnt_ >= p_rec_[cur_bucket_].num_items) {
+			cur_bucket_cnt_ = 0;
+			++cur_bucket_;
+			while (cur_bucket_ < num_buckets_ && p_rec_[cur_bucket_].thread_id == -1) {
+				++cur_bucket_;
+			}
+
+			if (cur_bucket_ >= num_buckets_) {
+				return false;
+			}
+			cur_file_ = files_[p_rec_[cur_bucket_].thread_id];
+  			fseek(cur_file_, p_rec_[cur_bucket_].starting_offset, SEEK_SET);
+  			assert(!ferror(cur_file_));
+		}
+
+		uint16_t packed_item;
+		assert(fread(&packed_item, sizeof(uint16_t), 1, cur_file_) == 1);
+
+		w = packed_item & 0xF;
+		assert(w < 9);
+		last = (packed_item >> 4) & 1;
+		tip = (packed_item >> 5) & 1;
+		mul = packed_item >> 8;
+
+		if (mul == kMulti2Sp) {
+			assert(fread(&large_mul, sizeof(multi_t), 1, cur_file_) == 1);
+		}
+
+		if (tip == 1) {
+			assert(fread(tip_label, sizeof(uint32_t), words_per_tip_label_, cur_file_) == (unsigned)words_per_tip_label_);
+		}
+
+		++cur_bucket_cnt_;
+		return true;
+	}
+
+	void destroy() {
+		if (is_opened_) {
+			for (int i = 0; i < num_files_; ++i) {
+	  			fclose(files_[i]);
+	  		}
+	  		is_opened_ = false;
 		}
 	}
 };

@@ -162,7 +162,6 @@ class EdgeReader {
 
   public:
   	EdgeReader(): is_opened_(false) {
-  		cur_file_num_ = -1;
   		cur_bucket_ = -1;
   		cur_bucket_cnt_ = 0;
   		cur_file_ = NULL;
@@ -189,8 +188,6 @@ class EdgeReader {
   		}
 
   		buf_.resize(words_per_edge_ * kEdgesInBuf);
-  		buf_size_ = 0;
-  		buf_idx_ = 0;
   		fclose(info);
   	}
 
@@ -200,6 +197,9 @@ class EdgeReader {
       for (int i = 0; i < num_files_; ++i) {
         files_[i] = OpenFileAndCheck(FormatString("%s.edges.%d", file_prefix_.c_str(), i), "rb");
       }
+      buf_size_ = 0;
+      buf_idx_ = 0;
+      cur_file_num_ = -1;
       is_opened_ = true;
     }
 
@@ -252,6 +252,7 @@ class EdgeReader {
   	uint32_t *NextUnsortedEdge() {
   		if (cur_file_num_ < 0) {
   			cur_file_num_ = 0;
+        cur_file_ = files_[0];
   		}
 
   		if (cur_file_num_ >= num_files_) {
@@ -266,7 +267,6 @@ class EdgeReader {
   				break;
   			}
 
-  			cur_file_ = NULL;
   			cur_file_num_++;
   			if (cur_file_num_ >= num_files_) {
   				return NULL;
@@ -284,8 +284,8 @@ class EdgeReader {
         for (int i = 0; i < num_files_; ++i) {
           fclose(files_[i]);
         }
+        files_.resize(0);
         is_opened_ = false;
-        cur_file_ = NULL;
       }
   	}
 };

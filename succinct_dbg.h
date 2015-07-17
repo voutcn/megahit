@@ -62,6 +62,7 @@ class SuccinctDBG {
     }
 
     void LoadFromFile(const char *dbg_name);
+    void LoadFromMultiFile(const char *dbg_name);
     void init(unsigned long long *w, unsigned long long *last, long long *f, int64_t size, int kmer_k) {
         w_ = w;
         last_ = last;
