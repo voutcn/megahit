@@ -71,6 +71,7 @@ void SequenceManager::set_edge_files(const std::string &file_prefix) {
     assert(!edge_reader_inited_);
     edge_reader_.set_file_prefix(file_prefix);
     edge_reader_.read_info();
+    edge_reader_.init_files();
     if (edge_reader_.is_unsorted()) { f_type = kMegahitEdges; }
     else { f_type = kSortedEdges; }
     edge_reader_inited_ = true;

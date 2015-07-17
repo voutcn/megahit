@@ -29,7 +29,7 @@
 #include "mac_pthread_barrier.h"
 #include "definitions.h"
 #include "cx1.h"
-#include "sdbg_builder_writers.h"
+#include "sdbg_multi_io.h"
 #include "sequence_manager.h"
 
 struct seq2sdbg_opt_t {
@@ -69,8 +69,8 @@ struct seq2sdbg_opt_t {
 namespace cx1_seq2sdbg {
 
 static const int kBucketPrefixLength = 8; // less than 16 (chars per word)
-static const int kBucketBase = 5;
-static const int kNumBuckets = 390625; // pow(5, 8)
+static const int kBucketBase = 4;
+static const int kNumBuckets = 65536; // pow(4, 8)
 // binary search look up table
 static const int kLookUpPrefixLength = 12;
 static const int kLookUpShift = 32 - kLookUpPrefixLength * 2;
@@ -138,24 +138,8 @@ struct seq2sdbg_global_t {
     // memory usage
     int64_t mem_packed_seq;
 
-    // statistics
-    int64_t num_chars_in_w[9];
-    int64_t num_ones_in_last;
-    int64_t total_number_edges;
-    int64_t num_dollar_nodes;
-    int64_t num_dummy_edges;
-    int cur_prefix;
-    int cur_suffix_first_char;
-
     // output
-    DBG_BinaryWriter sdbg_writer;
-    WordWriter dummy_nodes_writer;
-    FILE *output_f_file;
-    FILE *output_multiplicity_file;
-    FILE *output_multiplicity_file2;
-
-    unsigned char *lv2_aux;
-    pthread_barrier_t output_barrier;
+    SdbgWriter sdbg_writer;
 };
 
 int64_t encode_lv1_diff_base(int64_t read_id, seq2sdbg_global_t &g);

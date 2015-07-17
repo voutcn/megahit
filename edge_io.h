@@ -145,6 +145,7 @@ class EdgeReader {
   	long long num_edges_;
 
   	std::string file_prefix_;
+    std::vector<FILE*> files_;
   	std::vector<PartitionRecord> p_rec_;
   	std::vector<uint32_t> buf_;
   	int buf_idx_;
@@ -155,10 +156,12 @@ class EdgeReader {
   	long long cur_bucket_cnt_;
   	FILE *cur_file_;
 
+    bool is_opened_;
+
   	static const int kEdgesInBuf = 4096;
 
   public:
-  	EdgeReader() {
+  	EdgeReader(): is_opened_(false) {
   		cur_file_num_ = -1;
   		cur_bucket_ = -1;
   		cur_bucket_cnt_ = 0;
@@ -191,6 +194,15 @@ class EdgeReader {
   		fclose(info);
   	}
 
+    void init_files() {
+      assert(!is_opened_);
+      files_.resize(num_files_);
+      for (int i = 0; i < num_files_; ++i) {
+        files_[i] = OpenFileAndCheck(FormatString("%s.edges.%d", file_prefix_.c_str(), i), "rb");
+      }
+      is_opened_ = true;
+    }
+
   	bool is_unsorted() {
   		return num_buckets_ == 0;
   	}
@@ -203,12 +215,9 @@ class EdgeReader {
   		if (cur_bucket_ >= num_buckets_) { return NULL; }
 
   		while (cur_bucket_ == -1 || cur_bucket_cnt_ >= p_rec_[cur_bucket_].total_number) {
-  			if (cur_file_ != NULL) {
-  				fclose(cur_file_);
-  				cur_file_ = NULL;
-  			}
-			buf_idx_ = 0;
-			buf_size_ = 0;
+
+  			buf_idx_ = 0;
+  			buf_size_ = 0;
 
   			++cur_bucket_;
   			while (cur_bucket_ < num_buckets_ && p_rec_[cur_bucket_].thread_id < 0) {
@@ -218,7 +227,7 @@ class EdgeReader {
   			if (cur_bucket_ >= num_buckets_) { return NULL; }
   			cur_bucket_cnt_ = 0;
 
-  			cur_file_ = OpenFileAndCheck(FormatString("%s.edges.%d", file_prefix_.c_str(), p_rec_[cur_bucket_].thread_id), "rb");
+  			cur_file_ = files_[p_rec_[cur_bucket_].thread_id];
   			fseek(cur_file_, sizeof(uint32_t) * words_per_edge_ * p_rec_[cur_bucket_].starting_offset, SEEK_SET);
   			assert(!ferror(cur_file_));
   		}
@@ -243,7 +252,6 @@ class EdgeReader {
   	uint32_t *NextUnsortedEdge() {
   		if (cur_file_num_ < 0) {
   			cur_file_num_ = 0;
-  			cur_file_ = OpenFileAndCheck(FormatString("%s.edges.%d", file_prefix_.c_str(), 0), "rb");
   		}
 
   		if (cur_file_num_ >= num_files_) {
@@ -258,14 +266,13 @@ class EdgeReader {
   				break;
   			}
 
-  			fclose(cur_file_);
   			cur_file_ = NULL;
   			cur_file_num_++;
   			if (cur_file_num_ >= num_files_) {
   				return NULL;
   			}
 
-  			cur_file_ = OpenFileAndCheck(FormatString("%s.edges.%d", file_prefix_.c_str(), cur_file_num_), "rb");
+  			cur_file_ = files_[cur_file_num_];
   		}
 
   		buf_idx_ += words_per_edge_;
@@ -273,10 +280,13 @@ class EdgeReader {
   	}
 
   	void destroy() {
-  		if (cur_file_ != NULL) {
-  			fclose(cur_file_);
-  			cur_file_ = NULL;
-  		}
+      if (is_opened_) {
+        for (int i = 0; i < num_files_; ++i) {
+          fclose(files_[i]);
+        }
+        is_opened_ = false;
+        cur_file_ = NULL;
+      }
   	}
 };
 
