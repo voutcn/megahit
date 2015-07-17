@@ -547,9 +547,11 @@ void init_global_and_set_cx1(seq2sdbg_global_t &globals) {
     for (int i = 0; i < kNumBuckets; ++i) {
         globals.tot_bucket_size += globals.cx1.bucket_sizes_[i];
     }
-#ifndef USE_GPU
-    globals.cx1.max_lv2_items_ = std::max(globals.max_bucket_size, kMinLv2BatchSize);
-#else
+
+    globals.words_per_substring = DivCeiling(globals.kmer_k * kBitsPerEdgeChar + kBWTCharNumBits + 1 + kBitsPerMulti_t, kBitsPerEdgeWord);
+    globals.words_per_dummy_node = DivCeiling(globals.kmer_k * kBitsPerEdgeChar, kBitsPerEdgeWord);
+
+#ifdef USE_GPU
     int64_t lv2_mem = globals.gpu_mem - 1073741824; // should reserve ~1G for GPU sorting
     globals.cx1.max_lv2_items_ = std::min(lv2_mem / cx1_t::kGPUBytePerItem, std::max(globals.max_bucket_size, kMinLv2BatchSizeGPU));
     if (globals.max_bucket_size > globals.cx1.max_lv2_items_) {
@@ -557,14 +559,8 @@ void init_global_and_set_cx1(seq2sdbg_global_t &globals) {
         // TODO: auto switch to CPU version
         exit(1);
     }
-#endif
-    globals.words_per_substring = DivCeiling(globals.kmer_k * kBitsPerEdgeChar + kBWTCharNumBits + 1 + kBitsPerMulti_t, kBitsPerEdgeWord);
-    globals.words_per_dummy_node = DivCeiling(globals.kmer_k * kBitsPerEdgeChar, kBitsPerEdgeWord);
     // lv2 bytes: substring (double buffer), permutation, aux
-    int64_t lv2_bytes_per_item = (globals.words_per_substring * sizeof(uint32_t) + sizeof(uint32_t)) * 2 + sizeof(unsigned char);
-#ifndef USE_GPU
-    lv2_bytes_per_item += sizeof(uint64_t) * 2; // simulate GPU
-#endif
+    int64_t lv2_bytes_per_item = (globals.words_per_substring * sizeof(uint32_t) + sizeof(uint32_t)) * 2;
 
     if (cx1_t::kCX1Verbose >= 2) {
         xlog("%d words per substring, num sequences: %ld, words per dummy node ($v): %d\n", globals.words_per_substring, globals.num_seq, globals.words_per_dummy_node);
@@ -611,23 +607,52 @@ void init_global_and_set_cx1(seq2sdbg_global_t &globals) {
     globals.permutation = (uint32_t *) MallocAndCheck(globals.cx1.max_lv2_items_ * sizeof(uint32_t), __FILE__, __LINE__);
     globals.lv2_substrings_db = (uint32_t*) MallocAndCheck(globals.cx1.max_lv2_items_ * globals.words_per_substring * sizeof(uint32_t), __FILE__, __LINE__);
     globals.permutation_db = (uint32_t *) MallocAndCheck(globals.cx1.max_lv2_items_ * sizeof(uint32_t), __FILE__, __LINE__);
-#ifndef USE_GPU
-    globals.cpu_sort_space = (uint64_t*) MallocAndCheck(sizeof(uint64_t) * globals.cx1.max_lv2_items_, __FILE__, __LINE__);
-#else
     alloc_gpu_buffers(globals.gpu_key_buffer1, globals.gpu_key_buffer2, globals.gpu_value_buffer1, globals.gpu_value_buffer2, (size_t)globals.cx1.max_lv2_items_);
-#endif
+#else
+    globals.cx1.lv1_just_go_ = true;
+    globals.num_output_threads = globals.num_cpu_threads;
+
+    int64_t lv2_bytes_per_item = globals.words_per_substring * sizeof(uint32_t) + sizeof(uint32_t) + sizeof(uint32_t);
+    globals.mem_packed_seq = lv2_bytes_per_item * globals.max_bucket_size;
+    int64_t mem_remained = globals.host_mem
+                           - globals.mem_packed_seq
+                           - kNumBuckets * sizeof(int64_t) * (globals.num_cpu_threads * 3 + 1);
+    int64_t min_lv1_items = globals.tot_bucket_size / (kMaxLv1ScanTime - 0.5);
+
+    if (globals.mem_flag == 1) {
+        // auto set memory
+        globals.cx1.max_lv1_items_ = int64_t(globals.tot_bucket_size / (kDefaultLv1ScanTime - 0.5));
+        int64_t mem_needed = globals.cx1.max_lv1_items_ * cx1_t::kLv1BytePerItem;
+        if (mem_needed > mem_remained) {
+            globals.cx1.max_lv1_items_ = mem_remained / cx1_t::kLv1BytePerItem;
+        }
+
+    } else if (globals.mem_flag == 0) {
+        // min memory
+        globals.cx1.max_lv1_items_ = int64_t(globals.tot_bucket_size / (kMaxLv1ScanTime - 0.5));
+        int64_t mem_needed = globals.cx1.max_lv1_items_ * cx1_t::kLv1BytePerItem;
+        if (mem_needed > mem_remained) {
+            globals.cx1.max_lv1_items_ = mem_remained / cx1_t::kLv1BytePerItem;
+        }
+
+    } else {
+        // use all
+        globals.cx1.adjust_mem(mem_remained, 0, min_lv1_items, 0);
+    }
+
+    if (globals.cx1.max_lv1_items_ < min_lv1_items) {
+        xerr_and_exit("No enough memory to process.");
+    }
+
+    globals.lv1_items = (int*) MallocAndCheck(globals.cx1.max_lv1_items_ * sizeof(int), __FILE__, __LINE__);
+    globals.substr_all = (uint32_t*) MallocAndCheck(sizeof(uint32_t) * globals.max_bucket_size * globals.num_cpu_threads * globals.words_per_substring, __FILE__, __LINE__);
+    globals.permutations_all = (uint32_t*) MallocAndCheck(sizeof(uint32_t) * globals.max_bucket_size * globals.num_cpu_threads, __FILE__, __LINE__);
+    globals.cpu_sort_space_all = (uint32_t*) MallocAndCheck(sizeof(uint32_t) * globals.max_bucket_size * globals.num_cpu_threads, __FILE__, __LINE__);
 
     // --- init lock ---
     pthread_mutex_init(&globals.lv1_items_scanning_lock, NULL);
 
-    // --- init stat ---
-    // globals.num_ones_in_last = 0;
-    // globals.total_number_edges = 0;
-    // globals.num_dollar_nodes = 0;
-    // globals.num_dummy_edges = 0;
-    // for (int i = 0; i < 9; ++i) {
-    //     globals.num_chars_in_w[i] = 0;
-    // }
+#endif
 
     // --- init output ---
     globals.sdbg_writer.set_num_threads(globals.num_output_threads);
@@ -708,7 +733,7 @@ void* lv1_fill_offset(void* _data) {
 //     return y;
 // }
 
-void lv2_extract_substr(int from_bucket, int to_bucket, seq2sdbg_global_t &globals, uint32_t *substr, int num_items) {
+void lv2_extract_substr_(int from_bucket, int to_bucket, seq2sdbg_global_t &globals, uint32_t *substr, int num_items) {
     int *lv1_p = globals.lv1_items + globals.cx1.rp_[0].rp_bucket_offsets[from_bucket];
 
     for (int bucket = from_bucket; bucket < to_bucket; ++bucket) {
@@ -787,26 +812,13 @@ void* lv2_extract_substr(void* _data) {
     seq2sdbg_global_t &globals = *(bp.globals);
     uint32_t *substrings_p = globals.lv2_substrings +
                              (globals.cx1.rp_[0].rp_bucket_offsets[bp.bp_start_bucket] - globals.cx1.rp_[0].rp_bucket_offsets[globals.cx1.lv2_start_bucket_]);
-    lv2_extract_substr(bp.bp_start_bucket, bp.bp_end_bucket, globals, substrings_p, globals.cx1.lv2_num_items_);
+    lv2_extract_substr_(bp.bp_start_bucket, bp.bp_end_bucket, globals, substrings_p, globals.cx1.lv2_num_items_);
     return NULL;
 }
 
 void lv2_sort(seq2sdbg_global_t &globals) {
     xtimer_t local_timer;
-#ifndef USE_GPU
-    if (cx1_t::kCX1Verbose >= 4) {
-        local_timer.reset();
-        local_timer.start();
-    }
-    omp_set_num_threads(globals.num_cpu_threads - globals.num_output_threads);
-    lv2_cpu_sort(globals.lv2_substrings, globals.permutation, globals.cpu_sort_space, globals.words_per_substring, globals.cx1.lv2_num_items_);
-    omp_set_num_threads(globals.num_cpu_threads);
-    local_timer.stop();
-
-    if (cx1_t::kCX1Verbose >= 4) {
-        xlog("Sorting substrings with CPU...done. Time elapsed: %.4lf\n", local_timer.elapsed());
-    }
-#else
+#ifdef USE_GPU
     if (cx1_t::kCX1Verbose >= 4) {
         local_timer.reset();
         local_timer.start();
@@ -953,6 +965,27 @@ void lv2_pre_output_partition(seq2sdbg_global_t &globals) {
 void lv2_post_output(seq2sdbg_global_t &globals) {
 }
 
+void lv1_direct_sort_and_proc(seq2sdbg_global_t &globals) {
+#ifndef USE_GPU
+    omp_set_num_threads(globals.num_cpu_threads);
+#pragma omp parallel for schedule(dynamic, 1)
+    for (int b = globals.cx1.lv1_start_bucket_; b < globals.cx1.lv1_end_bucket_; ++b) {
+        if (globals.cx1.bucket_sizes_[b] == 0 || globals.cx1.bucket_sizes_[b] > globals.max_bucket_size) {
+            continue;
+        }
+
+        int tid = omp_get_thread_num();
+        uint32_t *substr_ptr = globals.substr_all + tid * globals.max_bucket_size * globals.words_per_substring;
+        uint32_t *permutation_ptr = globals.permutations_all + tid * globals.max_bucket_size;
+        uint32_t *cpu_sort_space_ptr = globals.cpu_sort_space_all + tid * globals.max_bucket_size;
+
+        lv2_extract_substr_(b, b + 1, globals, substr_ptr, globals.cx1.bucket_sizes_[b]);
+        lv2_cpu_radix_sort_st(substr_ptr, permutation_ptr, cpu_sort_space_ptr, globals.words_per_substring, globals.cx1.bucket_sizes_[b]);
+        output_(0, globals.cx1.bucket_sizes_[b], globals, substr_ptr, permutation_ptr, tid, globals.cx1.bucket_sizes_[b]);
+    }
+#endif
+}
+
 void post_proc(seq2sdbg_global_t &globals) {
     if (cx1_t::kCX1Verbose >= 2) {
         xlog("Number of $ A C G T A- C- G- T-:\n");
@@ -973,15 +1006,17 @@ void post_proc(seq2sdbg_global_t &globals) {
     // --- cleaning ---
     pthread_mutex_destroy(&globals.lv1_items_scanning_lock);
     free(globals.lv1_items);
+#ifdef USE_GPU
     free(globals.lv2_substrings);
     free(globals.permutation);
     free(globals.lv2_substrings_db);
     free(globals.permutation_db);
     globals.sdbg_writer.destroy();
-#ifndef USE_GPU
-    free(globals.cpu_sort_space);
-#else
     free_gpu_buffers(globals.gpu_key_buffer1, globals.gpu_key_buffer2, globals.gpu_value_buffer1, globals.gpu_value_buffer2);
+#else
+    free(globals.cpu_sort_space_all);
+    free(globals.permutations_all);
+    free(globals.substr_all);
 #endif
 }
 

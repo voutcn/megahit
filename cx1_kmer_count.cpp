@@ -301,7 +301,7 @@ void init_global_and_set_cx1(count_global_t &globals) {
     globals.lv1_items = (int*) MallocAndCheck(globals.cx1.max_lv1_items_ * sizeof(int), __FILE__, __LINE__);
     globals.substr_all = (uint32_t*) MallocAndCheck(sizeof(uint32_t) * globals.max_sorting_items * globals.words_per_substring, __FILE__, __LINE__);
     globals.permutations_all = (uint32_t*) MallocAndCheck(sizeof(uint32_t) * globals.max_sorting_items, __FILE__, __LINE__);
-    globals.cpu_sort_space_all = (uint32_t*) MallocAndCheck(sizeof(uint64_t) * globals.max_sorting_items, __FILE__, __LINE__);
+    globals.cpu_sort_space_all = (uint32_t*) MallocAndCheck(sizeof(uint32_t) * globals.max_sorting_items, __FILE__, __LINE__);
     globals.readinfo_all = (int64_t*) MallocAndCheck(sizeof(int64_t) * globals.max_sorting_items, __FILE__, __LINE__);
 #endif
 
