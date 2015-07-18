@@ -345,6 +345,7 @@ inline void GenMercyEdges(seq2sdbg_global_t &globals) {
         }
     }
 
+    free(edge_lookup);
     globals.multiplicity.insert(globals.multiplicity.end(), num_mercy_edges, 1);
 
     if (cx1_t::kCX1Verbose >= 2) {
