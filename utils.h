@@ -51,6 +51,14 @@ inline void megahit_log__(const char* format, ...) {
 #define xwarning(str, args...) megahit_log__("    [WARNING] [%-25s:%4d] ", __FILE__, __LINE__); megahit_log__(str, ##args);
 #define xerr_and_exit(str, args...) megahit_log__("    [ERROR] [%-25s:%4d]: ", __FILE__, __LINE__); megahit_log__(str, ##args); exit(1);
 
+#ifdef __GNUC__
+#define LIKELY(x) __builtin_expect((x),1)
+#define UNLIKELY(x) __builtin_expect((x),0)
+#else
+#define LIKELY(x) (x)
+#define UNLIKELY(x) (x)
+#endif
+
 inline char* FormatString(const char *fmt, ...) {
     static char buffer[1 << 20];
     va_list args;

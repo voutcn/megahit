@@ -28,6 +28,7 @@
 
 #include "sdbg_multi_io.h"
 #include "mem_file_checker-inl.h"
+#include "utils.h"
 
 int SuccinctDBG::NodeMultiplicity(int64_t x) {
     int outgoing_multi = 0;
@@ -456,18 +457,18 @@ void SuccinctDBG::LoadFromMultiFile(const char *dbg_name) {
 
     int64_t tip_label_offset = 0;
 
-    for (long long i = 0; i < size; ++i) {
+    for (long long i = 0; LIKELY(i < size); ++i) {
         assert(sdbg_reader.NextItem(w, last, tip, mul, large_mul, dollar_node_seq_ + tip_label_offset));
         w_[i / kWCharsPerWord] |= (unsigned long long)w << (i % kWCharsPerWord * kWBitsPerChar);
         last_[i / kBitsPerULL] |= (unsigned long long)last << (i % kBitsPerULL);
         is_dollar_[i / kBitsPerULL] |= (unsigned long long)tip << (i % kBitsPerULL);
         edge_multiplicities_[i] = mul;
         
-        if (tip) {
+        if (UNLIKELY(tip)) {
             tip_label_offset += sdbg_reader.words_per_tip_label();
         }
 
-        if (mul == kMulti2Sp) {
+        if (UNLIKELY(mul == kMulti2Sp)) {
             int ret;
             khint_t k = kh_put(k64v16, large_multi_h_, i, &ret);
             kh_value(large_multi_h_, k) = large_mul;
