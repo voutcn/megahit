@@ -632,8 +632,6 @@ def build_lib():
 def build_first_graph():
     global cp
     phase1_out_threads = max(1, int(opt.num_cpu_threads / 3))
-    if not opt.use_gpu:
-        phase1_out_threads = opt.num_cpu_threads;
     if (not opt.continue_mode) or (cp > opt.last_cp):
         count_opt = ["-k", str(opt.k_min),
                      "-m", str(opt.min_count),

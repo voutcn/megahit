@@ -199,6 +199,8 @@ class SdbgReader {
   	FILE *cur_file_;
 
   	bool is_opened_;
+  	static const size_t kBufSize = 32768;
+  	char buf_[kBufSize];
   public:
   	SdbgReader(): is_opened_(false) {}
   	~SdbgReader() { destroy(); }
@@ -246,7 +248,6 @@ class SdbgReader {
   		files_.resize(num_files_);
   		for (int i = 0; i < num_files_; ++i) {
   			files_[i] = OpenFileAndCheck(FormatString("%s.sdbg.%d", file_prefix_.c_str(), i), "rb");
-  			// setvbuf(files_[i], NULL, _IOFBF, 1 << 15);
   		}
 
   		cur_bucket_ = -1;
@@ -259,7 +260,7 @@ class SdbgReader {
 			return false;
 		}
 
-		while (cur_bucket_ == -1 || cur_bucket_cnt_ >= p_rec_[cur_bucket_].num_items) {
+		while (UNLIKELY(cur_bucket_ == -1) || cur_bucket_cnt_ >= p_rec_[cur_bucket_].num_items) {
 			cur_bucket_cnt_ = 0;
 			++cur_bucket_;
 			while (cur_bucket_ < num_buckets_ && p_rec_[cur_bucket_].thread_id == -1) {
@@ -271,6 +272,10 @@ class SdbgReader {
 			}
 			cur_file_ = files_[p_rec_[cur_bucket_].thread_id];
   			fseek(cur_file_, p_rec_[cur_bucket_].starting_offset, SEEK_SET);
+  			setvbuf(cur_file_, buf_, _IOFBF, 
+  				std::min(size_t(p_rec_[cur_bucket_].num_items * sizeof(uint16_t) + 
+  				  				p_rec_[cur_bucket_].num_tips * sizeof(uint32_t) * words_per_tip_label_ + 
+  				  				p_rec_[cur_bucket_].num_large_mul * sizeof(multi_t)), kBufSize));
   			assert(!ferror(cur_file_));
 		}
 
@@ -282,11 +287,11 @@ class SdbgReader {
 		tip = (packed_item >> 5) & 1;
 		mul = packed_item >> 8;
 
-		if (mul == kMulti2Sp) {
+		if (UNLIKELY(mul == kMulti2Sp)) {
 			assert(fread(&large_mul, sizeof(multi_t), 1, cur_file_) == 1);
 		}
 
-		if (tip == 1) {
+		if (UNLIKELY(tip == 1)) {
 			assert(fread(tip_label, sizeof(uint32_t), words_per_tip_label_, cur_file_) == (unsigned)words_per_tip_label_);
 		}
 

@@ -243,6 +243,8 @@ void init_global_and_set_cx1(count_global_t &globals) {
 #else
 
     globals.cx1.lv1_just_go_ = true;
+    globals.num_output_threads = globals.num_cpu_threads;
+    
     num_non_empty = std::max(1, num_non_empty);
     for (int i = 0; i < kNumBuckets; ++i) {
         if (globals.cx1.bucket_sizes_[i] > 2 * globals.tot_bucket_size / num_non_empty) {
