@@ -121,22 +121,21 @@ struct CX1 {
         while (max_lv2_items_ >= min_lv2_items) {
             int64_t mem_lv2 = lv2_bytes_per_item * max_lv2_items_;
             if (mem_avail <= mem_lv2) {
-                max_lv2_items_ *= 0.9;
+                max_lv2_items_ *= 0.95;
                 continue;
             }
 
             max_lv1_items_ = (mem_avail - mem_lv2) / kLv1BytePerItem;
             if (max_lv1_items_ < min_lv1_items ||
                     max_lv1_items_ < max_lv2_items_) {
-                max_lv2_items_ *= 0.9;
+                max_lv2_items_ *= 0.95;
             } else {
                 break;
             }
         }
 
         if (max_lv2_items_ < min_lv2_items) {
-            fprintf(stderr, "No enough memory to process.\n");
-            exit(1);
+            xerr_and_exit("No enough memory to process CX1.\n");
         }
 
         // --- adjust max_lv2_items to fit more lv1 item ---
@@ -145,6 +144,43 @@ struct CX1 {
             if (max_lv2_items_ * 0.95 >= min_lv2_items) {
                 max_lv2_items_ *= 0.95;
                 max_lv1_items_ = (mem_avail - lv2_bytes_per_item * max_lv2_items_) / kLv1BytePerItem;
+            } else {
+                break;
+            }
+        }
+    }
+
+    inline void adjust_mem_just_go(int64_t mem_avail, int64_t bytes_per_sorting_item, int64_t min_lv1_items, int64_t min_sorting_items,
+        int64_t max_sorting_items, int64_t &max_lv1_items, int64_t &num_sorting_items) {
+        num_sorting_items = max_sorting_items;
+
+        while (num_sorting_items >= min_sorting_items) {
+            int64_t mem_sorting_items = bytes_per_sorting_item * num_sorting_items;
+            if (mem_avail < mem_sorting_items) {
+                mem_sorting_items = num_sorting_items * 0.95;
+                continue;
+            }
+
+            max_lv1_items = (mem_avail - mem_sorting_items) / kLv1BytePerItem;
+            if (max_lv1_items < min_lv1_items || max_lv1_items < num_sorting_items) {
+                num_sorting_items *= 0.95;
+            } else {
+                break;
+            }
+        }
+
+        if (num_sorting_items < min_sorting_items) {
+            if (num_sorting_items < min_sorting_items) {
+                xerr_and_exit("No enough memory to process CX1.\n");
+            }
+        }
+
+        // --- adjust num_sorting_items to fit more lv1 item ---
+        // TODO: 4 is arbitrary chosen, not fine tune
+        while (num_sorting_items * 4 > max_lv1_items) {
+            if (num_sorting_items * 0.95 >= min_sorting_items) {
+                num_sorting_items *= 0.95;
+                max_lv1_items = (mem_avail - bytes_per_sorting_item * num_sorting_items) / kLv1BytePerItem;
             } else {
                 break;
             }

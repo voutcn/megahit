@@ -251,14 +251,11 @@ void init_global_and_set_cx1(count_global_t &globals) {
     }
 
     globals.max_sorting_items = std::max(3 * globals.tot_bucket_size / num_non_empty/*globals.max_bucket_size*/ * globals.num_cpu_threads, globals.max_bucket_size * 2);
-    globals.max_bucket_size_for_dynamic_sort = globals.max_sorting_items / globals.num_cpu_threads;
 
     lv2_bytes_per_item += sizeof(uint32_t); // CPU memory is used to simulate GPU
-    globals.mem_sorting_items = lv2_bytes_per_item * globals.max_sorting_items;
 
     int64_t mem_remained = globals.host_mem
                            - globals.mem_packed_reads
-                           - globals.mem_sorting_items
                            - globals.num_reads * sizeof(unsigned char) * 2 // first_in0 & last_out0
                            - kNumBuckets * sizeof(int64_t) * (globals.num_cpu_threads * 3 + 1)
                            - (kMaxMulti_t + 1) * (globals.num_output_threads + 1) * sizeof(int64_t);
@@ -269,7 +266,8 @@ void init_global_and_set_cx1(count_global_t &globals) {
         globals.cx1.max_lv1_items_ = int64_t(globals.tot_bucket_size / (kDefaultLv1ScanTime - 0.5));
         int64_t mem_needed = globals.cx1.max_lv1_items_ * cx1_t::kLv1BytePerItem;
         if (mem_needed > mem_remained) {
-            globals.cx1.max_lv1_items_ = mem_remained / cx1_t::kLv1BytePerItem;
+            globals.cx1.adjust_mem_just_go(mem_remained, lv2_bytes_per_item, min_lv1_items, globals.max_bucket_size,
+                                globals.max_sorting_items, globals.cx1.max_lv1_items_, globals.max_sorting_items);
         }
 
     } else if (globals.mem_flag == 0) {
@@ -277,13 +275,20 @@ void init_global_and_set_cx1(count_global_t &globals) {
         globals.cx1.max_lv1_items_ = int64_t(globals.tot_bucket_size / (kMaxLv1ScanTime - 0.5));
         int64_t mem_needed = globals.cx1.max_lv1_items_ * cx1_t::kLv1BytePerItem;
         if (mem_needed > mem_remained) {
-            globals.cx1.max_lv1_items_ = mem_remained / cx1_t::kLv1BytePerItem;
+            globals.cx1.adjust_mem_just_go(mem_remained, lv2_bytes_per_item, min_lv1_items, globals.max_bucket_size,
+                                globals.max_sorting_items, globals.cx1.max_lv1_items_, globals.max_sorting_items);
+        } else {
+            globals.cx1.adjust_mem_just_go(mem_needed, lv2_bytes_per_item, min_lv1_items, globals.max_bucket_size,
+                                globals.max_sorting_items, globals.cx1.max_lv1_items_, globals.max_sorting_items);
         }
 
     } else {
         // use all
-        globals.cx1.adjust_mem(mem_remained, 0, min_lv1_items, 0);
+        globals.cx1.adjust_mem_just_go(mem_remained, lv2_bytes_per_item, min_lv1_items, globals.max_bucket_size,
+                            globals.max_sorting_items, globals.cx1.max_lv1_items_, globals.max_sorting_items);
     }
+    
+    globals.max_bucket_size_for_dynamic_sort = globals.max_sorting_items / globals.num_cpu_threads;
 
     if (globals.cx1.max_lv1_items_ < min_lv1_items) {
         xerr_and_exit("No enough memory to process.");

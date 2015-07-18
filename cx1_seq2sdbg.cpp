@@ -618,14 +618,11 @@ void init_global_and_set_cx1(seq2sdbg_global_t &globals) {
     int64_t lv2_bytes_per_item = globals.words_per_substring * sizeof(uint32_t) + sizeof(uint32_t) + sizeof(uint32_t);
     
     globals.max_sorting_items = globals.max_bucket_size * globals.num_cpu_threads;
-    globals.mem_sorting_items = lv2_bytes_per_item * globals.max_sorting_items;
-    globals.max_bucket_size_for_dynamic_sort = globals.max_sorting_items / globals.num_cpu_threads;
     globals.cx1.lv1_just_go_ = true;
     globals.num_output_threads = globals.num_cpu_threads;
 
     int64_t mem_remained = globals.host_mem
                            - globals.mem_packed_seq
-                           - globals.mem_sorting_items
                            - kNumBuckets * sizeof(int64_t) * (globals.num_cpu_threads * 3 + 1);
     int64_t min_lv1_items = globals.tot_bucket_size / (kMaxLv1ScanTime - 0.5);
 
@@ -634,7 +631,8 @@ void init_global_and_set_cx1(seq2sdbg_global_t &globals) {
         globals.cx1.max_lv1_items_ = int64_t(globals.tot_bucket_size / (kDefaultLv1ScanTime - 0.5));
         int64_t mem_needed = globals.cx1.max_lv1_items_ * cx1_t::kLv1BytePerItem;
         if (mem_needed > mem_remained) {
-            globals.cx1.max_lv1_items_ = mem_remained / cx1_t::kLv1BytePerItem;
+            globals.cx1.adjust_mem_just_go(mem_remained, lv2_bytes_per_item, min_lv1_items, globals.max_bucket_size,
+                                globals.max_sorting_items, globals.cx1.max_lv1_items_, globals.max_sorting_items);
         }
 
     } else if (globals.mem_flag == 0) {
@@ -642,17 +640,23 @@ void init_global_and_set_cx1(seq2sdbg_global_t &globals) {
         globals.cx1.max_lv1_items_ = int64_t(globals.tot_bucket_size / (kMaxLv1ScanTime - 0.5));
         int64_t mem_needed = globals.cx1.max_lv1_items_ * cx1_t::kLv1BytePerItem;
         if (mem_needed > mem_remained) {
-            globals.cx1.max_lv1_items_ = mem_remained / cx1_t::kLv1BytePerItem;
+            globals.cx1.adjust_mem_just_go(mem_remained, lv2_bytes_per_item, min_lv1_items, globals.max_bucket_size,
+                                globals.max_sorting_items, globals.cx1.max_lv1_items_, globals.max_sorting_items);
+        } else {
+            globals.cx1.adjust_mem_just_go(mem_needed, lv2_bytes_per_item, min_lv1_items, globals.max_bucket_size,
+                                globals.max_sorting_items, globals.cx1.max_lv1_items_, globals.max_sorting_items);
         }
 
     } else {
         // use all
-        globals.cx1.adjust_mem(mem_remained, 0, min_lv1_items, 0);
+        globals.cx1.adjust_mem_just_go(mem_remained, lv2_bytes_per_item, min_lv1_items, globals.max_bucket_size,
+                    globals.max_sorting_items, globals.cx1.max_lv1_items_, globals.max_sorting_items);
     }
 
     if (globals.cx1.max_lv1_items_ < min_lv1_items) {
         xerr_and_exit("No enough memory to process.");
     }
+    globals.max_bucket_size_for_dynamic_sort = globals.max_sorting_items / globals.num_cpu_threads;
 
     globals.lv1_items = (int*) MallocAndCheck(globals.cx1.max_lv1_items_ * sizeof(int), __FILE__, __LINE__);
     globals.substr_all = (uint32_t*) MallocAndCheck(sizeof(uint32_t) * globals.max_sorting_items * globals.words_per_substring, __FILE__, __LINE__);

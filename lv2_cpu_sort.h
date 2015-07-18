@@ -116,17 +116,16 @@ inline void sort_digit(uint32_t *arr, uint32_t *permutation, uint32_t *buf, uint
 }
 
 inline void lv2_cpu_radix_sort_st(uint32_t *lv2_substrings, uint32_t *permutation, uint32_t *cpu_sort_space, int words_per_substring, int64_t lv2_num_items) {
-    uint64_t buckets[1 << 16];
-
     for (uint32_t i = 0; i < lv2_num_items; ++i) {
         permutation[i] = i;
     }
 
-    if (lv2_num_items < 65536) {
+    if (lv2_num_items < 65536 * 2) {
         std::sort(permutation, permutation + lv2_num_items, CmpSubStr(lv2_substrings, lv2_num_items, words_per_substring));
         return;
     }
 
+    uint64_t buckets[1 << 16];
     for (int64_t iteration = words_per_substring - 1; iteration >= 0; --iteration) {
         uint32_t *lv2_substr_p = lv2_substrings + lv2_num_items * iteration;
 

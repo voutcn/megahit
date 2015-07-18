@@ -246,7 +246,7 @@ class SdbgReader {
   		files_.resize(num_files_);
   		for (int i = 0; i < num_files_; ++i) {
   			files_[i] = OpenFileAndCheck(FormatString("%s.sdbg.%d", file_prefix_.c_str(), i), "rb");
-  			setvbuf(files_[i], NULL, _IOFBF, 1 << 15);
+  			// setvbuf(files_[i], NULL, _IOFBF, 1 << 15);
   		}
 
   		cur_bucket_ = -1;
@@ -278,7 +278,6 @@ class SdbgReader {
 		assert(fread(&packed_item, sizeof(uint16_t), 1, cur_file_) == 1);
 
 		w = packed_item & 0xF;
-		assert(w < 9);
 		last = (packed_item >> 4) & 1;
 		tip = (packed_item >> 5) & 1;
 		mul = packed_item >> 8;
