@@ -33,11 +33,8 @@
 #include "sequence_package.h"
 #include "read_lib_functions-inl.h"
 
-#ifndef USE_GPU
 #include "lv2_cpu_sort.h"
-#else
 #include "lv2_gpu_functions.h"
-#endif
 // helping functions
 
 namespace cx1_read2sdbg {

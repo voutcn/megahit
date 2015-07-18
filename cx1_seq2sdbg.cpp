@@ -30,11 +30,8 @@
 #include "mac_pthread_barrier.h"
 #include "kmer.h"
 
-#ifndef USE_GPU
 #include "lv2_cpu_sort.h"
-#else
 #include "lv2_gpu_functions.h"
-#endif
 
 namespace cx1_seq2sdbg {
 
