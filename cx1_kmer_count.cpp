@@ -803,7 +803,6 @@ void lv1_direct_sort_and_count(count_global_t &globals) {
 
     if (!large_done) {
         pthread_join(pt[0], NULL);
-        ++large_i;
     }
 #endif
 }
