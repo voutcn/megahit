@@ -82,14 +82,6 @@ struct iter_opt_t {
         kmer_k = 0;
         step = 0;
     }
-
-    string edge_file_prefix() {
-        return output_prefix + ".edges";
-    }
-
-    string output_read_file() {
-        return output_prefix + ".rr.bin";
-    }
 };
 
 static iter_opt_t opt;
@@ -188,6 +180,53 @@ static void* ReadReadsThread(void* seq_manager) {
 
     return NULL;
 }
+
+template<uint32_t kNumKmerWord_n, typename kmer_word_n_t>
+class WriteEdgeFunc {
+public:
+    typedef KmerPlus<kNumKmerWord_n, kmer_word_n_t, uint16_t> kp_t;
+
+    void set_edge_writer(EdgeWriter *edge_writer) {
+        edge_writer_ = edge_writer;
+    }
+    void set_nextk1_size(int nextk1) {
+        next_k1_ = nextk1;
+        next_k_ = nextk1 - 1;
+        last_shift_ = nextk1 % 16;
+        last_shift_ = (last_shift_ == 0 ? 0 : 16 - last_shift_) * 2;
+        words_per_edge_ = DivCeiling(nextk1 * 2 + kBitsPerMulti_t, 32);
+        packed_edges_.resize(omp_get_max_threads() * words_per_edge_);
+    }
+
+    void operator() (kp_t &kp) {
+        int tid = omp_get_thread_num();
+        uint32_t* packed_edge = &packed_edges_[0] + tid * words_per_edge_;
+        memset(packed_edge, 0, sizeof(uint32_t) * words_per_edge_);
+
+        int w = 0;
+        int end_word = 0;
+        for (int j = 0; j < next_k1_; ) {
+            w = (w << 2) | kp.kmer.get_base(next_k_ - j);
+            ++j;
+            if (j % 16 == 0) {
+                packed_edge[end_word] = w;
+                w = 0;
+                end_word++;
+            }
+        }
+        packed_edge[end_word] = (w << last_shift_);
+        assert((packed_edge[words_per_edge_ - 1] & kMaxMulti_t) == 0);
+        packed_edge[words_per_edge_ - 1] |= kp.ann;
+        edge_writer_->write_unsorted(packed_edge, tid);
+    }
+
+private:
+    EdgeWriter *edge_writer_;
+    int last_shift_;
+    int words_per_edge_;
+    int next_k1_, next_k_;
+    std::vector<uint32_t> packed_edges_;
+};
 
 template<uint32_t kNumKmerWord_n, typename kmer_word_n_t, uint32_t kNumKmerWord_p, typename kmer_word_p_t>
 static bool ReadReadsAndProcessKernel(IterateGlobalData &globals,
@@ -358,37 +397,20 @@ static bool ReadReadsAndProcessKernel(IterateGlobalData &globals,
         xlog("Writing iterative edges...\n");
         EdgeWriter edge_writer;
 
-        // header
-        const int kWordsPerEdge = ((globals.kmer_k + globals.step + 1) * 2 + kBitsPerMulti_t + 31) / 32;
-        uint32_t packed_edge[kWordsPerEdge];
         uint32_t next_k = globals.kmer_k + globals.step;
+        omp_set_num_threads(globals.num_cpu_threads);
 
-        edge_writer.set_num_threads(1);
+        edge_writer.set_num_threads(globals.num_cpu_threads);
         edge_writer.set_file_prefix(globals.output_prefix);
         edge_writer.set_unsorted();
         edge_writer.set_kmer_size(next_k);
         edge_writer.init_files();
 
-        int last_shift = globals.next_k1 % 16;
-        last_shift = (last_shift == 0 ? 0 : 16 - last_shift) * 2;
-        for (auto iter = iterative_edges.begin(); iter != iterative_edges.end(); ++iter) {
-            memset(packed_edge, 0, sizeof(uint32_t) * kWordsPerEdge);
-            int w = 0;
-            int end_word = 0;
-            for (int j = 0; j < globals.next_k1; ) {
-                w = (w << 2) | iter->kmer.get_base(next_k - j);
-                ++j;
-                if (j % 16 == 0) {
-                    packed_edge[end_word] = w;
-                    w = 0;
-                    end_word++;
-                }
-            }
-            packed_edge[end_word] = (w << last_shift);
-            assert((packed_edge[kWordsPerEdge - 1] & kMaxMulti_t) == 0);
-            packed_edge[kWordsPerEdge - 1] |= iter->ann;
-            edge_writer.write_unsorted(packed_edge, 0);
-        }
+        WriteEdgeFunc<kNumKmerWord_n, kmer_word_n_t> write_edge_func;
+        write_edge_func.set_nextk1_size(next_k + 1);
+        write_edge_func.set_edge_writer(&edge_writer);
+
+        iterative_edges.for_each(write_edge_func);
     }
 
     return true;
@@ -486,10 +508,6 @@ bool IterateToNextK(IterateGlobalData &globals) {
 
 int main_iterate(int argc, char *argv[]) {
     AutoMaxRssRecorder recorder;
-    
-    // set stdout line buffered
-    setvbuf(stdout, NULL, _IONBF, 0);
-    setvbuf(stderr, NULL, _IONBF, 0);
 
     IterateGlobalData globals;
     ParseIterOptions(argc, argv);
