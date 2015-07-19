@@ -199,7 +199,7 @@ class SdbgReader {
   	FILE *cur_file_;
 
   	bool is_opened_;
-  	static const int kBufSize = 32768;
+  	static const int kBufSize = 4096;
   	char buf_[kBufSize];
   	int buf_size_;
   	int buf_idx_;
