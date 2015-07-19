@@ -745,23 +745,21 @@ void lv1_direct_sort_and_count(count_global_t &globals) {
     for (int large_i = 0, small_i = vb.size() - 1; large_i < small_i && vb[large_i].first > 0; ) {
         // create large chunk
         if (large_done) {
-            if (large_i < small_i) {
-                lv1_sort_data_t &d = dt[0];
-                d.substr_ptr = globals.substr_all;
-                d.readinfo_ptr = globals.readinfo_all;
-                d.permutation_ptr = globals.permutations_all;
-                d.cpu_sort_space_ptr = globals.cpu_sort_space_all;
+            lv1_sort_data_t &d = dt[0];
+            d.substr_ptr = globals.substr_all;
+            d.readinfo_ptr = globals.readinfo_all;
+            d.permutation_ptr = globals.permutations_all;
+            d.cpu_sort_space_ptr = globals.cpu_sort_space_all;
 
-                d.tid = 0;
-                d.b = vb[large_i].second;
-                d.globals = &globals;
-                d.thread_for_sorting = vb[large_i].first / globals.max_bucket_size_for_dynamic_sort;
-                d.done = false;
+            d.tid = 0;
+            d.b = vb[large_i].second;
+            d.globals = &globals;
+            d.thread_for_sorting = vb[large_i].first / globals.max_bucket_size_for_dynamic_sort;
+            d.done = false;
 
-                large_size = vb[large_i].first;
-                large_done = false;
-                pthread_create(&pt[0], NULL, lv1_sort_thread, &d);
-            }
+            large_size = vb[large_i].first;
+            large_done = false;
+            pthread_create(&pt[0], NULL, lv1_sort_thread, &d);
         }
 
         int64_t acc_size = large_size;
@@ -801,6 +799,11 @@ void lv1_direct_sort_and_count(count_global_t &globals) {
             pthread_join(pt[0], NULL);
             ++large_i;
         }
+    }
+
+    if (!large_done) {
+        pthread_join(pt[0], NULL);
+        ++large_i;
     }
 #endif
 }
