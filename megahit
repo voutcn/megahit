@@ -446,7 +446,9 @@ def check_builder():
         raise Usage(usg)
 
 def graph_prefix(kmer_k):
-    return opt.temp_dir + "k" + str(kmer_k)
+    if not os.path.exists(opt.temp_dir + "k" + str(kmer_k)):
+        os.mkdir(opt.temp_dir + "k" + str(kmer_k))
+    return opt.temp_dir + "k" + str(kmer_k) + "/" + str(kmer_k)
 
 def contig_prefix(kmer_k):
     return opt.contig_dir + "k" + str(kmer_k)
@@ -456,7 +458,7 @@ def delect_file_if_exist(file_name):
         os.remove(file_name)
 
 def delete_tmp_after_build(kmer_k):
-    for i in range(0, max(1, int(opt.num_cpu_threads / 3))):
+    for i in range(0, opt.num_cpu_threads):
         delect_file_if_exist(graph_prefix(kmer_k) + ".edges." + str(i))
     for i in range(0, 64):
         delect_file_if_exist(graph_prefix(kmer_k) + ".mercy_cand." + str(i))
@@ -467,6 +469,8 @@ def delete_tmp_after_build(kmer_k):
 def delete_tmp_after_assemble(kmer_k):
     for extension in ["w", "last", "isd", "dn", "f", "mul", "mul2"]:
         delect_file_if_exist(graph_prefix(kmer_k) + "." + extension)
+    for i in range(0, opt.num_cpu_threads):
+        delect_file_if_exist(graph_prefix(kmer_k) + ".sdbg." + str(i))
 
 def delete_tmp_after_iter(kmer_k):
     delect_file_if_exist(graph_prefix(kmer_k) + ".rr.pb")
