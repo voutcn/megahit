@@ -192,15 +192,49 @@ class SdbgReader {
   	int num_buckets_;
 
   	int cur_bucket_;
-	long long cur_bucket_cnt_;  	
+	long long cur_bucket_cnt_;
 
   	std::vector<SdbgPartitionRecord> p_rec_;
   	std::vector<FILE*> files_;
   	FILE *cur_file_;
 
   	bool is_opened_;
-  	static const size_t kBufSize = 32768;
+  	static const int kBufSize = 32768;
   	char buf_[kBufSize];
+  	int buf_size_;
+  	int buf_idx_;
+
+  	unsigned Read_(void* des, int size) {
+  		if (size + buf_idx_ <= buf_size_) {
+  			memcpy(des, buf_ + buf_idx_, size);
+  			buf_idx_ += size;
+  			return size;
+  		} else {
+  			int remain = buf_size_ - buf_idx_;
+  			memcpy(des, buf_ + buf_idx_, remain);
+  			des = (char*)des + remain;
+  			size -= remain;
+
+  			buf_size_ = buf_idx_ = 0;
+
+  			if (size >= kBufSize / 2) {
+  				return remain + fread(des, 1, size, cur_file_);
+  			} else {
+  				buf_size_ = fread(buf_, 1, kBufSize, cur_file_);
+  				if (buf_size_ < size) {
+  					memcpy(des, buf_, buf_size_);
+  					remain += buf_size_;
+  					buf_size_ = 0;
+  					return remain;
+  				} else {
+  					memcpy(des, buf_, size);
+  					buf_idx_ = size;
+  					return remain + size;
+  				}
+  			}
+  		}
+  	}
+
   public:
   	SdbgReader(): is_opened_(false) {}
   	~SdbgReader() { destroy(); }
@@ -255,7 +289,7 @@ class SdbgReader {
   		is_opened_ = true;
   	}
 
-	bool NextItem(int &w, int &last, int &tip, multi2_t &mul, multi_t &large_mul, uint32_t *tip_label) {
+	bool NextItem(uint16_t &item) {
 		if (cur_bucket_ >= num_buckets_) {
 			return false;
 		}
@@ -272,31 +306,22 @@ class SdbgReader {
 			}
 			cur_file_ = files_[p_rec_[cur_bucket_].thread_id];
   			fseek(cur_file_, p_rec_[cur_bucket_].starting_offset, SEEK_SET);
-  			setvbuf(cur_file_, buf_, _IOFBF, 
-  				std::min(size_t(p_rec_[cur_bucket_].num_items * sizeof(uint16_t) + 
-  				  				p_rec_[cur_bucket_].num_tips * sizeof(uint32_t) * words_per_tip_label_ + 
-  				  				p_rec_[cur_bucket_].num_large_mul * sizeof(multi_t)), kBufSize));
+  			buf_size_ = buf_idx_ = 0;
   			assert(!ferror(cur_file_));
 		}
 
-		uint16_t packed_item;
-		assert(fread(&packed_item, sizeof(uint16_t), 1, cur_file_) == 1);
-
-		w = packed_item & 0xF;
-		last = (packed_item >> 4) & 1;
-		tip = (packed_item >> 5) & 1;
-		mul = packed_item >> 8;
-
-		if (UNLIKELY(mul == kMulti2Sp)) {
-			assert(fread(&large_mul, sizeof(multi_t), 1, cur_file_) == 1);
-		}
-
-		if (UNLIKELY(tip == 1)) {
-			assert(fread(tip_label, sizeof(uint32_t), words_per_tip_label_, cur_file_) == (unsigned)words_per_tip_label_);
-		}
-
 		++cur_bucket_cnt_;
-		return true;
+		return Read_(&item, sizeof(uint16_t)) == sizeof(uint16_t);
+	}
+
+	multi_t NextLargeMul() {
+		multi_t large_mul;
+		assert(Read_(&large_mul, sizeof(multi_t)) == sizeof(multi_t));
+		return large_mul;
+	}
+
+	bool NextTipLabel(uint32_t *tip_label) {
+		return Read_(tip_label, sizeof(uint32_t) * words_per_tip_label_) == sizeof(uint32_t) * words_per_tip_label_;
 	}
 
 	void destroy() {

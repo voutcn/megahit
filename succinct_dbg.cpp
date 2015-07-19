@@ -364,8 +364,8 @@ void SuccinctDBG::LoadFromFile(const char *dbg_name) {
     for (int i = 0; i < kAlphabetSize + 2; ++i) {
         assert(fscanf(f_file, "%lld", &f_[i]) == 1);
     }
-    fscanf(f_file, "%d", &kmer_k);
-    fscanf(f_file, "%u", &num_dollar_nodes_);
+    assert(fscanf(f_file, "%d", &kmer_k) == 1);
+    assert(fscanf(f_file, "%u", &num_dollar_nodes_) == 1);
     size = f_[kAlphabetSize + 1];
 
     size_t word_needed_w = (size + kWCharsPerWord - 1) / kWCharsPerWord;
@@ -442,41 +442,77 @@ void SuccinctDBG::LoadFromMultiFile(const char *dbg_name) {
     w_ = (unsigned long long*) MallocAndCheck(sizeof(unsigned long long) * word_needed_w, __FILE__, __LINE__);
     last_ = (unsigned long long*) MallocAndCheck(sizeof(unsigned long long) * word_needed_last, __FILE__, __LINE__);
     is_dollar_ = (unsigned long long*) MallocAndCheck(sizeof(unsigned long long) * word_needed_last, __FILE__, __LINE__);
-    invalid_ = (unsigned long long*) MallocAndCheck(sizeof(unsigned long long) * word_needed_last, __FILE__, __LINE__);
     edge_multiplicities_ = (multi2_t*) MallocAndCheck(sizeof(multi2_t) * size, __FILE__, __LINE__);
     dollar_node_seq_ = (uint32_t*) MallocAndCheck(sizeof(uint32_t) * num_dollar_nodes_ * sdbg_reader.words_per_tip_label(), __FILE__, __LINE__);
     large_multi_h_ = kh_init(k64v16);
 
-    memset(w_, 0, sizeof(unsigned long long) * word_needed_w);
-    memset(last_, 0, sizeof(unsigned long long) * word_needed_last);
-    memset(is_dollar_, 0, sizeof(unsigned long long) * word_needed_last);
+    // memset(w_, 0, sizeof(unsigned long long) * word_needed_w);
+    // memset(last_, 0, sizeof(unsigned long long) * word_needed_last);
+    // memset(is_dollar_, 0, sizeof(unsigned long long) * word_needed_last);
 
-    int w, last, tip;
-    multi2_t mul;
-    multi_t large_mul;
+    unsigned long long packed_w = 0;
+    unsigned long long packed_last = 0;
+    unsigned long long packed_tip = 0;
+
+    int64_t w_word_idx = 0;
+    int64_t last_word_idx = 0;
+
+    int w_word_offset = 0;
+    int last_word_offset = 0;
 
     int64_t tip_label_offset = 0;
+    uint16_t item = 0;
 
     for (long long i = 0; LIKELY(i < size); ++i) {
-        assert(sdbg_reader.NextItem(w, last, tip, mul, large_mul, dollar_node_seq_ + tip_label_offset));
-        w_[i / kWCharsPerWord] |= (unsigned long long)w << (i % kWCharsPerWord * kWBitsPerChar);
-        last_[i / kBitsPerULL] |= (unsigned long long)last << (i % kBitsPerULL);
-        is_dollar_[i / kBitsPerULL] |= (unsigned long long)tip << (i % kBitsPerULL);
-        edge_multiplicities_[i] = mul;
-        
-        if (UNLIKELY(tip)) {
-            tip_label_offset += sdbg_reader.words_per_tip_label();
+        assert(sdbg_reader.NextItem(item));
+
+        packed_w |= (unsigned long long)(item & 0xF) << w_word_offset;
+        w_word_offset += kWBitsPerChar;
+        if (w_word_offset == kBitsPerULL) {
+            w_[w_word_idx++] = packed_w;
+            w_word_offset = 0;
+            packed_w = 0;
         }
 
-        if (UNLIKELY(mul == kMulti2Sp)) {
+        packed_last |= (unsigned long long)((item >> 4) & 1) << last_word_offset;
+        packed_tip |= (unsigned long long)((item >> 5) & 1) << last_word_offset;
+
+        last_word_offset++;
+
+        if (last_word_offset == kBitsPerULL) {
+            last_[last_word_idx] = packed_last;
+            is_dollar_[last_word_idx++] = packed_tip;
+            last_word_offset = 0;
+            packed_tip = packed_last = 0;
+        }
+
+        edge_multiplicities_[i] = item >> 8;
+
+        if (UNLIKELY((item >> 8) == kMulti2Sp)) {
             int ret;
             khint_t k = kh_put(k64v16, large_multi_h_, i, &ret);
-            kh_value(large_multi_h_, k) = large_mul;
+            kh_value(large_multi_h_, k) = sdbg_reader.NextLargeMul();
+        }
+
+        if (UNLIKELY((item >> 5) & 1)) {
+            assert(sdbg_reader.NextTipLabel(dollar_node_seq_ + tip_label_offset));
+            tip_label_offset += sdbg_reader.words_per_tip_label();
         }
     }
-    assert(!sdbg_reader.NextItem(w, last, tip, mul, large_mul, NULL));
+
+    if (w_word_offset != 0) {
+        w_[w_word_idx++] = packed_w;
+    }
+
+    if (last_word_offset != 0) {
+        last_[last_word_idx] = packed_last;
+        is_dollar_[last_word_idx++] = packed_tip;
+    }
+
+    assert(!sdbg_reader.NextItem(item));
     assert(tip_label_offset == num_dollar_nodes_ * sdbg_reader.words_per_tip_label());
 
+    invalid_ = (unsigned long long*) MallocAndCheck(sizeof(unsigned long long) * word_needed_last, __FILE__, __LINE__);
     memcpy(invalid_, is_dollar_, sizeof(unsigned long long) * word_needed_last);
     rs_is_dollar_.Build(is_dollar_, size);
 
