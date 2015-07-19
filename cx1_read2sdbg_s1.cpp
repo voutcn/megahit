@@ -813,7 +813,7 @@ void s1_lv1_direct_sort_and_count(read2sdbg_global_t &globals) {
         if (globals.cx1.bucket_sizes_[b] > globals.max_bucket_size_for_dynamic_sort)
             vb.push_back(std::make_pair(globals.cx1.bucket_sizes_[b], b));
     }
-    std::sort(vb.begin(), vb.end());
+    std::sort(vb.rbegin(), vb.rend());
 
     for (unsigned i = 0; i < vb.size(); ) {
         int threads_to_create = 0;

@@ -249,7 +249,7 @@ void init_global_and_set_cx1(count_global_t &globals) {
         }
     }
 
-    globals.max_sorting_items = std::max(3 * globals.tot_bucket_size / num_non_empty/*globals.max_bucket_size*/ * globals.num_cpu_threads, globals.max_bucket_size * 2);
+    globals.max_sorting_items = std::max(3 * globals.tot_bucket_size / num_non_empty * globals.num_cpu_threads, globals.max_bucket_size * 2);
 
     lv2_bytes_per_item += sizeof(uint32_t); // CPU memory is used to simulate GPU
 
@@ -693,6 +693,7 @@ struct lv1_sort_data_t {
     int tid;
     int b;
     int thread_for_sorting;
+    bool done;
     count_global_t *globals;
 };
 
@@ -701,6 +702,8 @@ void* lv1_sort_thread(void *data) {
     lv2_extract_substr_(d->substr_ptr, d->readinfo_ptr, *(d->globals), d->b, d->b + 1, d->globals->cx1.bucket_sizes_[d->b]);
     lv2_cpu_radix_sort_st(d->substr_ptr, d->permutation_ptr, d->cpu_sort_space_ptr, d->globals->words_per_substring, d->globals->cx1.bucket_sizes_[d->b]);
     lv2_output_(0, d->globals->cx1.bucket_sizes_[d->b], d->tid, *(d->globals), d->substr_ptr, d->permutation_ptr, d->readinfo_ptr, d->globals->cx1.bucket_sizes_[d->b]);
+
+    d->done = true;
 
     return NULL;
 }
@@ -734,16 +737,41 @@ void lv1_direct_sort_and_count(count_global_t &globals) {
         if (globals.cx1.bucket_sizes_[b] > globals.max_bucket_size_for_dynamic_sort)
             vb.push_back(std::make_pair(globals.cx1.bucket_sizes_[b], b));
     }
-    std::sort(vb.begin(), vb.end());
+    std::sort(vb.rbegin(), vb.rend());
 
-    for (unsigned i = 0; i < vb.size(); ) {
-        int threads_to_create = 0;
-        int64_t acc_size = 0;
+    bool large_done = true;
+    int64_t large_size = 0;
+
+    for (int large_i = 0, small_i = vb.size() - 1; large_i < small_i && vb[large_i].first > 0; ) {
+        // create large chunk
+        if (large_done) {
+            if (large_i < small_i) {
+                lv1_sort_data_t &d = dt[0];
+                d.substr_ptr = globals.substr_all;
+                d.readinfo_ptr = globals.readinfo_all;
+                d.permutation_ptr = globals.permutations_all;
+                d.cpu_sort_space_ptr = globals.cpu_sort_space_all;
+
+                d.tid = 0;
+                d.b = vb[large_i].second;
+                d.globals = &globals;
+                d.thread_for_sorting = vb[large_i].first / globals.max_bucket_size_for_dynamic_sort;
+                d.done = false;
+
+                large_size = vb[large_i].first;
+                large_done = false;
+                pthread_create(&pt[0], NULL, lv1_sort_thread, &d);
+            }
+        }
+
+        int64_t acc_size = large_size;
+        int threads_to_create = 1;
+
         while (threads_to_create < globals.num_cpu_threads &&
-               i < vb.size() &&
-               vb[i].first + acc_size <= globals.max_sorting_items) {
+               small_i > large_i &&
+               vb[small_i].first + acc_size <= globals.max_sorting_items) {
 
-            if (vb[i].first == 0) { ++i; continue; }
+            if (vb[small_i].first == 0) { --small_i; continue; }
 
             lv1_sort_data_t &d = dt[threads_to_create];
             d.substr_ptr = globals.substr_all + globals.words_per_substring * acc_size;
@@ -752,19 +780,26 @@ void lv1_direct_sort_and_count(count_global_t &globals) {
             d.cpu_sort_space_ptr = globals.cpu_sort_space_all + acc_size;
 
             d.tid = threads_to_create;
-            d.b = vb[i].second;
+            d.b = vb[small_i].second;
             d.globals = &globals;
-            d.thread_for_sorting = vb[i].first / globals.max_bucket_size_for_dynamic_sort;
+            d.thread_for_sorting = vb[small_i].first / globals.max_bucket_size_for_dynamic_sort;
+            d.done = false;
 
             pthread_create(&pt[threads_to_create], NULL, lv1_sort_thread, &d);
 
-            acc_size += vb[i].first;
+            acc_size += vb[small_i].first;
             ++threads_to_create;
-            ++i;
+            --small_i;
         }
 
-        for (int i = 0; i < threads_to_create; ++i) {
+        for (int i = 1; i < threads_to_create; ++i) {
             pthread_join(pt[i], NULL);
+        }
+
+        if (dt[0].done) {
+            large_done = true;
+            pthread_join(pt[0], NULL);
+            ++large_i;
         }
     }
 #endif
