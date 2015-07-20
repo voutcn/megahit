@@ -133,6 +133,9 @@ int64_t Trim(SuccinctDBG &dbg, int len, int min_final_standalone) {
         }
     }
 
+
+    omp_destroy_lock(&path_lock);
+
     return number_tips;
 }
 
