@@ -85,10 +85,15 @@ struct CX1 {
     int num_cpu_threads_;
     int num_output_threads_;
     int64_t max_lv1_items_, max_lv2_items_;
+
     bool lv1_just_go_;
+    int64_t max_mem_remain_;
+    int64_t bytes_per_sorting_item_;
+    std::vector<int64_t> thread_offset_;
 
     // other data
     int64_t *bucket_sizes_;
+    int *bucket_rank_;
     readpartition_data_t *rp_;
     bucketpartition_data_t *bp_;
     outputpartition_data_t *op_;
@@ -218,7 +223,12 @@ struct CX1 {
             op_[t].globals = g_;
         }
 
+        bucket_rank_ = (int*) MallocAndCheck(sizeof(int) * kNumBuckets, __FILE__, __LINE__);
         bucket_sizes_ = (int64_t *) MallocAndCheck(kNumBuckets * sizeof(int64_t), __FILE__, __LINE__);
+
+        for (int i = 0; i < kNumBuckets; ++i) {
+            bucket_rank_[i] = i;
+        }
     }
 
     inline void clean_() {
@@ -230,6 +240,7 @@ struct CX1 {
         free(bp_);
         free(op_);
         free(bucket_sizes_);
+        free(bucket_rank_);
     }
 
     inline int find_end_buckets_(int start_bucket, int end_limit, int64_t item_limit, int64_t &num_items) {
@@ -242,6 +253,52 @@ struct CX1 {
             num_items += bucket_sizes_[end_bucket];
             end_bucket++;
         }
+        return end_limit;
+    }
+
+    inline void reorder_buckets_() {
+        std::vector<std::pair<int64_t, int> > tmp_v(kNumBuckets);
+        for (int i = 0; i < kNumBuckets; ++i) {
+            tmp_v[i] = std::make_pair(bucket_sizes_[i], i);
+        }
+
+        std::sort(tmp_v.rbegin(), tmp_v.rend());
+
+        for (int i = 0; i < kNumBuckets; ++i) {
+            bucket_sizes_[i] = tmp_v[i].first;
+            bucket_rank_[tmp_v[i].second] = i;
+        }
+
+        for (int tid = 0; tid < num_cpu_threads_; ++tid) {
+            std::vector<int64_t> old_rp_bucket_sizes(rp_[tid].rp_bucket_sizes, rp_[tid].rp_bucket_sizes + kNumBuckets);
+            for (int i = 0; i < kNumBuckets; ++i) {
+                rp_[tid].rp_bucket_sizes[i] = old_rp_bucket_sizes[tmp_v[i].second];
+            }
+        }
+    }
+
+    inline int find_end_buckets_with_rank_(int start_bucket, int end_limit, int64_t mem_limit, int bytes_per_sorting_items, int64_t &num_items) {
+        num_items = 0;
+        int end_bucket = start_bucket;
+        int used_threads = 0;
+        int64_t mem_sorting_items = 0;
+
+        thread_offset_.clear();
+
+         while (end_bucket < end_limit) {
+            if (used_threads < num_cpu_threads_) {
+                thread_offset_.push_back(num_items);
+                mem_sorting_items += bytes_per_sorting_items * bucket_sizes_[end_bucket];
+                ++used_threads;
+            }
+
+            if (mem_sorting_items + (num_items + bucket_sizes_[end_bucket]) * kLv1BytePerItem > mem_limit) {
+                return end_bucket;
+            }
+            num_items += bucket_sizes_[end_bucket];
+            ++end_bucket;
+        }
+
         return end_limit;
     }
 
@@ -280,8 +337,8 @@ struct CX1 {
             bp_[t].bp_end_bucket = bucket;
         }
         // last
-        bp_[num_cpu_threads_ -num_output_threads_ -1].bp_start_bucket = bucket;
-        bp_[num_cpu_threads_ -num_output_threads_ -1].bp_end_bucket = lv2_end_bucket_;
+        bp_[num_cpu_threads_ - num_output_threads_ -1].bp_start_bucket = bucket;
+        bp_[num_cpu_threads_ - num_output_threads_ -1].bp_end_bucket = lv2_end_bucket_;
     }
 
     // === multi-thread wrappers ====
@@ -374,6 +431,10 @@ struct CX1 {
         // init global datas
         init_global_and_set_cx1_func_(*g_);
 
+        if (lv1_just_go_) {
+            reorder_buckets_();
+        }
+
         if (kCX1Verbose >= 2) {
             lv0_timer.stop();
             xlog("Preparing partitions and initialing global data... Done. Time elapsed: %.4f\n", lv0_timer.elapsed());
@@ -394,7 +455,12 @@ struct CX1 {
 
             lv1_iteration++;
             // --- finds the bucket range for this iteration ---
-            lv1_end_bucket_ = find_end_buckets_(lv1_start_bucket_, kNumBuckets, max_lv1_items_, lv1_num_items_);
+            if (lv1_just_go_) {
+                lv1_end_bucket_ = find_end_buckets_with_rank_(lv1_start_bucket_, kNumBuckets, max_mem_remain_, bytes_per_sorting_item_, lv1_num_items_);
+            } else {
+                lv1_end_bucket_ = find_end_buckets_(lv1_start_bucket_, kNumBuckets, max_lv1_items_, lv1_num_items_);
+            }
+
             if (lv1_num_items_ == 0) {
                 fprintf(stderr, "Bucket %d too large for lv1: %lld > %lld\n", lv1_end_bucket_, (long long)bucket_sizes_[lv1_end_bucket_], (long long)max_lv1_items_);
                 exit(1);

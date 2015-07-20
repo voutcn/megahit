@@ -249,7 +249,7 @@ void init_global_and_set_cx1(count_global_t &globals) {
         }
     }
 
-    globals.max_sorting_items = std::max(3 * globals.tot_bucket_size / num_non_empty * globals.num_cpu_threads, globals.max_bucket_size * 2);
+    globals.max_sorting_items = std::max(2 * globals.tot_bucket_size / num_non_empty * globals.num_cpu_threads, globals.max_bucket_size * 2);
 
     lv2_bytes_per_item += sizeof(uint32_t); // CPU memory is used to simulate GPU
 
@@ -293,11 +293,14 @@ void init_global_and_set_cx1(count_global_t &globals) {
         xerr_and_exit("No enough memory to process.");
     }
 
-    globals.lv1_items = (int*) MallocAndCheck(globals.cx1.max_lv1_items_ * sizeof(int), __FILE__, __LINE__);
-    globals.substr_all = (uint32_t*) MallocAndCheck(sizeof(uint32_t) * globals.max_sorting_items * globals.words_per_substring, __FILE__, __LINE__);
-    globals.permutations_all = (uint32_t*) MallocAndCheck(sizeof(uint32_t) * globals.max_sorting_items, __FILE__, __LINE__);
-    globals.cpu_sort_space_all = (uint32_t*) MallocAndCheck(sizeof(uint32_t) * globals.max_sorting_items, __FILE__, __LINE__);
-    globals.readinfo_all = (int64_t*) MallocAndCheck(sizeof(int64_t) * globals.max_sorting_items, __FILE__, __LINE__);
+    globals.cx1.max_mem_remain_ = globals.cx1.max_lv1_items_ * sizeof(int) + globals.max_sorting_items * lv2_bytes_per_item;
+    globals.cx1.bytes_per_sorting_item_ = lv2_bytes_per_item;
+
+    globals.lv1_items = (int*) MallocAndCheck(globals.cx1.max_mem_remain_, __FILE__, __LINE__);
+    // globals.substr_all = (uint32_t*) MallocAndCheck(sizeof(uint32_t) * globals.max_sorting_items * globals.words_per_substring, __FILE__, __LINE__);
+    // globals.permutations_all = (uint32_t*) MallocAndCheck(sizeof(uint32_t) * globals.max_sorting_items, __FILE__, __LINE__);
+    // globals.cpu_sort_space_all = (uint32_t*) MallocAndCheck(sizeof(uint32_t) * globals.max_sorting_items, __FILE__, __LINE__);
+    // globals.readinfo_all = (int64_t*) MallocAndCheck(sizeof(int64_t) * globals.max_sorting_items, __FILE__, __LINE__);
 #endif
 
     if (cx1_t::kCX1Verbose >= 2) {
@@ -361,20 +364,20 @@ void* lv1_fill_offset(void* _data) {
         // ===== this is a macro to save some copy&paste ================
 #define CHECK_AND_SAVE_OFFSET(offset, strand)                                                                   \
     do {                                                                                                        \
-        assert(offset + globals.kmer_k < read_length);                                                          \
-        if (((key - globals.cx1.lv1_start_bucket_) ^ (key - globals.cx1.lv1_end_bucket_)) & kSignBitMask) {     \
+        int key_ = globals.cx1.bucket_rank_[key];                                                               \
+        if (((key_ - globals.cx1.lv1_start_bucket_) ^ (key_ - globals.cx1.lv1_end_bucket_)) & kSignBitMask) {     \
             int64_t full_offset = EncodeOffset(read_id, offset, strand, globals.offset_num_bits);               \
-            int64_t differential = full_offset - prev_full_offsets[key];                                        \
+            int64_t differential = full_offset - prev_full_offsets[key_];                                        \
             if (differential > cx1_t::kDifferentialLimit) {                                                     \
                 pthread_mutex_lock(&globals.lv1_items_scanning_lock);                                           \
-                globals.lv1_items[rp.rp_bucket_offsets[key]++] = -globals.cx1.lv1_items_special_.size() - 1;    \
+                globals.lv1_items[rp.rp_bucket_offsets[key_]++] = -globals.cx1.lv1_items_special_.size() - 1;    \
                 globals.cx1.lv1_items_special_.push_back(full_offset);                                          \
                 pthread_mutex_unlock(&globals.lv1_items_scanning_lock);                                         \
             } else {                                                                                            \
                 assert((int) differential >= 0);                                                                \
-                globals.lv1_items[rp.rp_bucket_offsets[key]++] = (int) differential;                            \
+                globals.lv1_items[rp.rp_bucket_offsets[key_]++] = (int) differential;                            \
             }                                                                                                   \
-            prev_full_offsets[key] = full_offset;                                                               \
+            prev_full_offsets[key_] = full_offset;                                                               \
         }                                                                                                       \
     } while (0)
         // ^^^^^ why is the macro surrounded by a do-while? please ask Google
@@ -711,99 +714,127 @@ void* lv1_sort_thread(void *data) {
 
 void lv1_direct_sort_and_count(count_global_t &globals) {
 #ifndef USE_GPU
-    omp_set_num_threads(globals.num_cpu_threads);
+    omp_set_num_threads(globals.num_output_threads);
+
+    int thread_created = 0;
+    omp_lock_t thread_creation_lock;
+    omp_init_lock(&thread_creation_lock);
+
+    int64_t acc_size = 0;
+    std::vector<int64_t> thread_offset;
+    std::vector<int> tid_map(globals.num_output_threads, -1);
+
 #pragma omp parallel for schedule(dynamic, 1)
     for (int b = globals.cx1.lv1_start_bucket_; b < globals.cx1.lv1_end_bucket_; ++b) {
-        if (globals.cx1.bucket_sizes_[b] == 0 || globals.cx1.bucket_sizes_[b] > globals.max_bucket_size_for_dynamic_sort) {
+        if (globals.cx1.bucket_sizes_[b] == 0 /*|| globals.cx1.bucket_sizes_[b] > globals.max_bucket_size_for_dynamic_sort*/) {
             continue;
         }
 
         int tid = omp_get_thread_num();
-        uint32_t *substr_ptr = globals.substr_all + tid * globals.max_bucket_size_for_dynamic_sort * globals.words_per_substring;
-        int64_t *readinfo_ptr = globals.readinfo_all + tid * globals.max_bucket_size_for_dynamic_sort;
-        uint32_t *permutation_ptr = globals.permutations_all + tid * globals.max_bucket_size_for_dynamic_sort;
-        uint32_t *cpu_sort_space_ptr = globals.cpu_sort_space_all + tid * globals.max_bucket_size_for_dynamic_sort;
+
+        if (tid_map[tid] == -1) {
+            omp_set_lock(&thread_creation_lock);
+            thread_offset.push_back(acc_size);
+            acc_size += globals.cx1.bucket_sizes_[b];
+            tid_map[tid] = thread_created;
+            ++thread_created;
+            omp_unset_lock(&thread_creation_lock);
+        }
+
+        tid = tid_map[tid];
+
+        // uint32_t *substr_ptr = globals.substr_all + tid * globals.max_bucket_size_for_dynamic_sort * globals.words_per_substring;
+        // int64_t *readinfo_ptr = globals.readinfo_all + tid * globals.max_bucket_size_for_dynamic_sort;
+        // uint32_t *permutation_ptr = globals.permutations_all + tid * globals.max_bucket_size_for_dynamic_sort;
+        // uint32_t *cpu_sort_space_ptr = globals.cpu_sort_space_all + tid * globals.max_bucket_size_for_dynamic_sort;
+
+        uint32_t *substr_ptr = (uint32_t*) ((char*)(globals.lv1_items + globals.cx1.lv1_num_items_) + thread_offset[tid] * globals.cx1.bytes_per_sorting_item_);
+        uint32_t *permutation_ptr = substr_ptr + globals.cx1.bucket_sizes_[b] * globals.words_per_substring;
+        uint32_t *cpu_sort_space_ptr = permutation_ptr + globals.cx1.bucket_sizes_[b];
+        int64_t *readinfo_ptr = (int64_t*) (cpu_sort_space_ptr + globals.cx1.bucket_sizes_[b]);
 
         lv2_extract_substr_(substr_ptr, readinfo_ptr, globals, b, b + 1, globals.cx1.bucket_sizes_[b]);
         lv2_cpu_radix_sort_st(substr_ptr, permutation_ptr, cpu_sort_space_ptr, globals.words_per_substring, globals.cx1.bucket_sizes_[b]);
         lv2_output_(0, globals.cx1.bucket_sizes_[b], tid, globals, substr_ptr, permutation_ptr, readinfo_ptr, globals.cx1.bucket_sizes_[b]);
     }
 
-    std::vector<pthread_t> pt(globals.num_cpu_threads);
-    std::vector<lv1_sort_data_t> dt(globals.num_cpu_threads);
+    omp_destroy_lock(&thread_creation_lock);
 
-    std::vector<std::pair<int64_t, int> > vb;
-    for (int b = globals.cx1.lv1_start_bucket_; b < globals.cx1.lv1_end_bucket_; ++b) {
-        if (globals.cx1.bucket_sizes_[b] > globals.max_bucket_size_for_dynamic_sort)
-            vb.push_back(std::make_pair(globals.cx1.bucket_sizes_[b], b));
-    }
-    std::sort(vb.rbegin(), vb.rend());
+    // std::vector<pthread_t> pt(globals.num_cpu_threads);
+    // std::vector<lv1_sort_data_t> dt(globals.num_cpu_threads);
 
-    bool large_done = true;
-    int64_t large_size = 0;
+    // std::vector<std::pair<int64_t, int> > vb;
+    // for (int b = globals.cx1.lv1_start_bucket_; b < globals.cx1.lv1_end_bucket_; ++b) {
+    //     if (globals.cx1.bucket_sizes_[b] > globals.max_bucket_size_for_dynamic_sort)
+    //         vb.push_back(std::make_pair(globals.cx1.bucket_sizes_[b], b));
+    // }
+    // std::sort(vb.rbegin(), vb.rend());
 
-    for (int large_i = 0, small_i = vb.size() - 1; large_i < small_i && vb[large_i].first > 0; ) {
-        // create large chunk
-        if (large_done) {
-            lv1_sort_data_t &d = dt[0];
-            d.substr_ptr = globals.substr_all;
-            d.readinfo_ptr = globals.readinfo_all;
-            d.permutation_ptr = globals.permutations_all;
-            d.cpu_sort_space_ptr = globals.cpu_sort_space_all;
+    // bool large_done = true;
+    // int64_t large_size = 0;
 
-            d.tid = 0;
-            d.b = vb[large_i].second;
-            d.globals = &globals;
-            d.thread_for_sorting = vb[large_i].first / globals.max_bucket_size_for_dynamic_sort;
-            d.done = false;
+    // for (int large_i = 0, small_i = vb.size() - 1; large_i < small_i && vb[large_i].first > 0; ) {
+    //     // create large chunk
+    //     if (large_done) {
+    //         lv1_sort_data_t &d = dt[0];
+    //         d.substr_ptr = globals.substr_all;
+    //         d.readinfo_ptr = globals.readinfo_all;
+    //         d.permutation_ptr = globals.permutations_all;
+    //         d.cpu_sort_space_ptr = globals.cpu_sort_space_all;
 
-            large_size = vb[large_i].first;
-            large_done = false;
-            pthread_create(&pt[0], NULL, lv1_sort_thread, &d);
-        }
+    //         d.tid = 0;
+    //         d.b = vb[large_i].second;
+    //         d.globals = &globals;
+    //         d.thread_for_sorting = vb[large_i].first / globals.max_bucket_size_for_dynamic_sort;
+    //         d.done = false;
 
-        int64_t acc_size = large_size;
-        int threads_to_create = 1;
+    //         large_size = vb[large_i].first;
+    //         large_done = false;
+    //         pthread_create(&pt[0], NULL, lv1_sort_thread, &d);
+    //     }
 
-        while (threads_to_create < globals.num_cpu_threads &&
-               small_i > large_i &&
-               vb[small_i].first + acc_size <= globals.max_sorting_items) {
+    //     int64_t acc_size = large_size;
+    //     int threads_to_create = 1;
 
-            if (vb[small_i].first == 0) { --small_i; continue; }
+    //     while (threads_to_create < globals.num_cpu_threads &&
+    //            small_i > large_i &&
+    //            vb[small_i].first + acc_size <= globals.max_sorting_items) {
 
-            lv1_sort_data_t &d = dt[threads_to_create];
-            d.substr_ptr = globals.substr_all + globals.words_per_substring * acc_size;
-            d.readinfo_ptr = globals.readinfo_all + acc_size;
-            d.permutation_ptr = globals.permutations_all + acc_size;
-            d.cpu_sort_space_ptr = globals.cpu_sort_space_all + acc_size;
+    //         if (vb[small_i].first == 0) { --small_i; continue; }
 
-            d.tid = threads_to_create;
-            d.b = vb[small_i].second;
-            d.globals = &globals;
-            d.thread_for_sorting = vb[small_i].first / globals.max_bucket_size_for_dynamic_sort;
-            d.done = false;
+    //         lv1_sort_data_t &d = dt[threads_to_create];
+    //         d.substr_ptr = globals.substr_all + globals.words_per_substring * acc_size;
+    //         d.readinfo_ptr = globals.readinfo_all + acc_size;
+    //         d.permutation_ptr = globals.permutations_all + acc_size;
+    //         d.cpu_sort_space_ptr = globals.cpu_sort_space_all + acc_size;
 
-            pthread_create(&pt[threads_to_create], NULL, lv1_sort_thread, &d);
+    //         d.tid = threads_to_create;
+    //         d.b = vb[small_i].second;
+    //         d.globals = &globals;
+    //         d.thread_for_sorting = vb[small_i].first / globals.max_bucket_size_for_dynamic_sort;
+    //         d.done = false;
 
-            acc_size += vb[small_i].first;
-            ++threads_to_create;
-            --small_i;
-        }
+    //         pthread_create(&pt[threads_to_create], NULL, lv1_sort_thread, &d);
 
-        for (int i = 1; i < threads_to_create; ++i) {
-            pthread_join(pt[i], NULL);
-        }
+    //         acc_size += vb[small_i].first;
+    //         ++threads_to_create;
+    //         --small_i;
+    //     }
 
-        if (dt[0].done) {
-            large_done = true;
-            pthread_join(pt[0], NULL);
-            ++large_i;
-        }
-    }
+    //     for (int i = 1; i < threads_to_create; ++i) {
+    //         pthread_join(pt[i], NULL);
+    //     }
 
-    if (!large_done) {
-        pthread_join(pt[0], NULL);
-    }
+    //     if (dt[0].done) {
+    //         large_done = true;
+    //         pthread_join(pt[0], NULL);
+    //         ++large_i;
+    //     }
+    // }
+
+    // if (!large_done) {
+    //     pthread_join(pt[0], NULL);
+    // }
 #endif
 }
 
@@ -868,10 +899,10 @@ void post_proc(count_global_t &globals) {
     free(globals.lv2_read_info_db);
     free_gpu_buffers(globals.gpu_key_buffer1, globals.gpu_key_buffer2, globals.gpu_value_buffer1, globals.gpu_value_buffer2);
 #else
-    free(globals.substr_all);
-    free(globals.permutations_all);
-    free(globals.readinfo_all);
-    free(globals.cpu_sort_space_all);
+    // free(globals.substr_all);
+    // free(globals.permutations_all);
+    // free(globals.readinfo_all);
+    // free(globals.cpu_sort_space_all);
 #endif
     free(globals.first_0_out);
     free(globals.last_0_in);
