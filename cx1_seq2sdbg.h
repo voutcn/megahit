@@ -131,14 +131,9 @@ struct seq2sdbg_global_t {
     uint32_t* lv2_substrings_db; // double buffer
     uint32_t* permutation; // permutation of { 1, ..., lv2_num_items }. for sorting (as value in a key-value pair)
     uint32_t* permutation_db;    // double buffer
-
-    uint32_t *substr_all;
-    uint32_t *permutations_all;
-    uint32_t *cpu_sort_space_all;
-
+    
     int64_t max_sorting_items;
     int64_t mem_sorting_items;
-    int max_bucket_size_for_dynamic_sort;
 
     pthread_mutex_t lv1_items_scanning_lock;
     int64_t lv2_num_items_db;

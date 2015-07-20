@@ -654,12 +654,11 @@ void init_global_and_set_cx1(seq2sdbg_global_t &globals) {
     if (globals.cx1.max_lv1_items_ < min_lv1_items) {
         xerr_and_exit("No enough memory to process.");
     }
-    globals.max_bucket_size_for_dynamic_sort = globals.max_sorting_items / globals.num_cpu_threads;
 
-    globals.lv1_items = (int*) MallocAndCheck(globals.cx1.max_lv1_items_ * sizeof(int), __FILE__, __LINE__);
-    globals.substr_all = (uint32_t*) MallocAndCheck(sizeof(uint32_t) * globals.max_sorting_items * globals.words_per_substring, __FILE__, __LINE__);
-    globals.permutations_all = (uint32_t*) MallocAndCheck(sizeof(uint32_t) * globals.max_sorting_items, __FILE__, __LINE__);
-    globals.cpu_sort_space_all = (uint32_t*) MallocAndCheck(sizeof(uint32_t) * globals.max_sorting_items, __FILE__, __LINE__);
+    globals.cx1.max_mem_remain_ = globals.cx1.max_lv1_items_ * sizeof(int) + globals.max_sorting_items * lv2_bytes_per_item;
+    globals.cx1.bytes_per_sorting_item_ = lv2_bytes_per_item;
+
+    globals.lv1_items = (int*) MallocAndCheck(globals.cx1.max_mem_remain_, __FILE__, __LINE__);
 
     // --- init lock ---
     pthread_mutex_init(&globals.lv1_items_scanning_lock, NULL);
@@ -670,8 +669,6 @@ void init_global_and_set_cx1(seq2sdbg_global_t &globals) {
         xlog("max # lv.1 items = %lld\n", globals.cx1.max_lv1_items_);
 #ifdef USE_GPU
         xlog("max # lv.2 items = %lld\n", globals.cx1.max_lv2_items_);
-#else
-        xlog("max bucket: %lld, bucket size per thread: %lld\n", (long long)globals.max_bucket_size, (long long)globals.max_bucket_size_for_dynamic_sort);
 #endif
     }
 
@@ -693,9 +690,10 @@ void* lv1_fill_offset(void* _data) {
     // this loop is VERY similar to that in PreprocessScanToFillBucketSizesThread
 
     // ===== this is a macro to save some copy&paste ================
-#define CHECK_AND_SAVE_OFFSET(key_, offset, strand)                                                             \
+#define CHECK_AND_SAVE_OFFSET(key__, offset, strand)                                                            \
     do {                                                                                                        \
-        if (((key_ - globals.cx1.lv1_start_bucket_) ^ (key_ - globals.cx1.lv1_end_bucket_)) & kSignBitMask) {   \
+        if (globals.cx1.cur_lv1_buckets_[key__]) {                                                                \
+            int key_ = globals.cx1.bucket_rank_[key__];                                                         \
             int64_t full_offset = EncodeEdgeOffset(seq_id, offset, strand, globals.package);                    \
             int64_t differential = full_offset - prev_full_offsets[key_];                                       \
             if (differential > cx1_t::kDifferentialLimit) {                                                     \
@@ -986,87 +984,47 @@ void lv2_pre_output_partition(seq2sdbg_global_t &globals) {
 void lv2_post_output(seq2sdbg_global_t &globals) {
 }
 
-struct lv1_sort_data_t {
-    uint32_t *substr_ptr;
-    uint32_t *permutation_ptr;
-    uint32_t *cpu_sort_space_ptr;
-
-    int tid;
-    int b;
-    int thread_for_sorting;
-    seq2sdbg_global_t *globals;
-};
-
-void* lv1_sort_thread(void *data) {
-    lv1_sort_data_t *d = (lv1_sort_data_t*)data;
-    lv2_extract_substr_(d->b, d->b + 1, *(d->globals), d->substr_ptr, d->globals->cx1.bucket_sizes_[d->b]);
-    lv2_cpu_radix_sort_st(d->substr_ptr, d->permutation_ptr, d->cpu_sort_space_ptr, d->globals->words_per_substring, d->globals->cx1.bucket_sizes_[d->b]);
-    output_(0, d->globals->cx1.bucket_sizes_[d->b], *(d->globals), d->substr_ptr, d->permutation_ptr, d->tid, d->globals->cx1.bucket_sizes_[d->b]);
-
-    return NULL;
-}
-
 void lv1_direct_sort_and_proc(seq2sdbg_global_t &globals) {
 #ifndef USE_GPU
 
-    omp_set_num_threads(globals.num_cpu_threads);
+    omp_set_num_threads(globals.num_output_threads);
+
+    int thread_created = 0;
+    omp_lock_t thread_creation_lock;
+    omp_init_lock(&thread_creation_lock);
+
+    int64_t acc_size = 0;
+    std::vector<int64_t> thread_offset;
+    std::vector<int> tid_map(globals.num_output_threads, -1);
 
 #pragma omp parallel for schedule(dynamic, 1)
     for (int b = globals.cx1.lv1_start_bucket_; b < globals.cx1.lv1_end_bucket_; ++b) {
-        if (globals.cx1.bucket_sizes_[b] == 0 || globals.cx1.bucket_sizes_[b] > globals.max_bucket_size_for_dynamic_sort) {
+        if (globals.cx1.bucket_sizes_[b] == 0) {
             continue;
         }
-
         int tid = omp_get_thread_num();
-        uint32_t *substr_ptr = globals.substr_all + tid * globals.max_bucket_size_for_dynamic_sort * globals.words_per_substring;
-        uint32_t *permutation_ptr = globals.permutations_all + tid * globals.max_bucket_size_for_dynamic_sort;
-        uint32_t *cpu_sort_space_ptr = globals.cpu_sort_space_all + tid * globals.max_bucket_size_for_dynamic_sort;
+
+        if (tid_map[tid] == -1) {
+            omp_set_lock(&thread_creation_lock);
+            thread_offset.push_back(acc_size);
+            acc_size += globals.cx1.bucket_sizes_[b];
+            tid_map[tid] = thread_created;
+            ++thread_created;
+            omp_unset_lock(&thread_creation_lock);
+        }
+
+        tid = tid_map[tid];
+
+        uint32_t *substr_ptr = (uint32_t*) ((char*)(globals.lv1_items + globals.cx1.lv1_num_items_) + thread_offset[tid] * globals.cx1.bytes_per_sorting_item_);
+        uint32_t *permutation_ptr = substr_ptr + globals.cx1.bucket_sizes_[b] * globals.words_per_substring;
+        uint32_t *cpu_sort_space_ptr = permutation_ptr + globals.cx1.bucket_sizes_[b];
 
         lv2_extract_substr_(b, b + 1, globals, substr_ptr, globals.cx1.bucket_sizes_[b]);
         lv2_cpu_radix_sort_st(substr_ptr, permutation_ptr, cpu_sort_space_ptr, globals.words_per_substring, globals.cx1.bucket_sizes_[b]);
         output_(0, globals.cx1.bucket_sizes_[b], globals, substr_ptr, permutation_ptr, tid, globals.cx1.bucket_sizes_[b]);
     }
 
-    std::vector<pthread_t> pt(globals.num_cpu_threads);
-    std::vector<lv1_sort_data_t> dt(globals.num_cpu_threads);
-    std::vector<std::pair<int64_t, int> > vb;
-
-    for (int b = globals.cx1.lv1_start_bucket_; b < globals.cx1.lv1_end_bucket_; ++b) {
-        if (globals.cx1.bucket_sizes_[b] > globals.max_bucket_size_for_dynamic_sort)
-            vb.push_back(std::make_pair(globals.cx1.bucket_sizes_[b], b));
-    }
-    std::sort(vb.rbegin(), vb.rend());
-
-    for (unsigned i = 0; i < vb.size(); ) {
-        int threads_to_create = 0;
-        int64_t acc_size = 0;
-        while (threads_to_create < globals.num_cpu_threads &&
-               i < vb.size() &&
-               vb[i].first + acc_size <= globals.max_sorting_items) {
-
-            if (vb[i].first == 0) { ++i; continue; }
-
-            lv1_sort_data_t &d = dt[threads_to_create];
-            d.substr_ptr = globals.substr_all + globals.words_per_substring * acc_size;
-            d.permutation_ptr = globals.permutations_all + acc_size;
-            d.cpu_sort_space_ptr = globals.cpu_sort_space_all + acc_size;
-
-            d.tid = threads_to_create;
-            d.b = vb[i].second;
-            d.globals = &globals;
-            d.thread_for_sorting = vb[i].first / globals.max_bucket_size_for_dynamic_sort;
-
-            pthread_create(&pt[threads_to_create], NULL, lv1_sort_thread, &d);
-
-            acc_size += vb[i].first;
-            ++threads_to_create;
-            ++i;
-        }
-
-        for (int i = 0; i < threads_to_create; ++i) {
-            pthread_join(pt[i], NULL);
-        }
-    }
+    omp_destroy_lock(&thread_creation_lock);
 
 #endif
 }
@@ -1091,17 +1049,13 @@ void post_proc(seq2sdbg_global_t &globals) {
     // --- cleaning ---
     pthread_mutex_destroy(&globals.lv1_items_scanning_lock);
     free(globals.lv1_items);
+    globals.sdbg_writer.destroy();
 #ifdef USE_GPU
     free(globals.lv2_substrings);
     free(globals.permutation);
     free(globals.lv2_substrings_db);
     free(globals.permutation_db);
-    globals.sdbg_writer.destroy();
     free_gpu_buffers(globals.gpu_key_buffer1, globals.gpu_key_buffer2, globals.gpu_value_buffer1, globals.gpu_value_buffer2);
-#else
-    free(globals.cpu_sort_space_all);
-    free(globals.permutations_all);
-    free(globals.substr_all);
 #endif
 }
 

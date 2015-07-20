@@ -95,7 +95,6 @@ struct count_global_t {
     int offset_num_bits; // the number of bits needed to store the offset of a base in the read/(k+1)-mer (i.e. log(read_length))
     int64_t max_bucket_size;
     int64_t tot_bucket_size;
-    int64_t max_bucket_size_for_dynamic_sort;
     int read_length_mask;
     int64_t num_reads; // total number of reads
 

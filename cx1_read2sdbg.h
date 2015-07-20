@@ -116,15 +116,7 @@ struct read2sdbg_global_t {
     uint32_t* permutation; // permutation of { 1, ..., lv2_num_items }. for sorting (as value in a key-value pair)
     uint32_t* permutation_db;    // double buffer
 
-    // for the new sorting
-    uint32_t *substr_all;
-    uint32_t *permutations_all;
-    uint32_t *cpu_sort_space_all;
-    int64_t *readinfo_all;
-
-#ifndef USE_GPU
-    uint64_t *cpu_sort_space;
-#else
+#ifdef USE_GPU
     void *gpu_key_buffer1;
     void *gpu_key_buffer2;
     void *gpu_value_buffer1;

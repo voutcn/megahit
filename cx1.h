@@ -89,10 +89,11 @@ struct CX1 {
     bool lv1_just_go_;
     int64_t max_mem_remain_;
     int64_t bytes_per_sorting_item_;
-    std::vector<int64_t> thread_offset_;
+    std::vector<bool> cur_lv1_buckets_;
 
     // other data
     int64_t *bucket_sizes_;
+    int *ori_bucket_id_;
     int *bucket_rank_;
     readpartition_data_t *rp_;
     bucketpartition_data_t *bp_;
@@ -223,10 +224,12 @@ struct CX1 {
             op_[t].globals = g_;
         }
 
+        ori_bucket_id_ = (int*) MallocAndCheck(sizeof(int) * kNumBuckets, __FILE__, __LINE__);
         bucket_rank_ = (int*) MallocAndCheck(sizeof(int) * kNumBuckets, __FILE__, __LINE__);
         bucket_sizes_ = (int64_t *) MallocAndCheck(kNumBuckets * sizeof(int64_t), __FILE__, __LINE__);
 
         for (int i = 0; i < kNumBuckets; ++i) {
+            ori_bucket_id_[i] = i;
             bucket_rank_[i] = i;
         }
     }
@@ -240,10 +243,14 @@ struct CX1 {
         free(bp_);
         free(op_);
         free(bucket_sizes_);
+        free(ori_bucket_id_);
         free(bucket_rank_);
     }
 
     inline int find_end_buckets_(int start_bucket, int end_limit, int64_t item_limit, int64_t &num_items) {
+        cur_lv1_buckets_.resize(kNumBuckets);
+        std::fill(cur_lv1_buckets_.begin(), cur_lv1_buckets_.end(), false);
+        
         num_items = 0;
         int end_bucket = start_bucket;
         while (end_bucket < end_limit) { // simple linear scan
@@ -251,6 +258,7 @@ struct CX1 {
                 return end_bucket;
             }
             num_items += bucket_sizes_[end_bucket];
+            cur_lv1_buckets_[ori_bucket_id_[end_bucket]] = true;
             end_bucket++;
         }
         return end_limit;
@@ -266,6 +274,7 @@ struct CX1 {
 
         for (int i = 0; i < kNumBuckets; ++i) {
             bucket_sizes_[i] = tmp_v[i].first;
+            ori_bucket_id_[i] = tmp_v[i].second;
             bucket_rank_[tmp_v[i].second] = i;
         }
 
@@ -283,11 +292,11 @@ struct CX1 {
         int used_threads = 0;
         int64_t mem_sorting_items = 0;
 
-        thread_offset_.clear();
+        cur_lv1_buckets_.resize(kNumBuckets);
+        std::fill(cur_lv1_buckets_.begin(), cur_lv1_buckets_.end(), false);
 
          while (end_bucket < end_limit) {
             if (used_threads < num_cpu_threads_) {
-                thread_offset_.push_back(num_items);
                 mem_sorting_items += bytes_per_sorting_items * bucket_sizes_[end_bucket];
                 ++used_threads;
             }
@@ -296,6 +305,7 @@ struct CX1 {
                 return end_bucket;
             }
             num_items += bucket_sizes_[end_bucket];
+            cur_lv1_buckets_[ori_bucket_id_[end_bucket]] = true;
             ++end_bucket;
         }
 
