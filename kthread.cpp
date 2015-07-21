@@ -21,15 +21,15 @@ typedef struct kt_for_t {
 	void *data;
 } kt_for_t;
 
-static inline long steal_work(ktf_worker_t *w)
+static inline long steal_work(kt_for_t *t)
 {
 	int i, min_i = -1;
 	long k, min = LONG_MAX;
-	for (i = 0; i < w->t->n_threads; ++i)
-		if (min > w->t->w[i].i) min = w->t->w[i].i, min_i = i;
-	if (w->t->w[min_i].i < w - w->t->w) return -2;
-	k = __sync_fetch_and_add(&w->t->w[min_i].i, w->t->n_threads);
-	return k >= w->t->n? -1 : k;
+	for (i = 0; i < t->n_threads; ++i)
+		if (min > t->w[i].i) min = t->w[i].i, min_i = i;
+	if (t->w[min_i].i < t->n_threads) return -2;
+	k = __sync_fetch_and_add(&t->w[min_i].i, t->n_threads);
+	return k >= t->n? -1 : k;
 }
 
 static void *ktf_worker(void *data)
@@ -41,7 +41,7 @@ static void *ktf_worker(void *data)
 		if (i >= w->t->n) break;
 		w->t->func(w->t->data, i, w - w->t->w);
 	}
-	while ((i = steal_work(w)) != -1)
+	while ((i = steal_work(w->t)) != -1)
 		w->t->func(w->t->data, i, w - w->t->w);
 	pthread_exit(0);
 }
