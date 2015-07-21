@@ -301,6 +301,7 @@ static bool ReadReadsAndProcessKernel(IterateGlobalData &globals,
                         uint64_t s_seq = iter->ann.s_seq;
                         int s_seq_length = s_seq & 63;
                         float mul = iter->ann.mul;
+                        kmer_mul[cur_pos] = mul;
                         int j;
                         for (j = 0; j < s_seq_length && cur_pos + globals.kmer_k + j < length; ++j) {
                             if (rp.get_base(i, cur_pos + globals.kmer_k + j) == int((s_seq >> (31 - j) * 2) & 3)) {
@@ -318,6 +319,8 @@ static bool ReadReadsAndProcessKernel(IterateGlobalData &globals,
                         uint64_t s_seq = iter->ann.s_seq;
                         int s_seq_length = s_seq & 63;
                         float mul = iter->ann.mul;
+                        kmer_mul[cur_pos] = mul;
+                        
                         int j;
                         for (j = 0; j < s_seq_length && cur_pos - 1 - j >= 0; ++j) {
                             if (3 - rp.get_base(i, cur_pos - 1 - j) == int((s_seq >> (31 - j) * 2) & 3)) {
