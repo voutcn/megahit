@@ -24,7 +24,6 @@
 #include <zlib.h>
 
 #include "utils.h"
-#include "edge_reader.h"
 #include "bit_operation.h"
 
 void SequenceManager::set_file(const std::string &file_name) {
@@ -318,6 +317,10 @@ int64_t SequenceManager::ReadMegahitContigs(int64_t max_num, int64_t max_num_bas
                 } else {
                     multi_->push_back((multi_t)atof(kseq_readers_[0]->comment.s + 13));
                 }
+            }
+
+            if (float_multi_ != NULL) {
+                float_multi_->push_back(atof(kseq_readers_[0]->comment.s + 13));
             }
 
             num_bases += kseq_readers_[0]->seq.l;

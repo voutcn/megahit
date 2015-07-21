@@ -59,6 +59,7 @@ struct SequenceManager {
 
     SequencePackage *package_;
     std::vector<multi_t> *multi_; // edges or contigs' multiplicity
+    std::vector<float> *float_multi_;
     std::vector<gzFile> files_; // for reading sorted edges
     std::vector<kseq_t*> kseq_readers_; // for paired reading
     EdgeReader edge_reader_;
@@ -70,6 +71,7 @@ struct SequenceManager {
 
     SequenceManager(SequencePackage *package = NULL): package_(package) {
         multi_ = NULL;
+        float_multi_ = NULL;
         files_.clear();
         kseq_readers_.clear();
         edge_reader_.destroy();
@@ -109,6 +111,9 @@ struct SequenceManager {
     }
     void set_multiplicity_vector(std::vector<multi_t> *v) {
         multi_ = v;
+    }
+    void set_float_multiplicity_vector(std::vector<float> *v) {
+        float_multi_ = v;
     }
 
     void set_file(const std::string &file_name);

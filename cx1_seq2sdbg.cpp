@@ -444,7 +444,7 @@ void read_seq_and_prepare(seq2sdbg_global_t &globals) {
         bool append_to_package = true;
         int discard_flag = 0;
         bool extend_loop = true;
-        bool calc_depth = true;
+        bool calc_depth = false;
 
         seq_manager.ReadMegahitContigs(1LL << 60, 1LL << 60, append_to_package, contig_reverse, discard_flag, extend_loop, calc_depth);
         seq_manager.clear();

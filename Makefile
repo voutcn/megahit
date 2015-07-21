@@ -182,8 +182,7 @@ STANDALONE_H = rank_and_select.h kmer_plus.h kmer.h lib_info.h \
 			   bit_operation.h atomic_bit_vector.h functional.h \
 			   khash.h kseq.h pool.h packed_reads.h sequence_package.h \
 			   utils.h mem_file_checker-inl.h read_lib_functions-inl.h \
-			   sdbg_builder_writers.h mac_pthread_barrier.h edge_reader.h \
-			   histgram.h definitions.h lv2_cpu_sort.h
+			   edge_io.h histgram.h definitions.h lv2_cpu_sort.h sdbg_multi_io.h
 
 DEPS = Makefile $(STANDALONE_H)
 
