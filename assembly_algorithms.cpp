@@ -63,8 +63,6 @@ int64_t PrevSimplePathNode(SuccinctDBG &dbg, int64_t cur_node) {
 
 int64_t Trim(SuccinctDBG &dbg, int len, int min_final_standalone) {
     int64_t number_tips = 0;
-    omp_lock_t path_lock;
-    omp_init_lock(&path_lock);
     marked.reset(dbg.size);
 
     #pragma omp parallel for reduction(+:number_tips)

@@ -27,7 +27,7 @@
 #include <string>
 #include "definitions.h"
 #include "cx1.h"
-#include "sdbg_builder_writers.h"
+#include "sdbg_multi_io.h"
 #include "atomic_bit_vector.h"
 #include "mac_pthread_barrier.h"
 #include "sequence_package.h"
@@ -100,6 +100,9 @@ struct read2sdbg_global_t {
     int words_per_read; // number of (32-bit) words needed to represent a read in 2-bit-per-char format
     int read_length_mask;
     int64_t num_reads; // total number of reads
+    // new sorting
+    int64_t max_bucket_size_for_dynamic_sort;
+    int64_t max_sorting_items;
 
     // big arrays
     SequencePackage package;
@@ -113,9 +116,7 @@ struct read2sdbg_global_t {
     uint32_t* permutation; // permutation of { 1, ..., lv2_num_items }. for sorting (as value in a key-value pair)
     uint32_t* permutation_db;    // double buffer
 
-#ifndef USE_GPU
-    uint64_t *cpu_sort_space;
-#else
+#ifdef USE_GPU
     void *gpu_key_buffer1;
     void *gpu_key_buffer2;
     void *gpu_value_buffer1;
@@ -132,27 +133,13 @@ struct read2sdbg_global_t {
     int64_t *edge_counting; // count the number of (k+1)mer with occurs i times
     int64_t *thread_edge_counting;
 
-    // stat-stage2
-    int64_t num_chars_in_w[9];
-    int64_t num_ones_in_last;
-    int64_t total_number_edges;
-    int64_t num_dollar_nodes;
-    int64_t num_dummy_edges;
-    int cur_prefix;
-    int cur_suffix_first_char;
-
     // output-stage1
     // std::vector<pthread_spinlock_t> mercy_file_locks;
     std::vector<FILE*> mercy_files;
     std::vector<std::vector<uint64_t> > lv2_output_items;
 
     // output-stage2
-    DBG_BinaryWriter sdbg_writer;
-    WordWriter dummy_nodes_writer;
-    FILE *output_f_file;
-    FILE *output_multiplicity_file;
-    FILE *output_multiplicity_file2;
-    pthread_barrier_t output_barrier;
+    SdbgWriter sdbg_writer;
 };
 
 namespace s1 {
@@ -162,6 +149,7 @@ void    s1_read_input_prepare(read2sdbg_global_t &g); // num_items_, num_cpu_thr
 void*   s1_lv0_calc_bucket_size(void*); // pthread working function
 void    s1_init_global_and_set_cx1(read2sdbg_global_t &g);
 void*   s1_lv1_fill_offset(void*); // pthread working function
+void    s1_lv1_direct_sort_and_count(read2sdbg_global_t &g);
 void*   s1_lv2_extract_substr(void*); // pthread working function
 void    s1_lv2_sort(read2sdbg_global_t &g);
 void    s1_lv2_pre_output_partition(read2sdbg_global_t &g);
@@ -177,6 +165,7 @@ void    s2_read_mercy_prepare(read2sdbg_global_t &g); // num_items_, num_cpu_thr
 void*   s2_lv0_calc_bucket_size(void*); // pthread working function
 void    s2_init_global_and_set_cx1(read2sdbg_global_t &g);
 void*   s2_lv1_fill_offset(void*); // pthread working function
+void    s2_lv1_direct_sort_and_proc(read2sdbg_global_t &g);
 void*   s2_lv2_extract_substr(void*); // pthread working function
 void    s2_lv2_sort(read2sdbg_global_t &g);
 void    s2_lv2_pre_output_partition(read2sdbg_global_t &g);

@@ -27,7 +27,7 @@
 #include <string>
 #include "definitions.h"
 #include "cx1.h"
-#include "sdbg_builder_writers.h"
+#include "edge_io.h"
 #include "sequence_package.h"
 #include "lib_info.h"
 
@@ -62,7 +62,7 @@ namespace cx1_kmer_count {
 static const int kBucketPrefixLength = 8;
 static const int kBucketBase = 4;
 static const int kNumBuckets = 65536; // pow(4, 8)
-static const int64_t kMinLv2BatchSize = 2 * 1024 * 1024;
+static const int64_t kMinLv2BatchSize = 64 * 1024 * 1024;
 static const int64_t kMinLv2BatchSizeGPU = 64 * 1024 * 1024;
 static const int64_t kDefaultLv1ScanTime = 8;
 static const int64_t kMaxLv1ScanTime = 64;
@@ -102,6 +102,15 @@ struct count_global_t {
     SequencePackage package;
     std::vector<lib_info_t> lib_info;
 
+    // lv1 new sorting scheme
+    int64_t max_sorting_items;
+    int64_t mem_sorting_items;
+
+    uint32_t *substr_all;
+    uint32_t *permutations_all;
+    uint32_t *cpu_sort_space_all;
+    int64_t *readinfo_all;
+
 #ifndef LONG_READS
     unsigned char *first_0_out;
     unsigned char *last_0_in; // first potential 0-out-degree k-mer and last potential 0-in-degree k-mer
@@ -139,7 +148,7 @@ struct count_global_t {
     int64_t *thread_edge_counting;
 
     // output
-    WordWriter *word_writer;
+    EdgeWriter edge_writer;
 };
 
 int64_t encode_lv1_diff_base(int64_t read_id, count_global_t &g);
@@ -147,6 +156,7 @@ void    read_input_prepare(count_global_t &g); // num_items_, num_cpu_threads_ a
 void*   lv0_calc_bucket_size(void*); // pthread working function
 void    init_global_and_set_cx1(count_global_t &g);
 void*   lv1_fill_offset(void*); // pthread working function
+void    lv1_direct_sort_and_count(count_global_t &g);
 void*   lv2_extract_substr(void*); // pthread working function
 void    lv2_sort(count_global_t &g);
 void    lv2_pre_output_partition(count_global_t &g);
