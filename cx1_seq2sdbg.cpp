@@ -571,6 +571,7 @@ void init_global_and_set_cx1(seq2sdbg_global_t &globals) {
     // --- memory stuff ---
     int64_t mem_remained = globals.host_mem
                            - globals.mem_packed_seq
+                           - globals.num_cpu_threads * 65536 * sizeof(uint64_t) // radix sort buckets
                            - kNumBuckets * sizeof(int64_t) * (globals.num_cpu_threads * 3 + 1);
 
     int64_t min_lv1_items = globals.tot_bucket_size / (kMaxLv1ScanTime - 0.5);
@@ -658,7 +659,7 @@ void init_global_and_set_cx1(seq2sdbg_global_t &globals) {
     globals.cx1.max_mem_remain_ = globals.cx1.max_lv1_items_ * sizeof(int) + globals.max_sorting_items * lv2_bytes_per_item;
     globals.cx1.bytes_per_sorting_item_ = lv2_bytes_per_item;
 
-    globals.lv1_items = (int*) MallocAndCheck(globals.cx1.max_mem_remain_, __FILE__, __LINE__);
+    globals.lv1_items = (int*) MallocAndCheck(globals.cx1.max_mem_remain_ + globals.num_cpu_threads * sizeof(uint64_t) * 65536, __FILE__, __LINE__);
 
     // --- init lock ---
     pthread_mutex_init(&globals.lv1_items_scanning_lock, NULL);
@@ -1015,12 +1016,13 @@ void lv1_direct_sort_and_proc(seq2sdbg_global_t &globals) {
 
         tid = tid_map[tid];
 
-        uint32_t *substr_ptr = (uint32_t*) ((char*)(globals.lv1_items + globals.cx1.lv1_num_items_) + thread_offset[tid] * globals.cx1.bytes_per_sorting_item_);
-        uint32_t *permutation_ptr = substr_ptr + globals.cx1.bucket_sizes_[b] * globals.words_per_substring;
+        uint32_t *substr_ptr = (uint32_t*) ((char*)(globals.lv1_items + globals.cx1.lv1_num_items_) + thread_offset[tid] * globals.cx1.bytes_per_sorting_item_ + tid * sizeof(uint64_t) * 65536);
+        uint64_t *bucket = (uint64_t*) (substr_ptr + globals.cx1.bucket_sizes_[b] * globals.words_per_substring);
+        uint32_t *permutation_ptr = (uint32_t*) (bucket + 65536);
         uint32_t *cpu_sort_space_ptr = permutation_ptr + globals.cx1.bucket_sizes_[b];
 
         lv2_extract_substr_(b, b + 1, globals, substr_ptr, globals.cx1.bucket_sizes_[b]);
-        lv2_cpu_radix_sort_st(substr_ptr, permutation_ptr, cpu_sort_space_ptr, globals.words_per_substring, globals.cx1.bucket_sizes_[b]);
+        lv2_cpu_radix_sort_st(substr_ptr, permutation_ptr, cpu_sort_space_ptr, bucket, globals.words_per_substring, globals.cx1.bucket_sizes_[b]);
         output_(0, globals.cx1.bucket_sizes_[b], globals, substr_ptr, permutation_ptr, tid, globals.cx1.bucket_sizes_[b]);
     }
 
