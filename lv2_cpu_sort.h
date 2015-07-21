@@ -89,7 +89,7 @@ struct CmpSubStr {
         int64_t idx = 0;
         for (int i = 0; i < words_per_substring; ++i, idx += num_items) {
             uint32_t xx = substr[x + idx];
-            uint32_t yy =substr[y + idx];
+            uint32_t yy = substr[y + idx];
             if (xx > yy) { return false; }
             else if (yy > xx) { return true; }
         }

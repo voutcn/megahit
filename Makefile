@@ -182,7 +182,8 @@ STANDALONE_H = rank_and_select.h kmer_plus.h kmer.h lib_info.h \
 			   bit_operation.h atomic_bit_vector.h functional.h \
 			   khash.h kseq.h pool.h packed_reads.h sequence_package.h \
 			   utils.h mem_file_checker-inl.h read_lib_functions-inl.h \
-			   edge_io.h histgram.h definitions.h lv2_cpu_sort.h sdbg_multi_io.h
+			   edge_io.h histgram.h definitions.h lv2_cpu_sort.h sdbg_multi_io.h \
+			   cx1.h
 
 DEPS = Makefile $(STANDALONE_H)
 
@@ -234,8 +235,8 @@ LIB_ASM = succinct_dbg.o assembly_algorithms.o branch_group.o options_descriptio
 #-------------------------------------------------------------------------------
 # CPU Applications
 #-------------------------------------------------------------------------------
-megahit_sdbg_build: sdbg_builder.cpp cx1.h lv2_cpu_sort.h cx1_kmer_count.o cx1_read2sdbg_s1.o cx1_read2sdbg_s2.o cx1_seq2sdbg.o options_description.o sequence_manager.o $(DEPS)
-	$(CXX) $(CXXFLAGS) sdbg_builder.cpp cx1_kmer_count.o options_description.o cx1_read2sdbg_s1.o cx1_read2sdbg_s2.o cx1_seq2sdbg.o sequence_manager.o $(LIB) -o megahit_sdbg_build
+megahit_sdbg_build: sdbg_builder.cpp cx1_kmer_count.o cx1_read2sdbg_s1.o cx1_read2sdbg_s2.o cx1_seq2sdbg.o options_description.o sequence_manager.o $(DEPS)
+	$(CXX) $(CXXFLAGS) kthread.cpp sdbg_builder.cpp cx1_kmer_count.o options_description.o cx1_read2sdbg_s1.o cx1_read2sdbg_s2.o cx1_seq2sdbg.o sequence_manager.o $(LIB) -o megahit_sdbg_build
 
 megahit_asm_core: $(LIB_ASM) $(LIB_IDBA) asm_core.cpp assembler.cpp local_assemble.cpp iterate_edges.cpp build_read_lib.cpp $(DEPS)
 	$(CXX) $(CXXFLAGS) asm_core.cpp assembler.cpp local_assemble.cpp iterate_edges.cpp build_read_lib.cpp $(LIB_IDBA) $(LIB_ASM) $(LIB) -o megahit_asm_core

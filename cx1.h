@@ -353,11 +353,10 @@ struct CX1 {
 
     // === multi-thread wrappers ====
     inline void lv0_calc_bucket_size_mt_() {
-        for (int t = 1; t < num_cpu_threads_; ++t) {
+        for (int t = 0; t < num_cpu_threads_; ++t) {
             pthread_create(&(rp_[t].thread), NULL, lv0_calc_bucket_size_func_, &rp_[t]);
         }
-        lv0_calc_bucket_size_func_(&rp_[0]);
-        for (int t = 1; t < num_cpu_threads_; ++t) {
+        for (int t = 0; t < num_cpu_threads_; ++t) {
             pthread_join(rp_[t].thread, NULL);
         }
         // sum up readpartitions bucketsizes to form global bucketsizes
@@ -374,11 +373,10 @@ struct CX1 {
         lv1_items_special_.clear();
         lv1_compute_offset_();
         // create threads
-        for (int t = 1; t < num_cpu_threads_; ++t) {
+        for (int t = 0; t < num_cpu_threads_; ++t) {
             pthread_create(&(rp_[t].thread), NULL, lv1_fill_offset_func_, &rp_[t]);
         }
-        lv1_fill_offset_func_(&rp_[0]);
-        for (int t = 1; t < num_cpu_threads_; ++t) {
+        for (int t = 0; t < num_cpu_threads_; ++t) {
             pthread_join(rp_[t].thread, NULL);
         }
         // revert rp_bucket_offsets

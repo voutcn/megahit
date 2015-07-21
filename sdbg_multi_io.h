@@ -169,6 +169,8 @@ class SdbgWriter {
 					(long long)p_rec_[i].num_large_mul);
 			}
 
+			fclose(sdbg_info);
+
 			files_.clear();
 		  	cur_bucket_.clear();
 		  	cur_thread_offset_.clear();	// offset in BYTE

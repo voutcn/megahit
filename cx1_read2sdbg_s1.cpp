@@ -208,7 +208,6 @@ void s1_init_global_and_set_cx1(read2sdbg_global_t &globals) {
     // --- memory stuff ---
     int64_t mem_remained = globals.host_mem
                            - globals.mem_packed_reads
-                           - globals.num_cpu_threads * 65536 * sizeof(uint64_t) // radix sort buckets
                            - kNumBuckets * sizeof(int64_t) * (globals.num_cpu_threads * 3 + 1)
                            - (kMaxMulti_t + 1) * (globals.num_output_threads + 1) * sizeof(int64_t);
     int64_t min_lv1_items = globals.tot_bucket_size / (kMaxLv1ScanTime - 0.5);
@@ -262,6 +261,7 @@ void s1_init_global_and_set_cx1(read2sdbg_global_t &globals) {
 
     int64_t mem_remained = globals.host_mem
                            - globals.mem_packed_reads
+                           - globals.num_cpu_threads * 65536 * sizeof(uint64_t) // radix sort buckets
                            - kNumBuckets * sizeof(int64_t) * (globals.num_cpu_threads * 3 + 1)
                            - (kMaxMulti_t + 1) * (globals.num_output_threads + 1) * sizeof(int64_t);
     int64_t min_lv1_items = globals.tot_bucket_size / (kMaxLv1ScanTime - 0.5);

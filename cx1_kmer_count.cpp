@@ -37,6 +37,8 @@
 #include "lv2_cpu_sort.h"
 #include "lv2_gpu_functions.h"
 
+extern void kt_for(int n_threads, void (*func)(void*,long,int), void *data, long n);
+
 namespace cx1_kmer_count {
 
 // helpers
@@ -175,8 +177,6 @@ void init_global_and_set_cx1(count_global_t &globals) {
 
     globals.words_per_substring = DivCeiling((globals.kmer_k + 1) * kBitsPerEdgeChar, kBitsPerEdgeWord);
     globals.words_per_edge = DivCeiling((globals.kmer_k + 1) * kBitsPerEdgeChar + kBitsPerMulti_t, kBitsPerEdgeWord);
-    // lv2 bytes: substring, permutation, readinfo
-    int64_t lv2_bytes_per_item = (globals.words_per_substring) * sizeof(uint32_t) + sizeof(uint32_t) + sizeof(int64_t);
     if (cx1_t::kCX1Verbose >= 2) {
         xlog("%d words per substring, %d words per edge\n", globals.words_per_substring, globals.words_per_edge);
     }
@@ -197,6 +197,8 @@ void init_global_and_set_cx1(count_global_t &globals) {
         // TODO: auto switch to CPU version
     }
 
+    // lv2 bytes: substring, permutation, readinfo
+    int64_t lv2_bytes_per_item = globals.words_per_substring * sizeof(uint32_t) + sizeof(uint32_t) + sizeof(int64_t);
     lv2_bytes_per_item = lv2_bytes_per_item * 2; // double buffering
     // --- memory stuff ---
     int64_t mem_remained = globals.host_mem
@@ -249,9 +251,11 @@ void init_global_and_set_cx1(count_global_t &globals) {
         }
     }
 
-    globals.max_sorting_items = std::max(2 * globals.tot_bucket_size / num_non_empty * globals.num_cpu_threads, globals.max_bucket_size * 2);
+    globals.max_sorting_items = std::max(3 * globals.tot_bucket_size / num_non_empty * globals.num_cpu_threads, globals.max_bucket_size * 2);
 
-    lv2_bytes_per_item += sizeof(uint32_t); // CPU memory is used to simulate GPU
+    // lv2 bytes: substring, permutation, readinfo
+    int64_t lv2_bytes_per_item = globals.words_per_substring * sizeof(uint32_t) + sizeof(uint32_t) + sizeof(int64_t);
+    lv2_bytes_per_item += sizeof(uint32_t); // cpu sorting space
 
     int64_t mem_remained = globals.host_mem
                            - globals.mem_packed_reads
@@ -292,10 +296,10 @@ void init_global_and_set_cx1(count_global_t &globals) {
         xerr_and_exit("No enough memory to process.");
     }
 
-    globals.cx1.max_mem_remain_ = globals.cx1.max_lv1_items_ * sizeof(int) + globals.max_sorting_items * lv2_bytes_per_item;
+    globals.cx1.max_mem_remain_ = globals.cx1.max_lv1_items_ * cx1_t::kLv1BytePerItem + globals.max_sorting_items * lv2_bytes_per_item;
     globals.cx1.bytes_per_sorting_item_ = lv2_bytes_per_item;
+    globals.lv1_items = (int32_t*)MallocAndCheck(globals.cx1.max_mem_remain_ + globals.num_cpu_threads * sizeof(uint64_t) * 65536, __FILE__, __LINE__);
 
-    globals.lv1_items = (int*) MallocAndCheck(globals.cx1.max_mem_remain_ + globals.num_cpu_threads * sizeof(uint64_t) * 65536, __FILE__, __LINE__);
 #endif
 
     if (cx1_t::kCX1Verbose >= 2) {
@@ -680,50 +684,78 @@ void* lv2_output(void* _op) {
     return NULL;
 }
 
-void lv1_direct_sort_and_count(count_global_t &globals) {
-#ifndef USE_GPU
-    omp_set_num_threads(globals.num_output_threads);
 
-    int thread_created = 0;
-    omp_lock_t thread_creation_lock;
-    omp_init_lock(&thread_creation_lock);
-
-    int64_t acc_size = 0;
+struct kt_sort_t {
+    count_global_t *globals;
+    int64_t acc_size;
+    int activated_threads;
     std::vector<int64_t> thread_offset;
-    std::vector<int> tid_map(globals.num_output_threads, -1);
+    std::vector<int> tid_map;
+    volatile int lock_;
+};
 
-#pragma omp parallel for schedule(dynamic, 1)
-    for (int b = globals.cx1.lv1_start_bucket_; b < globals.cx1.lv1_end_bucket_; ++b) {
-        if (globals.cx1.bucket_sizes_[b] == 0) {
-            continue;
-        }
-
-        int tid = omp_get_thread_num();
-
-        if (tid_map[tid] == -1) {
-            omp_set_lock(&thread_creation_lock);
-            thread_offset.push_back(acc_size);
-            acc_size += globals.cx1.bucket_sizes_[b];
-            tid_map[tid] = thread_created;
-            ++thread_created;
-            omp_unset_lock(&thread_creation_lock);
-        }
-
-        tid = tid_map[tid];
-
-        uint32_t *substr_ptr = (uint32_t*) ((char*)(globals.lv1_items + globals.cx1.lv1_num_items_) + thread_offset[tid] * globals.cx1.bytes_per_sorting_item_ + tid * sizeof(uint64_t) * 65536);
-        uint64_t *bucket = (uint64_t*) (substr_ptr + globals.cx1.bucket_sizes_[b] * globals.words_per_substring);
-        uint32_t *permutation_ptr = (uint32_t*) (bucket + 65536);
-        uint32_t *cpu_sort_space_ptr = permutation_ptr + globals.cx1.bucket_sizes_[b];
-        int64_t *readinfo_ptr = (int64_t*) (cpu_sort_space_ptr + globals.cx1.bucket_sizes_[b]);
-
-        lv2_extract_substr_(substr_ptr, readinfo_ptr, globals, b, b + 1, globals.cx1.bucket_sizes_[b]);
-        lv2_cpu_radix_sort_st(substr_ptr, permutation_ptr, cpu_sort_space_ptr, bucket, globals.words_per_substring, globals.cx1.bucket_sizes_[b]);
-        lv2_output_(0, globals.cx1.bucket_sizes_[b], tid, globals, substr_ptr, permutation_ptr, readinfo_ptr, globals.cx1.bucket_sizes_[b]);
+void kt_sort(void *_g, long i, int tid)
+{
+    kt_sort_t *kg = (kt_sort_t*)_g;
+    int b = kg->globals->cx1.lv1_start_bucket_ + i;
+    if (kg->globals->cx1.bucket_sizes_[b] == 0) {
+        return;
     }
 
-    omp_destroy_lock(&thread_creation_lock);
-#endif
+    // if (kg->tid_map[tid] == -1) {
+    //     while (__sync_lock_test_and_set(&kg->lock_, 1)) while (kg->lock_);
+    //     kg->thread_offset.push_back(kg->acc_size);
+    //     kg->acc_size += kg->globals->cx1.bucket_sizes_[b];
+    //     kg->tid_map[tid] = kg->activated_threads;
+    //     ++kg->activated_threads;
+    //     __sync_lock_release(&kg->lock_);
+    // }
+
+    // tid = kg->tid_map[tid];
+
+    size_t offset = kg->globals->cx1.lv1_num_items_ * sizeof(int32_t) +
+                    kg->thread_offset[tid] * kg->globals->cx1.bytes_per_sorting_item_ +
+                    tid * sizeof(uint64_t) * 65536;
+
+    uint32_t *substr_ptr = (uint32_t*) ((char*)kg->globals->lv1_items + offset);
+    uint64_t *bucket = (uint64_t*)(substr_ptr + kg->globals->cx1.bucket_sizes_[b] * kg->globals->words_per_substring);
+    uint32_t *permutation_ptr = (uint32_t*)(bucket + 65536);
+    uint32_t *cpu_sort_space_ptr = permutation_ptr + kg->globals->cx1.bucket_sizes_[b];
+    int64_t *readinfo_ptr = (int64_t*) (cpu_sort_space_ptr + kg->globals->cx1.bucket_sizes_[b]);
+
+    // substr_ptr = (uint32_t*) malloc(sizeof(uint32_t) * kg->globals->words_per_substring * kg->globals->cx1.bucket_sizes_[b]);
+    // bucket = (uint64_t*) malloc(sizeof(uint64_t) * 65536);
+    // permutation_ptr = (uint32_t*) malloc(sizeof(uint32_t) * kg->globals->cx1.bucket_sizes_[b]);
+    // readinfo_ptr = (int64_t*) malloc(sizeof(int64_t) * kg->globals->cx1.bucket_sizes_[b]);
+
+    // if ((char*)(readinfo_ptr +  kg->globals->cx1.bucket_sizes_[b]) - ((char*)kg->globals->lv1_items) > kg->globals->cx1.max_mem_remain_ + sizeof(uint64_t) * 65536 * kg->globals->num_cpu_threads) {
+    //     xlog("lv1_ptr: %p, lv1_num: %lld, lv2_bytes_per_item: %d, words_per_substring: %d, mem_remained: %lld, #cpu: %d\n", kg->globals->lv1_items, kg->globals->cx1.lv1_num_items_, kg->globals->cx1.bytes_per_sorting_item_, kg->globals->words_per_substring, kg->globals->cx1.max_mem_remain_, kg->globals->num_cpu_threads);
+    //     xlog("Bad: %p %p %p %p\n", substr_ptr, bucket, permutation_ptr, cpu_sort_space_ptr);
+    //     xlog("offset: %zu\n", offset);
+    //     xerr_and_exit("dead size: %d %lld, thread: %d %lld\n. b: %d", tid, kg->globals->cx1.bucket_sizes_[b], kg->tid_map[omp_get_thread_num()], tid, b);
+    // }
+
+    lv2_extract_substr_(substr_ptr, readinfo_ptr, *(kg->globals), b, b + 1, kg->globals->cx1.bucket_sizes_[b]);
+    lv2_cpu_radix_sort_st(substr_ptr, permutation_ptr, cpu_sort_space_ptr, bucket, kg->globals->words_per_substring, kg->globals->cx1.bucket_sizes_[b]);
+    lv2_output_(0, kg->globals->cx1.bucket_sizes_[b], tid, *(kg->globals), substr_ptr, permutation_ptr, readinfo_ptr, kg->globals->cx1.bucket_sizes_[b]);
+
+    // free(substr_ptr);
+    // free(bucket);
+    // free(permutation_ptr);
+    // free(readinfo_ptr);
+}
+
+void lv1_direct_sort_and_count(count_global_t &globals) {
+    kt_sort_t kg;
+    kg.globals = &globals;
+    kg.acc_size = 0;
+    kg.thread_offset.clear();
+    for (int i = 0, b = globals.cx1.lv1_start_bucket_; i < globals.num_cpu_threads && b < globals.cx1.lv1_end_bucket_; ++i, ++b) {
+        kg.thread_offset.push_back(kg.acc_size);
+        kg.acc_size += globals.cx1.bucket_sizes_[b];
+    }
+
+    kt_for(globals.num_cpu_threads, kt_sort, &kg, globals.cx1.lv1_end_bucket_ - globals.cx1.lv1_start_bucket_);
 }
 
 void lv2_post_output(count_global_t &globals) {
