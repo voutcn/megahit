@@ -156,7 +156,7 @@ DEPS =   ./Makefile \
 CUDALIBFLAG = -L$(CUDA_LIB) -lcuda -lcudart
 GCC_VER := $(shell echo `$(CXX) -dumpversion | cut -f1-2 -d.`)
 
-CXXFLAGS = -g -O0 -Wall -Wno-unused-function -Wno-array-bounds -D__STDC_FORMAT_MACROS -funroll-loops -fprefetch-loop-arrays -fopenmp -I. -std=c++0x -static-libgcc $(CPU_ARCH)
+CXXFLAGS = -g -O2 -Wall -Wno-unused-function -Wno-array-bounds -D__STDC_FORMAT_MACROS -funroll-loops -fprefetch-loop-arrays -fopenmp -I. -std=c++0x -static-libgcc $(CPU_ARCH)
 LIB = -lm -lz -lpthread
 
 ifeq "4.5" "$(word 1, $(sort 4.5 $(GCC_VER)))"
