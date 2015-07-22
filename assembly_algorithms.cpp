@@ -29,7 +29,6 @@
 #include <unordered_set>
 #include <parallel/algorithm>
 
-#include "branch_group.h"
 #include "atomic_bit_vector.h"
 #include "unitig_graph.h"
 #include "utils.h"
@@ -41,54 +40,35 @@ using std::map;
 namespace assembly_algorithms {
 
 static AtomicBitVector marked;
-static inline void MarkNode(SuccinctDBG &dbg, int64_t node_idx);
-
-int64_t NextSimplePathNode(SuccinctDBG &dbg, int64_t cur_node) {
-    int64_t next_node = dbg.UniqueOutgoing(cur_node);
-    if (next_node != -1 && dbg.UniqueIncoming(next_node) != -1) {
-        return next_node;
-    } else {
-        return -1;
-    }
-}
-
-int64_t PrevSimplePathNode(SuccinctDBG &dbg, int64_t cur_node) {
-    int64_t prev_node = dbg.UniqueIncoming(cur_node);
-    if (prev_node != -1 && dbg.UniqueOutgoing(prev_node) != -1) {
-        return prev_node;
-    } else {
-        return -1;
-    }
-}
 
 int64_t Trim(SuccinctDBG &dbg, int len, int min_final_standalone) {
     int64_t number_tips = 0;
     marked.reset(dbg.size);
 
     #pragma omp parallel for reduction(+:number_tips)
-    for (int64_t node_idx = 0; node_idx < dbg.size; ++node_idx) {
-        if (dbg.IsValidNode(node_idx) && !marked.get(node_idx) && dbg.IsLast(node_idx) && dbg.OutdegreeZero(node_idx)) {
-            vector<int64_t> path = {node_idx};
-            int64_t prev_node;
-            int64_t cur_node = node_idx;
+    for (int64_t edge_idx = 0; edge_idx < dbg.size; ++edge_idx) {
+        if (dbg.IsValidEdge(edge_idx) && !marked.get(edge_idx) && dbg.EdgeOutdegree(edge_idx) == 0) {
+            vector<int64_t> path = {edge_idx};
+            int64_t prev_edge;
+            int64_t cur_edge = edge_idx;
             bool is_tip = false;
             for (int i = 1; i < len; ++i) {
-                prev_node = dbg.UniqueIncoming(cur_node);
-                if (prev_node == -1) {
-                    is_tip = dbg.IndegreeZero(cur_node); // && (i + dbg.kmer_k - 1 < min_final_standalone);
+                prev_edge = dbg.UniquePrevEdge(cur_edge);
+                if (prev_edge == -1) {
+                    is_tip = dbg.EdgeIndegree(cur_edge) == 0; // && (i + dbg.kmer_k - 1 < min_final_standalone);
                     break;
-                } else if (dbg.UniqueOutgoing(prev_node) == -1) {
+                } else if (dbg.UniqueNextEdge(prev_edge) == -1) {
                     is_tip = true;
                     break;
                 } else {
-                    path.push_back(prev_node);
-                    cur_node = prev_node;
+                    path.push_back(prev_edge);
+                    cur_edge = prev_edge;
                 }
             }
 
             if (is_tip) {
                 for (unsigned i = 0; i < path.size(); ++i) {
-                    MarkNode(dbg, path[i]);
+                    marked.set(path[i]);
                 }
                 ++number_tips;
             }
@@ -96,28 +76,28 @@ int64_t Trim(SuccinctDBG &dbg, int len, int min_final_standalone) {
     }
 
     #pragma omp parallel for reduction(+:number_tips)
-    for (int64_t node_idx = 0; node_idx < dbg.size; ++node_idx) {
-        if (dbg.IsValidNode(node_idx) && dbg.IsLast(node_idx) && !marked.get(node_idx) && dbg.IndegreeZero(node_idx)) {
-            vector<int64_t> path = {node_idx};
+    for (int64_t edge_idx = 0; edge_idx < dbg.size; ++edge_idx) {
+        if (dbg.IsValidEdge(edge_idx) && !marked.get(edge_idx) && dbg.EdgeIndegree(edge_idx) == 0) {
+            vector<int64_t> path = {edge_idx};
             int64_t next_node;
-            int64_t cur_node = node_idx;
+            int64_t cur_edge = edge_idx;
             bool is_tip = false;
             for (int i = 1; i < len; ++i) {
-                next_node = dbg.UniqueOutgoing(cur_node);
+                next_node = dbg.UniqueNextEdge(cur_edge);
                 if (next_node == -1) {
-                    is_tip = dbg.OutdegreeZero(cur_node); // && (i + dbg.kmer_k - 1 < min_final_standalone);
+                    is_tip = dbg.EdgeOutdegree(cur_edge) == 0; // && (i + dbg.kmer_k - 1 < min_final_standalone);
                     break;
-                } else if (dbg.UniqueIncoming(next_node) == -1) {
+                } else if (dbg.UniquePrevEdge(next_node) == -1) {
                     is_tip = true;
                 } else {
                     path.push_back(next_node);
-                    cur_node = next_node;
+                    cur_edge = next_node;
                 }
             }
 
             if (is_tip) {
                 for (unsigned i = 0; i < path.size(); ++i) {
-                    MarkNode(dbg, path[i]);
+                    marked.set(path[i]);
                 }
                 ++number_tips;
             }
@@ -125,9 +105,9 @@ int64_t Trim(SuccinctDBG &dbg, int len, int min_final_standalone) {
     }
 
     #pragma omp parallel for
-    for (int64_t node_idx = 0; node_idx < dbg.size; ++node_idx) {
-        if (marked.get(node_idx)) {
-            dbg.SetInvalid(node_idx);
+    for (int64_t edge_idx = 0; edge_idx < dbg.size; ++edge_idx) {
+        if (marked.get(edge_idx)) {
+            dbg.SetInvalidEdge(edge_idx);
         }
     }
 
@@ -158,44 +138,6 @@ int64_t RemoveTips(SuccinctDBG &dbg, int max_tip_len, int min_final_standalone) 
     }
 
     return number_tips;
-}
-
-int64_t PopBubbles(SuccinctDBG &dbg, int max_bubble_len, double low_depth_ratio) {
-    omp_lock_t bubble_lock;
-    omp_init_lock(&bubble_lock);
-    const int kMaxBranchesPerGroup = 4;
-    if (max_bubble_len <= 0) {
-        max_bubble_len = dbg.kmer_k * 2 + 2;
-    }
-    vector<std::pair<int, int64_t> > bubble_candidates;
-    int64_t num_bubbles = 0;
-
-    #pragma omp parallel for
-    for (int64_t node_idx = 0; node_idx < dbg.size; ++node_idx) {
-        if (dbg.IsValidNode(node_idx) && dbg.IsLast(node_idx) && dbg.Outdegree(node_idx) > 1) {
-            BranchGroup bubble(&dbg, node_idx, kMaxBranchesPerGroup, max_bubble_len);
-            if (bubble.Search()) {
-                omp_set_lock(&bubble_lock);
-                bubble_candidates.push_back(std::make_pair(bubble.length(), node_idx));
-                omp_unset_lock(&bubble_lock);
-            }
-        }
-    }
-
-    for (unsigned i = 0; i < bubble_candidates.size(); ++i) {
-        BranchGroup bubble(&dbg, bubble_candidates[i].second, kMaxBranchesPerGroup, max_bubble_len);
-        if (bubble.Search() && bubble.RemoveErrorBranches(low_depth_ratio)) {
-            ++num_bubbles;
-        }
-    }
-
-    omp_destroy_lock(&bubble_lock);
-    return num_bubbles;
-}
-
-static inline void MarkNode(SuccinctDBG &dbg, int64_t node_idx) {
-    node_idx = dbg.GetLastIndex(node_idx);
-    marked.set(node_idx);
 }
 
 } // namespace assembly_algorithms

@@ -51,8 +51,8 @@ class SuccinctDBG {
             free(last_);
             free(w_);
             free(invalid_);
-            free(is_dollar_);
-            free(dollar_node_seq_);
+            free(is_tip_);
+            free(tip_node_seq_);
         }
 
         if (need_to_free_mul_) {
@@ -77,6 +77,13 @@ class SuccinctDBG {
         for (int i = 0; i < kAlphabetSize + 2; ++i) {
             rank_f_[i] = rs_last_.Rank(f_[i] - 1);
         }
+
+        #pragma omp parallel for
+        for (int64_t i = 0; i < size; ++i) {
+            if (GetW(i) == 0) {
+                SetInvalidEdge(i);
+            }
+        }
     }
 
     uint8_t GetW(int64_t x) {
@@ -87,8 +94,8 @@ class SuccinctDBG {
         return (*(last_ + x / 64) >> (x % 64)) & 1;
     }
 
-    bool IsLastOrDollar(int64_t x) {
-        return ((last_[x / 64] | is_dollar_[x / 64]) >> (x % 64)) & 1;
+    bool IsLastOrTip(int64_t x) {
+        return ((last_[x / 64] | is_tip_[x / 64]) >> (x % 64)) & 1;
     }
 
     int64_t GetLastIndex(int64_t x) {
@@ -103,74 +110,58 @@ class SuccinctDBG {
         }
     }
 
-    bool IsValidNode(int64_t x) {
-        return !((*(invalid_ + x / 64) >> (x % 64)) & 1);
+    bool IsValidEdge(int64_t edge_id) {
+        return !((*(invalid_ + edge_id / 64) >> (edge_id % 64)) & 1);
     }
 
-    bool IsDollarNode(int64_t x) {
-        return (*(is_dollar_ + x / 64) >> (x % 64)) & 1;
+    bool IsTip(int64_t edge_id) {
+        return (*(is_tip_ + edge_id / 64) >> (edge_id % 64)) & 1;
     }
 
-    void SetValid(int64_t x) {
-        x = rs_last_.Succ(x);
-        do {
-            __sync_fetch_and_and(invalid_ + x / 64, ~(1ULL << (x % 64)));
-            --x;
-        } while (x >= 0 && IsLastOrDollar(x) == 0);
+    void SetValidEdge(int64_t edge_id) {
+        __sync_fetch_and_and(invalid_ + edge_id / 64, ~(1ULL << (edge_id % 64)));
     }
 
-    void SetInvalid(int64_t x) {
-        x = rs_last_.Succ(x);
-        do {
-            __sync_fetch_and_or(invalid_ + x / 64, 1ULL << (x % 64));
-            --x;
-        } while (x >= 0 && IsLastOrDollar(x) == 0);
+    void SetInvalidEdge(int64_t edge_id) {
+        __sync_fetch_and_or(invalid_ + edge_id / 64, 1ULL << (edge_id % 64));
     }
 
-    int EdgeMultiplicity(int64_t x) {
-        if (__builtin_expect(edge_multiplicities_[x] != kMulti2Sp, 1)) {
-            return edge_multiplicities_[x];
+    int EdgeMultiplicity(int64_t edge_id) {
+        if (__builtin_expect(edge_multiplicities_[edge_id] != kMulti2Sp, 1)) {
+            return edge_multiplicities_[edge_id];
         } else {
-            return kh_value(large_multi_h_, kh_get(k64v16, large_multi_h_, x));
+            return kh_value(large_multi_h_, kh_get(k64v16, large_multi_h_, edge_id));
         }
     }
 
-    int NodeMultiplicity(int64_t x);
-
-    int64_t Forward(int64_t x) { // the last node x points to
-        uint8_t a = GetW(x);
+    int64_t Forward(int64_t edge_id) { // the last edge edge_id points to
+        uint8_t a = GetW(edge_id);
         if (a > 4) {
             a -= 4;
         }
-        int64_t count_a = rs_w_.Rank(a, x);
+        int64_t count_a = rs_w_.Rank(a, edge_id);
         return rs_last_.Select(rank_f_[a] + count_a - 1);
     }
 
-    int64_t Backward(int64_t x) { // the first node points to x
-        uint8_t a = GetNodeLastChar(x);
-        int64_t count_a = rs_last_.Rank(x - 1) - rank_f_[a];
+    int64_t Backward(int64_t edge_id) { // the first edge points to edge_id
+        uint8_t a = GetNodeLastChar(edge_id);
+        int64_t count_a = rs_last_.Rank(edge_id - 1) - rank_f_[a];
         return rs_w_.Select(a, count_a);
     }
 
-    int Indegree(int64_t x);
-    int Outdegree(int64_t x);
-    int Incomings(int64_t x, int64_t *incomings);
-    int Outgoings(int64_t x, int64_t *outgoings);
-    int Incomings(int64_t x, int64_t *incomings, int *edge_countings);
-    int Outgoings(int64_t x, int64_t *outgoings, int *edge_countings);
-    bool IndegreeZero(int64_t x);
-    bool OutdegreeZero(int64_t x);
-
-    int64_t UniqueIncoming(int64_t x); // whether there is a unique valid node y s.t. y->x, return y if exist, else return -1
-    int64_t UniqueOutgoing(int64_t x); // whether there is a unique valid node y s.t. x->y, return y if exist, else return -1
-
-    int64_t Outgoing(uint8_t c, int64_t x); // not implement
-    int64_t Incoming(uint8_t c, int64_t x); // not implement
-
     int64_t Index(uint8_t *seq);
     int64_t IndexBinarySearch(uint8_t *seq);
-    int Label(int64_t x, uint8_t *seq);
-    int64_t ReverseComplement(int64_t x);
+    int Label(int64_t edge_or_node_id, uint8_t *seq);
+
+    int EdgeIndegree(int64_t edge_id);
+    int EdgeOutdegree(int64_t edge_id);
+    int IncomingEdges(int64_t edge_id, int64_t *incomings);
+    int OutgoingEdges(int64_t edge_id, int64_t *outgoings);
+    int64_t UniqueNextEdge(int64_t edge_id);
+    int64_t UniquePrevEdge(int64_t edge_id);
+    int64_t PrevSimplePathEdge(int64_t edge_id);
+    int64_t NextSimplePathEdge(int64_t edge_id);
+    int64_t EdgeReverseComplement(int64_t edge_id);
 
     // WARNING: use this with cautions
     // After that NodeMultiplicity() and EdgeMultiplicty() are invalid
@@ -186,22 +177,22 @@ class SuccinctDBG {
     // main memory
     unsigned long long *w_;
     unsigned long long *last_;
-    unsigned long long *is_dollar_;
+    unsigned long long *is_tip_;
     unsigned long long *invalid_;
-    uint32_t *dollar_node_seq_;
+    uint32_t *tip_node_seq_;
     multi2_t *edge_multiplicities_;
     khash_t(k64v16) *large_multi_h_;
 
     long long f_[kAlphabetSize + 2];
     long long rank_f_[kAlphabetSize + 2]; // = rs_last_.Rank(f_[i] - 1)
 
-    unsigned int num_dollar_nodes_;
-    int uint32_per_dollar_nodes_;
+    unsigned int num_tip_nodes_;
+    int uint32_per_tip_nodes_;
 
     // auxiliary memory
     RankAndSelect4Bits rs_w_;
     RankAndSelect1Bit<false> rs_last_;
-    RankAndSelect1Bit<true> rs_is_dollar_;
+    RankAndSelect1Bit<true> rs_is_tip_;
     bool need_to_free_;
     bool need_to_free_mul_;
 
