@@ -397,7 +397,7 @@ uint32_t UnitigGraph::MergeBubbles(bool permanent_rm, bool careful) {
             std::sort(branches.begin(), branches.end());
 
             for (int j = 1; j < outdegree; ++j) {
-                if (!careful || -std::get<2>(branches[j]) < -std::get<2>(branches[0]) * 0.2) {
+                if (!careful || -std::get<0>(branches[j]) < -std::get<0>(branches[0]) * 0.2) {
                     UnitigGraphVertex &vj = vertices_[std::get<2>(branches[j])];
                     vj.is_dead = true;
                     ++num_removed;
