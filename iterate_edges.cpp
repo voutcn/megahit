@@ -292,7 +292,7 @@ static bool ReadReadsAndProcessKernel(IterateGlobalData &globals,
             Kmer<kNumKmerWord_p, kmer_word_p_t> rev_kmer(kmer);
             rev_kmer.ReverseComplement(globals.kmer_k + 1);
 
-            while (cur_pos + globals.kmer_k <= length) {
+            while (cur_pos + globals.kmer_k + 1 <= length) {
                 int next_pos = cur_pos + 1;
                 if (!kmer_exist[cur_pos]) {
                     auto iter = crusial_kmers.find(kmer);
