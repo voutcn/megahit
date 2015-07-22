@@ -79,10 +79,8 @@ class Histgram {
     }
 
     double mean() const {
-        double sum = 0;
-        for (typename std::map<value_type, unsigned>::const_iterator iter = map_.begin(); iter != map_.end(); ++iter)
-            sum += 1.0 * iter->first * iter->second;
-        return sum / size();
+        if (size() == 0) { return 0; }
+        return sum() / size();
     }
 
     double sum() const {

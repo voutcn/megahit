@@ -229,7 +229,7 @@ TOOLKIT += $(TOOLS_DIR)/filter_by_len.cpp
 #-------------------------------------------------------------------------------
 # asm_core objectives
 #-------------------------------------------------------------------------------
-LIB_ASM = succinct_dbg.o assembly_algorithms.o branch_group.o options_description.o \
+LIB_ASM = succinct_dbg.o assembly_algorithms.o options_description.o \
 				  unitig_graph.o sequence_manager.o local_assembler.o city.o
 
 #-------------------------------------------------------------------------------
@@ -243,12 +243,6 @@ megahit_asm_core: $(LIB_ASM) $(LIB_IDBA) asm_core.cpp assembler.cpp local_assemb
 
 megahit_toolkit: $(TOOLKIT) $(DEPS)
 	$(CXX) $(CXXFLAGS) $(TOOLKIT) $(LIB) -o megahit_toolkit
-
-#-------------------------------------------------------------------------------
-# Applications for debug usage
-#-------------------------------------------------------------------------------
-query_sdbg: query_sdbg.cpp succinct_dbg.o rank_and_select.h assembly_algorithms.o branch_group.o unitig_graph.o $(DEPS)
-	$(CXX) $(CXXFLAGS) query_sdbg.cpp succinct_dbg.o assembly_algorithms.o branch_group.o unitig_graph.o -o query_sdbg
 
 #-------------------------------------------------------------------------------
 # GPU objectives
@@ -277,7 +271,7 @@ cx1_seq2sdbg_gpu.o: cx1_seq2sdbg.cpp $(DEPS)
 # GPU Applications
 #-------------------------------------------------------------------------------
 megahit_sdbg_build_gpu: sdbg_builder.cpp cx1_kmer_count_gpu.o cx1_read2sdbg_s1_gpu.o cx1_read2sdbg_s2_gpu.o cx1_seq2sdbg_gpu.o lv2_gpu_functions_$(SUFFIX).o options_description.o sequence_manager.o $(DEPS)
-	$(CXX) $(CXXFLAGS) $(CUDALIBFLAG) -D USE_GPU sdbg_builder.cpp lv2_gpu_functions_$(SUFFIX).o cx1_kmer_count_gpu.o cx1_read2sdbg_s1_gpu.o cx1_read2sdbg_s2_gpu.o cx1_seq2sdbg_gpu.o options_description.o sequence_manager.o $(LIB) -o megahit_sdbg_build_gpu
+	$(CXX) $(CXXFLAGS) $(CUDALIBFLAG) -D USE_GPU kthread.cpp sdbg_builder.cpp lv2_gpu_functions_$(SUFFIX).o cx1_kmer_count_gpu.o cx1_read2sdbg_s1_gpu.o cx1_read2sdbg_s2_gpu.o cx1_seq2sdbg_gpu.o options_description.o sequence_manager.o $(LIB) -o megahit_sdbg_build_gpu
 
 #-------------------------------------------------------------------------------
 # Build binary directory
