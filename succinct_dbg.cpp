@@ -105,6 +105,42 @@ int SuccinctDBG::IncomingEdges(int64_t edge_id, int64_t *incomings) {
     return indegree;
 }
 
+
+bool SuccinctDBG::EdgeIndegreeZero(int64_t edge_id) {
+    if (!IsValidEdge(edge_id)) { return false; }
+
+    int64_t first_income = Backward(edge_id);
+    if (IsValidEdge(first_income)) { return false; }
+    int8_t c = GetW(first_income);
+    int count_ones = IsLastOrTip(first_income);
+
+    for (int64_t y = first_income + 1; count_ones < 5 && y < this->size; ++y) {
+        uint8_t cur_char = GetW(y);
+        if (cur_char == c) {
+            break;
+        } else if (cur_char == c + 4 && IsValidEdge(y)) {
+            return false;
+        }
+        count_ones += IsLastOrTip(y);
+    }
+    return true;
+}
+
+bool SuccinctDBG::EdgeOutdegreeZero(int64_t edge_id) {
+    if (!IsValidEdge(edge_id)) { return false; }
+
+    int64_t next_edge = Forward(edge_id);
+
+    do {
+        if (IsValidEdge(next_edge)) {
+            return false;
+        }
+        --next_edge;
+    } while (next_edge >= 0 && !IsLastOrTip(next_edge));
+
+    return true;
+}
+
 int64_t SuccinctDBG::UniqueNextEdge(int64_t edge_id) {
     if (!IsValidEdge(edge_id)) { return -1; }
 

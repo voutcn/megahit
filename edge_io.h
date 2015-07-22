@@ -28,7 +28,7 @@ class EdgeWriter {
   	int32_t num_buckets_;
 
   	bool unsorted_;
-  	int64_t num_unsorted_edges_;
+    std::vector<int64_t> num_unsorted_edges_;
 
   	std::string file_prefix_;
   	std::vector<FILE*> files_;
@@ -63,7 +63,8 @@ class EdgeWriter {
   		num_buckets_ = 0;
   		p_rec_.clear();
   		unsorted_ = true;
-  		num_unsorted_edges_ = 0;
+  		num_unsorted_edges_.clear();
+      num_unsorted_edges_.resize(num_threads_, 0);
   	}
 
   	void init_files() {
@@ -97,7 +98,7 @@ class EdgeWriter {
 
   	void write_unsorted(uint32_t *edge_ptr, int tid) {
   		fwrite(edge_ptr, sizeof(uint32_t), words_per_edge_, files_[tid]);
-  		++num_unsorted_edges_;
+  		++num_unsorted_edges_[tid];
   	}
 
   	void destroy() {
@@ -112,7 +113,9 @@ class EdgeWriter {
 		  			num_edges += p_rec_[i].total_number;
 		  		}
 	  		} else {
-	  			num_edges = num_unsorted_edges_;
+          for (unsigned i = 0; i < num_unsorted_edges_.size(); ++i) {
+            num_edges += num_unsorted_edges_[i];
+          }
 	  		}
 
 	  		FILE *info = OpenFileAndCheck(FormatString("%s.edges.info", file_prefix_.c_str()), "w");

@@ -233,8 +233,12 @@ inline void ReadBinaryLibs(const std::string &file_prefix, SequencePackage &pack
     seq_manager.set_file_type(SequenceManager::kBinaryReads);
     seq_manager.set_file(FormatString("%s.bin", file_prefix.c_str()));
 
+    xlog("Before reading, sizeof seq_package: %lld\n", package.size_in_byte());
+
     bool append_to_package = false;
     seq_manager.ReadShortReads(1LL << 60, 1LL << 60, append_to_package, is_reverse);
+
+    xlog("After reading, sizeof seq_package: %lld\n", package.size_in_byte());
 }
 
 inline void WriteMultipleLibs(SequencePackage &package, std::vector<lib_info_t> &lib_info, const std::string &file_prefix, bool is_reverse) {

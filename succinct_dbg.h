@@ -157,6 +157,8 @@ class SuccinctDBG {
     int EdgeOutdegree(int64_t edge_id);
     int IncomingEdges(int64_t edge_id, int64_t *incomings);
     int OutgoingEdges(int64_t edge_id, int64_t *outgoings);
+    bool EdgeIndegreeZero(int64_t edge_id);
+    bool EdgeOutdegreeZero(int64_t edge_id);
     int64_t UniqueNextEdge(int64_t edge_id);
     int64_t UniquePrevEdge(int64_t edge_id);
     int64_t PrevSimplePathEdge(int64_t edge_id);

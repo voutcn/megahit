@@ -47,7 +47,7 @@ int64_t Trim(SuccinctDBG &dbg, int len, int min_final_standalone) {
 
     #pragma omp parallel for reduction(+:number_tips)
     for (int64_t edge_idx = 0; edge_idx < dbg.size; ++edge_idx) {
-        if (dbg.IsValidEdge(edge_idx) && !marked.get(edge_idx) && dbg.EdgeOutdegree(edge_idx) == 0) {
+        if (dbg.IsValidEdge(edge_idx) && !marked.get(edge_idx) && dbg.EdgeOutdegreeZero(edge_idx)) {
             vector<int64_t> path = {edge_idx};
             int64_t prev_edge;
             int64_t cur_edge = edge_idx;
@@ -55,7 +55,7 @@ int64_t Trim(SuccinctDBG &dbg, int len, int min_final_standalone) {
             for (int i = 1; i < len; ++i) {
                 prev_edge = dbg.UniquePrevEdge(cur_edge);
                 if (prev_edge == -1) {
-                    is_tip = dbg.EdgeIndegree(cur_edge) == 0; // && (i + dbg.kmer_k - 1 < min_final_standalone);
+                    is_tip = dbg.EdgeIndegreeZero(cur_edge); // && (i + dbg.kmer_k - 1 < min_final_standalone);
                     break;
                 } else if (dbg.UniqueNextEdge(prev_edge) == -1) {
                     is_tip = true;
@@ -77,7 +77,7 @@ int64_t Trim(SuccinctDBG &dbg, int len, int min_final_standalone) {
 
     #pragma omp parallel for reduction(+:number_tips)
     for (int64_t edge_idx = 0; edge_idx < dbg.size; ++edge_idx) {
-        if (dbg.IsValidEdge(edge_idx) && !marked.get(edge_idx) && dbg.EdgeIndegree(edge_idx) == 0) {
+        if (dbg.IsValidEdge(edge_idx) && !marked.get(edge_idx) && dbg.EdgeIndegreeZero(edge_idx)) {
             vector<int64_t> path = {edge_idx};
             int64_t next_node;
             int64_t cur_edge = edge_idx;
@@ -85,7 +85,7 @@ int64_t Trim(SuccinctDBG &dbg, int len, int min_final_standalone) {
             for (int i = 1; i < len; ++i) {
                 next_node = dbg.UniqueNextEdge(cur_edge);
                 if (next_node == -1) {
-                    is_tip = dbg.EdgeOutdegree(cur_edge) == 0; // && (i + dbg.kmer_k - 1 < min_final_standalone);
+                    is_tip = dbg.EdgeOutdegreeZero(cur_edge); // && (i + dbg.kmer_k - 1 < min_final_standalone);
                     break;
                 } else if (dbg.UniquePrevEdge(next_node) == -1) {
                     is_tip = true;

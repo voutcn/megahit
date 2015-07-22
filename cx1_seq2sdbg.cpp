@@ -411,8 +411,9 @@ void read_seq_and_prepare(seq2sdbg_global_t &globals) {
         globals.package.reserve_num_seq(num_contigs_to_reserve);
         globals.package.reserve_bases(bases_to_reserve);
         globals.multiplicity.reserve(num_multiplicities_to_reserve);
-
     }
+
+    xlog("Before reading, sizeof seq_package: %lld, multiplicity vector: %lld\n", globals.package.size_in_byte(), globals.multiplicity.capacity());
 
     if (globals.input_prefix != "") {
         seq_manager.set_file_type(globals.need_mercy ? SequenceManager::kSortedEdges : SequenceManager::kMegahitEdges);
@@ -484,6 +485,8 @@ void read_seq_and_prepare(seq2sdbg_global_t &globals) {
         seq_manager.ReadMegahitContigs(1LL << 60, 1LL << 60, append_to_package, contig_reverse, discard_flag, extend_loop, calc_depth);
         seq_manager.clear();
     }
+
+    xlog("After reading, sizeof seq_package: %lld, multiplicity vector: %lld\n", globals.package.size_in_byte(), globals.multiplicity.capacity());
 
     globals.package.BuildLookup();
     globals.num_seq = globals.package.size();
