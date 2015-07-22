@@ -27,14 +27,14 @@
 
 #include "utils.h"
 #include "kmer.h"
-#include "sdbg_builder_writers.h"
 #include "mem_file_checker-inl.h"
 #include "packed_reads.h"
-#include "mac_pthread_barrier.h"
 #include "read_lib_functions-inl.h"
 
 #include "lv2_cpu_sort.h"
 #include "lv2_gpu_functions.h"
+ 
+extern void kt_for(int n_threads, void (*func)(void*,long,int), void *data, long n);
 
 namespace cx1_read2sdbg {
 
@@ -773,49 +773,48 @@ void* s2_lv2_output(void* _op) {
 void s2_lv2_post_output(read2sdbg_global_t &globals) {
 }
 
-void s2_lv1_direct_sort_and_proc(read2sdbg_global_t &globals) {
-#ifndef USE_GPU
-    omp_set_num_threads(globals.num_output_threads);
-
-    int thread_created = 0;
-    omp_lock_t thread_creation_lock;
-    omp_init_lock(&thread_creation_lock);
-
-    int64_t acc_size = 0;
+struct kt_sort_t {
+    read2sdbg_global_t *globals;
+    int64_t acc_size;
+    int activated_threads;
     std::vector<int64_t> thread_offset;
-    std::vector<int> tid_map(globals.num_output_threads, -1);
+    std::vector<int> tid_map;
+    volatile int lock_;
+};
 
-#pragma omp parallel for schedule(dynamic, 1)
-    for (int b = globals.cx1.lv1_start_bucket_; b < globals.cx1.lv1_end_bucket_; ++b) {
-        if (globals.cx1.bucket_sizes_[b] == 0) {
-            continue;
-        }
-        int tid = omp_get_thread_num();
-
-        if (tid_map[tid] == -1) {
-            omp_set_lock(&thread_creation_lock);
-            thread_offset.push_back(acc_size);
-            acc_size += globals.cx1.bucket_sizes_[b];
-            tid_map[tid] = thread_created;
-            ++thread_created;
-            omp_unset_lock(&thread_creation_lock);
-        }
-
-        tid = tid_map[tid];
-
-        uint32_t *substr_ptr = (uint32_t*) ((char*)(globals.lv1_items + globals.cx1.lv1_num_items_) + thread_offset[tid] * globals.cx1.bytes_per_sorting_item_ + tid * sizeof(uint64_t) * 65536);
-        uint64_t *bucket = (uint64_t*) (substr_ptr + globals.cx1.bucket_sizes_[b] * globals.words_per_substring);
-        uint32_t *permutation_ptr = (uint32_t*) (bucket + 65536);
-        uint32_t *cpu_sort_space_ptr = permutation_ptr + globals.cx1.bucket_sizes_[b];
-
-        s2_lv2_extract_substr_(b, b + 1, globals, substr_ptr, globals.cx1.bucket_sizes_[b]);
-        lv2_cpu_radix_sort_st(substr_ptr, permutation_ptr, cpu_sort_space_ptr, bucket, globals.words_per_substring, globals.cx1.bucket_sizes_[b]);
-        output_(0, globals.cx1.bucket_sizes_[b], globals, substr_ptr, permutation_ptr, tid, globals.cx1.bucket_sizes_[b]);
+void kt_sort(void *_g, long i, int tid)
+{
+    kt_sort_t *kg = (kt_sort_t*)_g;
+    int b = kg->globals->cx1.lv1_start_bucket_ + i;
+    if (kg->globals->cx1.bucket_sizes_[b] == 0) {
+        return;
     }
 
-    omp_destroy_lock(&thread_creation_lock);
+    size_t offset = kg->globals->cx1.lv1_num_items_ * sizeof(int32_t) +
+                    kg->thread_offset[tid] * kg->globals->cx1.bytes_per_sorting_item_ +
+                    tid * sizeof(uint64_t) * 65536;
 
-#endif
+    uint32_t *substr_ptr = (uint32_t*) ((char*)kg->globals->lv1_items + offset);
+    uint64_t *bucket = (uint64_t*)(substr_ptr + kg->globals->cx1.bucket_sizes_[b] * kg->globals->words_per_substring);
+    uint32_t *permutation_ptr = (uint32_t*)(bucket + 65536);
+    uint32_t *cpu_sort_space_ptr = permutation_ptr + kg->globals->cx1.bucket_sizes_[b];
+
+    s2_lv2_extract_substr_(b, b + 1, *(kg->globals), substr_ptr, kg->globals->cx1.bucket_sizes_[b]);
+    lv2_cpu_radix_sort_st(substr_ptr, permutation_ptr, cpu_sort_space_ptr, bucket, kg->globals->words_per_substring, kg->globals->cx1.bucket_sizes_[b]);
+    output_(0, kg->globals->cx1.bucket_sizes_[b], *(kg->globals), substr_ptr, permutation_ptr, tid, kg->globals->cx1.bucket_sizes_[b]);
+}
+
+void s2_lv1_direct_sort_and_proc(read2sdbg_global_t &globals) {
+    kt_sort_t kg;
+    kg.globals = &globals;
+    int64_t acc_size = 0;
+
+    for (int i = 0, b = globals.cx1.lv1_start_bucket_; i < globals.num_cpu_threads && b < globals.cx1.lv1_end_bucket_; ++i, ++b) {
+        kg.thread_offset.push_back(acc_size);
+        acc_size += globals.cx1.bucket_sizes_[b];
+    }
+
+    kt_for(globals.num_cpu_threads, kt_sort, &kg, globals.cx1.lv1_end_bucket_ - globals.cx1.lv1_start_bucket_);
 }
 
 void s2_post_proc(read2sdbg_global_t &globals) {
