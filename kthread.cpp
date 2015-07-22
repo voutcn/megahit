@@ -42,7 +42,7 @@ static void *ktf_worker(void *data)
 		w->t->func(w->t->data, i, w - w->t->w);
 	}
 	while ((i = steal_work(w->t)) != -1)
-		w->t->func(w->t->data, i, w - w->t->w);
+		if (i >= 0) w->t->func(w->t->data, i, w - w->t->w);
 	pthread_exit(0);
 }
 

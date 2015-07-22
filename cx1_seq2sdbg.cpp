@@ -1025,11 +1025,11 @@ void kt_sort(void *_g, long i, int tid)
     uint32_t *permutation_ptr = (uint32_t*)(bucket + 65536);
     uint32_t *cpu_sort_space_ptr = permutation_ptr + kg->globals->cx1.bucket_sizes_[b];
 
-    // if (substr_ptr > (uint32_t*)kg->globals->lv1_items + 1000000000) {
+    // if ((char*)(cpu_sort_space_ptr +  kg->globals->cx1.bucket_sizes_[b]) - ((char*)kg->globals->lv1_items) > kg->globals->cx1.max_mem_remain_ + sizeof(uint64_t) * 65536 * kg->globals->num_cpu_threads) {
     //     xlog("lv1_ptr: %p, lv1_num: %lld, lv2_bytes_per_item: %d, words_per_substring: %d, mem_remained: %lld, #cpu: %d\n", kg->globals->lv1_items, kg->globals->cx1.lv1_num_items_, kg->globals->cx1.bytes_per_sorting_item_, kg->globals->words_per_substring, kg->globals->cx1.max_mem_remain_, kg->globals->num_cpu_threads);
-    //     xlog("Bad: %p/%p %p %p %p\n", substr_ptr, move_n_bytes(kg->globals->mempool_entry, offset), bucket, permutation_ptr, cpu_sort_space_ptr);
+    //     xlog("Bad: %p %p %p %p\n", substr_ptr, bucket, permutation_ptr, cpu_sort_space_ptr);
     //     xlog("offset: %zu\n", offset);
-    //     xerr_and_exit("dead size: %d %lld, thread: %d %lld\n. b: %d", tid, kg->globals->cx1.bucket_sizes_[b], kg->tid_map[omp_get_thread_num()], tid, b);
+    //     xerr_and_exit("dead size: %d %lld, thread: %lld\n. b: %d", tid, kg->globals->cx1.bucket_sizes_[b], tid, b);
     // }
 
     lv2_extract_substr_(b, b + 1, *(kg->globals), substr_ptr, kg->globals->cx1.bucket_sizes_[b]);
