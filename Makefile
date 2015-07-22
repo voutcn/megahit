@@ -229,7 +229,7 @@ TOOLKIT += $(TOOLS_DIR)/filter_by_len.cpp
 #-------------------------------------------------------------------------------
 # asm_core objectives
 #-------------------------------------------------------------------------------
-LIB_ASM = succinct_dbg.o assembly_algorithms.o branch_group.o options_description.o \
+LIB_ASM = succinct_dbg.o assembly_algorithms.o options_description.o \
 				  unitig_graph.o sequence_manager.o local_assembler.o city.o
 
 #-------------------------------------------------------------------------------
@@ -243,12 +243,6 @@ megahit_asm_core: $(LIB_ASM) $(LIB_IDBA) asm_core.cpp assembler.cpp local_assemb
 
 megahit_toolkit: $(TOOLKIT) $(DEPS)
 	$(CXX) $(CXXFLAGS) $(TOOLKIT) $(LIB) -o megahit_toolkit
-
-#-------------------------------------------------------------------------------
-# Applications for debug usage
-#-------------------------------------------------------------------------------
-query_sdbg: query_sdbg.cpp succinct_dbg.o rank_and_select.h assembly_algorithms.o branch_group.o unitig_graph.o $(DEPS)
-	$(CXX) $(CXXFLAGS) query_sdbg.cpp succinct_dbg.o assembly_algorithms.o branch_group.o unitig_graph.o -o query_sdbg
 
 #-------------------------------------------------------------------------------
 # GPU objectives
