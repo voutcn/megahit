@@ -87,6 +87,9 @@ std::string VertexToDNAString(SuccinctDBG *sdbg_, const UnitigGraphVertex &v) {
     int8_t cur_char = sdbg_->GetW(cur_edge);
     label.append(1, "ACGT"[cur_char > 4 ? (cur_char - 5) : (cur_char - 1)]);
 
+    if (cur_edge != v.start_node) {
+        xerr("fwd: %lld, %lld, rev: %lld, %lld, (%lld, %lld) length: %d\n", v.start_node, v.end_node, v.rev_start_node, v.rev_end_node, sdbg_->EdgeReverseComplement(v.end_node), sdbg_->EdgeReverseComplement(v.start_node), v.length);
+    }
     assert(cur_edge == v.start_node);
 
     uint8_t seq[sdbg_->kMaxKmerK];
@@ -216,27 +219,6 @@ void UnitigGraph::InitFromSdBG() {
 
             int64_t rc_start = sdbg_->EdgeReverseComplement(edge_idx);
             int64_t rc_end = -1;
-            // if (rc_start == -1) {
-            //     uint8_t seq[sdbg_->kMaxKmerK];
-            //     int kk = sdbg_->Label(edge_idx, seq);
-            //     seq[kk] = sdbg_->GetW(edge_idx) > 4 ? sdbg_->GetW(edge_idx) - 4 : sdbg_->GetW(edge_idx);
-            //     std::string s;
-            //     for (int i = 0; i <= kk; ++i) {
-            //         s.push_back("$ACGT"[seq[i]]);
-            //     }
-
-            //     int i,j;
-            //     for (i = 0, j = kk; i < j; ++i, --j) {
-            //         std::swap(seq[i], seq[j]);
-            //         seq[i] = 5 - seq[i];
-            //         seq[j] = 5 - seq[j];
-            //     }
-            //     if (i == j) {
-            //         seq[i] = 5 - seq[i];
-            //     }
-            //     int64_t rev_node = sdbg_->IndexBinarySearch(seq);
-            //     xlog("%s %lld\n", s.c_str(), rev_node);
-            // }
             assert(rc_start != -1);
 
             if (!marked.try_lock(rc_start)) {
@@ -283,10 +265,11 @@ void UnitigGraph::InitFromSdBG() {
 
                 while (!marked.get(cur_edge)) {
                     marked.set(cur_edge);
-                    int64_t prev_edge = sdbg_->PrevSimplePathEdge(cur_edge);
-                    assert(prev_edge != -1);
                     depth += sdbg_->EdgeMultiplicity(cur_edge);
                     ++length;
+                    
+                    cur_edge = sdbg_->PrevSimplePathEdge(cur_edge);
+                    assert(cur_edge != -1);
                 }
 
                 assert(cur_edge == edge_idx);
