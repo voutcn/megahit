@@ -50,6 +50,7 @@ struct asm_opt_t {
     int prune_level;
     double low_local_ratio;
     bool output_standalone;
+    bool careful_bubble;
 
     asm_opt_t() {
         output_prefix = "out";
@@ -64,6 +65,7 @@ struct asm_opt_t {
         min_depth = 1.5;
         is_final_round = false;
         output_standalone = false;
+        careful_bubble = false;
     }
 
     string contig_file() {
@@ -98,6 +100,7 @@ void ParseAsmOption(int argc, char *argv[]) {
     desc.AddOption("min_depth", "", opt.min_depth, "if prune_level is 2, permanently remove low local coverage unitigs under this threshold");
     desc.AddOption("is_final_round", "", opt.is_final_round, "this is the last iteration");
     desc.AddOption("output_standalone", "", opt.output_standalone, "output standalone contigs to *.final.contigs.fa");
+    desc.AddOption("careful_bubble", "", opt.careful_bubble, "remove bubble carefully");
 
     try {
         desc.Parse(argc, argv);
@@ -173,10 +176,10 @@ int main_assemble(int argc, char **argv) {
     if (!opt.no_bubble) {
         timer.reset();
         timer.start();
-        uint32_t num_bubbles = unitig_graph.MergeBubbles(true);
+        uint32_t num_bubbles = unitig_graph.MergeBubbles(true, opt.careful_bubble);
         uint32_t num_complex_bubbles = 0;
         if (opt.merge_len > 0) {
-            num_complex_bubbles += unitig_graph.MergeComplexBubbles(opt.merge_similar, opt.merge_len, true);
+            num_complex_bubbles += unitig_graph.MergeComplexBubbles(opt.merge_similar, opt.merge_len, true, opt.careful_bubble);
         }
         timer.stop();
         xlog("Number of bubbles/complex bubbles removed: %u/%u, Time elapsed(sec): %lf\n",
@@ -237,7 +240,7 @@ int main_assemble(int argc, char **argv) {
 
         uint32_t num_complex_bubbles = 0;
         if (opt.merge_len > 0)
-            num_complex_bubbles = unitig_graph.MergeComplexBubbles(opt.merge_similar, opt.merge_len, opt.is_final_round);
+            num_complex_bubbles = unitig_graph.MergeComplexBubbles(opt.merge_similar, opt.merge_len, opt.is_final_round, true);
 
         timer.stop();
         xlog("Number of local low depth unitigs removed: %lld, complex bubbles removed: %u, time: %lf\n",

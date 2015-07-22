@@ -27,7 +27,6 @@
 
 #include "utils.h"
 #include "packed_reads.h"
-#include "mac_pthread_barrier.h"
 #include "kmer.h"
 
 #include "lv2_cpu_sort.h"

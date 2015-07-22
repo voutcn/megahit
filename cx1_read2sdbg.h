@@ -29,7 +29,6 @@
 #include "cx1.h"
 #include "sdbg_multi_io.h"
 #include "atomic_bit_vector.h"
-#include "mac_pthread_barrier.h"
 #include "sequence_package.h"
 #include "lib_info.h"
 

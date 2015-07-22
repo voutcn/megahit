@@ -334,7 +334,7 @@ void UnitigGraph::InitFromSdBG() {
     omp_destroy_lock(&path_lock);
 }
 
-uint32_t UnitigGraph::MergeBubbles(bool permanent_rm) {
+uint32_t UnitigGraph::MergeBubbles(bool permanent_rm, bool careful) {
     int max_bubble_len = sdbg_->kmer_k + 1; // allow 1 indel
     uint32_t num_removed = 0;
 
@@ -410,17 +410,19 @@ uint32_t UnitigGraph::MergeBubbles(bool permanent_rm) {
             std::sort(branches.begin(), branches.end());
 
             for (int j = 1; j < outdegree; ++j) {
-                UnitigGraphVertex &vj = vertices_[std::get<2>(branches[j])];
-                vj.is_dead = true;
+                if (!careful || -std::get<2>(branches[j]) < -std::get<2>(branches[0]) * 0.2) {
+                    UnitigGraphVertex &vj = vertices_[std::get<2>(branches[j])];
+                    vj.is_dead = true;
+                    ++num_removed;
+                }
             }
-            num_removed += outdegree - 1;
         }
     }
     Refresh_(!permanent_rm);
     return num_removed;
 }
 
-uint32_t UnitigGraph::MergeComplexBubbles(double similarity, int merge_level, bool permanent_rm) {
+uint32_t UnitigGraph::MergeComplexBubbles(double similarity, int merge_level, bool permanent_rm, bool careful) {
     int max_bubble_len = sdbg_->kmer_k * merge_level / similarity + 0.5;
     if (max_bubble_len * (1 - similarity) < 1) {
         return 0;
@@ -478,6 +480,9 @@ uint32_t UnitigGraph::MergeComplexBubbles(double similarity, int merge_level, bo
                         continue;
                     }
                     if (vk.length > max_bubble_len) {
+                        continue;
+                    }
+                    if (careful && -std::get<0>(branches[k]) >= -std::get<0>(branches[j]) * 0.2) {
                         continue;
                     }
                     if (std::get<3>(branches[j]) != std::get<3>(branches[k])) {

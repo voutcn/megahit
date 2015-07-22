@@ -819,14 +819,11 @@ def assemble(cur_k):
                         "--prune_level", str(opt.prune_level),
                         "--merge_len", str(int(opt.merge_len)),
                         "--merge_similar", str(opt.merge_similar),
-                        "--low_local_ratio", str(opt.low_local_ratio)]
+                        "--low_local_ratio", str(opt.low_local_ratio),
+                        "--min_depth", str(opt.min_count)]
 
-        if cur_k == opt.k_min:
-            assembly_cmd.append("--min_depth")
-            assembly_cmd.append(str(opt.min_count))
-        else:
-            assembly_cmd.append("--min_depth")
-            assembly_cmd.append(str(min(1.5, opt.min_count)))
+        if cur_k < (opt.k_min + opt.k_max) / 2:
+            assembly_cmd.append("--careful_bubble")
 
         if cur_k == opt.k_max:
             assembly_cmd.append("--is_final_round")

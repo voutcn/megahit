@@ -26,7 +26,6 @@
 #include <stdint.h>
 #include <vector>
 #include <string>
-#include "mac_pthread_barrier.h"
 #include "definitions.h"
 #include "cx1.h"
 #include "sdbg_multi_io.h"

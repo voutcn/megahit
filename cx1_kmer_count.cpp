@@ -26,7 +26,6 @@
 #include <zlib.h>
 #include <omp.h>
 
-#include "sdbg_builder_writers.h"
 #include "mem_file_checker-inl.h"
 #include "kseq.h"
 #include "utils.h"
