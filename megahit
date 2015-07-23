@@ -75,8 +75,8 @@ Optional Arguments:
                                             meta            '--min-count 2 --k-list 21,41,61,81,99'             (generic metagenomes, default)
                                             meta-sensitive  '--min-count 2 --k-list 21,31,41,51,61,71,81,91,99' (more sensitive but slower)
                                             meta-large      '--min-count 2 --k-list 27,37,47,57,67,77,87'       (large & complex metagenomes, like soil)
-                                            single-cell     '--min-count 2 --k-list 41,61,81,99 --merge_level 20,0.96' (experimental, single cell data)
-                                            bulk            '--min-count 3 --k-list 31,51,71,91,99' --no-mercy' (experimental, standard bulk sequencing with >= 30x depth)
+                                            bulk            '--min-count 3 --k-list 31,51,71,91,99 --no-mercy'  (experimental, standard bulk sequencing with >= 30x depth)
+                                            single-cell     '--min-count 3 --k-list 21,33,55,77,99,121 --merge_level 20,0.96' (experimental, single cell data)
 
   Hardware options:
     -m/--memory              <float>        max memory in byte to be used in SdBG construction; default 0.9
@@ -210,7 +210,7 @@ def parse_opt(argv):
                                      "version",
                                      "out-prefix=",
                                      "verbose",
-                                     "mode=",
+                                     "presets=",
                                      "max-read-len=",
                                      "no-low-local",
                                      "cpu-only"])
@@ -295,7 +295,7 @@ def parse_opt(argv):
             opt.pe12 += value.split(",")
         elif option == "--input-cmd":
             opt.input_cmd = value
-        elif option == "--mode":
+        elif option == "--presets":
             opt.presets = value
 
         else:
@@ -344,8 +344,8 @@ def check_opt():
             opt.k_list = [31,51,71,91,99]
             opt.set_list_by_min_max_step = False
         elif opt.presets == "single-cell":
-            opt.min_count = 2
-            opt.k_list = [41,61,81,99]
+            opt.min_count = 3
+            opt.k_list = [21,33,55,77,99,121]
             opt.merge_similar, opt.merge_len = 0.96, 20
             opt.set_list_by_min_max_step = False
         else:
