@@ -240,7 +240,7 @@ int main_assemble(int argc, char **argv) {
 
         uint32_t num_complex_bubbles = 0;
         if (opt.merge_len > 0)
-            num_complex_bubbles = unitig_graph.MergeComplexBubbles(opt.merge_similar, opt.merge_len, opt.is_final_round, true);
+            num_complex_bubbles = unitig_graph.MergeComplexBubbles(opt.merge_similar, opt.merge_len, opt.is_final_round, false);
 
         timer.stop();
         xlog("Number of local low depth unitigs removed: %lld, complex bubbles removed: %u, time: %lf\n",
