@@ -39,36 +39,35 @@ using std::map;
 
 namespace assembly_algorithms {
 
-static AtomicBitVector marked;
+static AtomicBitVector removed_nodes;
 
 int64_t Trim(SuccinctDBG &dbg, int len, int min_final_standalone) {
     int64_t number_tips = 0;
-    marked.reset(dbg.size);
 
     #pragma omp parallel for reduction(+:number_tips)
-    for (int64_t edge_idx = 0; edge_idx < dbg.size; ++edge_idx) {
-        if (dbg.IsValidEdge(edge_idx) && !marked.get(edge_idx) && dbg.EdgeOutdegreeZero(edge_idx)) {
-            vector<int64_t> path = {edge_idx};
-            int64_t prev_edge;
-            int64_t cur_edge = edge_idx;
+    for (int64_t node_idx = 0; node_idx < dbg.size; ++node_idx) {
+        if (dbg.IsLast(node_idx) && !removed_nodes.get(node_idx) && dbg.NodeOutdegreeZero(node_idx)) {
+            vector<int64_t> path = {node_idx};
+            int64_t prev_node;
+            int64_t cur_node = node_idx;
             bool is_tip = false;
             for (int i = 1; i < len; ++i) {
-                prev_edge = dbg.UniquePrevEdge(cur_edge);
-                if (prev_edge == -1) {
-                    is_tip = dbg.EdgeIndegreeZero(cur_edge); // && (i + dbg.kmer_k - 1 < min_final_standalone);
+                prev_node = dbg.UniquePrevNode(cur_node);
+                if (prev_node == -1) {
+                    is_tip = dbg.NodeIndegreeZero(cur_node); // && (i + dbg.kmer_k - 1 < min_final_standalone);
                     break;
-                } else if (dbg.UniqueNextEdge(prev_edge) == -1) {
+                } else if (dbg.UniqueNextNode(prev_node) == -1) {
                     is_tip = true;
                     break;
                 } else {
-                    path.push_back(prev_edge);
-                    cur_edge = prev_edge;
+                    path.push_back(prev_node);
+                    cur_node = prev_node;
                 }
             }
 
             if (is_tip) {
                 for (unsigned i = 0; i < path.size(); ++i) {
-                    marked.set(path[i]);
+                    removed_nodes.set(path[i]);
                 }
                 ++number_tips;
             }
@@ -76,28 +75,28 @@ int64_t Trim(SuccinctDBG &dbg, int len, int min_final_standalone) {
     }
 
     #pragma omp parallel for reduction(+:number_tips)
-    for (int64_t edge_idx = 0; edge_idx < dbg.size; ++edge_idx) {
-        if (dbg.IsValidEdge(edge_idx) && !marked.get(edge_idx) && dbg.EdgeIndegreeZero(edge_idx)) {
-            vector<int64_t> path = {edge_idx};
+    for (int64_t node_idx = 0; node_idx < dbg.size; ++node_idx) {
+        if (dbg.IsLast(node_idx) && !removed_nodes.get(node_idx) && dbg.NodeIndegreeZero(node_idx)) {
+            vector<int64_t> path = {node_idx};
             int64_t next_node;
-            int64_t cur_edge = edge_idx;
+            int64_t cur_node = node_idx;
             bool is_tip = false;
             for (int i = 1; i < len; ++i) {
-                next_node = dbg.UniqueNextEdge(cur_edge);
+                next_node = dbg.UniqueNextNode(cur_node);
                 if (next_node == -1) {
-                    is_tip = dbg.EdgeOutdegreeZero(cur_edge); // && (i + dbg.kmer_k - 1 < min_final_standalone);
+                    is_tip = dbg.NodeOutdegreeZero(cur_node); // && (i + dbg.kmer_k - 1 < min_final_standalone);
                     break;
-                } else if (dbg.UniquePrevEdge(next_node) == -1) {
+                } else if (dbg.UniquePrevNode(next_node) == -1) {
                     is_tip = true;
                 } else {
                     path.push_back(next_node);
-                    cur_edge = next_node;
+                    cur_node = next_node;
                 }
             }
 
             if (is_tip) {
                 for (unsigned i = 0; i < path.size(); ++i) {
-                    marked.set(path[i]);
+                    removed_nodes.set(path[i]);
                 }
                 ++number_tips;
             }
@@ -105,9 +104,9 @@ int64_t Trim(SuccinctDBG &dbg, int len, int min_final_standalone) {
     }
 
     #pragma omp parallel for
-    for (int64_t edge_idx = 0; edge_idx < dbg.size; ++edge_idx) {
-        if (marked.get(edge_idx)) {
-            dbg.SetInvalidEdge(edge_idx);
+    for (int64_t node_idx = 0; node_idx < dbg.size; ++node_idx) {
+        if (removed_nodes.get(node_idx)) {
+            dbg.DeleteAllEdges(node_idx);
         }
     }
 
@@ -117,6 +116,8 @@ int64_t Trim(SuccinctDBG &dbg, int len, int min_final_standalone) {
 int64_t RemoveTips(SuccinctDBG &dbg, int max_tip_len, int min_final_standalone) {
     int64_t number_tips = 0;
     xtimer_t timer;
+    removed_nodes.reset(dbg.size);
+    
     for (int len = 2; len < max_tip_len; len *= 2) {
         xlog("Removing tips with length less than %d; ", len);
         timer.reset();
@@ -134,7 +135,7 @@ int64_t RemoveTips(SuccinctDBG &dbg, int max_tip_len, int min_final_standalone) 
 
     {
         AtomicBitVector empty;
-        marked.swap(empty);
+        removed_nodes.swap(empty);
     }
 
     return number_tips;

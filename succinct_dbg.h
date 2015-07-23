@@ -165,8 +165,14 @@ class SuccinctDBG {
     int64_t NextSimplePathEdge(int64_t edge_id);
     int64_t EdgeReverseComplement(int64_t edge_id);
 
+    bool NodeOutdegreeZero(int64_t node_id);
+    bool NodeIndegreeZero(int64_t node_id);
+    int64_t UniquePrevNode(int64_t node_id);
+    int64_t UniqueNextNode(int64_t node_id);
+    void DeleteAllEdges(int64_t node_id);
+
     // WARNING: use this with cautions
-    // After that NodeMultiplicity() and EdgeMultiplicty() are invalid
+    // After that EdgeMultiplicty() are invalid
     void FreeMul() {
         if (need_to_free_mul_) {
             free(edge_multiplicities_);

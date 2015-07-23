@@ -200,6 +200,101 @@ int64_t SuccinctDBG::NextSimplePathEdge(int64_t edge_id) {
     }
 }
 
+bool SuccinctDBG::NodeOutdegreeZero(int64_t node_id) {
+    int64_t edge_id = GetLastIndex(node_id);
+
+    do {
+        if (IsValidEdge(edge_id)) {
+            return false;
+        }
+        --edge_id;
+    } while (edge_id >= 0 && !IsLastOrTip(edge_id));
+
+    return true;
+}
+
+bool SuccinctDBG::NodeIndegreeZero(int64_t node_id) {
+    int64_t prev_edge = Backward(node_id);
+    if (IsValidEdge(prev_edge)) { return false; }
+    uint8_t c = GetW(prev_edge);
+    int count_ones = IsLastOrTip(prev_edge);
+
+    for (++prev_edge; count_ones < 5 && prev_edge < this->size; ++prev_edge) {
+        count_ones += IsLastOrTip(prev_edge);
+        uint8_t cur_char = GetW(prev_edge);
+        if (cur_char == c) {
+            break;
+        } else if (cur_char == c + 4 && IsValidEdge(prev_edge)) {
+            return false;
+        }
+    }
+    return true;
+}
+
+int64_t SuccinctDBG::UniquePrevNode(int64_t node_id) {
+    int64_t prev_edge = Backward(node_id);
+    int64_t ret = IsValidEdge(prev_edge) ? prev_edge : -1;
+    uint8_t c = GetW(prev_edge);
+    int count_ones = IsLastOrTip(prev_edge);
+
+    for (++prev_edge; count_ones < 5 && prev_edge < this->size; ++prev_edge) {
+        count_ones += IsLastOrTip(prev_edge);
+        uint8_t cur_char = GetW(prev_edge);
+        if (cur_char == c) {
+            break;
+        } else if (cur_char == c + 4 && IsValidEdge(prev_edge)) {
+            if (ret != -1) {
+                return -1;
+            } else {
+                ret = prev_edge;
+            }
+        }
+    }
+    return ret == -1 ? -1 : GetLastIndex(ret);
+}
+
+int64_t SuccinctDBG::UniqueNextNode(int64_t node_id) {
+    int64_t edge_id = GetLastIndex(node_id);
+    int64_t ret = -1;
+
+    do {
+        if (IsValidEdge(edge_id)) {
+            if (ret != -1) {
+                return -1;
+            } else {
+                ret = Forward(edge_id);
+            }
+        }
+        --edge_id;
+    } while (edge_id >= 0 && !IsLastOrTip(edge_id));
+
+    return ret == -1 ? -1 : GetLastIndex(ret);
+}
+
+void SuccinctDBG::DeleteAllEdges(int64_t node_id) {
+    int64_t edge_id = GetLastIndex(node_id);
+
+    do {
+        SetInvalidEdge(edge_id);
+        --edge_id;
+    } while (edge_id >= 0 && !IsLastOrTip(edge_id));
+
+    edge_id = Backward(node_id);
+    uint8_t c = GetW(edge_id);
+    int count_ones = IsLastOrTip(edge_id);
+    SetInvalidEdge(edge_id);
+
+    for (++edge_id; count_ones < 5 && edge_id < this->size; ++edge_id) {
+        count_ones += IsLastOrTip(edge_id);
+        uint8_t cur_char = GetW(edge_id);
+        if (cur_char == c) {
+            break;
+        } else if (cur_char == c + 4) {
+            SetInvalidEdge(edge_id);
+        }
+    }
+}
+
 int64_t SuccinctDBG::Index(uint8_t *seq) {
     int64_t l = f_[seq[0]];
     int64_t r = f_[seq[0] + 1] - 1;
