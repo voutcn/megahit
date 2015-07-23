@@ -52,6 +52,32 @@ Usage:
     --input-cmd              <cmd>          command that outputs fasta/q reads to stdout; taken by MEGAHIT as SE reads 
 
 Optional Arguments:
+  Basic assembly options:
+    --min-count              <int>          minimum multiplicity for filtering (k_min+1)-mers, default 2
+    --k-min                  <int>          minimum kmer size (<= 127), must be odd number, default 21
+    --k-max                  <int>          maximum kmer size (<= 127), must be odd number, default 99
+    --k-step                 <int>          increment of kmer size of each iteration (<= 28), must be even number, default 10
+    --k-list                 <int,int,..>   comma-separated list of kmer size (all must be odd, in the range 15-127, increment <= 28);
+                                            override `--k-min', `--k-max' and `--k-step'
+
+  Advanced assembly options:
+    --no-mercy                              do not add mercy kmers
+    --no-bubble                             do not merge bubbles
+    --merge-level            <l,s>          merge complex bubbles of length <= l*kmer_size and similarity >= s, default 20,0.98
+    --prune-level            <int>          strength of local low depth pruning (0-2), default 2
+    --low-local-ratio        <float>        ratio threshold to define low local coverage contigs, default 0.2
+    --max-tip-len            <int>          remove tips less than this value; default 2*k for iteration of kmer_size=k
+    --no-local                              disable local assembly
+    --kmin-1pass                            use 1pass mode to build SdBG of k_min
+
+  Presets parameters:
+    --presets                <str>          override a group of parameters; possible values:
+                                            meta            '--min-count 2 --k-list 21,41,61,81,99'             (generic metagenomes, default)
+                                            meta-sensitive  '--min-count 2 --k-list 21,31,41,51,61,71,81,91,99' (more sensitive but slower)
+                                            meta-large      '--min-count 2 --k-list 27,37,47,57,67,77,87'       (large & complex metagenomes, like soil)
+                                            single-cell     '--min-count 2 --k-list 41,61,81,99 --merge_level 20,0.96' (experimental, single cell data)
+                                            bulk            '--min-count 3 --k-list 31,51,71,91,99' --no-mercy' (experimental, standard bulk sequencing with >= 30x depth)
+
   Hardware options:
     -m/--memory              <float>        max memory in byte to be used in SdBG construction; default 0.9
                                             (if set between 0-1, fraction of the machine's total memory)
@@ -66,24 +92,6 @@ Optional Arguments:
     --out-prefix             <string>       output prefix (the contig file will be OUT_DIR/OUT_PREFIX.contigs.fa)
     --min-contig-len         <int>          minimum length of contigs to output, default 200
     --keep-tmp-files                        keep all temporary files
-
-  Basic assembly options:
-    --min-count              <int>          minimum multiplicity for filtering (k_min+1)-mers, default 2
-    --k-min                  <int>          minimum kmer size (<= 127), must be odd number, default 21
-    --k-max                  <int>          maximum kmer size (<= 127), must be odd number, default 99
-    --k-step                 <int>          increment of kmer size of each iteration (<= 28), must be even number, default 10
-    --k-list                 <int,int,..>   comma-separated list of kmer size (all must be odd, in the range 15-127, increment <= 28);
-                                            overwrites `--k-min', `--k-max' and `--k-step'
-
-  Advanced assembly options:
-    --no-mercy                              do not add mercy kmers
-    --no-bubble                             do not merge bubbles
-    --merge-level            <l,s>          merge complex bubbles of length <= l*kmer_size and similarity >= s, default 20,0.98
-    --prune-level            <int>          strength of local low depth pruning (0-2), default 2
-    --low-local-ratio        <float>        ratio threshold to define low local coverage contigs, default 0.2
-    --max-tip-len            <int>          remove tips less than this value; default 2*k for iteration of kmer_size=k
-    --no-local                              disable local assembly
-    --kmin-1pass                            use 1pass mode to build SdBG of k_min
 
 Other Arguments:
     --continue                              continue a MEGAHIT run from its last available check point.
@@ -139,6 +147,7 @@ class Options():
         self.se = []
         self.input_cmd = ""
         self.inpipe = dict()
+        self.presets = ""
 
 opt = Options()
 cp = 0
@@ -201,6 +210,7 @@ def parse_opt(argv):
                                      "version",
                                      "out-prefix=",
                                      "verbose",
+                                     "mode=",
                                      "max-read-len=",
                                      "no-low-local",
                                      "cpu-only"])
@@ -285,6 +295,8 @@ def parse_opt(argv):
             opt.pe12 += value.split(",")
         elif option == "--input-cmd":
             opt.input_cmd = value
+        elif option == "--mode":
+            opt.presets = value
 
         else:
             raise Usage("Invalid option %s", option)
@@ -311,6 +323,33 @@ def check_opt():
             print("Using: " + str(round(float(opt.host_mem)/(1024**3),3)) + "Gb.", file=sys.stderr)
     else:
         opt.host_mem = long(opt.host_mem)
+
+    # set mode
+    if opt.presets != "":
+        if opt.presets == "meta":
+            opt.min_count = 2
+            opt.k_list = [21,41,61,81,99]
+            opt.set_list_by_min_max_step = False
+        elif opt.presets == "meta-sensitive":
+            opt.min_count = 2
+            opt.k_list = [21,31,41,51,61,71,81,91,99]
+            opt.set_list_by_min_max_step = False
+        elif opt.presets == "meta-large":
+            opt.min_count = 2
+            opt.k_list = [27,37,47,57,67,77,87]
+            opt.set_list_by_min_max_step = False
+        elif opt.presets == "bulk":
+            opt.min_count = 3
+            opt.no_mercy = True
+            opt.k_list = [31,51,71,91,99]
+            opt.set_list_by_min_max_step = False
+        elif opt.presets == "single-cell":
+            opt.min_count = 2
+            opt.k_list = [41,61,81,99]
+            opt.merge_similar, opt.merge_len = 0.96, 20
+            opt.set_list_by_min_max_step = False
+        else:
+            raise Usage("Invalid preset: " + opt.presets)
 
     if opt.set_list_by_min_max_step:
         if opt.k_step % 2 == 1:
@@ -822,7 +861,7 @@ def assemble(cur_k):
                         "--low_local_ratio", str(opt.low_local_ratio),
                         "--min_depth", str(opt.min_count)]
 
-        if cur_k < (opt.k_min + opt.k_max) / 2:
+        if cur_k < (opt.k_min + opt.k_max) / 2 and cur_k < 60:
             assembly_cmd.append("--careful_bubble")
 
         if cur_k == opt.k_max:
