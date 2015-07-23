@@ -283,8 +283,8 @@ int64_t SequenceManager::ReadMegahitContigs(int64_t max_num, int64_t max_num_bas
                 }
 
                 std::string ss(kseq_readers_[0]->seq.s);
-                for (int i = 0; i < k_to_ + 1 - k_from_; ++i) {
-                    ss.push_back(ss[i + k_from_ - 1]);
+                for (int i = 0; i < k_to_ - k_from_; ++i) {
+                    ss.push_back(ss[i + k_from_]);
                 }
 
                 if (reverse) {
