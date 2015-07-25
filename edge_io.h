@@ -160,8 +160,9 @@ class EdgeReader {
   	FILE *cur_file_;
 
     bool is_opened_;
+    int num_edges_in_buf_;
 
-  	static const int kEdgesInBuf = 4096;
+    static const int kBufSize = 4096;
 
   public:
   	EdgeReader(): is_opened_(false) {
@@ -190,7 +191,6 @@ class EdgeReader {
   			assert(fscanf(info, "%u %d %lld %lld\n", &dummy, &p_rec_[i].thread_id, &p_rec_[i].starting_offset, &p_rec_[i].total_number) == 4);
   		}
 
-  		buf_.resize(words_per_edge_ * kEdgesInBuf);
   		fclose(info);
   	}
 
@@ -203,6 +203,11 @@ class EdgeReader {
       buf_size_ = 0;
       buf_idx_ = 0;
       cur_file_num_ = -1;
+      num_edges_in_buf_ = kBufSize / (words_per_edge_ * sizeof(uint32_t));
+      if (num_edges_in_buf_ == 0) {
+        num_edges_in_buf_ = 1;
+      }
+      buf_.resize(words_per_edge_ * num_edges_in_buf_);
       is_opened_ = true;
     }
 
@@ -236,7 +241,7 @@ class EdgeReader {
   		}
 
   		if (buf_idx_ == buf_size_) {
-  			buf_size_ = kEdgesInBuf;
+  			buf_size_ = num_edges_in_buf_;
   			if (buf_size_ > p_rec_[cur_bucket_].total_number - cur_bucket_cnt_) {
   				buf_size_ = p_rec_[cur_bucket_].total_number - cur_bucket_cnt_;
   			}
@@ -264,7 +269,7 @@ class EdgeReader {
 
   		while (buf_idx_ >= buf_size_) {
   			buf_idx_ = 0;
-  			buf_size_ = fread(&buf_[0], sizeof(uint32_t), kEdgesInBuf * words_per_edge_, cur_file_);
+  			buf_size_ = fread(&buf_[0], sizeof(uint32_t), num_edges_in_buf_ * words_per_edge_, cur_file_);
 
   			if (buf_size_ != 0) {
   				break;
