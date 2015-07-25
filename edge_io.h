@@ -212,7 +212,7 @@ class EdgeReader {
 
   	int kmer_size() { return kmer_size_; }
   	int words_per_edge() { return words_per_edge_; }
-  	int num_edges() { return num_edges_; }
+  	int64_t num_edges() { return num_edges_; }
 
   	uint32_t *NextSortedEdge() {
   		if (cur_bucket_ >= num_buckets_) { return NULL; }

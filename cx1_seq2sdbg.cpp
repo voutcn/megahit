@@ -373,6 +373,7 @@ void read_seq_and_prepare(seq2sdbg_global_t &globals) {
             edge_reader.set_file_prefix(globals.input_prefix);
             edge_reader.read_info();
             int64_t num_edges = edge_reader.num_edges();
+            xlog("Number edges: %lld\n", (long long)num_edges);
             if (globals.need_mercy) { num_edges *= 1.25; } // it is rare that # mercy > 25%
             bases_to_reserve += num_edges * (edge_reader.kmer_size() + 1);
             num_multiplicities_to_reserve += num_edges;
@@ -408,6 +409,7 @@ void read_seq_and_prepare(seq2sdbg_global_t &globals) {
             fclose(contig_info);
         }
 
+        xlog("Bases to reserve: %lld, number contigs: %lld, number multiplicity: %lld\n", bases_to_reserve, num_contigs_to_reserve, num_multiplicities_to_reserve);
         globals.package.reserve_num_seq(num_contigs_to_reserve);
         globals.package.reserve_bases(bases_to_reserve);
         globals.multiplicity.reserve(num_multiplicities_to_reserve);
