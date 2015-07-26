@@ -36,7 +36,7 @@
 #include "lv2_cpu_sort.h"
 #include "lv2_gpu_functions.h"
 
-extern void kt_for(int n_threads, void (*func)(void*,long,int), void *data, long n);
+extern void kt_dfor(int n_threads, void (*func)(void*,long,int), void *data, long n);
 
 namespace cx1_kmer_count {
 
@@ -696,6 +696,10 @@ void kt_sort(void *_g, long i, int tid)
         return;
     }
 
+    if (tid + 1 < kg->globals->num_cpu_threads) {
+        kg->thread_offset[tid + 1] = kg->thread_offset[tid] + kg->globals->cx1.bucket_sizes_[b];
+    }
+
     size_t offset = kg->globals->cx1.lv1_num_items_ * sizeof(int32_t) +
                     kg->thread_offset[tid] * kg->globals->cx1.bytes_per_sorting_item_ +
                     tid * sizeof(uint64_t) * 65536;
@@ -722,7 +726,7 @@ void lv1_direct_sort_and_count(count_global_t &globals) {
         acc_size += globals.cx1.bucket_sizes_[b];
     }
 
-    kt_for(globals.num_cpu_threads, kt_sort, &kg, globals.cx1.lv1_end_bucket_ - globals.cx1.lv1_start_bucket_);
+    kt_dfor(globals.num_cpu_threads, kt_sort, &kg, globals.cx1.lv1_end_bucket_ - globals.cx1.lv1_start_bucket_);
 }
 
 void lv2_post_output(count_global_t &globals) {

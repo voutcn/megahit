@@ -32,7 +32,7 @@
 #include "lv2_cpu_sort.h"
 #include "lv2_gpu_functions.h"
 
-extern void kt_for(int n_threads, void (*func)(void*,long,int), void *data, long n);
+extern void kt_dfor(int n_threads, void (*func)(void*,long,int), void *data, long n);
 
 namespace cx1_seq2sdbg {
 
@@ -1008,6 +1008,10 @@ void kt_sort(void *_g, long i, int tid)
     if (kg->globals->cx1.bucket_sizes_[b] == 0) {
         return;
     }
+    
+    if (tid + 1 < kg->globals->num_cpu_threads) {
+        kg->thread_offset[tid + 1] = kg->thread_offset[tid] + kg->globals->cx1.bucket_sizes_[b];
+    }
 
     size_t offset = kg->globals->cx1.lv1_num_items_ * sizeof(int32_t) +
                     kg->thread_offset[tid] * kg->globals->cx1.bytes_per_sorting_item_ +
@@ -1033,7 +1037,7 @@ void lv1_direct_sort_and_proc(seq2sdbg_global_t &globals) {
         acc_size += globals.cx1.bucket_sizes_[b];
     }
 
-    kt_for(globals.num_cpu_threads, kt_sort, &kg, globals.cx1.lv1_end_bucket_ - globals.cx1.lv1_start_bucket_);
+    kt_dfor(globals.num_cpu_threads, kt_sort, &kg, globals.cx1.lv1_end_bucket_ - globals.cx1.lv1_start_bucket_);
 }
 
 void post_proc(seq2sdbg_global_t &globals) {

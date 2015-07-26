@@ -15,7 +15,7 @@ typedef struct {
 
 typedef struct kt_for_t {
 	int n_threads;
-	long n;
+	long n, i;
 	ktf_worker_t *w;
 	void (*func)(void*,long,int);
 	void *data;
@@ -57,5 +57,37 @@ void kt_for(int n_threads, void (*func)(void*,long,int), void *data, long n)
 	for (i = 0; i < n_threads; ++i)
 		t.w[i].t = &t, t.w[i].i = i;
 	for (i = 0; i < n_threads; ++i) pthread_create(&tid[i], 0, ktf_worker, &t.w[i]);
+	for (i = 0; i < n_threads; ++i) pthread_join(tid[i], 0);
+}
+
+static void *ktdf_worker(void *data)
+{
+	ktf_worker_t *w = (ktf_worker_t*)data;
+	long i;
+	if (w->i < w->t->n) {
+		w->t->func(w->t->data, w->i, w->i);
+	}
+
+	for (;;) {
+		i = __sync_fetch_and_add(&w->t->i, 1);
+		if (i >= w->t->n) break;
+		w->t->func(w->t->data, i, w->i);
+	}
+
+	pthread_exit(0);
+}
+
+void kt_dfor(int n_threads, void (*func)(void*,long,int), void *data, long n)
+{
+	int i;
+	kt_for_t t;
+	pthread_t *tid;
+	t.func = func, t.data = data, t.n_threads = n_threads, t.n = n;
+	t.w = (ktf_worker_t*)alloca(n_threads * sizeof(ktf_worker_t));
+	tid = (pthread_t*)alloca(n_threads * sizeof(pthread_t));
+	for (i = 0; i < n_threads; ++i)
+		t.w[i].t = &t, t.w[i].i = i;
+	t.i = n_threads;
+	for (i = 0; i < n_threads; ++i) pthread_create(&tid[i], 0, ktdf_worker, &t.w[i]);
 	for (i = 0; i < n_threads; ++i) pthread_join(tid[i], 0);
 }
