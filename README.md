@@ -11,7 +11,7 @@ make
 ```
 
 ## Introduction
-MEGAHIT is a single node assembler for large and complex metagenomics NGS reads, such as soil. It makes use of succinct *de Bruijn* graph (SdBG) to achieve low memory assembly. MEGAHIT can **optionally** utilize a CUDA-enabled GPU to accelerate its SdBG contstruction. The GPU-accelerated version of MEGAHIT has been tested on NVIDIA GTX680 (4G memory) and Tesla K40c (12G memory) with CUDA 5.5, 6.0 and 6.5.
+MEGAHIT is a single node assembler for large and complex metagenomics NGS reads, such as soil. It makes use of succinct *de Bruijn* graph (SdBG) to achieve low memory assembly. MEGAHIT can **optionally** utilize a CUDA-enabled GPU to accelerate its SdBG contstruction. The GPU-accelerated version of MEGAHIT has been tested on NVIDIA GTX680 (4G memory) and Tesla K40c (12G memory) with CUDA 5.5, 6.0 and 6.5. MEGAHIT v1.0 or greater also supports IBM Power PC and has been tested on IBM POWER8.
 
 ## Dependency & Installation
 MEGAHIT is suitable for 64-bit Linux and MAC OS X. It requires [zlib](http://www.zlib.net/), python 2.6 or greater and G++ 4.4 or greater (with `-std=c++0x` and [OpenMP](http://openmp.org) support).
@@ -33,23 +33,16 @@ If MEGAHIT is successfully compiled, it can be run by the following command:
 `-1/-2`, `--12` and `-r` are parameters for inputting paired-end, interleaved-paired-end and single-end files. They accept files in fasta (*.fasta*, *.fa*, *.fna*) or fastq (*.fastq*, *.fq*) formats. They also supports gzip files (with *.gz* extensions) and bzip2 files (with *.bz2* extensions). Please run `./megahit -h` for detailed usage message.
 
 ##Assembly Tips
+MEGAHIT `--presets` option provides five preset parameter combinations:
+| Presets | Targeting applications |
+|---|---|
+| `meta` | General metagenome assembly, such as guts |
+| `meta-sensitive` | More sensitive metagenome assembly, but slower |
+| `meta-large` | Large and complex metagenome assembly, such as soil |
+| `bulk` | Experimental; assembly of standard bulk sequencing with sufficient depth |
+| `single-cell` | Experimental; single-cell sequence assembly |
 
-####Choosing *k*
-MEGAHIT uses multiple *k*-mer strategy. Minimum *k*, maximum *k* and the step for iteration can be set by options `--k-min`, `--k-max` and `--k-step` respectively. *k* must be odd numbers while the step must be an even number.
-
-* for ultra complex metagenomics data such as soil, a larger *k<sub>min</sub>*, say 27, is recommended to reduce the complexity of the *de Bruijn* graph. Quality trimming is also recommended
-* for high-depth generic data, large `--k-min` (25 to 31) is recommended
-* smaller `--k-step`, say 10, is more friendly to low-coverage datasets
-
-####Filtering (*k<sub>min</sub>*+1)-mer
-(*k<sub>min</sub>*+1)-mer with multiplicity lower than *d* (default 2, specified by `--min-count` option) will be discarded. You should be cautious to set *d* less than 2, which will lead to a much larger and noisy graph. We recommend using the default value 2 for metagenomics assembly. If you want to use MEGAHIT to do generic assembly, please change this value according to the sequencing depth. (recommend `--min-count 3` for >40x).
-
-####Mercy *k*-mer
-This is specially designed for metagenomics assembly to recover low coverage sequence. For generic dataset >= 30x,  MEGAHIT may generate better results with `--no-mercy` option.
-
-####*k*-min 1pass mode
-This mode can be activated by option `--kmin-1pass`. It is more memory efficient for ultra low-depth datasets, such as soil metagenomics data.
-
+To fine tune parameters for specific datasets, please find our suggestions on [this wiki page](https://github.com/voutcn/megahit/wiki/Assembly-Tips).
 
 ##FAQ & Reporting issues
 

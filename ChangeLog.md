@@ -1,4 +1,8 @@
-### 1.0.0-beta / 2015-07.23 HKT
+### 1.0.1 / 2015-07-31 HKT
+
+* Fixed number of SdBG edges 32-bit integer overflow.
+
+### 1.0.0-beta / 2015-07-23 HKT
 
 * `--presets` option: preset parameters for different types of assembly
 * New CPU sorting design: faster kmer counting & graph construction
