@@ -24,7 +24,6 @@
 #include <zlib.h>
 
 #include "utils.h"
-#include "edge_reader.h"
 #include "bit_operation.h"
 
 void SequenceManager::set_file(const std::string &file_name) {
@@ -63,13 +62,17 @@ void SequenceManager::set_pe_files(const std::string &file_name1, const std::str
     }
 }
 
-void SequenceManager::set_edge_files(const std::string &file_prefix, int num_files) {
+void SequenceManager::set_edge_files(const std::string &file_prefix) {
     assert(f_type == kSortedEdges || f_type == kMegahitEdges);
     assert(files_.size() == 0);
     assert(kseq_readers_.size() == 0);
 
     assert(!edge_reader_inited_);
-    edge_reader_.init(file_prefix, num_files);
+    edge_reader_.set_file_prefix(file_prefix);
+    edge_reader_.read_info();
+    edge_reader_.init_files();
+    if (edge_reader_.is_unsorted()) { f_type = kMegahitEdges; }
+    else { f_type = kSortedEdges; }
     edge_reader_inited_ = true;
 }
 
@@ -195,8 +198,8 @@ int64_t SequenceManager::ReadEdges(int64_t max_num, bool append) {
             if (next_edge == NULL) {
                 return i;
             }
-            package_->AppendSeq(next_edge, edge_reader_.kmer_k + 1);
-            multi_->push_back(next_edge[edge_reader_.words_per_edge - 1] & kMaxMulti_t);
+            package_->AppendSeq(next_edge, edge_reader_.kmer_size() + 1);
+            multi_->push_back(next_edge[edge_reader_.words_per_edge() - 1] & kMaxMulti_t);
         }
         return max_num;
     } else if (f_type == kSortedEdges) {
@@ -205,8 +208,8 @@ int64_t SequenceManager::ReadEdges(int64_t max_num, bool append) {
             if (next_edge == NULL) {
                 return i;
             }
-            package_->AppendSeq(next_edge, edge_reader_.kmer_k + 1);
-            multi_->push_back(next_edge[edge_reader_.words_per_edge - 1] & kMaxMulti_t);
+            package_->AppendSeq(next_edge, edge_reader_.kmer_size() + 1);
+            multi_->push_back(next_edge[edge_reader_.words_per_edge() - 1] & kMaxMulti_t);
         }
         return max_num;
     }
@@ -227,8 +230,8 @@ int64_t SequenceManager::ReadEdgesWithFixedLen(int64_t max_num, bool append) {
             if (next_edge == NULL) {
                 return i;
             }
-            package_->AppendFixedLenSeq(next_edge, edge_reader_.kmer_k + 1);
-            multi_->push_back(next_edge[edge_reader_.words_per_edge - 1] & kMaxMulti_t);
+            package_->AppendFixedLenSeq(next_edge, edge_reader_.kmer_size() + 1);
+            multi_->push_back(next_edge[edge_reader_.words_per_edge() - 1] & kMaxMulti_t);
         }
         return max_num;
     } else if (f_type == kSortedEdges) {
@@ -237,8 +240,8 @@ int64_t SequenceManager::ReadEdgesWithFixedLen(int64_t max_num, bool append) {
             if (next_edge == NULL) {
                 return i;
             }
-            package_->AppendFixedLenSeq(next_edge, edge_reader_.kmer_k + 1);
-            multi_->push_back(next_edge[edge_reader_.words_per_edge - 1] & kMaxMulti_t);
+            package_->AppendFixedLenSeq(next_edge, edge_reader_.kmer_size() + 1);
+            multi_->push_back(next_edge[edge_reader_.words_per_edge() - 1] & kMaxMulti_t);
         }
         return max_num;
     }
@@ -280,8 +283,8 @@ int64_t SequenceManager::ReadMegahitContigs(int64_t max_num, int64_t max_num_bas
                 }
 
                 std::string ss(kseq_readers_[0]->seq.s);
-                for (int i = 0; i < k_to_ + 1 - k_from_; ++i) {
-                    ss.push_back(ss[i + k_from_ - 1]);
+                for (int i = 0; i < k_to_ - k_from_; ++i) {
+                    ss.push_back(ss[i + k_from_]);
                 }
 
                 if (reverse) {
@@ -314,6 +317,10 @@ int64_t SequenceManager::ReadMegahitContigs(int64_t max_num, int64_t max_num_bas
                 } else {
                     multi_->push_back((multi_t)atof(kseq_readers_[0]->comment.s + 13));
                 }
+            }
+
+            if (float_multi_ != NULL) {
+                float_multi_->push_back(atof(kseq_readers_[0]->comment.s + 13));
             }
 
             num_bases += kseq_readers_[0]->seq.l;

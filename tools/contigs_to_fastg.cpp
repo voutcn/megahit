@@ -61,7 +61,7 @@ int main_contig2fastg(int argc, char **argv) {
 	map<string, vector<int> > start_kmer_to_id;
 
 	while (kseq_read(seq) >= 0) {
-		if (seq->seq.l < k) {
+		if (seq->seq.l < k + 1) {
 			continue;
 		}
 
@@ -73,8 +73,8 @@ int main_contig2fastg(int argc, char **argv) {
 	}
 
 	for (int i = 0; i < (int)ctgs.size(); ++i) {
-		start_kmer_to_id[ctgs[i].substr(0, k - 1)].push_back(i + 1);
-		start_kmer_to_id[RevComp(ctgs[i].substr(ctgs[i].length() - k + 1))].push_back(-i - 1);
+		start_kmer_to_id[ctgs[i].substr(0, k)].push_back(i + 1);
+		start_kmer_to_id[RevComp(ctgs[i].substr(ctgs[i].length() - k))].push_back(-i - 1);
 	}
 
 	for (int i = 0; i < (int)ctgs.size(); ++i) {
@@ -87,7 +87,7 @@ int main_contig2fastg(int argc, char **argv) {
 			string header = dir == 0 ? node_names[i] : rev_node_names[i];
 			header = ">" + header;
 			string s = dir == 0 ? ctgs[i] : RevComp(ctgs[i]);
-			auto mit = start_kmer_to_id.find(s.substr(s.length() - k + 1));
+			auto mit = start_kmer_to_id.find(s.substr(s.length() - k));
 			if (mit != start_kmer_to_id.end()) {
 				for (unsigned j = 0; j < mit->second.size(); ++j) {
 					if (j == 0) {

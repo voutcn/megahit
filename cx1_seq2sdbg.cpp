@@ -27,14 +27,12 @@
 
 #include "utils.h"
 #include "packed_reads.h"
-#include "mac_pthread_barrier.h"
 #include "kmer.h"
 
-#ifndef USE_GPU
 #include "lv2_cpu_sort.h"
-#else
 #include "lv2_gpu_functions.h"
-#endif
+
+extern void kt_dfor(int n_threads, void (*func)(void*,long,int), void *data, long n);
 
 namespace cx1_seq2sdbg {
 
@@ -132,7 +130,7 @@ void InitLookupTable(int64_t *lookup_table, SequencePackage &p) {
 /**
  * @brief search mercy kmer
  */
-inline int64_t BinarySearchKmer(GenericKmer &kmer, int64_t *lookup_table, SequencePackage &p, int kmer_size) {
+int64_t BinarySearchKmer(GenericKmer &kmer, int64_t *lookup_table, SequencePackage &p, int kmer_size) {
     // --- first look up ---
     int64_t l = lookup_table[(kmer.data_[0] >> kLookUpShift) * 2];
     if (l == -1) {
@@ -177,10 +175,10 @@ static void* MercyInputThread(void* seq_manager) {
     //     puts("");
     // }
 
-    return NULL;
+    pthread_exit(NULL);
 }
 
-inline void GenMercyEdges(seq2sdbg_global_t &globals) {
+void GenMercyEdges(seq2sdbg_global_t &globals) {
     int64_t *edge_lookup = (int64_t *) MallocAndCheck(kLookUpSize * 2 * sizeof(int64_t), __FILE__, __LINE__);
     InitLookupTable(edge_lookup, globals.package);
 
@@ -203,9 +201,6 @@ inline void GenMercyEdges(seq2sdbg_global_t &globals) {
     int64_t num_mercy_edges = 0;
     int64_t num_mercy_reads = 0;
 
-    std::vector<bool> has_in, has_out;
-    GenericKmer kmer, rev_kmer;
-
     while (true) {
         pthread_join(input_thread, NULL);
         SequencePackage &rp = read_package[thread_index];
@@ -220,13 +215,16 @@ inline void GenMercyEdges(seq2sdbg_global_t &globals) {
         num_mercy_reads += rp.size();
         mercy_edges.clear();
 
-        #pragma omp parallel for reduction(+:num_mercy_edges) private(has_in, has_out, kmer, rev_kmer)
+#pragma omp parallel for reduction(+:num_mercy_edges)
         for (unsigned read_id = 0; read_id < rp.size(); ++read_id) {
 
             int read_len = rp.length(read_id);
             if (read_len < globals.kmer_k + 2) {
                 continue;
             }
+
+            std::vector<bool> has_in, has_out;
+            GenericKmer kmer, rev_kmer;
 
             has_in.resize(read_len);
             has_out.resize(read_len);
@@ -348,6 +346,9 @@ inline void GenMercyEdges(seq2sdbg_global_t &globals) {
         }
     }
 
+    omp_destroy_lock(&mercy_lock);
+    free(edge_lookup);
+
     globals.multiplicity.insert(globals.multiplicity.end(), num_mercy_edges, 1);
 
     if (cx1_t::kCX1Verbose >= 2) {
@@ -368,13 +369,14 @@ void read_seq_and_prepare(seq2sdbg_global_t &globals) {
         long long num_multiplicities_to_reserve = 0;
 
         if (globals.input_prefix != "") {
-            long long k_size, num_edges;
-            FILE *edge_info = OpenFileAndCheck((globals.input_prefix + ".edges.info").c_str(), "r");
-            assert(fscanf(edge_info, "%lld%lld", &k_size, &num_edges) == 2);
+            EdgeReader edge_reader;
+            edge_reader.set_file_prefix(globals.input_prefix);
+            edge_reader.read_info();
+            int64_t num_edges = edge_reader.num_edges();
+            xlog("Number edges: %lld\n", (long long)num_edges);
             if (globals.need_mercy) { num_edges *= 1.25; } // it is rare that # mercy > 25%
-            bases_to_reserve += num_edges * (k_size + 1);
+            bases_to_reserve += num_edges * (edge_reader.kmer_size() + 1);
             num_multiplicities_to_reserve += num_edges;
-            fclose(edge_info);
         }
 
         if (globals.contig != "") {
@@ -407,15 +409,17 @@ void read_seq_and_prepare(seq2sdbg_global_t &globals) {
             fclose(contig_info);
         }
 
+        xlog("Bases to reserve: %lld, number contigs: %lld, number multiplicity: %lld\n", bases_to_reserve, num_contigs_to_reserve, num_multiplicities_to_reserve);
         globals.package.reserve_num_seq(num_contigs_to_reserve);
         globals.package.reserve_bases(bases_to_reserve);
         globals.multiplicity.reserve(num_multiplicities_to_reserve);
-
     }
+
+    xlog("Before reading, sizeof seq_package: %lld, multiplicity vector: %lld\n", globals.package.size_in_byte(), globals.multiplicity.capacity());
 
     if (globals.input_prefix != "") {
         seq_manager.set_file_type(globals.need_mercy ? SequenceManager::kSortedEdges : SequenceManager::kMegahitEdges);
-        seq_manager.set_edge_files(globals.input_prefix + ".edges", globals.num_edge_files);
+        seq_manager.set_edge_files(globals.input_prefix);
         seq_manager.ReadEdgesWithFixedLen(1LL << 60, true);
         seq_manager.clear();
     }
@@ -446,7 +450,7 @@ void read_seq_and_prepare(seq2sdbg_global_t &globals) {
         bool append_to_package = true;
         int discard_flag = 0;
         bool extend_loop = true;
-        bool calc_depth = true;
+        bool calc_depth = false;
 
         seq_manager.ReadMegahitContigs(1LL << 60, 1LL << 60, append_to_package, contig_reverse, discard_flag, extend_loop, calc_depth);
         seq_manager.clear();
@@ -484,6 +488,8 @@ void read_seq_and_prepare(seq2sdbg_global_t &globals) {
         seq_manager.clear();
     }
 
+    xlog("After reading, sizeof seq_package: %lld, multiplicity vector: %lld\n", globals.package.size_in_byte(), globals.multiplicity.capacity());
+
     globals.package.BuildLookup();
     globals.num_seq = globals.package.size();
 
@@ -517,39 +523,45 @@ void* lv0_calc_bucket_size(void* _data) {
         uint32_t key = 0; // $$$$$$$$
         // build initial partial key
         for (int i = 0; i < kBucketPrefixLength - 1; ++i) {
-            key = key * kBucketBase + globals.package.get_base(seq_id, i) + 1;
+            key = key * kBucketBase + globals.package.get_base(seq_id, i);
         }
         // sequence = xxxxxxxxx
         // edges = $xxxx, xxxxx, ..., xxxx$
         for (int i = kBucketPrefixLength - 1; i - (kBucketPrefixLength - 1) + globals.kmer_k - 1 <= seq_len; ++i) {
-            key = (key * kBucketBase + globals.package.get_base(seq_id, i) + 1) % kNumBuckets;
+            key = (key * kBucketBase + globals.package.get_base(seq_id, i)) % kNumBuckets;
             bucket_sizes[key]++;
         }
 
         // reverse complement
         key = 0;
         for (int i = 0; i < kBucketPrefixLength - 1; ++i) {
-            key = key * kBucketBase + (3 - globals.package.get_base(seq_id, seq_len - 1 - i)) + 1; // complement
+            key = key * kBucketBase + (3 - globals.package.get_base(seq_id, seq_len - 1 - i)); // complement
         }
         for (int i = kBucketPrefixLength - 1; i - (kBucketPrefixLength - 1) + globals.kmer_k - 1 <= seq_len; ++i) {
-            key = key * kBucketBase + (3 - globals.package.get_base(seq_id, seq_len - 1 - i)) + 1;
+            key = key * kBucketBase + (3 - globals.package.get_base(seq_id, seq_len - 1 - i));
             key %= kNumBuckets;
             bucket_sizes[key]++;
         }
     }
-    return NULL;
+    pthread_exit(NULL);
 }
 
 void init_global_and_set_cx1(seq2sdbg_global_t &globals) {
     // --- calculate lv2 memory ---
     globals.max_bucket_size = *std::max_element(globals.cx1.bucket_sizes_, globals.cx1.bucket_sizes_ + kNumBuckets);
     globals.tot_bucket_size = 0;
+    int num_non_empty = 0;
     for (int i = 0; i < kNumBuckets; ++i) {
         globals.tot_bucket_size += globals.cx1.bucket_sizes_[i];
+        if (globals.cx1.bucket_sizes_[i] > 0) {
+            num_non_empty++;
+        }
     }
-#ifndef USE_GPU
-    globals.cx1.max_lv2_items_ = std::max(globals.max_bucket_size, kMinLv2BatchSize);
-#else
+
+    globals.words_per_substring = DivCeiling(globals.kmer_k * kBitsPerEdgeChar + kBWTCharNumBits + 1 + kBitsPerMulti_t, kBitsPerEdgeWord);
+    globals.words_per_dummy_node = DivCeiling(globals.kmer_k * kBitsPerEdgeChar, kBitsPerEdgeWord);
+
+#ifdef USE_GPU
     int64_t lv2_mem = globals.gpu_mem - 1073741824; // should reserve ~1G for GPU sorting
     globals.cx1.max_lv2_items_ = std::min(lv2_mem / cx1_t::kGPUBytePerItem, std::max(globals.max_bucket_size, kMinLv2BatchSizeGPU));
     if (globals.max_bucket_size > globals.cx1.max_lv2_items_) {
@@ -557,14 +569,8 @@ void init_global_and_set_cx1(seq2sdbg_global_t &globals) {
         // TODO: auto switch to CPU version
         exit(1);
     }
-#endif
-    globals.words_per_substring = DivCeiling(globals.kmer_k * kBitsPerEdgeChar + kBWTCharNumBits + 1 + kBitsPerMulti_t, kBitsPerEdgeWord);
-    globals.words_per_dummy_node = DivCeiling(globals.kmer_k * kBitsPerEdgeChar, kBitsPerEdgeWord);
-    // lv2 bytes: substring (double buffer), permutation, aux
-    int64_t lv2_bytes_per_item = (globals.words_per_substring * sizeof(uint32_t) + sizeof(uint32_t)) * 2 + sizeof(unsigned char);
-#ifndef USE_GPU
-    lv2_bytes_per_item += sizeof(uint64_t) * 2; // simulate GPU
-#endif
+    // lv2 bytes: substring (double buffer), permutation
+    int64_t lv2_bytes_per_item = (globals.words_per_substring * sizeof(uint32_t) + sizeof(uint32_t)) * 2;
 
     if (cx1_t::kCX1Verbose >= 2) {
         xlog("%d words per substring, num sequences: %ld, words per dummy node ($v): %d\n", globals.words_per_substring, globals.num_seq, globals.words_per_dummy_node);
@@ -599,62 +605,102 @@ void init_global_and_set_cx1(seq2sdbg_global_t &globals) {
         globals.cx1.adjust_mem(mem_remained, lv2_bytes_per_item, min_lv1_items, min_lv2_items);
     }
 
-    if (cx1_t::kCX1Verbose >= 2) {
-        xlog("Memory for sequence: %lld\n", globals.mem_packed_seq);
-        xlog("max # lv.1 items = %lld\n", globals.cx1.max_lv1_items_);
-        xlog("max # lv.2 items = %lld\n", globals.cx1.max_lv2_items_);
-    }
-
     // --- alloc memory ---
     globals.lv1_items = (int*) MallocAndCheck(globals.cx1.max_lv1_items_ * sizeof(int), __FILE__, __LINE__);
     globals.lv2_substrings = (uint32_t*) MallocAndCheck(globals.cx1.max_lv2_items_ * globals.words_per_substring * sizeof(uint32_t), __FILE__, __LINE__);
     globals.permutation = (uint32_t *) MallocAndCheck(globals.cx1.max_lv2_items_ * sizeof(uint32_t), __FILE__, __LINE__);
     globals.lv2_substrings_db = (uint32_t*) MallocAndCheck(globals.cx1.max_lv2_items_ * globals.words_per_substring * sizeof(uint32_t), __FILE__, __LINE__);
     globals.permutation_db = (uint32_t *) MallocAndCheck(globals.cx1.max_lv2_items_ * sizeof(uint32_t), __FILE__, __LINE__);
-    globals.lv2_aux = (unsigned char*) MallocAndCheck(globals.cx1.max_lv2_items_ * sizeof(unsigned char), __FILE__, __LINE__);
-#ifndef USE_GPU
-    globals.cpu_sort_space = (uint64_t*) MallocAndCheck(sizeof(uint64_t) * globals.cx1.max_lv2_items_, __FILE__, __LINE__);
-#else
     alloc_gpu_buffers(globals.gpu_key_buffer1, globals.gpu_key_buffer2, globals.gpu_value_buffer1, globals.gpu_value_buffer2, (size_t)globals.cx1.max_lv2_items_);
-#endif
 
+#else
+    num_non_empty = std::max(1, num_non_empty);
+    for (int i = 0; i < kNumBuckets; ++i) {
+        if (globals.cx1.bucket_sizes_[i] > 2 * globals.tot_bucket_size / num_non_empty) {
+            // xlog("Bucket %d size = %lld > %lld = 2 * avg\n", i, (long long)globals.cx1.bucket_sizes_[i], (long long)2 * globals.tot_bucket_size / num_non_empty);
+        }
+    }
+
+    int64_t lv2_bytes_per_item = globals.words_per_substring * sizeof(uint32_t) + sizeof(uint32_t) + sizeof(uint32_t);
+    
+    globals.max_sorting_items = std::max(3 * globals.tot_bucket_size * globals.num_cpu_threads / num_non_empty, globals.max_bucket_size * 2);
+    globals.cx1.lv1_just_go_ = true;
+    globals.num_output_threads = globals.num_cpu_threads;
+
+    int64_t mem_remained = globals.host_mem
+                           - globals.mem_packed_seq
+                           - globals.num_cpu_threads * 65536 * sizeof(uint64_t) // radix sort buckets
+                           - kNumBuckets * sizeof(int64_t) * (globals.num_cpu_threads * 3 + 1);
+    int64_t min_lv1_items = globals.tot_bucket_size / (kMaxLv1ScanTime - 0.5);
+
+    if (globals.mem_flag == 1) {
+        // auto set memory
+        globals.cx1.max_lv1_items_ = int64_t(globals.tot_bucket_size / (kDefaultLv1ScanTime - 0.5));
+        int64_t mem_needed = globals.cx1.max_lv1_items_ * cx1_t::kLv1BytePerItem;
+        if (mem_needed > mem_remained) {
+            globals.cx1.adjust_mem_just_go(mem_remained, lv2_bytes_per_item, min_lv1_items, globals.max_bucket_size,
+                                globals.max_sorting_items, globals.cx1.max_lv1_items_, globals.max_sorting_items);
+        }
+
+    } else if (globals.mem_flag == 0) {
+        // min memory
+        globals.cx1.max_lv1_items_ = int64_t(globals.tot_bucket_size / (kMaxLv1ScanTime - 0.5));
+        int64_t mem_needed = globals.cx1.max_lv1_items_ * cx1_t::kLv1BytePerItem;
+        if (mem_needed > mem_remained) {
+            globals.cx1.adjust_mem_just_go(mem_remained, lv2_bytes_per_item, min_lv1_items, globals.max_bucket_size,
+                                globals.max_sorting_items, globals.cx1.max_lv1_items_, globals.max_sorting_items);
+        } else {
+            globals.cx1.adjust_mem_just_go(mem_needed, lv2_bytes_per_item, min_lv1_items, globals.max_bucket_size,
+                                globals.max_sorting_items, globals.cx1.max_lv1_items_, globals.max_sorting_items);
+        }
+
+    } else {
+        // use all
+        globals.cx1.adjust_mem_just_go(mem_remained, lv2_bytes_per_item, min_lv1_items, globals.max_bucket_size,
+                    globals.max_sorting_items, globals.cx1.max_lv1_items_, globals.max_sorting_items);
+    }
+
+    if (globals.cx1.max_lv1_items_ < min_lv1_items) {
+        xerr_and_exit("No enough memory to process.");
+    }
+
+    globals.cx1.max_mem_remain_ = globals.cx1.max_lv1_items_ * sizeof(int) + globals.max_sorting_items * lv2_bytes_per_item;
+    globals.cx1.bytes_per_sorting_item_ = lv2_bytes_per_item;
+
+    globals.lv1_items = (int32_t*)MallocAndCheck(globals.cx1.max_mem_remain_ + globals.num_cpu_threads * sizeof(uint64_t) * 65536, __FILE__, __LINE__);
     // --- init lock ---
     pthread_mutex_init(&globals.lv1_items_scanning_lock, NULL);
 
-    // --- init stat ---
-    globals.cur_prefix = -1;
-    globals.cur_suffix_first_char = -1;
-    globals.num_ones_in_last = 0;
-    globals.total_number_edges = 0;
-    globals.num_dollar_nodes = 0;
-    memset(globals.num_chars_in_w, 0, sizeof(globals.num_chars_in_w));
+#endif
+    if (cx1_t::kCX1Verbose >= 2) {
+        xlog("Memory for sequence: %lld\n", globals.mem_packed_seq);
+        xlog("max # lv.1 items = %lld\n", globals.cx1.max_lv1_items_);
+#ifdef USE_GPU
+        xlog("max # lv.2 items = %lld\n", globals.cx1.max_lv2_items_);
+#endif
+    }
 
     // --- init output ---
-    globals.sdbg_writer.init((std::string(globals.output_prefix)+".w").c_str(),
-                             (std::string(globals.output_prefix)+".last").c_str(),
-                             (std::string(globals.output_prefix)+".isd").c_str());
-    globals.dummy_nodes_writer.init((std::string(globals.output_prefix)+".dn").c_str());
-    globals.output_f_file = OpenFileAndCheck((std::string(globals.output_prefix)+".f").c_str(), "w");
-    globals.output_multiplicity_file = OpenFileAndCheck((std::string(globals.output_prefix)+".mul").c_str(), "wb");
-    globals.output_multiplicity_file2 = OpenFileAndCheck((std::string(globals.output_prefix)+".mul2").c_str(), "wb");
-    // --- write header ---
-    fprintf(globals.output_f_file, "-1\n");
-    globals.dummy_nodes_writer.output(globals.words_per_dummy_node);
+    globals.sdbg_writer.set_num_threads(globals.num_output_threads);
+    globals.sdbg_writer.set_kmer_size(globals.kmer_k);
+    globals.sdbg_writer.set_num_buckets(kNumBuckets);
+    globals.sdbg_writer.set_file_prefix(globals.output_prefix);
+    globals.sdbg_writer.init_files();
 }
 
 void* lv1_fill_offset(void* _data) {
     readpartition_data_t &rp = *((readpartition_data_t*) _data);
     seq2sdbg_global_t &globals = *(rp.globals);
     int64_t *prev_full_offsets = (int64_t *)MallocAndCheck(kNumBuckets * sizeof(int64_t), __FILE__, __LINE__); // temporary array for computing differentials
-    assert(prev_full_offsets != NULL);
     for (int b = globals.cx1.lv1_start_bucket_; b < globals.cx1.lv1_end_bucket_; ++b)
         prev_full_offsets[b] = rp.rp_lv1_differential_base;
     // this loop is VERY similar to that in PreprocessScanToFillBucketSizesThread
 
     // ===== this is a macro to save some copy&paste ================
-#define CHECK_AND_SAVE_OFFSET(key_, offset, strand)                                                             \
+#define CHECK_AND_SAVE_OFFSET(key__, offset, strand)                                                            \
     do {                                                                                                        \
-        if (((key_ - globals.cx1.lv1_start_bucket_) ^ (key_ - globals.cx1.lv1_end_bucket_)) & kSignBitMask) {   \
+        if (globals.cx1.cur_lv1_buckets_[key__]) {                                                              \
+            int key_ = globals.cx1.bucket_rank_[key__];                                                         \
             int64_t full_offset = EncodeEdgeOffset(seq_id, offset, strand, globals.package);                    \
             int64_t differential = full_offset - prev_full_offsets[key_];                                       \
             if (differential > cx1_t::kDifferentialLimit) {                                                     \
@@ -666,6 +712,7 @@ void* lv1_fill_offset(void* _data) {
                 assert(differential >= 0);                                                                      \
                 globals.lv1_items[rp.rp_bucket_offsets[key_]++] = (int) differential;                           \
             }                                                                                                   \
+            assert(rp.rp_bucket_offsets[key_] <= globals.cx1.lv1_num_items_);\
             prev_full_offsets[key_] = full_offset;                                                              \
         }                                                                                                       \
     } while (0)
@@ -682,14 +729,14 @@ void* lv1_fill_offset(void* _data) {
         int rev_key = 0;
         // build initial partial key
         for (int i = 0; i < kBucketPrefixLength - 1; ++i) {
-            key = key * kBucketBase + globals.package.get_base(seq_id, i) + 1;
-            rev_key = rev_key * kBucketBase + (3 - globals.package.get_base(seq_id, seq_len - 1 - i)) + 1; // complement
+            key = key * kBucketBase + globals.package.get_base(seq_id, i);
+            rev_key = rev_key * kBucketBase + (3 - globals.package.get_base(seq_id, seq_len - 1 - i)); // complement
         }
         // sequence = xxxxxxxxx
         // edges = $xxxx, xxxxx, ..., xxxx$
         for (int i = kBucketPrefixLength - 1; i - (kBucketPrefixLength - 1) + globals.kmer_k - 1 <= seq_len; ++i) {
-            key = (key * kBucketBase + globals.package.get_base(seq_id, i) + 1) % kNumBuckets;
-            rev_key = rev_key * kBucketBase + (3 - globals.package.get_base(seq_id, seq_len - 1 - i)) + 1;
+            key = (key * kBucketBase + globals.package.get_base(seq_id, i)) % kNumBuckets;
+            rev_key = rev_key * kBucketBase + (3 - globals.package.get_base(seq_id, seq_len - 1 - i));
             rev_key %= kNumBuckets;
             CHECK_AND_SAVE_OFFSET(key, i - kBucketPrefixLength + 1, 0);
             CHECK_AND_SAVE_OFFSET(rev_key, i - kBucketPrefixLength + 1, 1);
@@ -699,7 +746,7 @@ void* lv1_fill_offset(void* _data) {
 #undef CHECK_AND_SAVE_OFFSET
 
     free(prev_full_offsets);
-    return NULL;
+    pthread_exit(NULL);
 }
 
 // inline int BucketToPrefix(int x) {
@@ -713,15 +760,10 @@ void* lv1_fill_offset(void* _data) {
 //     return y;
 // }
 
+void lv2_extract_substr_(int from_bucket, int to_bucket, seq2sdbg_global_t &globals, uint32_t *substr, int num_items) {
+    int *lv1_p = globals.lv1_items + globals.cx1.rp_[0].rp_bucket_offsets[from_bucket];
 
-void* lv2_extract_substr(void* _data) {
-    bucketpartition_data_t &bp = *((bucketpartition_data_t*) _data);
-    seq2sdbg_global_t &globals = *(bp.globals);
-    int *lv1_p = globals.lv1_items + globals.cx1.rp_[0].rp_bucket_offsets[bp.bp_start_bucket];
-    uint32_t *substrings_p = globals.lv2_substrings +
-                             (globals.cx1.rp_[0].rp_bucket_offsets[bp.bp_start_bucket] - globals.cx1.rp_[0].rp_bucket_offsets[globals.cx1.lv2_start_bucket_]);
-
-    for (int bucket = bp.bp_start_bucket; bucket < bp.bp_end_bucket; ++bucket) {
+    for (int bucket = from_bucket; bucket < to_bucket; ++bucket) {
         for (int t = 0; t < globals.num_cpu_threads; ++t) {
             int64_t full_offset = globals.cx1.rp_[t].rp_lv1_differential_base;
             int num = globals.cx1.rp_[t].rp_bucket_sizes[bucket];
@@ -757,10 +799,10 @@ void* lv2_extract_substr(void* _data) {
                         prev_char = globals.package.get_base(seq_id, offset - 1);
                     }
 
-                    CopySubstring(substrings_p, edge_p, offset + start_offset, num_chars_to_copy,
-                                  globals.cx1.lv2_num_items_, words_this_seq, globals.words_per_substring);
+                    CopySubstring(substr, edge_p, offset + start_offset, num_chars_to_copy,
+                                  num_items, words_this_seq, globals.words_per_substring);
 
-                    uint32_t *last_word = substrings_p + int64_t(globals.words_per_substring - 1) * globals.cx1.lv2_num_items_;
+                    uint32_t *last_word = substr + int64_t(globals.words_per_substring - 1) * num_items;
                     *last_word |= int(num_chars_to_copy == globals.kmer_k) << (kBWTCharNumBits + kBitsPerMulti_t);
                     *last_word |= prev_char << kBitsPerMulti_t;
                     *last_word |= std::max(0, kMaxMulti_t - counting); // then larger counting come first after sorting
@@ -778,44 +820,32 @@ void* lv2_extract_substr(void* _data) {
                         assert(num_chars_to_copy == globals.kmer_k - 1);
                         offset = 0;
                     }
-                    CopySubstringRC(substrings_p, edge_p, offset + start_offset, num_chars_to_copy,
-                                    globals.cx1.lv2_num_items_, words_this_seq, globals.words_per_substring);
+                    CopySubstringRC(substr, edge_p, offset + start_offset, num_chars_to_copy,
+                                    num_items, words_this_seq, globals.words_per_substring);
 
-                    uint32_t *last_word = substrings_p + int64_t(globals.words_per_substring - 1) * globals.cx1.lv2_num_items_;
+                    uint32_t *last_word = substr + int64_t(globals.words_per_substring - 1) * num_items;
                     *last_word |= int(num_chars_to_copy == globals.kmer_k) << (kBWTCharNumBits + kBitsPerMulti_t);
                     *last_word |= prev_char << kBitsPerMulti_t;
                     *last_word |= std::max(0, kMaxMulti_t - counting);
                 }
-
-                // if ((*substrings_p >> (32 - kBucketPrefixLength * 2)) != BucketToPrefix(bucket)) {
-                //     xwarning("WRONG substring wrong:%d right:%d read_id:%lld offset:%d strand: %d num_chars_to_copy:%d\n", *substrings_p >> (32 - kBucketPrefixLength * 2),  BucketToPrefix(bucket), seq_id, offset, strand, num_chars_to_copy);
-                //     GenericKmer kmer;
-                //     kmer.init(edge_p, offset + start_offset, kBucketPrefixLength);
-                //     xwarning("%d\n", kmer.data_[0] >> (32 - kBucketPrefixLength * 2));
-                // }
-                substrings_p++;
+                substr++;
             }
         }
     }
-    return NULL;
+}
+
+void* lv2_extract_substr(void* _data) {
+    bucketpartition_data_t &bp = *((bucketpartition_data_t*) _data);
+    seq2sdbg_global_t &globals = *(bp.globals);
+    uint32_t *substrings_p = globals.lv2_substrings +
+                             (globals.cx1.rp_[0].rp_bucket_offsets[bp.bp_start_bucket] - globals.cx1.rp_[0].rp_bucket_offsets[globals.cx1.lv2_start_bucket_]);
+    lv2_extract_substr_(bp.bp_start_bucket, bp.bp_end_bucket, globals, substrings_p, globals.cx1.lv2_num_items_);
+    pthread_exit(NULL);
 }
 
 void lv2_sort(seq2sdbg_global_t &globals) {
     xtimer_t local_timer;
-#ifndef USE_GPU
-    if (cx1_t::kCX1Verbose >= 4) {
-        local_timer.reset();
-        local_timer.start();
-    }
-    omp_set_num_threads(globals.num_cpu_threads - globals.num_output_threads);
-    lv2_cpu_sort(globals.lv2_substrings, globals.permutation, globals.cpu_sort_space, globals.words_per_substring, globals.cx1.lv2_num_items_);
-    omp_set_num_threads(globals.num_cpu_threads);
-    local_timer.stop();
-
-    if (cx1_t::kCX1Verbose >= 4) {
-        xlog("Sorting substrings with CPU...done. Time elapsed: %.4lf\n", local_timer.elapsed());
-    }
-#else
+#ifdef USE_GPU
     if (cx1_t::kCX1Verbose >= 4) {
         local_timer.reset();
         local_timer.start();
@@ -830,63 +860,23 @@ void lv2_sort(seq2sdbg_global_t &globals) {
 #endif
 }
 
-void lv2_pre_output_partition(seq2sdbg_global_t &globals) {
-    // swap double buffers
-    globals.lv2_num_items_db = globals.cx1.lv2_num_items_;
-    std::swap(globals.lv2_substrings_db, globals.lv2_substrings);
-    std::swap(globals.permutation_db, globals.permutation);
 
-    // distribute threads
-    int64_t last_end_index = 0;
-    int64_t items_per_thread = globals.lv2_num_items_db / globals.num_output_threads;
-
-    for (int t = 0; t < globals.num_output_threads - 1; ++t) {
-        int64_t this_start_index = last_end_index;
-        int64_t this_end_index = this_start_index + items_per_thread;
-        if (this_end_index > globals.lv2_num_items_db) {
-            this_end_index = globals.lv2_num_items_db;
-        }
-        if (this_end_index > 0) {
-            while (this_end_index < globals.lv2_num_items_db) {
-                uint32_t *prev_item = globals.lv2_substrings_db + globals.permutation_db[this_end_index - 1];
-                uint32_t *item = globals.lv2_substrings_db + globals.permutation_db[this_end_index];
-                if (IsDiffKMinusOneMer(item, prev_item, globals.lv2_num_items_db, globals.kmer_k)) {
-                    break;
-                }
-                ++this_end_index;
-            }
-        }
-        globals.cx1.op_[t].op_start_index = this_start_index;
-        globals.cx1.op_[t].op_end_index = this_end_index;
-        last_end_index = this_end_index;
-    }
-
-    // last partition
-    globals.cx1.op_[globals.num_output_threads - 1].op_start_index = last_end_index;
-    globals.cx1.op_[globals.num_output_threads - 1].op_end_index = globals.lv2_num_items_db;
-
-    memset(globals.lv2_aux, 0, sizeof(globals.lv2_aux[0]) * globals.lv2_num_items_db);
-    pthread_barrier_init(&globals.output_barrier, NULL, globals.num_output_threads);
-}
-
-void* lv2_output(void* _op) {
-    outputpartition_data_t *op = (outputpartition_data_t*) _op;
-    seq2sdbg_global_t &globals = *(op->globals);
-    int64_t op_start_index = op->op_start_index;
-    int64_t op_end_index = op->op_end_index;
+void output_(int64_t from, int64_t to, seq2sdbg_global_t &globals, uint32_t *substr, uint32_t *permutation, int tid, int num_items) {
     int start_idx, end_idx;
     int has_solid_a = 0; // has solid (k+1)-mer aSb
     int has_solid_b = 0; // has solid aSb
     int last_a[4], outputed_b;
+    uint32_t tip_label[32];
 
-    for (start_idx = op_start_index; start_idx < op_end_index; start_idx = end_idx) {
+    for (start_idx = from; start_idx < to; start_idx = end_idx) {
         end_idx = start_idx + 1;
-        uint32_t *item = globals.lv2_substrings_db + globals.permutation_db[start_idx];
-        while (end_idx < op_end_index &&
+        uint32_t *item = substr + permutation[start_idx];
+
+        while (end_idx < to &&
                 !IsDiffKMinusOneMer(
                     item,
-                    globals.lv2_substrings_db + globals.permutation_db[end_idx],
-                    globals.lv2_num_items_db,
+                    substr + permutation[end_idx],
+                    num_items,
                     globals.kmer_k)) {
             ++end_idx;
         }
@@ -895,9 +885,9 @@ void* lv2_output(void* _op) {
         has_solid_a = has_solid_b = 0;
         outputed_b = 0;
         for (int i = start_idx; i < end_idx; ++i) {
-            uint32_t *cur_item = globals.lv2_substrings_db + globals.permutation_db[i];
-            int a = Extract_a(cur_item, globals.words_per_substring, globals.lv2_num_items_db, globals.kmer_k);
-            int b = Extract_b(cur_item, globals.words_per_substring, globals.lv2_num_items_db);
+            uint32_t *cur_item = substr + permutation[i];
+            int a = Extract_a(cur_item, globals.words_per_substring, num_items, globals.kmer_k);
+            int b = Extract_b(cur_item, globals.words_per_substring, num_items);
 
             if (a != kSentinelValue && b != kSentinelValue) {
                 has_solid_a |= 1 << a;
@@ -910,15 +900,15 @@ void* lv2_output(void* _op) {
         }
 
         for (int i = start_idx, j; i < end_idx; i = j) {
-            uint32_t *cur_item = globals.lv2_substrings_db + globals.permutation_db[i];
-            int a = Extract_a(cur_item, globals.words_per_substring, globals.lv2_num_items_db, globals.kmer_k);
-            int b = Extract_b(cur_item, globals.words_per_substring, globals.lv2_num_items_db);
+            uint32_t *cur_item = substr + permutation[i];
+            int a = Extract_a(cur_item, globals.words_per_substring, num_items, globals.kmer_k);
+            int b = Extract_b(cur_item, globals.words_per_substring, num_items);
 
             j = i + 1;
             while (j < end_idx) {
-                uint32_t *next_item = globals.lv2_substrings_db + globals.permutation_db[j];
-                if (Extract_a(next_item, globals.words_per_substring, globals.lv2_num_items_db, globals.kmer_k) != a ||
-                        Extract_b(next_item, globals.words_per_substring, globals.lv2_num_items_db) != b) {
+                uint32_t *next_item = substr + permutation[j];
+                if (Extract_a(next_item, globals.words_per_substring, num_items, globals.kmer_k) != a ||
+                        Extract_b(next_item, globals.words_per_substring, num_items) != b) {
                     break;
                 } else {
                     ++j;
@@ -943,72 +933,111 @@ void* lv2_output(void* _op) {
             }
 
             w = (b == kSentinelValue) ? 0 : ((outputed_b & (1 << b)) ? b + 5 : b + 1);
-            outputed_b |= 1 << b;
             last = (a == kSentinelValue) ? 0 : ((last_a[a] == j - 1) ? 1 : 0);
+            outputed_b |= 1 << b;
 
-            assert(!(globals.lv2_aux[i] & (1 << 7)));
-            globals.lv2_aux[i] = w | (last << 4) | (is_dollar << 5) | (1 << 7);
-        }
-    }
-
-    pthread_barrier_wait(&globals.output_barrier);
-
-    if (op_start_index == 0) {
-        xtimer_t local_timer;
-        local_timer.reset();
-        local_timer.start();
-        for (int i = 0; i < globals.lv2_num_items_db; ++i) {
-            if (globals.lv2_aux[i] & (1 << 7)) {
-                uint32_t *item = globals.lv2_substrings_db + globals.permutation_db[i];
-                while (ExtractFirstChar(item) > globals.cur_suffix_first_char) {
-                    ++globals.cur_suffix_first_char;
-                    fprintf(globals.output_f_file, "%lld\n", (long long)globals.total_number_edges);
-                }
-
-                multi_t counting_db = kMaxMulti_t - std::min(kMaxMulti_t,
-                                      ExtractCounting(item, globals.words_per_substring, globals.lv2_num_items_db));
-                // output
-                globals.sdbg_writer.outputW(globals.lv2_aux[i] & 0xF);
-                globals.sdbg_writer.outputLast((globals.lv2_aux[i] >> 4) & 1);
-                globals.sdbg_writer.outputIsDollar((globals.lv2_aux[i] >> 5) & 1);
-                if (counting_db <= kMaxMulti2_t) {
-                    multi2_t c = counting_db;
-                    fwrite(&c, sizeof(multi2_t), 1, globals.output_multiplicity_file);
-                } else {
-                    int64_t c = counting_db | (globals.total_number_edges << 16);
-                    fwrite(&c, sizeof(int64_t), 1, globals.output_multiplicity_file2);
-                    fwrite(&kMulti2Sp, sizeof(multi2_t), 1, globals.output_multiplicity_file);
-                }
-
-                globals.total_number_edges++;
-                globals.num_chars_in_w[globals.lv2_aux[i] & 0xF]++;
-                globals.num_ones_in_last += (globals.lv2_aux[i] >> 4) & 1;
-
-                if ((globals.lv2_aux[i] >> 5) & 1) {
-                    globals.num_dollar_nodes++;
-                    if (globals.num_dollar_nodes >= kMaxDummyEdges) {
-                        xerr_and_exit("Too many dummy nodes (>= %lld)! The graph contains too many tips!\n", (long long)kMaxDummyEdges);
-                    }
-                    for (int64_t i = 0; i < globals.words_per_dummy_node; ++i) {
-                        globals.dummy_nodes_writer.output(item[i * globals.lv2_num_items_db]);
-                    }
-                }
-                if ((globals.lv2_aux[i] & 0xF) == 0) {
-                    globals.num_dummy_edges++;
+            if (is_dollar) {
+                for (int64_t i = 0; i < globals.words_per_dummy_node; ++i) {
+                    tip_label[i] = cur_item[i * num_items];
                 }
             }
-        }
-        local_timer.stop();
 
-        if (cx1_t::kCX1Verbose >= 4) {
-            xlog("SdBG calc linear part: %lf\n", local_timer.elapsed());
+            globals.sdbg_writer.write(tid, cur_item[0] >> (32 - kBucketPrefixLength * 2), w, last, is_dollar, kMaxMulti_t - ExtractCounting(cur_item, globals.words_per_substring, num_items), tip_label);
         }
     }
-    return NULL;
+}
+
+void* lv2_output(void* _op) {
+    outputpartition_data_t *op = (outputpartition_data_t*) _op;
+    seq2sdbg_global_t &globals = *(op->globals);
+    int64_t op_start_index = op->op_start_index;
+    int64_t op_end_index = op->op_end_index;
+
+    output_(op_start_index, op_end_index, globals, globals.lv2_substrings_db, globals.permutation_db, op->op_id, globals.lv2_num_items_db);
+    pthread_exit(NULL);
+}
+
+void lv2_pre_output_partition(seq2sdbg_global_t &globals) {
+    // swap double buffers
+    globals.lv2_num_items_db = globals.cx1.lv2_num_items_;
+    std::swap(globals.lv2_substrings_db, globals.lv2_substrings);
+    std::swap(globals.permutation_db, globals.permutation);
+
+    // distribute partition
+    int64_t items_per_thread = globals.lv2_num_items_db / globals.num_output_threads;
+    int64_t acc = 0, t = 0;
+    globals.cx1.op_[t].op_start_index = 0;
+
+    for (int b = globals.cx1.lv2_start_bucket_; b < globals.cx1.lv2_end_bucket_; ++b) {
+        if (globals.cx1.bucket_sizes_[b] + acc > (t + 1) * items_per_thread) {
+            globals.cx1.op_[t].op_end_index = acc;
+            ++t;
+
+            globals.cx1.op_[t].op_start_index = acc;
+            if (t == globals.num_output_threads - 1) {
+                break;
+            }
+        }
+        acc += globals.cx1.bucket_sizes_[b];
+    }
+
+    globals.cx1.op_[t].op_end_index = globals.lv2_num_items_db;
+
+    for (++t; t < globals.num_output_threads; ++t) {
+        globals.cx1.op_[t].op_end_index = globals.lv2_num_items_db;
+        globals.cx1.op_[t].op_start_index = globals.lv2_num_items_db;
+    }
 }
 
 void lv2_post_output(seq2sdbg_global_t &globals) {
-    pthread_barrier_destroy(&globals.output_barrier);
+}
+
+struct kt_sort_t {
+    seq2sdbg_global_t *globals;
+    int64_t acc_size;
+    int activated_threads;
+    std::vector<int64_t> thread_offset;
+    std::vector<int> tid_map;
+    volatile int lock_;
+};
+
+void kt_sort(void *_g, long i, int tid)
+{
+    kt_sort_t *kg = (kt_sort_t*)_g;
+    int b = kg->globals->cx1.lv1_start_bucket_ + i;
+    if (kg->globals->cx1.bucket_sizes_[b] == 0) {
+        return;
+    }
+    
+    if (tid + 1 < kg->globals->num_cpu_threads) {
+        kg->thread_offset[tid + 1] = kg->thread_offset[tid] + kg->globals->cx1.bucket_sizes_[b];
+    }
+
+    size_t offset = kg->globals->cx1.lv1_num_items_ * sizeof(int32_t) +
+                    kg->thread_offset[tid] * kg->globals->cx1.bytes_per_sorting_item_ +
+                    tid * sizeof(uint64_t) * 65536;
+
+    uint32_t *substr_ptr = (uint32_t*) ((char*)kg->globals->lv1_items + offset);
+    uint64_t *bucket = (uint64_t*)(substr_ptr + kg->globals->cx1.bucket_sizes_[b] * kg->globals->words_per_substring);
+    uint32_t *permutation_ptr = (uint32_t*)(bucket + 65536);
+    uint32_t *cpu_sort_space_ptr = permutation_ptr + kg->globals->cx1.bucket_sizes_[b];
+
+    lv2_extract_substr_(b, b + 1, *(kg->globals), substr_ptr, kg->globals->cx1.bucket_sizes_[b]);
+    lv2_cpu_radix_sort_st(substr_ptr, permutation_ptr, cpu_sort_space_ptr, bucket, kg->globals->words_per_substring, kg->globals->cx1.bucket_sizes_[b]);
+    output_(0, kg->globals->cx1.bucket_sizes_[b], *(kg->globals), substr_ptr, permutation_ptr, tid, kg->globals->cx1.bucket_sizes_[b]);
+}
+
+void lv1_direct_sort_and_proc(seq2sdbg_global_t &globals) {
+    kt_sort_t kg;
+    kg.globals = &globals;
+    int64_t acc_size = 0;
+
+    for (int i = 0, b = globals.cx1.lv1_start_bucket_; i < globals.num_cpu_threads && b < globals.cx1.lv1_end_bucket_; ++i, ++b) {
+        kg.thread_offset.push_back(acc_size);
+        acc_size += globals.cx1.bucket_sizes_[b];
+    }
+
+    kt_dfor(globals.num_cpu_threads, kt_sort, &kg, globals.cx1.lv1_end_bucket_ - globals.cx1.lv1_start_bucket_);
 }
 
 void post_proc(seq2sdbg_global_t &globals) {
@@ -1018,37 +1047,25 @@ void post_proc(seq2sdbg_global_t &globals) {
 
     xlog("");
     for (int i = 0; i < 9; ++i) {
-        xlog_ext("%lld ", globals.num_chars_in_w[i]);
+        xlog_ext("%lld ", (long long)globals.sdbg_writer.num_w(i));
     }
     xlog_ext("\n");
 
-    // --- write tails ---
-    fprintf(globals.output_f_file, "%lld\n", (long long)globals.total_number_edges);
-    fprintf(globals.output_f_file, "%d\n", globals.kmer_k);
-    fprintf(globals.output_f_file, "%lld\n", (long long)globals.num_dollar_nodes);
-
     if (cx1_t::kCX1Verbose >= 2) {
-        xlog("Total number of edges: %llu\n", globals.total_number_edges);
-        xlog("Total number of ONEs: %llu\n", globals.num_ones_in_last);
-        xlog("Total number of v$ edges: %llu\n", globals.num_dummy_edges);
-        xlog("Total number of $v edges: %llu\n", globals.num_dollar_nodes);
+        xlog("Total number of edges: %lld\n", (long long)globals.sdbg_writer.num_edges());
+        xlog("Total number of ONEs: %lld\n", (long long)globals.sdbg_writer.num_last1());
+        xlog("Total number of $v edges: %lld\n", (long long)globals.sdbg_writer.num_tips());
     }
 
     // --- cleaning ---
     pthread_mutex_destroy(&globals.lv1_items_scanning_lock);
     free(globals.lv1_items);
+    globals.sdbg_writer.destroy();
+#ifdef USE_GPU
     free(globals.lv2_substrings);
     free(globals.permutation);
     free(globals.lv2_substrings_db);
     free(globals.permutation_db);
-    free(globals.lv2_aux);
-    fclose(globals.output_f_file);
-    fclose(globals.output_multiplicity_file);
-    fclose(globals.output_multiplicity_file2);
-    globals.dummy_nodes_writer.destroy();
-#ifndef USE_GPU
-    free(globals.cpu_sort_space);
-#else
     free_gpu_buffers(globals.gpu_key_buffer1, globals.gpu_key_buffer2, globals.gpu_value_buffer1, globals.gpu_value_buffer2);
 #endif
 }

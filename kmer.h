@@ -121,7 +121,7 @@ struct Kmer {
     const Kmer &ReverseComplement(int k) {
         uint32_t used_words = (k + kCharsPerWord - 1) / kCharsPerWord;
 
-        for (unsigned i = 0; i < used_words; ++i)
+        for (unsigned i = 0; i < used_words; ++i) 
             bit_operation::ReverseComplement(data_[i]);
 
         for (unsigned i = 0; i < (used_words >> 1); ++i)

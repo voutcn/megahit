@@ -1,3 +1,14 @@
+### 1.0.1 / 2015-07-31 HKT
+
+* Fixed number of SdBG edges 32-bit integer overflow.
+
+### 1.0.0-beta / 2015-07-23 HKT
+
+* `--presets` option: preset parameters for different types of assembly
+* New CPU sorting design: faster kmer counting & graph construction
+* New unitig graph and edge multiplicity design: more accurate assembly
+* Merge bubble carefully at small *k*: reduce the occurrences of bubble collapsing
+
 ### 0.3.3-a / 2015-07-04 HKT
 
 * Hotfix of incorrect max read length of multiple library

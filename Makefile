@@ -39,6 +39,16 @@ version = $(shell git describe --tag 2>/dev/null || echo "git_not_found" 2>/dev/
 # detect OS
 OSUPPER = $(shell uname -s 2>/dev/null | tr [:lower:] [:upper:])
 
+# force 64bits
+CPU_ARCH = -m64
+CPU_ARCH_SUFFIX = x86_64
+
+IS_PPC64 := $(shell echo `$(CXX) -v 2>&1 | grep powerpc64 | wc -l`)
+ifneq (0, $(IS_PPC64))
+	CPU_ARCH_SUFFIX = ppc64
+	CPU_ARCH = -mpowerpc64
+endif
+
 #-------------------------------------------------------------------------------
 # Includes
 #-------------------------------------------------------------------------------
@@ -88,10 +98,6 @@ endif
 #-------------------------------------------------------------------------------
 
 NVCCFLAGS = -Xptxas -v -Xcudafe -\# -cuda --ptxas-options=-v
-
-# force 64bits
-CPU_ARCH = -m64
-CPU_ARCH_SUFFIX = x86_64
 
 ifeq (,$(findstring 3.0, $(NVCC_VERSION)))
 ifneq ($(abi), 1)
@@ -150,7 +156,7 @@ DEPS =   ./Makefile \
 CUDALIBFLAG = -L$(CUDA_LIB) -lcuda -lcudart
 GCC_VER := $(shell echo `$(CXX) -dumpversion | cut -f1-2 -d.`)
 
-CXXFLAGS = -O2 -Wall -Wno-unused-function -Wno-array-bounds -D__STDC_FORMAT_MACROS -funroll-loops -fprefetch-loop-arrays -fopenmp -I. -std=c++0x -static-libgcc
+CXXFLAGS = -g -O2 -Wall -Wno-unused-function -Wno-array-bounds -D__STDC_FORMAT_MACROS -funroll-loops -fprefetch-loop-arrays -fopenmp -I. -std=c++0x -static-libgcc $(CPU_ARCH)
 LIB = -lm -lz -lpthread
 
 ifeq "4.5" "$(word 1, $(sort 4.5 $(GCC_VER)))"
@@ -158,7 +164,11 @@ ifeq "4.5" "$(word 1, $(sort 4.5 $(GCC_VER)))"
 endif
 
 ifneq ($(disablempopcnt), 1)
-	CXXFLAGS += -mpopcnt
+	ifeq (0, $(IS_PPC64))
+		CXXFLAGS += -mpopcnt
+	else
+		CXXFLAGS += -mpopcntd
+	endif
 endif
 
 ifneq ($(version), git_not_found)
@@ -172,8 +182,8 @@ STANDALONE_H = rank_and_select.h kmer_plus.h kmer.h lib_info.h \
 			   bit_operation.h atomic_bit_vector.h functional.h \
 			   khash.h kseq.h pool.h packed_reads.h sequence_package.h \
 			   utils.h mem_file_checker-inl.h read_lib_functions-inl.h \
-			   sdbg_builder_writers.h mac_pthread_barrier.h edge_reader.h \
-			   histgram.h definitions.h lv2_cpu_sort.h
+			   edge_io.h histgram.h definitions.h lv2_cpu_sort.h sdbg_multi_io.h \
+			   cx1.h
 
 DEPS = Makefile $(STANDALONE_H)
 
@@ -219,26 +229,20 @@ TOOLKIT += $(TOOLS_DIR)/filter_by_len.cpp
 #-------------------------------------------------------------------------------
 # asm_core objectives
 #-------------------------------------------------------------------------------
-LIB_ASM = succinct_dbg.o assembly_algorithms.o branch_group.o options_description.o \
+LIB_ASM = succinct_dbg.o assembly_algorithms.o options_description.o \
 				  unitig_graph.o sequence_manager.o local_assembler.o city.o
 
 #-------------------------------------------------------------------------------
 # CPU Applications
 #-------------------------------------------------------------------------------
-megahit_sdbg_build: sdbg_builder.cpp cx1.h lv2_cpu_sort.h cx1_kmer_count.o cx1_read2sdbg_s1.o cx1_read2sdbg_s2.o cx1_seq2sdbg.o options_description.o sequence_manager.o $(DEPS)
-	$(CXX) $(CXXFLAGS) sdbg_builder.cpp cx1_kmer_count.o options_description.o cx1_read2sdbg_s1.o cx1_read2sdbg_s2.o cx1_seq2sdbg.o sequence_manager.o $(LIB) -o megahit_sdbg_build
+megahit_sdbg_build: sdbg_builder.cpp cx1_kmer_count.o cx1_read2sdbg_s1.o cx1_read2sdbg_s2.o cx1_seq2sdbg.o options_description.o sequence_manager.o $(DEPS)
+	$(CXX) $(CXXFLAGS) kthread.cpp sdbg_builder.cpp cx1_kmer_count.o options_description.o cx1_read2sdbg_s1.o cx1_read2sdbg_s2.o cx1_seq2sdbg.o sequence_manager.o $(LIB) -o megahit_sdbg_build
 
 megahit_asm_core: $(LIB_ASM) $(LIB_IDBA) asm_core.cpp assembler.cpp local_assemble.cpp iterate_edges.cpp build_read_lib.cpp $(DEPS)
 	$(CXX) $(CXXFLAGS) asm_core.cpp assembler.cpp local_assemble.cpp iterate_edges.cpp build_read_lib.cpp $(LIB_IDBA) $(LIB_ASM) $(LIB) -o megahit_asm_core
 
 megahit_toolkit: $(TOOLKIT) $(DEPS)
 	$(CXX) $(CXXFLAGS) $(TOOLKIT) $(LIB) -o megahit_toolkit
-
-#-------------------------------------------------------------------------------
-# Applications for debug usage
-#-------------------------------------------------------------------------------
-query_sdbg: query_sdbg.cpp succinct_dbg.o rank_and_select.h assembly_algorithms.o branch_group.o unitig_graph.o $(DEPS)
-	$(CXX) $(CXXFLAGS) query_sdbg.cpp succinct_dbg.o assembly_algorithms.o branch_group.o unitig_graph.o -o query_sdbg
 
 #-------------------------------------------------------------------------------
 # GPU objectives
@@ -267,7 +271,7 @@ cx1_seq2sdbg_gpu.o: cx1_seq2sdbg.cpp $(DEPS)
 # GPU Applications
 #-------------------------------------------------------------------------------
 megahit_sdbg_build_gpu: sdbg_builder.cpp cx1_kmer_count_gpu.o cx1_read2sdbg_s1_gpu.o cx1_read2sdbg_s2_gpu.o cx1_seq2sdbg_gpu.o lv2_gpu_functions_$(SUFFIX).o options_description.o sequence_manager.o $(DEPS)
-	$(CXX) $(CXXFLAGS) $(CUDALIBFLAG) -D USE_GPU sdbg_builder.cpp lv2_gpu_functions_$(SUFFIX).o cx1_kmer_count_gpu.o cx1_read2sdbg_s1_gpu.o cx1_read2sdbg_s2_gpu.o cx1_seq2sdbg_gpu.o options_description.o sequence_manager.o $(LIB) -o megahit_sdbg_build_gpu
+	$(CXX) $(CXXFLAGS) $(CUDALIBFLAG) -D USE_GPU kthread.cpp sdbg_builder.cpp lv2_gpu_functions_$(SUFFIX).o cx1_kmer_count_gpu.o cx1_read2sdbg_s1_gpu.o cx1_read2sdbg_s2_gpu.o cx1_seq2sdbg_gpu.o options_description.o sequence_manager.o $(LIB) -o megahit_sdbg_build_gpu
 
 #-------------------------------------------------------------------------------
 # Build binary directory
@@ -276,11 +280,15 @@ megahit_sdbg_build_gpu: sdbg_builder.cpp cx1_kmer_count_gpu.o cx1_read2sdbg_s1_g
 .PHONY:
 test: megahit_asm_core megahit_sdbg_build megahit_toolkit
 	-rm -fr example/megahit_out
-	./megahit --12 example/readsInterleaved1.fa.gz,example/readsInterleaved2.fa.bz2,example/readsInterleaved3.fa -o example/megahit_out -t 4
+	./megahit --verbose --12 example/readsInterleaved1.fa.gz,example/readsInterleaved2.fa.bz2,example/readsInterleaved3.fa -o example/megahit_out -t 4
+	-rm -fr example/megahit_out
+	./megahit --verbose --12 example/readsInterleaved1.fa.gz,example/readsInterleaved2.fa.bz2,example/readsInterleaved3.fa -o example/megahit_out -t 4 --kmin-1pass
 
 test_gpu: megahit_asm_core megahit_sdbg_build_gpu megahit_toolkit
 	-rm -fr example/megahit_gpu_out
 	./megahit --12 example/readsInterleaved1.fa.gz,example/readsInterleaved2.fa.bz2,example/readsInterleaved3.fa --use-gpu -o example/megahit_gpu_out -t 4
+	-rm -fr example/megahit_gpu_out
+	./megahit --12 example/readsInterleaved1.fa.gz,example/readsInterleaved2.fa.bz2,example/readsInterleaved3.fa --use-gpu -o example/megahit_gpu_out -t 4 --kmin-1pass
 
 release_dir = megahit_$(version)_$(OSUPPER)_CUDA$(NVCC_VERSION)_sm$(SM_ARCH)_$(CPU_ARCH_SUFFIX)-bin
 

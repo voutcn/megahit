@@ -58,7 +58,7 @@ inline void CopySubstring(uint32_t* dest, uint32_t* src_read, int offset, int nu
             num_words_copied++;
         }
     } else { // not word-aligned
-        int bit_shift = offset * kBitsPerEdgeChar;
+        int bit_shift = word_offset * kBitsPerEdgeChar;
         uint32_t s = *src_p;
         uint32_t d = s << bit_shift;
         which_word++;
