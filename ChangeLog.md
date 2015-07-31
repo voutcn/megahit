@@ -1,3 +1,10 @@
+### 1.0.0-beta / 2015-07.23 HKT
+
+* `--presets` option: preset parameters for different types of assembly
+* New CPU sorting design: faster kmer counting & graph construction
+* New unitig graph and edge multiplicity design: more accurate assembly
+* Merge bubble carefully at small *k*: reduce the occurrences of bubble collapsing
+
 ### 0.3.3 / 2015-07-04 HKT
 
 * Fixed segmentation fault when a read is all N
