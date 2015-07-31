@@ -34,6 +34,7 @@ If MEGAHIT is successfully compiled, it can be run by the following command:
 
 ##Assembly Tips
 MEGAHIT `--presets` option provides five preset parameter combinations:
+
 | Presets | Targeting applications |
 |---|---|
 | `meta` | General metagenome assembly, such as guts |
