@@ -80,7 +80,7 @@ class AtomicBitVector {
         __sync_fetch_and_and(data_ + i / kBitsPerWord, mask);
     }
 
-    void reset(size_t size = 0) {
+    void reset(size_t size = 0, int reset_value = 0) {
         size_ = size;
         num_words_ = (size + kBitsPerWord - 1) / kBitsPerWord;
         if (capacity_ < num_words_) {
@@ -90,7 +90,11 @@ class AtomicBitVector {
         }
 
         if (num_words_ != 0) {
-            memset(data_, 0, sizeof(word_t) * num_words_);
+            if (reset_value) {
+                memset(data_, -1, sizeof(word_t) * num_words_); 
+            } else {
+                memset(data_, 0, sizeof(word_t) * num_words_);                
+            }
         }
     }
 
