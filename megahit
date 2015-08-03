@@ -148,6 +148,7 @@ class Options():
         self.input_cmd = ""
         self.inpipe = dict()
         self.presets = ""
+        self.graph_only = False
 
 opt = Options()
 cp = 0
@@ -211,6 +212,7 @@ def parse_opt(argv):
                                      "out-prefix=",
                                      "verbose",
                                      "presets=",
+                                     "graph-only",
                                      "max-read-len=",
                                      "no-low-local",
                                      "cpu-only"])
@@ -297,6 +299,8 @@ def parse_opt(argv):
             opt.input_cmd = value
         elif option == "--presets":
             opt.presets = value
+        elif option == "--graph-only":
+            opt.graph_only = True;
 
         else:
             raise Usage("Invalid option %s", option)
@@ -386,6 +390,9 @@ def check_opt():
         raise Usage("k_min should be no larger than k_max.")
     if opt.min_count <= 0:
         raise Usage("min_count must be greater than 0.")
+    elif opt.min_count == 1:
+        opt.kmin_1pass = True
+        opt.no_mercy = True
     if opt.prune_level < 0 or opt.prune_level > 2:
         raise Usage("prune level must be in 0-2.")
     if opt.merge_len < 0:
@@ -1010,35 +1017,37 @@ def main(argv = None):
         build_lib()
 
         build_first_graph()
-        assemble(opt.k_min)
 
-        cur_k = opt.k_min
-        next_k_idx = 0
+        if not opt.graph_only:
+            assemble(opt.k_min)
 
-        while cur_k < opt.k_max:
-            next_k_idx += 1
-            next_k = opt.k_list[next_k_idx]
-            k_step = next_k - cur_k
+            cur_k = opt.k_min
+            next_k_idx = 0
 
-            if not opt.no_local:
-                local_assemble(cur_k, next_k)
+            while cur_k < opt.k_max:
+                next_k_idx += 1
+                next_k = opt.k_list[next_k_idx]
+                k_step = next_k - cur_k
 
-            iterate(cur_k, k_step)
+                if not opt.no_local:
+                    local_assemble(cur_k, next_k)
 
-            if not build_graph(next_k, cur_k, 1):
-                opt.k_max = cur_k # for merging cur_k.contigs.fa to final
-                break
+                iterate(cur_k, k_step)
 
-            assemble(next_k)
-            cur_k = next_k
-        # end while
+                if not build_graph(next_k, cur_k, 1):
+                    opt.k_max = cur_k # for merging cur_k.contigs.fa to final
+                    break
 
-        merge_final()
+                assemble(next_k)
+                cur_k = next_k
+            # end while
 
-        if not opt.keep_tmp_files and os.path.exists(opt.temp_dir):
-            shutil.rmtree(opt.temp_dir)
+            merge_final()
 
-        open(opt.out_dir + "done", "w").close()
+            if not opt.keep_tmp_files and os.path.exists(opt.temp_dir):
+                shutil.rmtree(opt.temp_dir)
+
+            open(opt.out_dir + "done", "w").close()
 
         logging.info("--- [%s] ALL DONE. Time elapsed: %f seconds ---" % (datetime.now().strftime("%c"), time.time() - start_time))
 
