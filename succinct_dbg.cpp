@@ -366,6 +366,22 @@ void SuccinctDBG::DeleteAllEdges(int64_t node_id) {
     }
 }
 
+int SuccinctDBG::NextNodes(int64_t node_id, int64_t next[]) {
+    int64_t next_edge = GetLastIndex(node_id);
+    int outd = 0;
+
+    do {
+        if (IsValidEdge(next_edge)) {
+            next[outd++] = GetLastIndex(Forward(next_edge));
+        }
+
+        --next_edge;
+    }
+    while (next_edge >= 0 && !IsLastOrTip(next_edge));
+
+    return outd;
+}
+
 int64_t SuccinctDBG::Index(uint8_t *seq) {
     int64_t l = f_[seq[0]];
     int64_t r = f_[seq[0] + 1] - 1;
@@ -528,80 +544,7 @@ int64_t SuccinctDBG::EdgeReverseComplement(int64_t edge_id) {
     return -1;
 }
 
-void SuccinctDBG::LoadFromFile(const char *dbg_name) {
-    FILE *w_file = OpenFileAndCheck((std::string(dbg_name) + ".w").c_str(), "rb");
-    FILE *last_file = OpenFileAndCheck((std::string(dbg_name) + ".last").c_str(), "rb");
-    FILE *f_file = OpenFileAndCheck((std::string(dbg_name) + ".f").c_str(), "r");
-    FILE *is_tip = OpenFileAndCheck((std::string(dbg_name) + ".isd").c_str(), "rb");
-    FILE *tip_node_seq_file = OpenFileAndCheck((std::string(dbg_name) + ".dn").c_str(), "rb");
-    FILE *edge_multiplicity_file = OpenFileAndCheck((std::string(dbg_name) + ".mul").c_str(), "rb");
-    FILE *edge_multiplicity_file2 = OpenFileAndCheck((std::string(dbg_name) + ".mul2").c_str(), "rb");
-
-    for (int i = 0; i < kAlphabetSize + 2; ++i) {
-        assert(fscanf(f_file, "%lld", &f_[i]) == 1);
-    }
-
-    assert(fscanf(f_file, "%d", &kmer_k) == 1);
-    assert(fscanf(f_file, "%u", &num_tip_nodes_) == 1);
-    size = f_[kAlphabetSize + 1];
-
-    size_t word_needed_w = (size + kWCharsPerWord - 1) / kWCharsPerWord;
-    size_t word_needed_last = (size + kBitsPerULL - 1) / kBitsPerULL;
-    w_ = (unsigned long long *) MallocAndCheck(sizeof(unsigned long long) * word_needed_w, __FILE__, __LINE__);
-    last_ = (unsigned long long *) MallocAndCheck(sizeof(unsigned long long) * word_needed_last, __FILE__, __LINE__);
-    is_tip_ = (unsigned long long *) MallocAndCheck(sizeof(unsigned long long) * word_needed_last, __FILE__, __LINE__);
-    invalid_ = (unsigned long long *) MallocAndCheck(sizeof(unsigned long long) * word_needed_last, __FILE__, __LINE__);
-    edge_multiplicities_ = (multi2_t *) MallocAndCheck(sizeof(multi2_t) * size, __FILE__, __LINE__);
-    large_multi_h_ = kh_init(k64v16);
-
-    size_t word_read = fread(w_, sizeof(unsigned long long), word_needed_w, w_file);
-    assert(word_read == word_needed_w);
-    word_read = fread(last_, sizeof(unsigned long long), word_needed_last, last_file);
-    assert(word_read == word_needed_last);
-    word_read = fread(is_tip_, sizeof(unsigned long long), word_needed_last, is_tip);
-    assert(word_read == word_needed_last);
-    memcpy(invalid_, is_tip_, sizeof(unsigned long long) * word_needed_last);
-    word_read = fread(edge_multiplicities_, sizeof(multi2_t), size, edge_multiplicity_file);
-    assert(word_read == (size_t)size);
-
-    // read large multiplicities
-    int64_t *buf = (int64_t *) MallocAndCheck(sizeof(int64_t) * 4096, __FILE__, __LINE__);
-
-    while ((word_read = fread(buf, sizeof(int64_t), 4096, edge_multiplicity_file2)) != 0) {
-        for (unsigned i = 0; i < word_read; ++i) {
-            int ret;
-            khint_t k = kh_put(k64v16, large_multi_h_, buf[i] >> 16, &ret);
-            kh_value(large_multi_h_, k) = buf[i] & ((1 << 16) - 1);
-        }
-    }
-
-    free(buf);
-
-    // read tip nodes sequences
-    assert(fread(&uint32_per_tip_nodes_, sizeof(uint32_t), 1, tip_node_seq_file) == 1);
-    tip_node_seq_ = (uint32_t *) MallocAndCheck(sizeof(uint32_t) * num_tip_nodes_ * uint32_per_tip_nodes_, __FILE__, __LINE__);
-
-    word_read = fread(tip_node_seq_, sizeof(uint32_t), (size_t)num_tip_nodes_ * uint32_per_tip_nodes_, tip_node_seq_file);
-    assert(word_read == (size_t)num_tip_nodes_ * uint32_per_tip_nodes_);
-
-    rs_is_tip_.Build(is_tip_, size);
-
-    init(w_, last_, f_, size, kmer_k);
-    need_to_free_ = true;
-
-    fclose(w_file);
-    fclose(last_file);
-    fclose(f_file);
-    fclose(is_tip);
-    fclose(tip_node_seq_file);
-
-    if (edge_multiplicity_file != NULL) {
-        fclose(edge_multiplicity_file);
-        fclose(edge_multiplicity_file2);
-    }
-}
-
-void SuccinctDBG::LoadFromMultiFile(const char *dbg_name) {
+void SuccinctDBG::LoadFromMultiFile(const char *dbg_name, bool need_multiplicity) {
     SdbgReader sdbg_reader;
     sdbg_reader.set_file_prefix(std::string(dbg_name));
     sdbg_reader.read_info();
@@ -622,9 +565,16 @@ void SuccinctDBG::LoadFromMultiFile(const char *dbg_name) {
     w_ = (unsigned long long *) MallocAndCheck(sizeof(unsigned long long) * word_needed_w, __FILE__, __LINE__);
     last_ = (unsigned long long *) MallocAndCheck(sizeof(unsigned long long) * word_needed_last, __FILE__, __LINE__);
     is_tip_ = (unsigned long long *) MallocAndCheck(sizeof(unsigned long long) * word_needed_last, __FILE__, __LINE__);
-    edge_multiplicities_ = (multi2_t *) MallocAndCheck(sizeof(multi2_t) * size, __FILE__, __LINE__);
     tip_node_seq_ = (uint32_t *) MallocAndCheck(sizeof(uint32_t) * num_tip_nodes_ * sdbg_reader.words_per_tip_label(), __FILE__, __LINE__);
-    large_multi_h_ = kh_init(k64v16);
+
+    if (need_multiplicity) {
+        edge_multiplicities_ = (multi2_t *) MallocAndCheck(sizeof(multi2_t) * size, __FILE__, __LINE__);
+        large_multi_h_ = kh_init(k64v16);
+        need_to_free_mul_ = true;
+    }
+    else {
+        need_to_free_mul_ = false;
+    }
 
     unsigned long long packed_w = 0;
     unsigned long long packed_last = 0;
@@ -663,12 +613,19 @@ void SuccinctDBG::LoadFromMultiFile(const char *dbg_name) {
             packed_tip = packed_last = 0;
         }
 
-        edge_multiplicities_[i] = item >> 8;
+        if (need_multiplicity) {
+            edge_multiplicities_[i] = item >> 8;
+        }
 
         if (UNLIKELY((item >> 8) == kMulti2Sp)) {
-            int ret;
-            khint_t k = kh_put(k64v16, large_multi_h_, i, &ret);
-            kh_value(large_multi_h_, k) = sdbg_reader.NextLargeMul();
+            if (need_multiplicity) {
+                int ret;
+                khint_t k = kh_put(k64v16, large_multi_h_, i, &ret);
+                kh_value(large_multi_h_, k) = sdbg_reader.NextLargeMul();
+            }
+            else {
+                assert(sdbg_reader.NextLargeMul() > kMulti2Sp);
+            }
         }
 
         if (UNLIKELY((item >> 5) & 1)) {
@@ -696,7 +653,6 @@ void SuccinctDBG::LoadFromMultiFile(const char *dbg_name) {
     init(w_, last_, f_, size, kmer_k);
     need_to_free_ = true;
 }
-
 
 void SuccinctDBG::PrefixRangeSearch_(uint8_t c, int64_t &l, int64_t &r) {
     int64_t low = l - 1;

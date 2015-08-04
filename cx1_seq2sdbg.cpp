@@ -771,7 +771,7 @@ void *lv1_fill_offset(void *_data) {
                 assert(differential >= 0);                                                                      \
                 globals.lv1_items[rp.rp_bucket_offsets[key_]++] = (int) differential;                           \
             }                                                                                                   \
-            assert(rp.rp_bucket_offsets[key_] <= globals.cx1.lv1_num_items_);\
+            assert(rp.rp_bucket_offsets[key_] <= globals.cx1.lv1_num_items_);                                   \
             prev_full_offsets[key_] = full_offset;                                                              \
         }                                                                                                       \
     } while (0)

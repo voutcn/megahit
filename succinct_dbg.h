@@ -45,7 +45,7 @@ class SuccinctDBG {
     int kmer_k;
 
   public:
-    SuccinctDBG(): need_to_free_(false) { }
+    SuccinctDBG(): need_to_free_(false), need_to_free_mul_(false) { }
     ~SuccinctDBG() {
         if (need_to_free_) {
             free(last_);
@@ -61,8 +61,7 @@ class SuccinctDBG {
         }
     }
 
-    void LoadFromFile(const char *dbg_name);
-    void LoadFromMultiFile(const char *dbg_name);
+    void LoadFromMultiFile(const char *dbg_name, bool need_multiplicity = true);
     void init(unsigned long long *w, unsigned long long *last, long long *f, int64_t size, int kmer_k) {
         w_ = w;
         last_ = last;
@@ -176,6 +175,8 @@ class SuccinctDBG {
     int64_t UniquePrevNode(int64_t node_id);
     int64_t UniqueNextNode(int64_t node_id);
     void DeleteAllEdges(int64_t node_id);
+
+    int NextNodes(int64_t node_id, int64_t next[]); // return out-degree, ids stored in next[]
 
     // WARNING: use this with cautions
     // After that EdgeMultiplicty() are invalid
