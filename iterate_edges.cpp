@@ -104,34 +104,44 @@ static void ParseIterOptions(int argc, char *argv[]) {
 
     try {
         desc.Parse(argc, argv);
+
         if (opt.step + opt.kmer_k >= std::max((int)Kmer<4>::max_size(), (int)GenericKmer::max_size())) {
             std::ostringstream os;
             os << "kmer_k + step must less than " << std::max((int)Kmer<4>::max_size(), (int)GenericKmer::max_size());
             throw std::logic_error(os.str());
-        } else if (opt.contig_file == "") {
+        }
+        else if (opt.contig_file == "") {
             throw std::logic_error("No contig file!");
-        } else if (opt.read_file == "") {
+        }
+        else if (opt.read_file == "") {
             throw std::logic_error("No reads file!");
-        } else if (opt.kmer_k <= 0) {
+        }
+        else if (opt.kmer_k <= 0) {
             throw std::logic_error("Invalid kmer size!");
-        } else if (opt.step <= 0 || opt.step > 28 || opt.step % 2 == 1) {
+        }
+        else if (opt.step <= 0 || opt.step > 28 || opt.step % 2 == 1) {
             throw std::logic_error("Invalid step size!");
-        } else if (opt.output_prefix == "") {
+        }
+        else if (opt.output_prefix == "") {
             throw std::logic_error("No output prefix!");
-        } else if (opt.read_format != "binary" && opt.read_format != "fasta" && opt.read_format != "fastq") {
+        }
+        else if (opt.read_format != "binary" && opt.read_format != "fasta" && opt.read_format != "fastq") {
             throw std::logic_error("Invalid read format!");
         }
 
         if (opt.num_cpu_threads == 0) {
             opt.num_cpu_threads = omp_get_max_threads();
         }
+
         // must set the number of threads before the parallel hash table declared
         if (opt.num_cpu_threads > 1) {
             omp_set_num_threads(opt.num_cpu_threads - 1);
-        } else {
+        }
+        else {
             omp_set_num_threads(1);
         }
-    } catch (std::exception &e) {
+    }
+    catch (std::exception &e) {
         std::cerr << e.what() << std::endl;
         std::cerr << "Usage: " << argv[0] << " [opt]" << std::endl;
         std::cerr << "opt with (*) are must" << std::endl;
@@ -152,8 +162,8 @@ static void InitGlobalData(IterateGlobalData &globals) {
     globals.output_prefix = opt.output_prefix;
 }
 
-static void* ReadContigsThread(void* seq_manager) {
-    SequenceManager *sm = (SequenceManager*)seq_manager;
+static void *ReadContigsThread(void *seq_manager) {
+    SequenceManager *sm = (SequenceManager *)seq_manager;
 
     int64_t kMaxNumContigs = 1 << 22;
     int64_t kMaxNumBases = 1 << 28;
@@ -167,8 +177,8 @@ static void* ReadContigsThread(void* seq_manager) {
     return NULL;
 }
 
-static void* ReadReadsThread(void* seq_manager) {
-    SequenceManager *sm = (SequenceManager*)seq_manager;
+static void *ReadReadsThread(void *seq_manager) {
+    SequenceManager *sm = (SequenceManager *)seq_manager;
 
     int64_t kMaxNumReads = 1 << 22;
     int64_t kMaxNumBases = 1 << 28;
@@ -188,7 +198,7 @@ static void* ReadReadsThread(void* seq_manager) {
 
 template<uint32_t kNumKmerWord_n, typename kmer_word_n_t>
 class WriteEdgeFunc {
-public:
+  public:
     typedef KmerPlus<kNumKmerWord_n, kmer_word_n_t, uint16_t> kp_t;
 
     void set_edge_writer(EdgeWriter *edge_writer) {
@@ -205,27 +215,30 @@ public:
 
     void operator() (kp_t &kp) {
         int tid = omp_get_thread_num();
-        uint32_t* packed_edge = &packed_edges_[0] + tid * words_per_edge_;
+        uint32_t *packed_edge = &packed_edges_[0] + tid * words_per_edge_;
         memset(packed_edge, 0, sizeof(uint32_t) * words_per_edge_);
 
         int w = 0;
         int end_word = 0;
+
         for (int j = 0; j < next_k1_; ) {
             w = (w << 2) | kp.kmer.get_base(next_k_ - j);
             ++j;
+
             if (j % 16 == 0) {
                 packed_edge[end_word] = w;
                 w = 0;
                 end_word++;
             }
         }
+
         packed_edge[end_word] = (w << last_shift_);
         assert((packed_edge[words_per_edge_ - 1] & kMaxMulti_t) == 0);
         packed_edge[words_per_edge_ - 1] |= kp.ann;
         edge_writer_->write_unsorted(packed_edge, tid);
     }
 
-private:
+  private:
     EdgeWriter *edge_writer_;
     int last_shift_;
     int words_per_edge_;
@@ -250,7 +263,8 @@ static bool ReadReadsAndProcessKernel(IterateGlobalData &globals,
 
     if (globals.read_format == "binary") {
         seq_manager.set_file_type(SequenceManager::kBinaryReads);
-    } else {
+    }
+    else {
         seq_manager.set_file_type(SequenceManager::kFastxReads);
     }
 
@@ -274,8 +288,10 @@ static bool ReadReadsAndProcessKernel(IterateGlobalData &globals,
         pthread_create(&input_thread, NULL, ReadReadsThread, &seq_manager);
 
         #pragma omp parallel for reduction(+: num_aligned_reads)
+
         for (unsigned i = 0; i < (unsigned)rp.size(); ++i) {
             int length = rp.length(i);
+
             if (length < globals.kmer_k + globals.step + 1) {
                 continue;
             }
@@ -285,6 +301,7 @@ static bool ReadReadsAndProcessKernel(IterateGlobalData &globals,
             int cur_pos = 0;
             int last_marked_pos = -1;
             Kmer<kNumKmerWord_p, kmer_word_p_t> kmer;
+
             for (int j = 0; j < globals.kmer_k + 1; ++j) {
                 kmer.ShiftAppend(rp.get_base(i, j), globals.kmer_k + 1);
             }
@@ -294,8 +311,10 @@ static bool ReadReadsAndProcessKernel(IterateGlobalData &globals,
 
             while (cur_pos + globals.kmer_k + 1 <= length) {
                 int next_pos = cur_pos + 1;
+
                 if (!kmer_exist[cur_pos]) {
                     auto iter = crusial_kmers.find(kmer);
+
                     if (iter != crusial_kmers.end()) {
                         kmer_exist[cur_pos] = true;
                         uint64_t s_seq = iter->ann.s_seq;
@@ -304,30 +323,35 @@ static bool ReadReadsAndProcessKernel(IterateGlobalData &globals,
                         kmer_mul[cur_pos] = mul;
 
                         int j;
+
                         for (j = 0; j < s_seq_length && cur_pos + globals.kmer_k + 1 + j < length; ++j) {
                             if (rp.get_base(i, cur_pos + globals.kmer_k + 1 + j) == int((s_seq >> (31 - j) * 2) & 3)) {
                                 kmer_exist[cur_pos + j + 1] = true;
                                 kmer_mul[cur_pos + j + 1] = mul;
-                            } else {
+                            }
+                            else {
                                 break;
                             }
                         }
 
                         last_marked_pos = cur_pos + j;
                         next_pos = last_marked_pos + 1;
-                    } else if ((iter = crusial_kmers.find(rev_kmer)) != crusial_kmers.end()) {
+                    }
+                    else if ((iter = crusial_kmers.find(rev_kmer)) != crusial_kmers.end()) {
                         kmer_exist[cur_pos] = true;
                         uint64_t s_seq = iter->ann.s_seq;
                         int s_seq_length = s_seq & 63;
                         float mul = iter->ann.mul;
                         kmer_mul[cur_pos] = mul;
-                        
+
                         int j;
+
                         for (j = 0; j < s_seq_length && cur_pos - 1 - j >= 0; ++j) {
                             if (3 - rp.get_base(i, cur_pos - 1 - j) == int((s_seq >> (31 - j) * 2) & 3)) {
                                 kmer_exist[cur_pos - 1 - j] = true;
                                 kmer_mul[cur_pos - 1 - j] = mul;
-                            } else {
+                            }
+                            else {
                                 break;
                             }
                         }
@@ -341,7 +365,8 @@ static bool ReadReadsAndProcessKernel(IterateGlobalData &globals,
                         kmer.ShiftAppend(c, globals.kmer_k + 1);
                         rev_kmer.ShiftPreappend(3 - c, globals.kmer_k + 1);
                     }
-                } else {
+                }
+                else {
                     break;
                 }
             }
@@ -365,31 +390,38 @@ static bool ReadReadsAndProcessKernel(IterateGlobalData &globals,
                             kmer_p.kmer.ShiftAppend(c, globals.next_k1);
                             rev_kmer_p.kmer.ShiftPreappend(3 - c, globals.next_k1);
                         }
-                    } else if (j - last_j < globals.kmer_k + globals.step + 1) {
+                    }
+                    else if (j - last_j < globals.kmer_k + globals.step + 1) {
                         for (int x = last_j + 1; x <= j; ++x) {
                             kmer_p.kmer.ShiftAppend(rp.get_base(i, x + globals.kmer_k), globals.next_k1);
                         }
+
                         rev_kmer_p.kmer = kmer_p.kmer;
                         rev_kmer_p.kmer.ReverseComplement(globals.next_k1);
-                    } else {
+                    }
+                    else {
                         for (int k = j - globals.step; k < j + globals.kmer_k + 1; ++k) {
                             kmer_p.kmer.ShiftAppend(rp.get_base(i, k), globals.next_k1);
                         }
+
                         rev_kmer_p.kmer = kmer_p.kmer;
                         rev_kmer_p.kmer.ReverseComplement(globals.next_k1);
                     }
 
                     if (kmer_p.kmer < rev_kmer_p.kmer) {
-                        kmer_p.ann = (kmer_mul[j] - (j - (globals.step + 1) >= 0 ? kmer_mul[j - (globals.step + 1)]: 0)) / (globals.step + 1);
+                        kmer_p.ann = (kmer_mul[j] - (j - (globals.step + 1) >= 0 ? kmer_mul[j - (globals.step + 1)] : 0)) / (globals.step + 1);
                         iterative_edges.find_or_insert(kmer_p);
-                    } else {
-                        rev_kmer_p.ann = (kmer_mul[j] - (j - (globals.step + 1) >= 0 ? kmer_mul[j - (globals.step + 1)]: 0)) / (globals.step + 1);
+                    }
+                    else {
+                        rev_kmer_p.ann = (kmer_mul[j] - (j - (globals.step + 1) >= 0 ? kmer_mul[j - (globals.step + 1)] : 0)) / (globals.step + 1);
                         iterative_edges.find_or_insert(rev_kmer_p);
                     }
+
                     last_j = j;
                     aligned = true;
                 }
             }
+
             if (aligned) {
                 ++num_aligned_reads;
             }
@@ -401,6 +433,7 @@ static bool ReadReadsAndProcessKernel(IterateGlobalData &globals,
             xlog("Processed: %lld, aligned: %lld. Iterative edges: %llu\n", (long long)num_total_reads, (long long)num_aligned_reads, (unsigned long long)iterative_edges.size());
         }
     }
+
     xlog("Total: %lld, aligned: %lld. Iterative edges: %llu\n", (long long)num_total_reads, (long long)num_aligned_reads, (unsigned long long)iterative_edges.size());
 
     // write iterative edges
@@ -431,13 +464,21 @@ template<uint32_t kNumKmerWord_p, typename kmer_word_p_t>
 static void ReadReadsAndProcess(IterateGlobalData &globals,
                                 HashTable<KmerPlus<kNumKmerWord_p, kmer_word_p_t, MarginalKmer>, Kmer<kNumKmerWord_p, kmer_word_p_t> > &crusial_kmers) {
     if (ReadReadsAndProcessKernel<1, uint64_t>(globals, crusial_kmers)) return;
+
     if (ReadReadsAndProcessKernel<3, uint32_t>(globals, crusial_kmers)) return;
+
     if (ReadReadsAndProcessKernel<2, uint64_t>(globals, crusial_kmers)) return;
+
     if (ReadReadsAndProcessKernel<5, uint32_t>(globals, crusial_kmers)) return;
+
     if (ReadReadsAndProcessKernel<3, uint64_t>(globals, crusial_kmers)) return;
+
     if (ReadReadsAndProcessKernel<7, uint32_t>(globals, crusial_kmers)) return;
+
     if (ReadReadsAndProcessKernel<4, uint64_t>(globals, crusial_kmers)) return;
+
     if (ReadReadsAndProcessKernel<kUint32PerKmerMaxK, uint32_t>(globals, crusial_kmers)) return;
+
     assert (false);
 }
 
@@ -472,6 +513,7 @@ static void ReadContigsAndBuildHash(IterateGlobalData &globals,
         pthread_create(&input_thread, NULL, ReadContigsThread, &seq_manager);
 
         #pragma omp parallel for
+
         for (unsigned i = 0; i < cp.size(); ++i) {
             if ((int)cp.length(i) < globals.kmer_k + 1) {
                 continue;
@@ -479,14 +521,18 @@ static void ReadContigsAndBuildHash(IterateGlobalData &globals,
 
             KmerPlus<kNumKmerWord_p, kmer_word_p_t, MarginalKmer> kmer_p;
             Kmer<kNumKmerWord_p, kmer_word_p_t> &kmer = kmer_p.kmer;
+
             for (int j = 0; j < globals.kmer_k + 1; ++j) {
                 kmer.ShiftAppend(cp.get_base(i, j), globals.kmer_k + 1);
             }
+
             uint64_t s_seq = 0;
             int s_length = std::min(globals.step, (int)cp.length(i) - (globals.kmer_k + 1));
+
             for (int j = 0; j < globals.step && j < s_length; ++j) {
                 s_seq |= uint64_t(cp.get_base(i, j + globals.kmer_k + 1)) << (31 - j) * 2;
             }
+
             s_seq |= s_length;
             kmer_p.ann.s_seq = s_seq;
             kmer_p.ann.mul = f_mul[i];
@@ -498,9 +544,11 @@ static void ReadContigsAndBuildHash(IterateGlobalData &globals,
                 }
 
                 s_seq = 0;
+
                 for (int j = 0; j < globals.step && j < s_length; ++j) {
                     s_seq |= uint64_t(3 - cp.get_base(i, cp.length(i) - 1 - (globals.kmer_k + 1) - j)) << (31 - j) * 2;
                 }
+
                 s_seq |= s_length;
                 kmer_p.ann.s_seq = s_seq;
                 kmer_p.ann.mul = f_mul[i];
@@ -520,6 +568,7 @@ bool IterateToNextK(IterateGlobalData &globals) {
         ReadReadsAndProcess(globals, crusial_kmers);
         return true;
     }
+
     return false;
 }
 
@@ -532,13 +581,21 @@ int main_iterate(int argc, char *argv[]) {
 
     while (true) {
         if (IterateToNextK<1, uint64_t>(globals)) break;
+
         if (IterateToNextK<3, uint32_t>(globals)) break;
+
         if (IterateToNextK<2, uint64_t>(globals)) break;
+
         if (IterateToNextK<5, uint32_t>(globals)) break;
+
         if (IterateToNextK<3, uint64_t>(globals)) break;
+
         if (IterateToNextK<7, uint32_t>(globals)) break;
+
         if (IterateToNextK<4, uint64_t>(globals)) break;
+
         if (IterateToNextK<kUint32PerKmerMaxK, uint32_t>(globals)) break;
+
         assert(false);
     }
 

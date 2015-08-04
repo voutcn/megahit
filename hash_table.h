@@ -120,6 +120,7 @@ class HashTableIterator {
             else {
                 uint64_t index = owner_->bucket_index_value(current_->value);
                 current_ = current_->next;
+
                 while (current_ == NULL && ++index < owner_->bucket_count())
                     current_ = owner_->buckets_[index];
             }
@@ -188,6 +189,7 @@ class HashTableConstIterator {
             else {
                 uint64_t index = owner_->bucket_index_value(current_->value);
                 current_ = current_->next;
+
                 while (current_ == NULL && ++index < owner_->bucket_count())
                     current_ = owner_->buckets_[index];
             }
@@ -255,8 +257,10 @@ class HashTable {
         size_ = 0;
         omp_init_lock(&rehash_lock_);
         bucket_locks_.resize(kNumBucketLocks);
+
         for (uint64_t i = 0; i < bucket_locks_.size(); ++i)
             omp_init_lock(&bucket_locks_[i]);
+
         rehash(kDefaultNumBuckets);
     }
 
@@ -267,6 +271,7 @@ class HashTable {
         size_ = 0;
         omp_init_lock(&rehash_lock_);
         bucket_locks_.resize(kNumBucketLocks);
+
         for (uint64_t i = 0; i < bucket_locks_.size(); ++i)
             omp_init_lock(&bucket_locks_[i]);
 
@@ -275,8 +280,10 @@ class HashTable {
 
     ~HashTable() {
         clear();
+
         for (uint64_t i = 0; i < bucket_locks_.size(); ++i)
             omp_destroy_lock(&bucket_locks_[i]);
+
         omp_destroy_lock(&rehash_lock_);
     }
 
@@ -292,8 +299,10 @@ class HashTable {
         rehash(hash_table.buckets_.size());
 
         #pragma omp parallel for
+
         for (int64_t i = 0; i < (int64_t)hash_table.buckets_.size(); ++i) {
             node_type *prev = NULL;
+
             for (node_type *node = hash_table.buckets_[i]; node; node = node->next) {
                 node_type *p = pool_.construct();
                 p->value = node->value;
@@ -316,6 +325,7 @@ class HashTable {
             if (buckets_[i])
                 return iterator(this, buckets_[i]);
         }
+
         return iterator();
     }
 
@@ -324,6 +334,7 @@ class HashTable {
             if (buckets_[i])
                 return const_iterator(this, buckets_[i]);
         }
+
         return const_iterator();
     }
 
@@ -349,7 +360,7 @@ class HashTable {
             }
         }
 
-        node_type *p= pool_.construct();
+        node_type *p = pool_.construct();
         p->value = value;
         p->next = buckets_[index];
         buckets_[index] = p;
@@ -364,12 +375,14 @@ class HashTable {
         uint64_t hash_value = hash_key(key);
         lock_bucket(hash_value);
         uint64_t index = bucket_index_key(key);
+
         for (node_type *node = buckets_[index]; node; node = node->next) {
             if (key_equal_(key, get_key_(node->value))) {
                 unlock_bucket(hash_value);
                 return iterator(this, node);
             }
         }
+
         unlock_bucket(hash_value);
         return iterator();
     }
@@ -378,22 +391,26 @@ class HashTable {
         uint64_t hash_value = hash_key(key);
         lock_bucket(hash_value);
         uint64_t index = bucket_index_key(key);
+
         for (node_type *node = buckets_[index]; node; node = node->next) {
             if (key_equal_(key, get_key_(node->value))) {
                 unlock_bucket(hash_value);
                 return iterator(this, node);
             }
         }
+
         return iterator();
     }
 
     const_iterator find(const key_type &key) const {
         uint64_t index = bucket_index_key(key);
+
         for (node_type *node = buckets_[index]; node; node = node->next) {
             if (key_equal_(key, get_key_(node->value))) {
                 return const_iterator(this, node);
             }
         }
+
         return const_iterator();
     }
 
@@ -411,7 +428,7 @@ class HashTable {
             }
         }
 
-        node_type *p= pool_.construct();
+        node_type *p = pool_.construct();
         p->value = value;
         p->next = buckets_[index];
         buckets_[index] = p;
@@ -435,7 +452,7 @@ class HashTable {
             }
         }
 
-        node_type *p= pool_.construct();
+        node_type *p = pool_.construct();
         p->value = value;
         p->next = buckets_[index];
         buckets_[index] = p;
@@ -454,6 +471,7 @@ class HashTable {
 
         node_type *prev = NULL;
         node_type *node = buckets_[index];
+
         while (node) {
             if (key_equal_(key, get_key_(node->value))) {
                 if (prev == NULL)
@@ -466,11 +484,13 @@ class HashTable {
                 pool_.destroy(p);
 
                 ++num_removed_nodes;
-            } else {
+            }
+            else {
                 prev = node;
                 node = node->next;
             }
         }
+
         unlock_bucket(hash_value);
 
         #pragma omp atomic
@@ -483,11 +503,13 @@ class HashTable {
     size_type remove_if(const Predicator &predicator) {
         uint64_t num_removed_nodes = 0;
         #pragma omp parallel for
+
         for (int64_t index = 0; index < (int64_t)buckets_.size(); ++index) {
             lock_bucket(index);
 
             node_type *prev = NULL;
             node_type *node = buckets_[index];
+
             while (node) {
                 if (predicator(node->value)) {
                     if (prev == NULL)
@@ -501,11 +523,13 @@ class HashTable {
 
                     #pragma omp atomic
                     ++num_removed_nodes;
-                } else {
+                }
+                else {
                     prev = node;
                     node = node->next;
                 }
             }
+
             unlock_bucket(index);
         }
 
@@ -518,20 +542,24 @@ class HashTable {
     template <typename UnaryProc>
     UnaryProc &for_each(UnaryProc &op) {
         #pragma omp parallel for
+
         for (int64_t i = 0; i < (int64_t)buckets_.size(); ++i) {
             for (node_type *node = buckets_[i]; node; node = node->next)
                 op(node->value);
         }
+
         return op;
     }
 
     template <typename UnaryProc>
     UnaryProc &for_each(UnaryProc &op) const {
         #pragma omp parallel for
+
         for (int64_t i = 0; i < (int64_t)buckets_.size(); ++i) {
             for (node_type *node = buckets_[i]; node; node = node->next)
                 op(node->value);
         }
+
         return op;
     }
 
@@ -540,7 +568,7 @@ class HashTable {
     }
 
     uint64_t bucket_index(uint64_t hash_value) const {
-        return hash_value & (buckets_.size() -1);
+        return hash_value & (buckets_.size() - 1);
     }
 
     uint64_t hash_key(const key_type &key) const {
@@ -595,15 +623,19 @@ class HashTable {
     void clear() {
         size_ = 0;
         #pragma omp parallel for
+
         for (int64_t i = 0; i < (int64_t)buckets_.size(); ++i) {
             node_type *node = buckets_[i];
+
             while (node) {
                 node_type *p = node;
                 node = node->next;
                 pool_.destroy(p);
             }
+
             buckets_[i] = NULL;
         }
+
         pool_.clear();
     }
 
@@ -613,27 +645,31 @@ class HashTable {
 
   private:
     void lock_bucket(uint64_t hash_value) {
-        omp_set_lock(&bucket_locks_[hash_value & (kNumBucketLocks-1)]);
+        omp_set_lock(&bucket_locks_[hash_value & (kNumBucketLocks - 1)]);
     }
     void unlock_bucket(uint64_t hash_value) {
-        omp_unset_lock(&bucket_locks_[hash_value & (kNumBucketLocks-1)]);
+        omp_unset_lock(&bucket_locks_[hash_value & (kNumBucketLocks - 1)]);
     }
 
     void rehash_if_needed(size_type capacity) {
         if (capacity > buckets_.size() * 2) {
             omp_set_lock(&rehash_lock_);
+
             if (capacity > buckets_.size() * 2) {
                 size_type new_num_buckets = buckets_.size();
+
                 while (capacity > new_num_buckets * 2)
                     new_num_buckets *= 2;
+
                 rehash(new_num_buckets);
             }
+
             omp_unset_lock(&rehash_lock_);
         }
     }
 
     void rehash(uint64_t new_num_buckets) {
-        if ((new_num_buckets & (new_num_buckets-1)) != 0)
+        if ((new_num_buckets & (new_num_buckets - 1)) != 0)
             throw std::logic_error("HashTable::rehash() invalid number of buckets");
 
         if (new_num_buckets == buckets_.size())
@@ -647,8 +683,10 @@ class HashTable {
 
         if (new_num_buckets > old_buckets.size()) {
             #pragma omp parallel for
+
             for (int64_t i = 0; i < (int64_t)old_buckets.size(); ++i) {
                 node_type *node = old_buckets[i];
+
                 while (node) {
                     node_type *next = node->next;
                     uint64_t index = bucket_index_value(node->value);
@@ -657,10 +695,12 @@ class HashTable {
                     node = next;
                 }
             }
-        } else {
-//#pragma omp parallel for
+        }
+        else {
+            //#pragma omp parallel for
             for (int64_t i = 0; i < (int64_t)old_buckets.size(); ++i) {
                 node_type *node = old_buckets[i];
+
                 while (node) {
                     uint64_t hash_value = hash(node->value);
                     //lock_bucket(hash_value);
@@ -695,8 +735,10 @@ std::istream &operator >>(std::istream &is,
                           HashTable<Value, Key, HashFunc, ExtractKey, EqualKey> &hash_table) {
     hash_table.clear();
     Value value;
+
     while (is.read((char *)&value, sizeof(Value)))
         hash_table.insert_unique(value);
+
     return is;
 }
 
@@ -705,9 +747,11 @@ template <typename Value, typename Key, typename HashFunc,
 std::ostream &operator <<(std::ostream &os,
                           HashTable<Value, Key, HashFunc, ExtractKey, EqualKey> &hash_table) {
     typename HashTable<Value, Key, HashFunc, ExtractKey, EqualKey>::iterator iter;
+
     for (iter = hash_table.begin(); iter != hash_table.end(); ++iter) {
         os.write((char *)&*iter, sizeof(Value));
     }
+
     return os;
 }
 

@@ -24,8 +24,7 @@
 
 using namespace std;
 
-unsigned int BKDRHash(const string &str)
-{
+unsigned int BKDRHash(const string &str) {
     unsigned int seed = 131; // 31 131 1313 13131 131313 etc..
     unsigned int hash = 0;
 
@@ -36,40 +35,48 @@ unsigned int BKDRHash(const string &str)
     return (hash & 0x7FFFFFFF);
 }
 
-struct StringHash: public std::unary_function<string, uint64_t>
-{
-    uint64_t operator ()(const string &value) const
-    { return BKDRHash(value); }
+struct StringHash: public std::unary_function<string, uint64_t> {
+    uint64_t operator ()(const string &value) const {
+        return BKDRHash(value);
+    }
 };
 
 static inline char Complement(char c) {
     switch (c) {
-        case 'A': {
-            return 'T';
-        }
-        case 'C': {
-            return 'G';
-        }
-        case 'G': {
-            return 'C';
-        }
-        case 'T': {
-            return 'A';
-        }
-        default: {
-            return 'N';
-        }
+    case 'A': {
+        return 'T';
+    }
+
+    case 'C': {
+        return 'G';
+    }
+
+    case 'G': {
+        return 'C';
+    }
+
+    case 'T': {
+        return 'A';
+    }
+
+    default: {
+        return 'N';
+    }
     }
 }
 
 static inline void ReverseComplement(string &s) {
     int i, j;
+
     for (i = 0, j = s.length() - 1; i < j; ++i, --j) {
         std::swap(s[i], s[j]);
         s[i] = Complement(s[i]);
         s[j] = Complement(s[j]);
     }
-    if (i == j) { s[i] = Complement(s[i]); }
+
+    if (i == j) {
+        s[i] = Complement(s[i]);
+    }
 }
 
 inline void AddKmer(string &read, HashMap<string, int, StringHash > &cnt, int k_value) {
@@ -79,8 +86,11 @@ inline void AddKmer(string &read, HashMap<string, int, StringHash > &cnt, int k_
             string t = s;
             ReverseComplement(t);
             auto it = cnt.find(s);
+
             if (it != cnt.end()) ++it->second;
+
             it = cnt.find(t);
+
             if (it != cnt.end()) ++it->second;
         }
     }
@@ -99,9 +109,11 @@ int main(int argc, char **argv) {
     string read;
     int k_value = atoi(argv[1]);
     HashMap<string, int, StringHash > cnt;
+
     while (getline(kmer_file, buf)) {
         cnt[buf] = 0;
     }
+
     cout << "Read kmer file done!" << endl;
 
     vector<string> vs;
@@ -110,17 +122,22 @@ int main(int argc, char **argv) {
         if (buf[0] == '>') {
             if (read.length() >= k_value) {
                 vs.push_back(read);
+
                 if (vs.size() >= 1024 * 1024) {
-#pragma omp parallel for
+                    #pragma omp parallel for
+
                     for (unsigned i = 0; i < vs.size(); ++i) {
                         AddKmer(vs[i], cnt, k_value);
                     }
+
                     vs.clear();
                 }
             }
+
             read.clear();
             continue;
         }
+
         read += buf;
     }
 
@@ -130,13 +147,16 @@ int main(int argc, char **argv) {
         }
     }
 
-#pragma omp parallel for
+    #pragma omp parallel for
+
     for (unsigned i = 0; i < vs.size(); ++i) {
         AddKmer(vs[i], cnt, k_value);
     }
+
     vs.clear();
 
     HashMap<int, int> histo;
+
     for (auto it = cnt.begin(); it != cnt.end(); ++it) {
         ++histo[it->second];
         cerr << it->first << ' ' << it->second << "\n";

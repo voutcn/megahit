@@ -76,8 +76,8 @@ struct LocalAssembler {
     std::vector<std::deque<uint64_t> > mapped_f_, mapped_r_;
 
     LocalAssembler(int min_contig_len, int seed_kmer, int sparsity)
-        :min_contig_len_(min_contig_len), seed_kmer_(seed_kmer), sparsity_(sparsity),
-         contigs_(NULL), reads_(NULL) {
+        : min_contig_len_(min_contig_len), seed_kmer_(seed_kmer), sparsity_(sparsity),
+          contigs_(NULL), reads_(NULL) {
         similarity_ = 0.95;
         min_mapped_len_ = 100;
         num_threads_ = omp_get_max_threads();
@@ -124,7 +124,7 @@ struct LocalAssembler {
     int AddToMappingDeque_(size_t read_id, const MappingRecord &rec, int local_range);
     int AddMateToMappingDeque_(size_t read_id, size_t mate_id, const MappingRecord &rec1, const MappingRecord &rec2, bool mapped2, int local_range);
     bool MapToHashMapper_(const mapper_t &mapper, size_t read_id, MappingRecord &rec);
-    static void* LocalAssembleThread_(void *task);
+    static void *LocalAssembleThread_(void *task);
 };
 
 #endif

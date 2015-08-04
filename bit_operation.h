@@ -112,7 +112,7 @@ inline int BitToIndex(uint8_t x) {
 
 template<uint32_t number>
 struct MostSignificantBit {
-    static const int value = 1 + MostSignificantBit<(number >> 1)>::value;
+    static const int value = 1 + MostSignificantBit < (number >> 1) >::value;
 };
 
 template<>

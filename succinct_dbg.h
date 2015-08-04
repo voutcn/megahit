@@ -68,9 +68,11 @@ class SuccinctDBG {
         last_ = last;
         this->size = size;
         this->kmer_k = kmer_k;
+
         for (int i = 0; i < kAlphabetSize + 2; ++i) {
             f_[i] = f[i];
         }
+
         rs_w_.Build(w_, size);
         rs_last_.Build(last_, size);
 
@@ -79,6 +81,7 @@ class SuccinctDBG {
         }
 
         #pragma omp parallel for
+
         for (int64_t i = 0; i < size; ++i) {
             if (GetW(i) == 0) {
                 SetInvalidEdge(i);
@@ -129,16 +132,19 @@ class SuccinctDBG {
     int EdgeMultiplicity(int64_t edge_id) {
         if (__builtin_expect(edge_multiplicities_[edge_id] != kMulti2Sp, 1)) {
             return edge_multiplicities_[edge_id];
-        } else {
+        }
+        else {
             return kh_value(large_multi_h_, kh_get(k64v16, large_multi_h_, edge_id));
         }
     }
 
     int64_t Forward(int64_t edge_id) { // the last edge edge_id points to
         uint8_t a = GetW(edge_id);
+
         if (a > 4) {
             a -= 4;
         }
+
         int64_t count_a = rs_w_.Rank(a, edge_id);
         return rs_last_.Select(rank_f_[a] + count_a - 1);
     }
@@ -178,6 +184,7 @@ class SuccinctDBG {
             free(edge_multiplicities_);
             kh_destroy(k64v16, large_multi_h_);
         }
+
         need_to_free_mul_ = false;
     }
 

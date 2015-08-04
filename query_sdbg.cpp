@@ -46,13 +46,16 @@ void InitCharMap(uint8_t *char_map) {
 bool Query(SuccinctDBG &dbg, string &kmer, uint8_t *char_map, bool print_message) {
     static char acgt[] = "$ACGT";
     uint8_t seq[dbg.kMaxKmerK];
+
     for (unsigned i = 0; i < kmer.length(); ++i) {
         seq[i] = char_map[(int)kmer[i]];
     }
 
     int64_t x = dbg.IndexBinarySearch(seq);
+
     if (x == -1) {
         if (print_message) cout << "Can not index this kmer." << endl;
+
         return false;
     }
 
@@ -63,9 +66,11 @@ bool Query(SuccinctDBG &dbg, string &kmer, uint8_t *char_map, bool print_message
         cout << "Indegree: " << dbg.Indegree(x) << endl;
         int out_degree = dbg.Outgoings(x, edge, edge_mul);
         cout << "Outdegree: " << out_degree << endl;
+
         for (int i = 0; i < out_degree; ++i) {
             cout << acgt[dbg.GetNodeLastChar(edge[i])] << ": " << edge_mul[i] << endl;
         }
+
         cout << "NodeMultiplicity: " << dbg.NodeMultiplicity(x) << endl;
 
         {
@@ -73,14 +78,18 @@ bool Query(SuccinctDBG &dbg, string &kmer, uint8_t *char_map, bool print_message
             string unitig;
             int64_t curr_node = x;
             int64_t prev, next;
+
             while ((prev = assembly_algorithms::PrevSimplePathNode(dbg, curr_node)) != -1) {
                 unitig.push_back(acgt[dbg.GetW(prev)]);
                 curr_node = prev;
             }
+
             dbg.Label(curr_node, seq);
+
             for (int k = dbg.kmer_k - 1; k >= 0; --k) {
                 unitig.push_back(acgt[seq[k]]);
             }
+
             reverse(unitig.begin(), unitig.end());
             curr_node = x;
 
@@ -88,6 +97,7 @@ bool Query(SuccinctDBG &dbg, string &kmer, uint8_t *char_map, bool print_message
                 unitig.push_back(acgt[dbg.GetW(curr_node)]);
                 curr_node = next;
             }
+
             cout << unitig << endl;
         }
 
@@ -97,9 +107,11 @@ bool Query(SuccinctDBG &dbg, string &kmer, uint8_t *char_map, bool print_message
         cout << "Indegree: " << dbg.Indegree(y) << endl;
         out_degree = dbg.Outgoings(y, edge, edge_mul);
         cout << "Outdegree: " << out_degree << endl;
+
         for (int i = 0; i < out_degree; ++i) {
             cout << acgt[dbg.GetNodeLastChar(edge[i])] << ": " << edge_mul[i] << endl;
         }
+
         cout << "NodeMultiplicity: " << dbg.NodeMultiplicity(y) << endl;
     }
 
@@ -124,15 +136,18 @@ int main(int argc, char **argv) {
     InitCharMap(char_map);
 
     int64_t bad_list[] = { 58418278, 602975976, 1033673088, 172278868, 775254816, 3 };
+
     for (int i = 0; i < 6; ++i) {
         printf("Node: %ld, multi: %d\n", bad_list[i], dbg.NodeMultiplicity(bad_list[i]));
         printf("Rev_node: %ld, multi: %d\n", dbg.ReverseComplement(bad_list[i]), dbg.NodeMultiplicity(dbg.ReverseComplement(bad_list[i])));
         char acgt[] = "$ACGT";
         uint8_t seq[dbg.kMaxKmerK];
         dbg.Label(bad_list[i], seq);
+
         for (int j = 0; j < dbg.kmer_k; ++j) {
             printf("%c", acgt[seq[j]]);
         }
+
         puts("");
     }
 
@@ -140,6 +155,7 @@ int main(int argc, char **argv) {
         omp_lock_t lock;
         omp_init_lock(&lock);
         #pragma omp parallel for
+
         for (int64_t i = 0; i < dbg.size; ++i) {
             if (dbg.IsValidNode(i) && dbg.IsLast(i)) {
                 if (dbg.NodeMultiplicity(i) != dbg.NodeMultiplicity(dbg.ReverseComplement(i))) {
@@ -150,6 +166,7 @@ int main(int argc, char **argv) {
                 }
             }
         }
+
         omp_destroy_lock(&lock);
         puts("Evaluate NodeMultiplicity done!");
     }
@@ -159,6 +176,7 @@ int main(int argc, char **argv) {
     int num_found = 0;
     int num_total = 0;
     vector<string> vs;
+
     if (mode == 2) {
         while (cin >> kmer) {
             if (kmer == "Remove") {
@@ -167,36 +185,44 @@ int main(int argc, char **argv) {
                 assembly_algorithms::Trim(dbg, len, 200);
                 continue;
             }
+
             if ((int)kmer.length() != dbg.kmer_k) {
                 cout << "k value not match!" << endl;
                 continue;
-            } else {
+            }
+            else {
                 ++num_total;
                 num_found += Query(dbg, kmer, char_map, print_message);
             }
         }
-    } else {
+    }
+    else {
         while (cin >> kmer) {
             if ((int)kmer.length() != dbg.kmer_k) {
                 cout << "k value not match!" << endl;
                 continue;
             }
+
             vs.push_back(kmer);
         }
+
         num_total = vs.size();
         omp_lock_t lock;
         omp_init_lock(&lock);
         #pragma omp parallel for
+
         for (unsigned i = 0; i < vs.size(); ++i) {
             if (Query(dbg, vs[i], char_map, print_message)) {
                 #pragma omp atomic
                 ++num_found;
-            } else {
+            }
+            else {
                 omp_set_lock(&lock);
                 cerr << vs[i] << endl;
                 omp_unset_lock(&lock);
             }
         }
+
         omp_destroy_lock(&lock);
     }
 

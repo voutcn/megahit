@@ -53,8 +53,8 @@ class Pool {
     typedef Buffer<T> buffer_type;
     typedef Pool<T> pool_type;
 
-//    static const uint32_t kMaxChunkSize = (1 << 12);
-//    static const uint32_t kMinChunkSize = (1 << 12);
+    //    static const uint32_t kMaxChunkSize = (1 << 12);
+    //    static const uint32_t kMinChunkSize = (1 << 12);
     static const uint32_t kMaxChunkSize = (1 << 20);
     static const uint32_t kMinChunkSize = (1 << 8);
 
@@ -72,17 +72,22 @@ class Pool {
 
     pointer allocate() {
         int thread_id = omp_get_thread_num();
+
         if (heads_[thread_id] != NULL) {
             pointer p = heads_[thread_id];
             heads_[thread_id] = *(pointer *)heads_[thread_id];
             return p;
-        } else {
+        }
+        else {
             buffer_type &buffer = buffers_[thread_id];
+
             if (buffer.index == buffer.size) {
                 omp_set_lock(&lock_alloc_);
                 uint32_t size = chunk_size_;
+
                 if (chunk_size_ < kMaxChunkSize)
                     chunk_size_ <<= 1;
+
                 omp_unset_lock(&lock_alloc_);
 
                 pointer p = alloc_.allocate(size);
@@ -120,7 +125,7 @@ class Pool {
     }
 
     void destroy(pointer p) {
-        ((value_type*)p)->~value_type();
+        ((value_type *)p)->~value_type();
     }
 
     void swap(Pool<value_type> &pool) {
@@ -135,8 +140,10 @@ class Pool {
 
     void clear() {
         omp_set_lock(&lock_alloc_);
+
         for (unsigned i = 0; i < chunks_.size(); ++i)
             alloc_.deallocate(chunks_[i].address, chunks_[i].size);
+
         chunks_.resize(0);
         fill(heads_.begin(), heads_.end(), (pointer)0);
         fill(buffers_.begin(), buffers_.end(), buffer_type());

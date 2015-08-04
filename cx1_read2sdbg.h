@@ -107,13 +107,13 @@ struct read2sdbg_global_t {
     SequencePackage package;
     std::vector<lib_info_t> lib_info;
     AtomicBitVector is_solid; // mark <read_id, offset> is solid
-    int32_t* lv1_items; // each item is an offset (read ID and position) in differential representation
+    int32_t *lv1_items; // each item is an offset (read ID and position) in differential representation
     int64_t *lv2_read_info; // to store where this lv2_item (k+1)-mer come from
     int64_t *lv2_read_info_db; // double buffer
-    uint32_t* lv2_substrings; // stripped format
-    uint32_t* lv2_substrings_db; // double buffer
-    uint32_t* permutation; // permutation of { 1, ..., lv2_num_items }. for sorting (as value in a key-value pair)
-    uint32_t* permutation_db;    // double buffer
+    uint32_t *lv2_substrings; // stripped format
+    uint32_t *lv2_substrings_db; // double buffer
+    uint32_t *permutation; // permutation of { 1, ..., lv2_num_items }. for sorting (as value in a key-value pair)
+    uint32_t *permutation_db;    // double buffer
 
 #ifdef USE_GPU
     void *gpu_key_buffer1;
@@ -134,7 +134,7 @@ struct read2sdbg_global_t {
 
     // output-stage1
     // std::vector<pthread_spinlock_t> mercy_file_locks;
-    std::vector<FILE*> mercy_files;
+    std::vector<FILE *> mercy_files;
     std::vector<std::vector<uint64_t> > lv2_output_items;
 
     // output-stage2
@@ -145,14 +145,14 @@ namespace s1 {
 // stage1 cx1 core functions
 int64_t s1_encode_lv1_diff_base(int64_t read_id, read2sdbg_global_t &g);
 void    s1_read_input_prepare(read2sdbg_global_t &g); // num_items_, num_cpu_threads_ and num_output_threads_ must be set here
-void*   s1_lv0_calc_bucket_size(void*); // pthread working function
+void   *s1_lv0_calc_bucket_size(void *); // pthread working function
 void    s1_init_global_and_set_cx1(read2sdbg_global_t &g);
-void*   s1_lv1_fill_offset(void*); // pthread working function
+void   *s1_lv1_fill_offset(void *); // pthread working function
 void    s1_lv1_direct_sort_and_count(read2sdbg_global_t &g);
-void*   s1_lv2_extract_substr(void*); // pthread working function
+void   *s1_lv2_extract_substr(void *); // pthread working function
 void    s1_lv2_sort(read2sdbg_global_t &g);
 void    s1_lv2_pre_output_partition(read2sdbg_global_t &g);
-void*   s1_lv2_output(void*); // pthread working function
+void   *s1_lv2_output(void *); // pthread working function
 void    s1_lv2_post_output(read2sdbg_global_t &g);
 void    s1_post_proc(read2sdbg_global_t &g);
 }
@@ -161,14 +161,14 @@ namespace s2 {
 // stage2 cx1 core functions
 int64_t s2_encode_lv1_diff_base(int64_t read_id, read2sdbg_global_t &g);
 void    s2_read_mercy_prepare(read2sdbg_global_t &g); // num_items_, num_cpu_threads_ and num_output_threads_ must be set here
-void*   s2_lv0_calc_bucket_size(void*); // pthread working function
+void   *s2_lv0_calc_bucket_size(void *); // pthread working function
 void    s2_init_global_and_set_cx1(read2sdbg_global_t &g);
-void*   s2_lv1_fill_offset(void*); // pthread working function
+void   *s2_lv1_fill_offset(void *); // pthread working function
 void    s2_lv1_direct_sort_and_proc(read2sdbg_global_t &g);
-void*   s2_lv2_extract_substr(void*); // pthread working function
+void   *s2_lv2_extract_substr(void *); // pthread working function
 void    s2_lv2_sort(read2sdbg_global_t &g);
 void    s2_lv2_pre_output_partition(read2sdbg_global_t &g);
-void*   s2_lv2_output(void*); // pthread working function
+void   *s2_lv2_output(void *); // pthread working function
 void    s2_lv2_post_output(read2sdbg_global_t &g);
 void    s2_post_proc(read2sdbg_global_t &g);
 }

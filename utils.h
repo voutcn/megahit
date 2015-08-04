@@ -37,7 +37,7 @@ inline T1 DivCeiling(T1 a, T2 b) {
     return (a + b - 1) / b;
 }
 
-inline void megahit_log__(const char* format, ...) {
+inline void megahit_log__(const char *format, ...) {
     va_list args;
     va_start(args, format);
     vfprintf(stderr, format, args);
@@ -52,14 +52,14 @@ inline void megahit_log__(const char* format, ...) {
 #define xerr_and_exit(str, args...) megahit_log__("    [ERROR] [%-25s:%4d]: ", __FILE__, __LINE__); megahit_log__(str, ##args); exit(1);
 
 #ifdef __GNUC__
-#define LIKELY(x) __builtin_expect((x),1)
-#define UNLIKELY(x) __builtin_expect((x),0)
+    #define LIKELY(x) __builtin_expect((x),1)
+    #define UNLIKELY(x) __builtin_expect((x),0)
 #else
-#define LIKELY(x) (x)
-#define UNLIKELY(x) (x)
+    #define LIKELY(x) (x)
+    #define UNLIKELY(x) (x)
 #endif
 
-inline char* FormatString(const char *fmt, ...) {
+inline char *FormatString(const char *fmt, ...) {
     static char buffer[1 << 20];
     va_list args;
     va_start(args, fmt);
@@ -112,9 +112,11 @@ struct AutoMaxRssRecorder {
 #ifdef TURN_ON_MAX_RSS_LOG
         gettimeofday(&tv2, NULL);
         struct rusage usage;
+
         if (getrusage(RUSAGE_SELF, &usage)) {
             xwarning("Fail to getrusage()\n");
         }
+
         double utime = 1e-6 * usage.ru_utime.tv_usec + usage.ru_utime.tv_sec;
         double stime = 1e-6 * usage.ru_stime.tv_usec + usage.ru_stime.tv_sec;
 

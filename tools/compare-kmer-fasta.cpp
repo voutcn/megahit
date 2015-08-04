@@ -28,29 +28,36 @@ using namespace std;
 
 static inline char Complement(char c) {
     switch (c) {
-        case 'A': {
-            return 'T';
-        }
-        case 'C': {
-            return 'G';
-        }
-        case 'G': {
-            return 'C';
-        }
-        case 'T': {
-            return 'A';
-        }
+    case 'A': {
+        return 'T';
+    }
+
+    case 'C': {
+        return 'G';
+    }
+
+    case 'G': {
+        return 'C';
+    }
+
+    case 'T': {
+        return 'A';
+    }
     }
 }
 
 static inline void ReverseComplement(string &s) {
     int i, j;
+
     for (i = 0, j = s.length() - 1; i < j; ++i, --j) {
         std::swap(s[i], s[j]);
         s[i] = Complement(s[i]);
         s[j] = Complement(s[j]);
     }
-    if (i == j) { s[i] = Complement(s[i]); }
+
+    if (i == j) {
+        s[i] = Complement(s[i]);
+    }
 }
 
 inline void AddKmer(string &read, std::vector<string> &vs, int k_value) {
@@ -59,9 +66,11 @@ inline void AddKmer(string &read, std::vector<string> &vs, int k_value) {
             string s = read.substr(i, k_value);
             string t = s;
             ReverseComplement(t);
+
             if (t < s) {
                 vs.push_back(t);
-            } else {
+            }
+            else {
                 vs.push_back(s);
             }
         }
@@ -84,18 +93,22 @@ int main(int argc, char **argv) {
     for (int x = 0; x < 2; ++x) {
         fa[x].open(argv[2 + x]);
         uniq_out[x].open((string(argv[2 + x]) + ".uniq.kmer").c_str());
+
         while (getline(fa[x], buf)) {
             if (buf[0] == '>') {
                 AddKmer(read, v_kmer[x], k_value);
                 read.clear();
                 continue;
             }
+
             read += buf;
         }
+
         if (read.length() >= k_value) {
             AddKmer(read, v_kmer[x], k_value);
             read.clear();
         }
+
         __gnu_parallel::sort(v_kmer[x].begin(), v_kmer[x].end());
         unsigned new_size = unique(v_kmer[x].begin(), v_kmer[x].end()) - v_kmer[x].begin();
         cout << argv[2 + x] << " contains " << new_size << " kmers, and " << v_kmer[x].size() - new_size << " redundant kmers." << endl;
@@ -105,17 +118,21 @@ int main(int argc, char **argv) {
     unsigned p1 = 0, p2 = 0;
     int num_uniq1 = 0, num_uniq2 = 0;
     int num_overlap = 0;
+
     while (p1 < v_kmer[0].size() && p2 < v_kmer[1].size()) {
         int cmp = strcmp(v_kmer[0][p1].c_str(), v_kmer[1][p2].c_str());
+
         if (cmp == 0) {
             ++p1;
             ++p2;
             ++num_overlap;
-        } else if (cmp < 0) {
+        }
+        else if (cmp < 0) {
             uniq_out[0] << v_kmer[0][p1] << "\n";
             ++p1;
             ++num_uniq1;
-        } else {
+        }
+        else {
             uniq_out[1] << v_kmer[1][p2] << "\n";
             ++p2;
             ++num_uniq2;

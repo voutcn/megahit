@@ -34,7 +34,7 @@ struct lib_info_t {
     std::string metadata; // raw file names
 
     lib_info_t(SequencePackage *p = NULL, int64_t from = 0, int64_t to = 0,
-    	       int max_read_len = 0, bool is_pe = false, const std::string &metadata = ""):
+               int max_read_len = 0, bool is_pe = false, const std::string &metadata = ""):
         p(p), from(from), to(to), max_read_len(max_read_len), is_pe(is_pe), metadata(metadata) { }
     ~lib_info_t() { }
 };

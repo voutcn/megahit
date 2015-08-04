@@ -117,7 +117,7 @@ struct seq2sdbg_global_t {
     SequencePackage package;
     std::vector<multi_t> multiplicity;
 
-    int32_t* lv1_items; // each item is an offset (read ID and position) in differential representation
+    int32_t *lv1_items; // each item is an offset (read ID and position) in differential representation
 
 #ifdef USE_GPU
     void *gpu_key_buffer1;
@@ -126,11 +126,11 @@ struct seq2sdbg_global_t {
     void *gpu_value_buffer2;
 #endif
 
-    uint32_t* lv2_substrings; // stripped format
-    uint32_t* lv2_substrings_db; // double buffer
-    uint32_t* permutation; // permutation of { 1, ..., lv2_num_items }. for sorting (as value in a key-value pair)
-    uint32_t* permutation_db;    // double buffer
-    
+    uint32_t *lv2_substrings; // stripped format
+    uint32_t *lv2_substrings_db; // double buffer
+    uint32_t *permutation; // permutation of { 1, ..., lv2_num_items }. for sorting (as value in a key-value pair)
+    uint32_t *permutation_db;    // double buffer
+
     int64_t max_sorting_items;
     int64_t mem_sorting_items;
 
@@ -145,14 +145,14 @@ struct seq2sdbg_global_t {
 
 int64_t encode_lv1_diff_base(int64_t read_id, seq2sdbg_global_t &g);
 void    read_seq_and_prepare(seq2sdbg_global_t &g); // num_items_, num_cpu_threads_ and num_output_threads_ must be set here
-void*   lv0_calc_bucket_size(void*); // pthread working function
+void   *lv0_calc_bucket_size(void *); // pthread working function
 void    init_global_and_set_cx1(seq2sdbg_global_t &g);
-void*   lv1_fill_offset(void*); // pthread working function
+void   *lv1_fill_offset(void *); // pthread working function
 void    lv1_direct_sort_and_proc(seq2sdbg_global_t &g);
-void*   lv2_extract_substr(void*); // pthread working function
+void   *lv2_extract_substr(void *); // pthread working function
 void    lv2_sort(seq2sdbg_global_t &g);
 void    lv2_pre_output_partition(seq2sdbg_global_t &g);
-void*   lv2_output(void*); // pthread working function
+void   *lv2_output(void *); // pthread working function
 void    lv2_post_output(seq2sdbg_global_t &g);
 void    post_proc(seq2sdbg_global_t &g);
 

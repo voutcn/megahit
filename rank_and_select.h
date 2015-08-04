@@ -57,6 +57,7 @@ class RankAndSelect4Bits {
 
             popcount_char_xorer_[i] = ~popcount_char_xorer_[i];
         }
+
         popcount_mask_ = ~popcount_char_xorer_[1];
     }
 
@@ -65,9 +66,11 @@ class RankAndSelect4Bits {
             if (occ_value_explicit_major_[i] != NULL) {
                 free(occ_value_explicit_major_[i]);
             }
+
             if (occ_value_explicit_minor_[i] != NULL) {
                 free(occ_value_explicit_minor_[i]);
             }
+
             if (rank_to_interval_explicit_[i] != NULL) {
                 free(rank_to_interval_explicit_[i]);
             }
@@ -83,12 +86,15 @@ class RankAndSelect4Bits {
         // build rank
         for (int i = 0; i < kAlphabetSize; ++i) {
             count[i] = 0;
-            occ_value_explicit_major_[i] = (int64_t*) malloc(sizeof(int64_t) * num_intervals_major);
+            occ_value_explicit_major_[i] = (int64_t *) malloc(sizeof(int64_t) * num_intervals_major);
+
             if (occ_value_explicit_major_[i] == NULL) {
                 fprintf(stderr, "Malloc Failed: %s: %d\n", __FILE__, __LINE__);
                 exit(1);
             }
-            occ_value_explicit_minor_[i] = (uint16_t*) malloc(sizeof(uint16_t) * num_intervals);
+
+            occ_value_explicit_minor_[i] = (uint16_t *) malloc(sizeof(uint16_t) * num_intervals);
+
             if (occ_value_explicit_minor_[i] == NULL) {
                 fprintf(stderr, "Malloc Failed: %s: %d\n", __FILE__, __LINE__);
                 exit(1);
@@ -101,9 +107,11 @@ class RankAndSelect4Bits {
                     if (i % kCharPerIntervalMajor == 0) {
                         occ_value_explicit_major_[j][i / kCharPerIntervalMajor] = count[j];
                     }
+
                     occ_value_explicit_minor_[j][i / kCharPerInterval] = count[j] - occ_value_explicit_major_[j][i / kCharPerIntervalMajor];
                 }
             }
+
             for (int j = 0; j < kAlphabetSize; ++j) {
                 count[j] += CountCharInWord_(j, *cur_word);
             }
@@ -121,17 +129,20 @@ class RankAndSelect4Bits {
 
         for (int j = 0; j < kAlphabetSize; ++j) {
             interval_t s_table_size = (count[j] + kSelectSampleSize - 1) / kSelectSampleSize + 1;
-            rank_to_interval_explicit_[j] = (interval_t*) malloc(sizeof(interval_t) * s_table_size);
+            rank_to_interval_explicit_[j] = (interval_t *) malloc(sizeof(interval_t) * s_table_size);
+
             if (rank_to_interval_explicit_[j] == NULL) {
                 fprintf(stderr, "Malloc Failed: %s: %d\n", __FILE__, __LINE__);
                 exit(1);
             }
+
             for (int64_t i = 0, s_table_idx = 0; i < num_intervals; ++i) {
                 while (s_table_idx * kSelectSampleSize < OccValue_(j, i)) {
                     rank_to_interval_explicit_[j][s_table_idx] = i - 1;
                     ++s_table_idx;
                 }
             }
+
             rank_to_interval_explicit_[j][s_table_size - 1] = num_intervals - 1;
         }
 
@@ -155,10 +166,12 @@ class RankAndSelect4Bits {
         ++pos;
         int64_t which_interval = (pos + kCharPerInterval / 2 - 1) / kCharPerInterval;
         int64_t sampled_index = which_interval * kCharPerInterval;
+
         if (sampled_index >= length) {
             sampled_index -= kCharPerInterval;
             which_interval--;
         }
+
         PrefectchOccValue_(c, which_interval);
 
         if (sampled_index > pos) {
@@ -172,12 +185,15 @@ class RankAndSelect4Bits {
                 mask = -(1ULL << kBitsPerChar * (kCharPerWord - chars_to_count));
                 count_c += CountCharInWord_(c, first_word[0], mask);
             }
+
             for (int i = 1; i <= words_to_count; ++i) {
                 count_c += CountCharInWord_(c, first_word[i]);
             }
+
             return OccValue_(c, which_interval) - count_c;
 
-        } else if (sampled_index < pos) {
+        }
+        else if (sampled_index < pos) {
             first_word = packed_text_ + sampled_index / kCharPerWord;
             __builtin_prefetch(first_word);
             total_chars_to_count = pos - sampled_index;
@@ -187,13 +203,16 @@ class RankAndSelect4Bits {
             for (int i = 0; i < words_to_count; ++i) {
                 count_c += CountCharInWord_(c, first_word[i]);
             }
+
             if (chars_to_count > 0) {
                 mask = (1ULL << kBitsPerChar * chars_to_count) - 1;
                 count_c += CountCharInWord_(c, first_word[words_to_count], mask);
             }
+
             return OccValue_(c, which_interval) + count_c;
 
-        } else {
+        }
+        else {
             return OccValue_(c, which_interval);
         }
     }
@@ -202,9 +221,11 @@ class RankAndSelect4Bits {
         // return the pos of the ranking_th c (0-based)
         if (ranking >= char_frequency[c]) {
             return length;
-        } else if (ranking < 0) {
+        }
+        else if (ranking < 0) {
             return -1;
         }
+
         // first locate which interval Select(c, ranking) falls
         interval_t interval_l = rank_to_interval_explicit_[c][ranking / kSelectSampleSize];
         interval_t interval_r = rank_to_interval_explicit_[c][(ranking + kSelectSampleSize - 1) / kSelectSampleSize];
@@ -212,22 +233,26 @@ class RankAndSelect4Bits {
 
         while (interval_r > interval_l + DIFF_TO_DO_BINARY_SEARCH) {
             interval_m = (interval_r + interval_l + 1) / 2;
+
             // PrefectchOccValue_(c, (interval_m + interval_l) / 2);
             // PrefectchOccValue_(c, (interval_m + interval_r + 1) / 2);
             if (OccValue_(c, interval_m) > ranking) {
                 interval_r = interval_m - 1;
-            } else {
+            }
+            else {
                 interval_l = interval_m;
             }
         }
 
 #if DIFF_TO_DO_BINARY_SEARCH > 0
         PrefectchOccValue_(c, interval_l);
+
         if (interval_r > interval_l) {
             while (OccValue_(c, interval_l + 1) <= ranking) {
                 ++interval_l;
             }
         }
+
 #endif
 
         int64_t pos = (int64_t)interval_l * kCharPerInterval;
@@ -240,11 +265,14 @@ class RankAndSelect4Bits {
 
         for (; ; pos_in_word += kCharPerWord) {
             popcnt = CountCharInWord_(c, *cur_word);
+
             if (popcnt >= remaining_c) {
                 break;
-            } else {
+            }
+            else {
                 remaining_c -= popcnt;
             }
+
             ++cur_word;
         }
 
@@ -256,21 +284,26 @@ class RankAndSelect4Bits {
         if (((*(packed_text_ + pos / kCharPerWord) >> (pos % kCharPerWord * kBitsPerChar)) & ((1 << kBitsPerChar) - 1)) == c) {
             return pos;
         }
+
         return Select(c, Rank(c, pos) - 1);
     }
 
     int64_t PredLimitedStep(uint8_t c, int64_t pos, int step) {
         // the last c in [pos-step, pos], return pos-step-1 if not exist
         int64_t end = pos - step;
+
         if (end < 0) {
             end = 0;
         }
+
         while (pos >= end) {
             if (((*(packed_text_ + pos / kCharPerWord) >> (pos % kCharPerWord * kBitsPerChar)) & ((1 << kBitsPerChar) - 1)) == c) {
                 return pos;
             }
+
             --pos;
         }
+
         return pos;
     }
 
@@ -279,21 +312,26 @@ class RankAndSelect4Bits {
         if (((*(packed_text_ + pos / kCharPerWord) >> (pos % kCharPerWord * kBitsPerChar)) & ((1 << kBitsPerChar) - 1)) == c) {
             return pos;
         }
+
         return Select(c, Rank(c, pos - 1));
     }
 
     int64_t SuccLimitedStep(uint8_t c, int64_t pos, int step) {
         // the first c in [pos, pos+step], return pos+step+1 if not exist
         int64_t end = pos - step;
+
         if (end >= length) {
             end = length;
         }
+
         while (pos <= end) {
             if (((*(packed_text_ + pos / kCharPerWord) >> (pos % kCharPerWord * kBitsPerChar)) & ((1 << kBitsPerChar) - 1)) == c) {
                 return pos;
             }
+
             ++pos;
         }
+
         return pos;
     }
 
@@ -324,6 +362,7 @@ class RankAndSelect4Bits {
             x ^= 1ULL << tailing_zero;
             --num_c;
         }
+
         return tailing_zero / kBitsPerChar; // 0-based
     }
 
@@ -378,9 +417,11 @@ class RankAndSelect1Bit {
         if (occ_value_explicit_major_ != NULL) {
             free(occ_value_explicit_major_);
         }
+
         if (occ_value_explicit_minor_ != NULL) {
             free(occ_value_explicit_minor_);
         }
+
         if (rank_to_interval_explicit_ != NULL) {
             free(rank_to_interval_explicit_);
         }
@@ -392,12 +433,15 @@ class RankAndSelect1Bit {
         int64_t num_intervals_major = (length + kBitsPerMajorInterval - 1) / kBitsPerMajorInterval + 1;
         unsigned long long *cur_word = packed_text;
 
-        occ_value_explicit_major_ = (int64_t*) malloc(sizeof(int64_t) * num_intervals_major);
+        occ_value_explicit_major_ = (int64_t *) malloc(sizeof(int64_t) * num_intervals_major);
+
         if (occ_value_explicit_major_ == NULL) {
             fprintf(stderr, "Malloc Failed: %s: %d\n", __FILE__, __LINE__);
             exit(1);
         }
-        occ_value_explicit_minor_ = (uint16_t*) malloc(sizeof(uint16_t) * num_intervals);
+
+        occ_value_explicit_minor_ = (uint16_t *) malloc(sizeof(uint16_t) * num_intervals);
+
         if (occ_value_explicit_minor_ == NULL) {
             fprintf(stderr, "Malloc Failed: %s: %d\n", __FILE__, __LINE__);
             exit(1);
@@ -408,6 +452,7 @@ class RankAndSelect1Bit {
                 if (i % kBitsPerMajorInterval == 0) {
                     occ_value_explicit_major_[i / kBitsPerMajorInterval] = count_ones;
                 }
+
                 occ_value_explicit_minor_[i / kBitsPerInterval] = count_ones - occ_value_explicit_major_[i / kBitsPerMajorInterval];
             }
 
@@ -421,13 +466,15 @@ class RankAndSelect1Bit {
         // Build select look up table
         if (!rank_only) {
             uint32_t s_table_size = (count_ones + kSelectSampleSize - 1) / kSelectSampleSize + 1;
-            rank_to_interval_explicit_ = (uint32_t*) malloc(sizeof(uint32_t) * s_table_size);
+            rank_to_interval_explicit_ = (uint32_t *) malloc(sizeof(uint32_t) * s_table_size);
+
             if (rank_to_interval_explicit_ == NULL) {
                 fprintf(stderr, "Malloc Failed: %s: %d\n", __FILE__, __LINE__);
                 exit(1);
             }
 
             int64_t s_table_idx = 0;
+
             for (int64_t i = 0; i < num_intervals; ++i) {
                 while (s_table_idx * kSelectSampleSize < OccValue_(i)) {
                     rank_to_interval_explicit_[s_table_idx] = i - 1;
@@ -446,6 +493,7 @@ class RankAndSelect1Bit {
         if (pos > length - 1) {
             return total_num_ones;
         }
+
         ++pos;
         unsigned long long mask;
         unsigned long long *first_word;
@@ -456,10 +504,12 @@ class RankAndSelect1Bit {
 
         int64_t which_interval = (pos + kBitsPerInterval / 2 - 1) / kBitsPerInterval;
         int64_t sampled_index = which_interval * kBitsPerInterval;
+
         if (sampled_index > length) {
             sampled_index -= kBitsPerInterval;
             which_interval--;
         }
+
         PrefectchOccValue_(which_interval);
 
         if (sampled_index > pos) {
@@ -481,7 +531,8 @@ class RankAndSelect1Bit {
 
             return OccValue_(which_interval) - count_ones;
 
-        } else if (sampled_index < pos) {
+        }
+        else if (sampled_index < pos) {
             first_word = packed_text_ + sampled_index / kBitsPerWord;
             __builtin_prefetch(first_word);
 
@@ -500,18 +551,22 @@ class RankAndSelect1Bit {
 
             return OccValue_(which_interval) + count_ones;
 
-        } else {
+        }
+        else {
             return OccValue_(which_interval);
         }
     }
 
     int64_t Select(int64_t ranking) {
         static_assert(rank_only == false, "cannot select in rank_only struct");
+
         if (ranking >= total_num_ones) {
             return length;
-        } else if (ranking < 0) {
+        }
+        else if (ranking < 0) {
             return -1;
         }
+
         // first locate which interval Select(c, ranking) falls
         uint32_t interval_l = rank_to_interval_explicit_[ranking / kSelectSampleSize];
         uint32_t interval_r = rank_to_interval_explicit_[(ranking + kSelectSampleSize - 1) / kSelectSampleSize];
@@ -519,22 +574,26 @@ class RankAndSelect1Bit {
 
         while (interval_r > interval_l + DIFF_TO_DO_BINARY_SEARCH) {
             interval_m = (interval_r + interval_l + 1) / 2;
+
             // PrefectchOccValue_(c, (interval_m + interval_l) / 2);
             // PrefectchOccValue_(c, (interval_m + interval_r + 1) / 2);
             if (OccValue_(interval_m) > ranking) {
                 interval_r = interval_m - 1;
-            } else {
+            }
+            else {
                 interval_l = interval_m;
             }
         }
 
 #if DIFF_TO_DO_BINARY_SEARCH > 0
         PrefectchOccValue_(interval_l);
+
         if (interval_r > interval_l) {
             while (OccValue_(interval_l + 1) <= ranking) {
                 ++interval_l;
             }
         }
+
 #endif
 
         int64_t pos = (int64_t)interval_l * kBitsPerInterval;
@@ -547,41 +606,51 @@ class RankAndSelect1Bit {
 
         for (; ; pos_in_word += kBitsPerWord) {
             popcnt = __builtin_popcountll(*cur_word);
+
             if (popcnt >= remaining_ones) {
                 break;
-            } else {
+            }
+            else {
                 remaining_ones -= popcnt;
             }
+
             ++cur_word;
         }
+
         return pos + pos_in_word + SelectInWord_(remaining_ones, *cur_word);
     }
 
     int64_t Pred(int64_t pos) {
         unsigned long long *word = packed_text_ + pos / kBitsPerWord;
         int idx_in_word = pos % kBitsPerWord;
+
         while (pos >= 0 && !((*word >> idx_in_word) & 1)) {
             --idx_in_word;
             --pos;
+
             if (idx_in_word < 0) {
                 idx_in_word = kBitsPerWord - 1;
                 --word;
             }
         }
+
         return pos;
     }
 
     int64_t Succ(int64_t pos) {
         unsigned long long *word = packed_text_ + pos / kBitsPerWord;
         int idx_in_word = pos % kBitsPerWord;
+
         while (pos < length && !((*word >> idx_in_word) & 1)) {
             ++idx_in_word;
             ++pos;
+
             if (idx_in_word == kBitsPerWord) {
                 idx_in_word = 0;
                 ++word;
             }
         }
+
         return pos;
     }
 
@@ -598,11 +667,13 @@ class RankAndSelect1Bit {
 
     int SelectInWord_(int num, unsigned long long x) {
         int tailing_zero = 0;
+
         while (num > 0) {
             tailing_zero = __builtin_ctzll(x);
             x ^= 1LL << tailing_zero;
             --num;
         }
+
         return tailing_zero; // 0-based
     }
 
