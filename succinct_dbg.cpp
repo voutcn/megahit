@@ -566,7 +566,7 @@ void SuccinctDBG::LoadFromMultiFile(const char *dbg_name) {
         }
 
         if (UNLIKELY((item >> 5) & 1)) {
-            assert(sdbg_reader.NextTipLabel(tip_node_seq_ + tip_label_offset));
+            sdbg_reader.NextTipLabel(tip_node_seq_ + tip_label_offset);
             tip_label_offset += sdbg_reader.words_per_tip_label();
         }
     }

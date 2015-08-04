@@ -5,6 +5,8 @@
 #include <stdint.h>
 #include <assert.h>
 #include <string.h>
+#include <sys/mman.h>
+
 #include <string>
 #include <vector>
 #include <algorithm>
@@ -195,47 +197,14 @@ class SdbgReader {
 
   	int cur_bucket_;
 	long long cur_bucket_cnt_;
+	void *cur_bucket_ptr_;
 
   	std::vector<SdbgPartitionRecord> p_rec_;
-  	std::vector<FILE*> files_;
-  	FILE *cur_file_;
+  	std::vector<long long> file_sizes_;
+  	std::vector<int> fds_;
+  	std::vector<void*> mmaps_;
 
   	bool is_opened_;
-  	static const int kBufSize = 4096;
-  	char buf_[kBufSize];
-  	int buf_size_;
-  	int buf_idx_;
-
-  	unsigned Read_(void* des, int size) {
-  		if (size + buf_idx_ <= buf_size_) {
-  			memcpy(des, buf_ + buf_idx_, size);
-  			buf_idx_ += size;
-  			return size;
-  		} else {
-  			int remain = buf_size_ - buf_idx_;
-  			memcpy(des, buf_ + buf_idx_, remain);
-  			des = (char*)des + remain;
-  			size -= remain;
-
-  			buf_size_ = buf_idx_ = 0;
-
-  			if (size >= kBufSize / 2) {
-  				return remain + fread(des, 1, size, cur_file_);
-  			} else {
-  				buf_size_ = fread(buf_, 1, kBufSize, cur_file_);
-  				if (buf_size_ < size) {
-  					memcpy(des, buf_, buf_size_);
-  					remain += buf_size_;
-  					buf_size_ = 0;
-  					return remain;
-  				} else {
-  					memcpy(des, buf_, size);
-  					buf_idx_ = size;
-  					return remain + size;
-  				}
-  			}
-  		}
-  	}
 
   public:
   	SdbgReader(): is_opened_(false) {}
@@ -254,6 +223,7 @@ class SdbgReader {
 		assert(fscanf(sdbg_info, "large_multi %lld\n", &num_large_mul_) == 1);
 
 		p_rec_.resize(num_buckets_);
+		file_sizes_.resize(num_files_, 0);
 		long long acc = 0;
 		f_[0] = -1;
 		f_[1] = 0;
@@ -265,6 +235,7 @@ class SdbgReader {
 				&p_rec_[i].num_items, 
 				&p_rec_[i].num_tips, 
 				&p_rec_[i].num_large_mul) == 6);
+			file_sizes_[p_rec_[i].thread_id] += p_rec_[i].num_items * sizeof(uint16_t) + p_rec_[i].num_tips * sizeof(uint32_t) * words_per_tip_label_ + p_rec_[i].num_large_mul * sizeof(multi_t);
 			acc += p_rec_[i].num_items;
 			f_[i / (num_buckets_ / 4) + 2] = acc;
 		}
@@ -281,9 +252,13 @@ class SdbgReader {
 
   	void init_files() {
   		assert(!is_opened_);
-  		files_.resize(num_files_);
+  		fds_.resize(num_files_);
+  		mmaps_.resize(num_files_);
   		for (int i = 0; i < num_files_; ++i) {
-  			files_[i] = OpenFileAndCheck(FormatString("%s.sdbg.%d", file_prefix_.c_str(), i), "rb");
+  			fds_[i] = open(FormatString("%s.sdbg.%d", file_prefix_.c_str(), i), O_RDONLY);
+  			assert(fds_[i] != -1);
+  			mmaps_[i] = mmap(NULL, file_sizes_[i], PROT_READ, MAP_SHARED, fds_[i], 0);
+  			assert(mmaps_[i] != NULL);
   		}
 
   		cur_bucket_ = -1;
@@ -306,30 +281,35 @@ class SdbgReader {
 			if (cur_bucket_ >= num_buckets_) {
 				return false;
 			}
-			cur_file_ = files_[p_rec_[cur_bucket_].thread_id];
-  			fseek(cur_file_, p_rec_[cur_bucket_].starting_offset, SEEK_SET);
-  			buf_size_ = buf_idx_ = 0;
-  			assert(!ferror(cur_file_));
+			cur_bucket_ptr_ = (void*)((char*)(mmaps_[p_rec_[cur_bucket_].thread_id]) + p_rec_[cur_bucket_].starting_offset);
+			size_t size_of_buckets = p_rec_[cur_bucket_].num_items * sizeof(uint16_t) + 
+									 p_rec_[cur_bucket_].num_tips * sizeof(uint32_t) * words_per_tip_label_ + 
+									 p_rec_[cur_bucket_].num_large_mul * sizeof(multi_t);
+			madvise(cur_bucket_ptr_, size_of_buckets, MADV_SEQUENTIAL);
 		}
 
 		++cur_bucket_cnt_;
-		return Read_(&item, sizeof(uint16_t)) == sizeof(uint16_t);
+		item = *((uint16_t*)cur_bucket_ptr_);
+		cur_bucket_ptr_ = (void*)((char*)cur_bucket_ptr_ + sizeof(uint16_t));
+		return true;
 	}
 
 	multi_t NextLargeMul() {
-		multi_t large_mul;
-		assert(Read_(&large_mul, sizeof(multi_t)) == sizeof(multi_t));
+		multi_t large_mul = *((multi_t*)cur_bucket_ptr_);
+		cur_bucket_ptr_ = (void*)((char*)cur_bucket_ptr_ + sizeof(multi_t));
 		return large_mul;
 	}
 
-	bool NextTipLabel(uint32_t *tip_label) {
-		return Read_(tip_label, sizeof(uint32_t) * words_per_tip_label_) == sizeof(uint32_t) * words_per_tip_label_;
+	void NextTipLabel(uint32_t *tip_label) {
+		memcpy(tip_label, cur_bucket_ptr_, sizeof(uint32_t) * words_per_tip_label_);
+		cur_bucket_ptr_ = (void*)((char*)cur_bucket_ptr_ + sizeof(uint32_t) * words_per_tip_label_);
 	}
 
 	void destroy() {
 		if (is_opened_) {
 			for (int i = 0; i < num_files_; ++i) {
-	  			fclose(files_[i]);
+				munmap(mmaps_[i], file_sizes_[i]);
+	  			close(fds_[i]);
 	  		}
 	  		is_opened_ = false;
 		}
