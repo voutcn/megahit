@@ -196,19 +196,23 @@ int main_read2sdbg(int argc, char **argv) {
     globals.cx1.g_ = &globals;
 
     // stage1
-    globals.cx1.encode_lv1_diff_base_func_ = cx1_read2sdbg::s1::s1_encode_lv1_diff_base;
-    globals.cx1.prepare_func_ = cx1_read2sdbg::s1::s1_read_input_prepare;
-    globals.cx1.lv0_calc_bucket_size_func_ = cx1_read2sdbg::s1::s1_lv0_calc_bucket_size;
-    globals.cx1.init_global_and_set_cx1_func_ = cx1_read2sdbg::s1::s1_init_global_and_set_cx1;
-    globals.cx1.lv1_fill_offset_func_ = cx1_read2sdbg::s1::s1_lv1_fill_offset;
-    globals.cx1.lv1_sort_and_proc = cx1_read2sdbg::s1::s1_lv1_direct_sort_and_count;
-    globals.cx1.lv2_extract_substr_func_ = cx1_read2sdbg::s1::s1_lv2_extract_substr;
-    globals.cx1.lv2_sort_func_ = cx1_read2sdbg::s1::s1_lv2_sort;
-    globals.cx1.lv2_pre_output_partition_func_ = cx1_read2sdbg::s1::s1_lv2_pre_output_partition;
-    globals.cx1.lv2_output_func_ = cx1_read2sdbg::s1::s1_lv2_output;
-    globals.cx1.lv2_post_output_func_ = cx1_read2sdbg::s1::s1_lv2_post_output;
-    globals.cx1.post_proc_func_ = cx1_read2sdbg::s1::s1_post_proc;
-    globals.cx1.run();
+    if (opt.kmer_freq_threshold > 1) {
+        globals.cx1.encode_lv1_diff_base_func_ = cx1_read2sdbg::s1::s1_encode_lv1_diff_base;
+        globals.cx1.prepare_func_ = cx1_read2sdbg::s1::s1_read_input_prepare;
+        globals.cx1.lv0_calc_bucket_size_func_ = cx1_read2sdbg::s1::s1_lv0_calc_bucket_size;
+        globals.cx1.init_global_and_set_cx1_func_ = cx1_read2sdbg::s1::s1_init_global_and_set_cx1;
+        globals.cx1.lv1_fill_offset_func_ = cx1_read2sdbg::s1::s1_lv1_fill_offset;
+        globals.cx1.lv1_sort_and_proc = cx1_read2sdbg::s1::s1_lv1_direct_sort_and_count;
+        globals.cx1.lv2_extract_substr_func_ = cx1_read2sdbg::s1::s1_lv2_extract_substr;
+        globals.cx1.lv2_sort_func_ = cx1_read2sdbg::s1::s1_lv2_sort;
+        globals.cx1.lv2_pre_output_partition_func_ = cx1_read2sdbg::s1::s1_lv2_pre_output_partition;
+        globals.cx1.lv2_output_func_ = cx1_read2sdbg::s1::s1_lv2_output;
+        globals.cx1.lv2_post_output_func_ = cx1_read2sdbg::s1::s1_lv2_post_output;
+        globals.cx1.post_proc_func_ = cx1_read2sdbg::s1::s1_post_proc;
+        globals.cx1.run();
+    } else {
+        cx1_read2sdbg::s1::s1_read_input_prepare(globals);
+    }
 
     // stage2
     globals.cx1.encode_lv1_diff_base_func_ = cx1_read2sdbg::s2::s2_encode_lv1_diff_base;

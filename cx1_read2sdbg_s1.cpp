@@ -108,7 +108,12 @@ void s1_read_input_prepare(read2sdbg_global_t &globals) {
 
     // --- allocate memory for is_solid bit_vector
     globals.num_k1_per_read = globals.max_read_length - globals.kmer_k;
-    globals.is_solid.reset(globals.num_k1_per_read * globals.num_reads);
+    if (globals.kmer_freq_threshold == 1) {
+        globals.is_solid.reset(globals.num_k1_per_read * globals.num_reads, 1);
+    } else {
+        globals.is_solid.reset(globals.num_k1_per_read * globals.num_reads);
+    }
+    
     globals.mem_packed_reads = DivCeiling(globals.num_k1_per_read * globals.num_reads, 8) + globals.package.size_in_byte();
 
     int64_t mem_low_bound = globals.mem_packed_reads
