@@ -4,6 +4,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <stdint.h>
+#include <sys/mman.h>
 
 #include <string>
 #include <vector>
@@ -127,9 +128,12 @@ class EdgeWriter {
 	  		for (unsigned i = 0; i < p_rec_.size(); ++i) {
 	  			fprintf(info, "%u %d %lld %lld\n", i, p_rec_[i].thread_id, (long long)p_rec_[i].starting_offset, (long long)p_rec_[i].total_number);
 	  		}
+        for (unsigned i = 0; i < num_unsorted_edges_.size(); ++i) {
+          fprintf(info, "%d %lld\n", i, (long long)num_unsorted_edges_[i]);
+        }
 	  		fclose(info);
 
-			files_.clear();
+			  files_.clear();
 	  		cur_bucket_.clear();
 	  		cur_num_edges_.clear();
 	  		p_rec_.clear();
@@ -148,27 +152,21 @@ class EdgeReader {
   	long long num_edges_;
 
   	std::string file_prefix_;
-    std::vector<FILE*> files_;
+    std::vector<int> fds_;
+    std::vector<uint32_t*> mmaps_;
   	std::vector<PartitionRecord> p_rec_;
-  	std::vector<uint32_t> buf_;
-  	int buf_idx_;
-  	int buf_size_;
+    std::vector<long long> file_sizes_;
 
   	int cur_bucket_;
   	int cur_file_num_; // used for unsorted edges
-  	long long cur_bucket_cnt_;
-  	FILE *cur_file_;
+  	long long cur_cnt_;
+    long long cur_vol_;
+    uint32_t *cur_ptr_;
 
     bool is_opened_;
-    int num_edges_in_buf_;
-
-    static const int kBufSize = 4096;
 
   public:
   	EdgeReader(): is_opened_(false) {
-  		cur_bucket_ = -1;
-  		cur_bucket_cnt_ = 0;
-  		cur_file_ = NULL;
   	}
   	~EdgeReader() {
   		destroy();
@@ -186,28 +184,44 @@ class EdgeReader {
   		assert(fscanf(info, "num_bucket %d\n", &num_buckets_) == 1);
   		assert(fscanf(info, "num_edges %lld\n", &num_edges_) == 1);
   		p_rec_.resize(num_buckets_);
+      file_sizes_.resize(num_files_, 0);
+
   		for (int i = 0; i < num_buckets_; ++i) {
   			unsigned dummy;
   			assert(fscanf(info, "%u %d %lld %lld\n", &dummy, &p_rec_[i].thread_id, &p_rec_[i].starting_offset, &p_rec_[i].total_number) == 4);
+        file_sizes_[p_rec_[i].thread_id] += p_rec_[i].total_number;
   		}
+
+      if (num_buckets_ == 0) {
+        for (int i = 0; i < num_files_; ++i) {
+          int dummy;
+          assert(fscanf(info, "%d %lld\n", &dummy, &file_sizes_[i]) == 2);
+        }
+      }
 
   		fclose(info);
   	}
 
     void init_files() {
       assert(!is_opened_);
-      files_.resize(num_files_);
+      fds_.resize(num_files_);
+      mmaps_.resize(num_files_);
       for (int i = 0; i < num_files_; ++i) {
-        files_[i] = OpenFileAndCheck(FormatString("%s.edges.%d", file_prefix_.c_str(), i), "rb");
+        fds_[i] = open(FormatString("%s.edges.%d", file_prefix_.c_str(), i), O_RDONLY);
+        assert(fds_[i] != -1);
+        mmaps_[i] = (uint32_t*)mmap(NULL, file_sizes_[i] * sizeof(uint32_t) * words_per_edge_, PROT_READ, MAP_SHARED, fds_[i], 0);
+        assert(mmaps_[i] != NULL);
       }
-      buf_size_ = 0;
-      buf_idx_ = 0;
-      cur_file_num_ = -1;
-      num_edges_in_buf_ = kBufSize / (words_per_edge_ * sizeof(uint32_t));
-      if (num_edges_in_buf_ == 0) {
-        num_edges_in_buf_ = 1;
+
+      cur_cnt_ = 0;
+      cur_vol_ = 0;
+      cur_bucket_ = -1;
+
+      // for unsorted
+      if (is_unsorted()) {
+        cur_file_num_ = -1;
       }
-      buf_.resize(words_per_edge_ * num_edges_in_buf_);
+
       is_opened_ = true;
     }
 
@@ -222,77 +236,57 @@ class EdgeReader {
   	uint32_t *NextSortedEdge() {
   		if (cur_bucket_ >= num_buckets_) { return NULL; }
 
-  		while (cur_bucket_ == -1 || cur_bucket_cnt_ >= p_rec_[cur_bucket_].total_number) {
-
-  			buf_idx_ = 0;
-  			buf_size_ = 0;
-
+  		while (cur_cnt_ >= cur_vol_) {
   			++cur_bucket_;
   			while (cur_bucket_ < num_buckets_ && p_rec_[cur_bucket_].thread_id < 0) {
   				++cur_bucket_;
   			}
 
   			if (cur_bucket_ >= num_buckets_) { return NULL; }
-  			cur_bucket_cnt_ = 0;
+  			cur_cnt_ = 0;
+        cur_vol_ = p_rec_[cur_bucket_].total_number;
 
-  			cur_file_ = files_[p_rec_[cur_bucket_].thread_id];
-  			fseek(cur_file_, sizeof(uint32_t) * words_per_edge_ * p_rec_[cur_bucket_].starting_offset, SEEK_SET);
-  			assert(!ferror(cur_file_));
+        cur_ptr_ = mmaps_[p_rec_[cur_bucket_].thread_id] + words_per_edge_ * p_rec_[cur_bucket_].starting_offset;
+        madvise(cur_ptr_, sizeof(uint32_t) * words_per_edge_ * p_rec_[cur_bucket_].total_number, MADV_SEQUENTIAL);
   		}
 
-  		if (buf_idx_ == buf_size_) {
-  			buf_size_ = num_edges_in_buf_;
-  			if (buf_size_ > p_rec_[cur_bucket_].total_number - cur_bucket_cnt_) {
-  				buf_size_ = p_rec_[cur_bucket_].total_number - cur_bucket_cnt_;
-  			}
-  			buf_size_ *= words_per_edge_;
-  			assert(buf_size_ != 0);
-
-  			assert(fread(&buf_[0], sizeof(uint32_t), buf_size_, cur_file_) == (unsigned)buf_size_);
-  			buf_idx_ = 0;
-  		}
-
-  		++cur_bucket_cnt_;
-  		buf_idx_ += words_per_edge_;
-  		return &buf_[buf_idx_ - words_per_edge_];
+  		++cur_cnt_;
+      cur_ptr_ += words_per_edge_;
+      return cur_ptr_ - words_per_edge_;
   	}
 
   	uint32_t *NextUnsortedEdge() {
-  		if (cur_file_num_ < 0) {
-  			cur_file_num_ = 0;
-        cur_file_ = files_[0];
-  		}
-
   		if (cur_file_num_ >= num_files_) {
   			return NULL;
   		}
 
-  		while (buf_idx_ >= buf_size_) {
-  			buf_idx_ = 0;
-  			buf_size_ = fread(&buf_[0], sizeof(uint32_t), num_edges_in_buf_ * words_per_edge_, cur_file_);
-
-  			if (buf_size_ != 0) {
-  				break;
-  			}
-
+  		while (cur_cnt_ >= cur_vol_) {
   			cur_file_num_++;
   			if (cur_file_num_ >= num_files_) {
   				return NULL;
   			}
 
-  			cur_file_ = files_[cur_file_num_];
+  			cur_ptr_ = mmaps_[cur_file_num_];
+        cur_cnt_ = 0;
+        cur_vol_ = file_sizes_[cur_file_num_];
+
+        madvise(cur_ptr_, sizeof(uint32_t) * words_per_edge_ * file_sizes_[cur_file_num_], MADV_SEQUENTIAL);
   		}
 
-  		buf_idx_ += words_per_edge_;
-  		return &buf_[buf_idx_ - words_per_edge_];
+      ++cur_cnt_;
+      cur_ptr_ += words_per_edge_;
+      return cur_ptr_ - words_per_edge_;
   	}
 
   	void destroy() {
       if (is_opened_) {
         for (int i = 0; i < num_files_; ++i) {
-          fclose(files_[i]);
+          munmap(mmaps_[i], file_sizes_[i]);
+          close(fds_[i]);
         }
-        files_.resize(0);
+        file_sizes_.clear();
+        fds_.clear();
+        mmaps_.clear();
         is_opened_ = false;
       }
   	}

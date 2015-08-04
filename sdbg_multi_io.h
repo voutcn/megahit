@@ -197,6 +197,7 @@ class SdbgReader {
 
   	int cur_bucket_;
 	long long cur_bucket_cnt_;
+	long long cur_vol_;
 	void *cur_bucket_ptr_;
 
   	std::vector<SdbgPartitionRecord> p_rec_;
@@ -263,6 +264,7 @@ class SdbgReader {
 
   		cur_bucket_ = -1;
   		cur_bucket_cnt_ = 0;
+  		cur_vol_ = 0;
   		is_opened_ = true;
   	}
 
@@ -271,7 +273,7 @@ class SdbgReader {
 			return false;
 		}
 
-		while (UNLIKELY(cur_bucket_ == -1) || cur_bucket_cnt_ >= p_rec_[cur_bucket_].num_items) {
+		while (cur_bucket_cnt_ >= cur_vol_) {
 			cur_bucket_cnt_ = 0;
 			++cur_bucket_;
 			while (cur_bucket_ < num_buckets_ && p_rec_[cur_bucket_].thread_id == -1) {
@@ -282,6 +284,8 @@ class SdbgReader {
 				return false;
 			}
 			cur_bucket_ptr_ = (void*)((char*)(mmaps_[p_rec_[cur_bucket_].thread_id]) + p_rec_[cur_bucket_].starting_offset);
+			cur_vol_ = p_rec_[cur_bucket_].num_items;
+
 			size_t size_of_buckets = p_rec_[cur_bucket_].num_items * sizeof(uint16_t) + 
 									 p_rec_[cur_bucket_].num_tips * sizeof(uint32_t) * words_per_tip_label_ + 
 									 p_rec_[cur_bucket_].num_large_mul * sizeof(multi_t);
@@ -311,6 +315,10 @@ class SdbgReader {
 				munmap(mmaps_[i], file_sizes_[i]);
 	  			close(fds_[i]);
 	  		}
+	  		file_sizes_.clear();
+	  		fds_.clear();
+        	mmaps_.clear();
+
 	  		is_opened_ = false;
 		}
 	}
