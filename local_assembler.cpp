@@ -292,16 +292,16 @@ void LocalAssembler::EstimateInsertSize(bool show_stat) {
 
         MappingRecord rec1, rec2;
         Histgram<int> insert_hist;
-        size_t start_read_id = lib_info_[lib_id].from;
-        size_t end_read_id = start_read_id;
+        int64_t start_read_id = lib_info_[lib_id].from;
+        int64_t end_read_id = start_read_id;
 
-        while (insert_hist.size() < (1 << 18) && end_read_id <= (size_t)lib_info_[lib_id].to) {
+        while (insert_hist.size() < (1 << 18) && end_read_id <= lib_info_[lib_id].to) {
             start_read_id = end_read_id;
-            end_read_id = std::min((size_t)lib_info_[lib_id].to + 1, start_read_id + size_t(2 << 18));
+            end_read_id = std::min(lib_info_[lib_id].to + 1, start_read_id + (2 << 18));
 
             #pragma omp parallel for private(rec1, rec2)
 
-            for (size_t i = start_read_id; i < end_read_id; i += 2) {
+            for (int64_t i = start_read_id; i < end_read_id; i += 2) {
                 if (MapToHashMapper_(mapper_, i, rec1) &&
                         MapToHashMapper_(mapper_, i + 1, rec2)) {
                     if (rec1.contig_id == rec2.contig_id && rec1.strand != rec2.strand) {
