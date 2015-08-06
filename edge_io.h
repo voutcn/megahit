@@ -4,6 +4,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <stdint.h>
+#include <unistd.h>
 #include <sys/mman.h>
 
 #include <string>
@@ -160,9 +161,12 @@ class EdgeReader {
 
     std::string file_prefix_;
     std::vector<int> fds_;
-    std::vector<uint32_t *> mmaps_;
     std::vector<PartitionRecord> p_rec_;
     std::vector<long long> file_sizes_;
+
+    void *mmap_;
+    long page_size_;
+    int64_t mmap_size_;
 
     int cur_bucket_;
     int cur_file_num_; // used for unsorted edges
@@ -212,15 +216,15 @@ class EdgeReader {
     void init_files() {
         assert(!is_opened_);
         fds_.resize(num_files_);
-        mmaps_.resize(num_files_);
 
         for (int i = 0; i < num_files_; ++i) {
             fds_[i] = open(FormatString("%s.edges.%d", file_prefix_.c_str(), i), O_RDONLY);
             assert(fds_[i] != -1);
-            mmaps_[i] = (uint32_t *)mmap(NULL, file_sizes_[i] * sizeof(uint32_t) * words_per_edge_, PROT_READ, MAP_SHARED, fds_[i], 0);
-            assert(mmaps_[i] != NULL);
         }
 
+        page_size_ = sysconf(_SC_PAGESIZE);
+        mmap_ = NULL;
+        mmap_size_ = 0;
         cur_cnt_ = 0;
         cur_vol_ = 0;
         cur_bucket_ = -1;
@@ -263,11 +267,22 @@ class EdgeReader {
                 return NULL;
             }
 
+            if (mmap_) {
+                munmap(mmap_, mmap_size_);
+                mmap_ = NULL;
+            }
+
+            int64_t offset = sizeof(uint32_t) * words_per_edge_ * p_rec_[cur_bucket_].starting_offset / page_size_ * page_size_;
+            mmap_size_ = sizeof(uint32_t) * p_rec_[cur_bucket_].total_number * words_per_edge_;
+            mmap_size_ += sizeof(uint32_t) * words_per_edge_ * p_rec_[cur_bucket_].starting_offset - offset;
+
+            mmap_ = mmap(NULL, mmap_size_, PROT_READ, MAP_PRIVATE, fds_[p_rec_[cur_bucket_].thread_id], offset);
+            assert(mmap_ != NULL);
+            madvise(mmap_, mmap_size_, MADV_SEQUENTIAL);
+
             cur_cnt_ = 0;
             cur_vol_ = p_rec_[cur_bucket_].total_number;
-
-            cur_ptr_ = mmaps_[p_rec_[cur_bucket_].thread_id] + words_per_edge_ * p_rec_[cur_bucket_].starting_offset;
-            madvise(cur_ptr_, sizeof(uint32_t) * words_per_edge_ * p_rec_[cur_bucket_].total_number, MADV_SEQUENTIAL);
+            cur_ptr_ = (uint32_t*)((char*)mmap_ + sizeof(uint32_t) * words_per_edge_ * p_rec_[cur_bucket_].starting_offset - offset);
         }
 
         ++cur_cnt_;
@@ -287,7 +302,17 @@ class EdgeReader {
                 return NULL;
             }
 
-            cur_ptr_ = mmaps_[cur_file_num_];
+            if (mmap_) {
+                munmap(mmap_, mmap_size_);
+                mmap_ = NULL;
+            }
+
+            mmap_size_ = sizeof(uint32_t) * words_per_edge_ * file_sizes_[cur_file_num_];
+            mmap_ = mmap(NULL, mmap_size_, PROT_READ, MAP_PRIVATE, fds_[cur_file_num_], 0);
+            assert(mmap_ != NULL);
+            madvise(mmap_, mmap_size_, MADV_SEQUENTIAL);
+
+            cur_ptr_ = (uint32_t*)mmap_;
             cur_cnt_ = 0;
             cur_vol_ = file_sizes_[cur_file_num_];
 
@@ -301,14 +326,17 @@ class EdgeReader {
 
     void destroy() {
         if (is_opened_) {
+            if (mmap_) {
+                munmap(mmap_, mmap_size_);
+                mmap_ = NULL;
+            }
+
             for (int i = 0; i < num_files_; ++i) {
-                munmap(mmaps_[i], file_sizes_[i]);
                 close(fds_[i]);
             }
 
             file_sizes_.clear();
             fds_.clear();
-            mmaps_.clear();
             is_opened_ = false;
         }
     }

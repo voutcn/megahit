@@ -6,6 +6,7 @@
 #include <assert.h>
 #include <string.h>
 #include <sys/mman.h>
+#include <unistd.h>
 
 #include <string>
 #include <vector>
@@ -217,7 +218,9 @@ class SdbgReader {
     std::vector<SdbgPartitionRecord> p_rec_;
     std::vector<long long> file_sizes_;
     std::vector<int> fds_;
-    std::vector<void *> mmaps_;
+    void *mmap_;
+    long page_size_;
+    int64_t mmap_size_;
 
     bool is_opened_;
 
@@ -285,18 +288,18 @@ class SdbgReader {
     void init_files() {
         assert(!is_opened_);
         fds_.resize(num_files_);
-        mmaps_.resize(num_files_);
+        page_size_ = sysconf(_SC_PAGESIZE);
 
         for (int i = 0; i < num_files_; ++i) {
             fds_[i] = open(FormatString("%s.sdbg.%d", file_prefix_.c_str(), i), O_RDONLY);
             assert(fds_[i] != -1);
-            mmaps_[i] = mmap(NULL, file_sizes_[i], PROT_READ, MAP_SHARED, fds_[i], 0);
-            assert(mmaps_[i] != NULL);
         }
 
         cur_bucket_ = -1;
         cur_bucket_cnt_ = 0;
         cur_vol_ = 0;
+        mmap_ = NULL;
+        mmap_size_ = 0;
         is_opened_ = true;
     }
 
@@ -317,13 +320,23 @@ class SdbgReader {
                 return false;
             }
 
-            cur_bucket_ptr_ = (void *)((char *)(mmaps_[p_rec_[cur_bucket_].thread_id]) + p_rec_[cur_bucket_].starting_offset);
-            cur_vol_ = p_rec_[cur_bucket_].num_items;
+            if (mmap_) {
+                munmap(mmap_, mmap_size_);
+                mmap_ = NULL;
+            }
 
-            size_t size_of_buckets = p_rec_[cur_bucket_].num_items * sizeof(uint16_t) +
-                                     p_rec_[cur_bucket_].num_tips * sizeof(uint32_t) * words_per_tip_label_ +
-                                     p_rec_[cur_bucket_].num_large_mul * sizeof(multi_t);
-            madvise(cur_bucket_ptr_, size_of_buckets, MADV_SEQUENTIAL);
+            int64_t offset = p_rec_[cur_bucket_].starting_offset / page_size_ * page_size_;
+            mmap_size_ = p_rec_[cur_bucket_].num_items * sizeof(uint16_t) +
+                         p_rec_[cur_bucket_].num_tips * sizeof(uint32_t) * words_per_tip_label_ +
+                         p_rec_[cur_bucket_].num_large_mul * sizeof(multi_t);
+            mmap_size_ += p_rec_[cur_bucket_].starting_offset - offset;
+
+            mmap_ = mmap(NULL, mmap_size_, PROT_READ, MAP_PRIVATE, fds_[p_rec_[cur_bucket_].thread_id], offset);
+            assert(mmap_ != NULL);
+            madvise(mmap_, mmap_size_, MADV_SEQUENTIAL);
+
+            cur_bucket_ptr_ = (char*)mmap_ + p_rec_[cur_bucket_].starting_offset - offset;
+            cur_vol_ = p_rec_[cur_bucket_].num_items;
         }
 
         ++cur_bucket_cnt_;
@@ -345,14 +358,16 @@ class SdbgReader {
 
     void destroy() {
         if (is_opened_) {
+            if (mmap_) {
+                munmap(mmap_, mmap_size_);
+                mmap_ = NULL;
+            }
             for (int i = 0; i < num_files_; ++i) {
-                munmap(mmaps_[i], file_sizes_[i]);
                 close(fds_[i]);
             }
 
             file_sizes_.clear();
             fds_.clear();
-            mmaps_.clear();
 
             is_opened_ = false;
         }
