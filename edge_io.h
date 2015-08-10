@@ -171,6 +171,7 @@ class EdgeReader {
     int cur_bucket_;
     int cur_file_num_; // used for unsorted edges
     long long cur_cnt_;
+    long long cur_file_loaded_;
     long long cur_vol_;
     uint32_t *cur_ptr_;
 
@@ -227,6 +228,7 @@ class EdgeReader {
         mmap_size_ = 0;
         cur_cnt_ = 0;
         cur_vol_ = 0;
+        cur_file_loaded_ = 0;
         cur_bucket_ = -1;
 
         // for unsorted
@@ -296,10 +298,14 @@ class EdgeReader {
         }
 
         while (cur_cnt_ >= cur_vol_) {
-            cur_file_num_++;
+            while (cur_file_num_ == -1 || cur_file_loaded_ >= file_sizes_[cur_file_num_]) {
+                cur_file_num_++;
 
-            if (cur_file_num_ >= num_files_) {
-                return NULL;
+                if (cur_file_num_ >= num_files_) {
+                    return NULL;
+                }
+
+                cur_file_loaded_ = 0;
             }
 
             if (mmap_) {
@@ -307,16 +313,20 @@ class EdgeReader {
                 mmap_ = NULL;
             }
 
-            mmap_size_ = sizeof(uint32_t) * words_per_edge_ * file_sizes_[cur_file_num_];
-            mmap_ = mmap(NULL, mmap_size_, PROT_READ, MAP_PRIVATE, fds_[cur_file_num_], 0);
+            long long batch_size = std::min(1LL << 20, file_sizes_[cur_file_num_] - cur_file_loaded_);
+            long long offset = cur_file_loaded_ * sizeof(uint32_t) * words_per_edge_ / page_size_ * page_size_;
+
+            mmap_size_ = sizeof(uint32_t) * words_per_edge_ * batch_size;
+            mmap_size_ += cur_file_loaded_ * sizeof(uint32_t) * words_per_edge_ - offset;
+            mmap_ = mmap(NULL, mmap_size_, PROT_READ, MAP_PRIVATE, fds_[cur_file_num_], offset);
             assert(mmap_ != NULL);
-            madvise(mmap_, mmap_size_, MADV_SEQUENTIAL);
 
-            cur_ptr_ = (uint32_t*)mmap_;
+            cur_ptr_ = (uint32_t*)((char*)mmap_ + (cur_file_loaded_ * sizeof(uint32_t) * words_per_edge_ - offset));
+            madvise(cur_ptr_, sizeof(uint32_t) * words_per_edge_ * batch_size, MADV_SEQUENTIAL);
+
             cur_cnt_ = 0;
-            cur_vol_ = file_sizes_[cur_file_num_];
-
-            madvise(cur_ptr_, sizeof(uint32_t) * words_per_edge_ * file_sizes_[cur_file_num_], MADV_SEQUENTIAL);
+            cur_vol_ = batch_size;
+            cur_file_loaded_ += batch_size;
         }
 
         ++cur_cnt_;
