@@ -462,6 +462,28 @@ class HashTable {
         return p->value;
     }
 
+    reference find_or_insert_without_lock(const value_type &value) {
+        rehash_if_needed(size_);
+
+        uint64_t hash_value = hash(value);
+        uint64_t index = bucket_index(hash_value);
+
+        for (node_type *node = buckets_[index]; node; node = node->next) {
+            if (key_equal_(get_key_(node->value), get_key_(value))) {
+                return node->value;
+            }
+        }
+
+        node_type *p = pool_.construct();
+        p->value = value;
+        p->next = buckets_[index];
+        buckets_[index] = p;
+        #pragma omp atomic
+        ++size_;
+
+        return p->value;
+    }
+
     size_type remove(const key_type &key) {
         uint64_t num_removed_nodes = 0;
 

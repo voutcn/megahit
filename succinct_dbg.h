@@ -45,7 +45,7 @@ class SuccinctDBG {
     int kmer_k;
 
   public:
-    SuccinctDBG(): need_to_free_(false), need_to_free_mul_(false) { }
+    SuccinctDBG(): need_to_free_(false), need_to_free_mul_(false), edge_multi_(NULL), edge_large_multi_(NULL) { }
     ~SuccinctDBG() {
         if (need_to_free_) {
             free(last_);
@@ -55,10 +55,7 @@ class SuccinctDBG {
             free(tip_node_seq_);
         }
 
-        if (need_to_free_mul_) {
-            free(edge_multiplicities_);
-            kh_destroy(k64v16, large_multi_h_);
-        }
+        FreeMul();
     }
 
     void LoadFromMultiFile(const char *dbg_name, bool need_multiplicity = true);
@@ -129,8 +126,12 @@ class SuccinctDBG {
     }
 
     int EdgeMultiplicity(int64_t edge_id) {
-        if (__builtin_expect(edge_multiplicities_[edge_id] != kMulti2Sp, 1)) {
-            return edge_multiplicities_[edge_id];
+        if (edge_large_multi_) {
+            return edge_large_multi_[edge_id];
+        }
+
+        if (__builtin_expect(edge_multi_[edge_id] != kMulti2Sp, 1)) {
+            return edge_multi_[edge_id];
         }
         else {
             return kh_value(large_multi_h_, kh_get(k64v16, large_multi_h_, edge_id));
@@ -182,21 +183,31 @@ class SuccinctDBG {
     // After that EdgeMultiplicty() are invalid
     void FreeMul() {
         if (need_to_free_mul_) {
-            free(edge_multiplicities_);
-            kh_destroy(k64v16, large_multi_h_);
+            if (edge_multi_ != NULL) {
+                free(edge_multi_);
+                edge_multi_ = NULL;
+                kh_destroy(k64v16, large_multi_h_);
+            } else if (edge_large_multi_ != NULL) {
+                free(edge_large_multi_);
+                edge_large_multi_ = NULL;
+            }
         }
 
         need_to_free_mul_ = false;
     }
 
   private:
+    bool need_to_free_;
+    bool need_to_free_mul_;
+
     // main memory
     unsigned long long *w_;
     unsigned long long *last_;
     unsigned long long *is_tip_;
     unsigned long long *invalid_;
     uint32_t *tip_node_seq_;
-    multi2_t *edge_multiplicities_;
+    multi2_t *edge_multi_;
+    multi_t *edge_large_multi_;
     khash_t(k64v16) *large_multi_h_;
 
     long long f_[kAlphabetSize + 2];
@@ -209,8 +220,6 @@ class SuccinctDBG {
     RankAndSelect4Bits rs_w_;
     RankAndSelect1Bit<false> rs_last_;
     RankAndSelect1Bit<true> rs_is_tip_;
-    bool need_to_free_;
-    bool need_to_free_mul_;
 
     void PrefixRangeSearch_(uint8_t c, int64_t &l, int64_t &r);
 };
