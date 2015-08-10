@@ -26,8 +26,7 @@
 
 using namespace std;
 
-int main_binary_edge_to_ascii(int argc, char const *argv[])
-{
+int main_binary_edge_to_ascii(int argc, char const *argv[]) {
     if (argc < 5) {
         fprintf(stderr, "Usage: %s <edge_file_prefix> <num_files> <has_header=0|1> <kmer_k>\n", argv[0]);
         exit(1);
@@ -56,10 +55,13 @@ int main_binary_edge_to_ascii(int argc, char const *argv[])
             for (int k = 0; k < kmer_k + 1; ++k) {
                 printf("%c", "ACGT"[3 - ((buf[k / 16] >> (15 - k % 16) * 2) & 3)]);
             }
+
             puts("");
+
             for (int k = kmer_k; k >= 0; --k) {
                 printf("%c", "ACGT"[((buf[k / 16] >> (15 - k % 16) * 2) & 3)]);
             }
+
             puts("");
         }
     }

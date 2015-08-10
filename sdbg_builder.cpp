@@ -52,18 +52,23 @@ int main_kmer_count(int argc, char **argv) {
 
     try {
         desc.Parse(argc, argv);
+
         if (opt.read_lib_file == "") {
             throw std::logic_error("No read library configuration file!");
         }
+
         if (opt.num_cpu_threads == 0) {
             opt.num_cpu_threads = omp_get_max_threads();
         }
+
         if (opt.num_output_threads == 0) {
             opt.num_output_threads = std::max(1, opt.num_cpu_threads / 3);
         }
+
         if (opt.host_mem == 0) {
             throw std::logic_error("Please specify the host memory!");
         }
+
         if (opt.gpu_mem == 0) {
 #ifdef USE_GPU
             size_t free_gpu_mem, total_gpu_mem;
@@ -79,12 +84,15 @@ int main_kmer_count(int argc, char **argv) {
         }
 
 #ifdef USE_GPU
+
         if (opt.num_output_threads >= opt.num_cpu_threads) {
             throw std::logic_error("Number of output threads must be less than number of CPU threads!");
         }
+
 #endif
-        
-    } catch (std::exception &e) {
+
+    }
+    catch (std::exception &e) {
         std::cerr << e.what() << std::endl;
         std::cerr << "Usage: sdbg_builder count --input_file fastx_file -o out" << std::endl;
         std::cerr << "Options:" << std::endl;
@@ -146,18 +154,23 @@ int main_read2sdbg(int argc, char **argv) {
 
     try {
         desc.Parse(argc, argv);
+
         if (opt.read_lib_file == "") {
             throw std::logic_error("No input file!");
         }
+
         if (opt.num_cpu_threads == 0) {
             opt.num_cpu_threads = omp_get_max_threads();
         }
+
         if (opt.num_output_threads == 0) {
             opt.num_output_threads = std::max(1, opt.num_cpu_threads / 3);
         }
+
         if (opt.host_mem == 0) {
             throw std::logic_error("Please specify the host memory!");
         }
+
         if (opt.gpu_mem == 0) {
 #ifdef USE_GPU
             size_t free_gpu_mem, total_gpu_mem;
@@ -171,10 +184,12 @@ int main_read2sdbg(int argc, char **argv) {
         if (opt.num_cpu_threads == 1) {
             throw std::logic_error("Number of CPU threads should be at least 2!");
         }
+
         if (opt.num_output_threads >= opt.num_cpu_threads) {
             throw std::logic_error("Number of output threads must be less than number of CPU threads!");
         }
-    } catch (std::exception &e) {
+    }
+    catch (std::exception &e) {
         std::cerr << e.what() << std::endl;
         std::cerr << "Usage: sdbg_builder read2sdbg --read_lib_file fastx_file -o out" << std::endl;
         std::cerr << "Options:" << std::endl;
@@ -196,19 +211,24 @@ int main_read2sdbg(int argc, char **argv) {
     globals.cx1.g_ = &globals;
 
     // stage1
-    globals.cx1.encode_lv1_diff_base_func_ = cx1_read2sdbg::s1::s1_encode_lv1_diff_base;
-    globals.cx1.prepare_func_ = cx1_read2sdbg::s1::s1_read_input_prepare;
-    globals.cx1.lv0_calc_bucket_size_func_ = cx1_read2sdbg::s1::s1_lv0_calc_bucket_size;
-    globals.cx1.init_global_and_set_cx1_func_ = cx1_read2sdbg::s1::s1_init_global_and_set_cx1;
-    globals.cx1.lv1_fill_offset_func_ = cx1_read2sdbg::s1::s1_lv1_fill_offset;
-    globals.cx1.lv1_sort_and_proc = cx1_read2sdbg::s1::s1_lv1_direct_sort_and_count;
-    globals.cx1.lv2_extract_substr_func_ = cx1_read2sdbg::s1::s1_lv2_extract_substr;
-    globals.cx1.lv2_sort_func_ = cx1_read2sdbg::s1::s1_lv2_sort;
-    globals.cx1.lv2_pre_output_partition_func_ = cx1_read2sdbg::s1::s1_lv2_pre_output_partition;
-    globals.cx1.lv2_output_func_ = cx1_read2sdbg::s1::s1_lv2_output;
-    globals.cx1.lv2_post_output_func_ = cx1_read2sdbg::s1::s1_lv2_post_output;
-    globals.cx1.post_proc_func_ = cx1_read2sdbg::s1::s1_post_proc;
-    globals.cx1.run();
+    if (opt.kmer_freq_threshold > 1) {
+        globals.cx1.encode_lv1_diff_base_func_ = cx1_read2sdbg::s1::s1_encode_lv1_diff_base;
+        globals.cx1.prepare_func_ = cx1_read2sdbg::s1::s1_read_input_prepare;
+        globals.cx1.lv0_calc_bucket_size_func_ = cx1_read2sdbg::s1::s1_lv0_calc_bucket_size;
+        globals.cx1.init_global_and_set_cx1_func_ = cx1_read2sdbg::s1::s1_init_global_and_set_cx1;
+        globals.cx1.lv1_fill_offset_func_ = cx1_read2sdbg::s1::s1_lv1_fill_offset;
+        globals.cx1.lv1_sort_and_proc = cx1_read2sdbg::s1::s1_lv1_direct_sort_and_count;
+        globals.cx1.lv2_extract_substr_func_ = cx1_read2sdbg::s1::s1_lv2_extract_substr;
+        globals.cx1.lv2_sort_func_ = cx1_read2sdbg::s1::s1_lv2_sort;
+        globals.cx1.lv2_pre_output_partition_func_ = cx1_read2sdbg::s1::s1_lv2_pre_output_partition;
+        globals.cx1.lv2_output_func_ = cx1_read2sdbg::s1::s1_lv2_output;
+        globals.cx1.lv2_post_output_func_ = cx1_read2sdbg::s1::s1_lv2_post_output;
+        globals.cx1.post_proc_func_ = cx1_read2sdbg::s1::s1_post_proc;
+        globals.cx1.run();
+    }
+    else {
+        cx1_read2sdbg::s1::s1_read_input_prepare(globals);
+    }
 
     // stage2
     globals.cx1.encode_lv1_diff_base_func_ = cx1_read2sdbg::s2::s2_encode_lv1_diff_base;
@@ -251,6 +271,7 @@ int main_seq2sdbg(int argc, char **argv) {
 
     try {
         desc.Parse(argc, argv);
+
         if (opt.input_prefix == "" && opt.contig == "" && opt.addi_contig == "") {
             throw std::logic_error("No input files!");
         }
@@ -270,7 +291,7 @@ int main_seq2sdbg(int argc, char **argv) {
         if (opt.kmer_k < 9) {
             throw std::logic_error("kmer size must be >= 9!");
         }
-        
+
         if (opt.host_mem == 0) {
             throw std::logic_error("Please specify the host memory!");
         }
@@ -288,10 +309,12 @@ int main_seq2sdbg(int argc, char **argv) {
         if (opt.num_cpu_threads == 1) {
             throw std::logic_error("Number of CPU threads is at least 2!");
         }
+
         if (opt.num_output_threads >= opt.num_cpu_threads) {
             throw std::logic_error("Number of output threads must be less than number of CPU threads!");
         }
-    } catch (std::exception &e) {
+    }
+    catch (std::exception &e) {
         std::cerr << e.what() << std::endl;
         std::cerr << "Usage: sdbg_builder seq2sdbg -k kmer_size --contig contigs.fa [--addi_contig add.fa] [--input_prefix input] -o out" << std::endl;
         std::cerr << "Options:" << std::endl;
@@ -345,7 +368,7 @@ void DisplayHelp(char *program_name) {
     fprintf(stderr, "       %s dumpversion       dump version\n", program_name);
 }
 
-int main(int argc, char** argv) {
+int main(int argc, char **argv) {
     if (argc < 2) {
         DisplayHelp(argv[0]);
         exit(1);
@@ -353,14 +376,17 @@ int main(int argc, char** argv) {
 
     if (std::string(argv[1]) == "count")
         return main_kmer_count(argc - 1, argv + 1);
+
     if (std::string(argv[1]) == "read2sdbg")
         return main_read2sdbg(argc - 1, argv + 1);
+
     if (std::string(argv[1]) == "seq2sdbg")
         return main_seq2sdbg(argc - 1, argv + 1);
     else if (strcmp(argv[1], "dumpversion") == 0) {
         printf("%s\n", PACKAGE_VERSION);
         return 0;
-    } else {
+    }
+    else {
         DisplayHelp(argv[0]);
         exit(1);
     }

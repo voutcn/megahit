@@ -25,6 +25,7 @@
 
 inline void lv2_cpu_sort(uint32_t *lv2_substrings, uint32_t *permutation, uint64_t *cpu_sort_space, int words_per_substring, int64_t lv2_num_items) {
     #pragma omp parallel for
+
     for (uint32_t i = 0; i < lv2_num_items; ++i) {
         permutation[i] = i;
     }
@@ -32,20 +33,24 @@ inline void lv2_cpu_sort(uint32_t *lv2_substrings, uint32_t *permutation, uint64
     for (int64_t iteration = words_per_substring - 1; iteration >= 0; --iteration) {
         uint32_t *lv2_substr_p = lv2_substrings + lv2_num_items * iteration;
         #pragma omp parallel for
+
         for (uint32_t i = 0; i < lv2_num_items; ++i) {
             cpu_sort_space[i] = uint64_t(*(lv2_substr_p + permutation[i])) << 32;
             cpu_sort_space[i] |= i;
         }
+
         // pss::parallel_stable_sort(cpu_sort_space, cpu_sort_space + lv2_num_items, CompareHigh32Bits());
         __gnu_parallel::sort(cpu_sort_space, cpu_sort_space + lv2_num_items);
 
         #pragma omp parallel for
+
         for (uint32_t i = 0; i < lv2_num_items; ++i) {
             cpu_sort_space[i] &= 0xFFFFFFFFULL;
             cpu_sort_space[i] |= uint64_t(permutation[cpu_sort_space[i]]) << 32;
         }
 
         #pragma omp parallel for
+
         for (uint32_t i = 0; i < lv2_num_items; ++i) {
             permutation[i] = cpu_sort_space[i] >> 32;
         }
@@ -64,6 +69,7 @@ inline void lv2_cpu_sort_st(uint32_t *lv2_substrings, uint32_t *permutation, uin
             cpu_sort_space[i] = uint64_t(*(lv2_substr_p + permutation[i])) << 32;
             cpu_sort_space[i] |= i;
         }
+
         // pss::parallel_stable_sort(cpu_sort_space, cpu_sort_space + lv2_num_items, CompareHigh32Bits());
         std::sort(cpu_sort_space, cpu_sort_space + lv2_num_items);
 
@@ -87,23 +93,32 @@ struct CmpSubStr {
 
     bool operator() (uint32_t x, uint32_t y) {
         int64_t idx = 0;
+
         for (int i = 0; i < words_per_substring; ++i, idx += num_items) {
             uint32_t xx = substr[x + idx];
             uint32_t yy = substr[y + idx];
-            if (xx > yy) { return false; }
-            else if (yy > xx) { return true; }
+
+            if (xx > yy) {
+                return false;
+            }
+            else if (yy > xx) {
+                return true;
+            }
         }
+
         return false;
     }
 };
 
 inline void sort_digit(uint32_t *arr, uint32_t *permutation, uint32_t *buf, uint64_t *buckets, int64_t num_items, int shift_bits) {
     memset(buckets, 0, sizeof(buckets[0]) * (1 << 16));
+
     for (int64_t i = 0; i < num_items; ++i) {
         buckets[(arr[permutation[i]] >> shift_bits) & 0xFFFF]++;
     }
 
     int64_t acc = 0;
+
     for (unsigned i = 0; i < (1 << 16); ++i) {
         int64_t tmp = acc;
         acc += buckets[i];

@@ -25,43 +25,48 @@
 #include "utils.h"
 #include "definitions.h"
 
-int main_assemble(int argc, char** argv);
+int main_assemble(int argc, char **argv);
 int main_local(int argc, char **argv);
 int main_iterate(int argc, char **argv);
 int main_build_lib(int argc, char **argv);
 
 void show_help(const char *program_name) {
-	fprintf(stderr, "Usage: %s <sub_program> [sub options]\n"
-					"    sub-programs:\n"
-	                "       assemble              assemble from SdBG\n"
-	                "       local                 local asssembly\n"
-	                "       iterate               extract iterative edges\n"
-	                "       buildlib              build read library\n"
-	                "       dumpversion           dump version\n",
-	                program_name);
+    fprintf(stderr, "Usage: %s <sub_program> [sub options]\n"
+            "    sub-programs:\n"
+            "       assemble              assemble from SdBG\n"
+            "       local                 local asssembly\n"
+            "       iterate               extract iterative edges\n"
+            "       buildlib              build read library\n"
+            "       dumpversion           dump version\n",
+            program_name);
 }
 
 int main(int argc, char **argv) {
-	if (argc < 2) {
-		show_help(argv[0]);
-		exit(1);
-	}
+    if (argc < 2) {
+        show_help(argv[0]);
+        exit(1);
+    }
 
-	if (strcmp(argv[1], "assemble") == 0) {
-		return main_assemble(argc - 1, argv + 1);
-	} else if (strcmp(argv[1], "local") == 0) {
-		return main_local(argc - 1 , argv + 1);
-	} else if (strcmp(argv[1], "iterate") == 0) {
-		return main_iterate(argc - 1, argv + 1);
-	} else if (strcmp(argv[1], "buildlib") == 0) {
-		return main_build_lib(argc - 1, argv + 1);
-	} else if (strcmp(argv[1], "dumpversion") == 0) {
-		printf("%s\n", PACKAGE_VERSION);
-		return 0;
-	} else {
-		show_help(argv[0]);
-		exit(1);
-	}
+    if (strcmp(argv[1], "assemble") == 0) {
+        return main_assemble(argc - 1, argv + 1);
+    }
+    else if (strcmp(argv[1], "local") == 0) {
+        return main_local(argc - 1 , argv + 1);
+    }
+    else if (strcmp(argv[1], "iterate") == 0) {
+        return main_iterate(argc - 1, argv + 1);
+    }
+    else if (strcmp(argv[1], "buildlib") == 0) {
+        return main_build_lib(argc - 1, argv + 1);
+    }
+    else if (strcmp(argv[1], "dumpversion") == 0) {
+        printf("%s\n", PACKAGE_VERSION);
+        return 0;
+    }
+    else {
+        show_help(argv[0]);
+        exit(1);
+    }
 
-	return 0;
+    return 0;
 }

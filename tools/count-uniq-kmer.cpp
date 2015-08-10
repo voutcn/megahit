@@ -51,11 +51,13 @@ void init(int k) {
 
 void rc(char *buf, int len) {
     int i, j;
+
     for (i = 0, j = len - 1; i < j; ++i) {
         swap(buf[i], buf[j]);
         buf[i] = rc_map[buf[i]];
         buf[j] = rc_map[buf[j]];
     }
+
     if (i == j) {
         buf[i] = rc_map[buf[i]];
     }
@@ -63,10 +65,12 @@ void rc(char *buf, int len) {
 
 void gao(char *buf, int len, int k) {
     uint64_t key = 0;
+
     for (int i = 0; i < k; ++i) {
         key = key << 2;
         key += dna_char_map[buf[i]];
     }
+
     count[key]++;
 
     for (int i = k; i < len; ++i) {
@@ -99,6 +103,7 @@ int main(int argc, char **argv) {
     gao(buf, len, k);
     rc(buf, len);
     gao(buf, len, k);
+
     if (is_fq) {
         gets(buf);
         gets(buf);
@@ -106,12 +111,14 @@ int main(int argc, char **argv) {
 
     while (gets(buf)) {
         gets(buf);
+
         if (strlen(buf) == len) {
             gao(buf, len, k);
             rc(buf, len);
             gao(buf, len, k);
             ++numReads;
         }
+
         if (is_fq) {
             gets(buf);
             gets(buf);
@@ -122,6 +129,7 @@ int main(int argc, char **argv) {
     printf("The number of unique %d-mers: %lld\n", k, count.size());
 
     map<int, uint64_t> dis;
+
     for (auto it = count.begin(); it != count.end(); ++it) {
         dis[it->second]++;
     }

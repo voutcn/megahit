@@ -76,19 +76,24 @@ void ParseLocalAsmOptions(int argc, char *argv[]) {
 
     try {
         desc.Parse(argc, argv);
+
         if (opt.contig_file == "") {
             throw std::logic_error("no contig file!");
         }
+
         if (opt.lib_file_prefix == "") {
             throw std::logic_error("no read file!");
         }
+
         if (opt.output_file == "") {
             throw std::logic_error("no output file!");
         }
+
         if (opt.num_threads == 0) {
             opt.num_threads = omp_get_max_threads();
         }
-    } catch (std::exception &e) {
+    }
+    catch (std::exception &e) {
         std::cerr << e.what() << std::endl;
         std::cerr << "Usage: " << argv[0] << " -c contigs.fa -r reads.fq -o out.local_contig.fa" << std::endl;
         std::cerr << "options:" << std::endl;
@@ -99,7 +104,7 @@ void ParseLocalAsmOptions(int argc, char *argv[]) {
 
 int main_local(int argc, char **argv) {
     AutoMaxRssRecorder recorder;
-    
+
     ParseLocalAsmOptions(argc, argv);
 
     omp_set_num_threads(opt.num_threads);

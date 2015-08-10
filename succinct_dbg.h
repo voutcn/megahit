@@ -45,7 +45,7 @@ class SuccinctDBG {
     int kmer_k;
 
   public:
-    SuccinctDBG(): need_to_free_(false) { }
+    SuccinctDBG(): need_to_free_(false), need_to_free_mul_(false), edge_multi_(NULL), edge_large_multi_(NULL) { }
     ~SuccinctDBG() {
         if (need_to_free_) {
             free(last_);
@@ -55,22 +55,20 @@ class SuccinctDBG {
             free(tip_node_seq_);
         }
 
-        if (need_to_free_mul_) {
-            free(edge_multiplicities_);
-            kh_destroy(k64v16, large_multi_h_);
-        }
+        FreeMul();
     }
 
-    void LoadFromFile(const char *dbg_name);
-    void LoadFromMultiFile(const char *dbg_name);
+    void LoadFromMultiFile(const char *dbg_name, bool need_multiplicity = true);
     void init(unsigned long long *w, unsigned long long *last, long long *f, int64_t size, int kmer_k) {
         w_ = w;
         last_ = last;
         this->size = size;
         this->kmer_k = kmer_k;
+
         for (int i = 0; i < kAlphabetSize + 2; ++i) {
             f_[i] = f[i];
         }
+
         rs_w_.Build(w_, size);
         rs_last_.Build(last_, size);
 
@@ -79,6 +77,7 @@ class SuccinctDBG {
         }
 
         #pragma omp parallel for
+
         for (int64_t i = 0; i < size; ++i) {
             if (GetW(i) == 0) {
                 SetInvalidEdge(i);
@@ -127,18 +126,25 @@ class SuccinctDBG {
     }
 
     int EdgeMultiplicity(int64_t edge_id) {
-        if (__builtin_expect(edge_multiplicities_[edge_id] != kMulti2Sp, 1)) {
-            return edge_multiplicities_[edge_id];
-        } else {
+        if (edge_large_multi_) {
+            return edge_large_multi_[edge_id];
+        }
+
+        if (__builtin_expect(edge_multi_[edge_id] != kMulti2Sp, 1)) {
+            return edge_multi_[edge_id];
+        }
+        else {
             return kh_value(large_multi_h_, kh_get(k64v16, large_multi_h_, edge_id));
         }
     }
 
     int64_t Forward(int64_t edge_id) { // the last edge edge_id points to
         uint8_t a = GetW(edge_id);
+
         if (a > 4) {
             a -= 4;
         }
+
         int64_t count_a = rs_w_.Rank(a, edge_id);
         return rs_last_.Select(rank_f_[a] + count_a - 1);
     }
@@ -171,24 +177,37 @@ class SuccinctDBG {
     int64_t UniqueNextNode(int64_t node_id);
     void DeleteAllEdges(int64_t node_id);
 
+    int NextNodes(int64_t node_id, int64_t next[]); // return out-degree, ids stored in next[]
+
     // WARNING: use this with cautions
     // After that EdgeMultiplicty() are invalid
     void FreeMul() {
         if (need_to_free_mul_) {
-            free(edge_multiplicities_);
-            kh_destroy(k64v16, large_multi_h_);
+            if (edge_multi_ != NULL) {
+                free(edge_multi_);
+                edge_multi_ = NULL;
+                kh_destroy(k64v16, large_multi_h_);
+            } else if (edge_large_multi_ != NULL) {
+                free(edge_large_multi_);
+                edge_large_multi_ = NULL;
+            }
         }
+
         need_to_free_mul_ = false;
     }
 
   private:
+    bool need_to_free_;
+    bool need_to_free_mul_;
+
     // main memory
     unsigned long long *w_;
     unsigned long long *last_;
     unsigned long long *is_tip_;
     unsigned long long *invalid_;
     uint32_t *tip_node_seq_;
-    multi2_t *edge_multiplicities_;
+    multi2_t *edge_multi_;
+    multi_t *edge_large_multi_;
     khash_t(k64v16) *large_multi_h_;
 
     long long f_[kAlphabetSize + 2];
@@ -201,8 +220,6 @@ class SuccinctDBG {
     RankAndSelect4Bits rs_w_;
     RankAndSelect1Bit<false> rs_last_;
     RankAndSelect1Bit<true> rs_is_tip_;
-    bool need_to_free_;
-    bool need_to_free_mul_;
 
     void PrefixRangeSearch_(uint8_t c, int64_t &l, int64_t &r);
 };

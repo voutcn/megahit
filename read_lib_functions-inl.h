@@ -40,6 +40,7 @@
 inline void ReadMultipleLibs(const std::string &lib_file, SequencePackage &package,
                              std::vector<lib_info_t> &lib_info, bool is_reverse) {
     std::ifstream lib_config(lib_file);
+
     if (!lib_config.is_open()) {
         xerr_and_exit("File to open read_lib file: %s\n", lib_file.c_str());
     }
@@ -57,6 +58,7 @@ inline void ReadMultipleLibs(const std::string &lib_file, SequencePackage &packa
 
     while (std::getline(lib_config, metadata)) {
         assert(lib_config >> type);
+
         if (type == "pe") {
             assert(lib_config >> file_name1 >> file_name2);
 
@@ -64,21 +66,24 @@ inline void ReadMultipleLibs(const std::string &lib_file, SequencePackage &packa
             seq_manager.set_file_type(SequenceManager::kFastxReads);
             seq_manager.set_pe_files(file_name1, file_name2);
 
-        } else if (type == "se") {
+        }
+        else if (type == "se") {
             assert(lib_config >> file_name1);
 
             seq_manager.set_readlib_type(SequenceManager::kSingle);
             seq_manager.set_file_type(SequenceManager::kFastxReads);
             seq_manager.set_file(file_name1);
 
-        } else if (type == "interleaved") {
+        }
+        else if (type == "interleaved") {
             assert(lib_config >> file_name1);
 
             seq_manager.set_readlib_type(SequenceManager::kInterleaved);
             seq_manager.set_file_type(SequenceManager::kFastxReads);
             seq_manager.set_file(file_name1);
 
-        } else {
+        }
+        else {
             xerr("Cannot identify read library type %s\n", type.c_str());
             xerr_and_exit("Valid types: pe, se, interleaved\n");
         }
@@ -89,6 +94,7 @@ inline void ReadMultipleLibs(const std::string &lib_file, SequencePackage &packa
         int64_t end = package.size() - 1;
 
         int max_read_len = 0;
+
         for (int64_t i = start; i <= end; ++i) {
             if (max_read_len < (int)package.length(i)) {
                 max_read_len = package.length(i);
@@ -113,6 +119,7 @@ inline void ReadMultipleLibs(const std::string &lib_file, SequencePackage &packa
 inline void ReadAndWriteMultipleLibs(const std::string &lib_file, bool is_reverse,
                                      const std::string &out_prefix, bool verbose) {
     std::ifstream lib_config(lib_file);
+
     if (!lib_config.is_open()) {
         xerr_and_exit("File to open read_lib file: %s\n", lib_file.c_str());
     }
@@ -136,6 +143,7 @@ inline void ReadAndWriteMultipleLibs(const std::string &lib_file, bool is_revers
 
     while (std::getline(lib_config, metadata)) {
         assert(lib_config >> type);
+
         if (type == "pe") {
             assert(lib_config >> file_name1 >> file_name2);
 
@@ -143,21 +151,24 @@ inline void ReadAndWriteMultipleLibs(const std::string &lib_file, bool is_revers
             seq_manager.set_file_type(SequenceManager::kFastxReads);
             seq_manager.set_pe_files(file_name1, file_name2);
 
-        } else if (type == "se") {
+        }
+        else if (type == "se") {
             assert(lib_config >> file_name1);
 
             seq_manager.set_readlib_type(SequenceManager::kSingle);
             seq_manager.set_file_type(SequenceManager::kFastxReads);
             seq_manager.set_file(file_name1);
 
-        } else if (type == "interleaved") {
+        }
+        else if (type == "interleaved") {
             assert(lib_config >> file_name1);
 
             seq_manager.set_readlib_type(SequenceManager::kInterleaved);
             seq_manager.set_file_type(SequenceManager::kFastxReads);
             seq_manager.set_file(file_name1);
 
-        } else {
+        }
+        else {
             xerr("Cannot identify read library type %s\n", type.c_str());
             xerr_and_exit("Valid types: pe, se, interleaved\n");
         }
@@ -170,7 +181,11 @@ inline void ReadAndWriteMultipleLibs(const std::string &lib_file, bool is_revers
 
         while (true) {
             reads_this_batch = seq_manager.ReadShortReads(reads_per_bach, bases_per_bach, false, is_reverse, trimN);
-            if (reads_this_batch == 0) { break; }
+
+            if (reads_this_batch == 0) {
+                break;
+            }
+
             total_reads += reads_this_batch;
             total_bases += package.base_size();
             seq_manager.WriteBinarySequences(bin_file, is_reverse);
@@ -191,7 +206,7 @@ inline void ReadAndWriteMultipleLibs(const std::string &lib_file, bool is_revers
 
         if (verbose) {
             xlog("Lib %d (%s): %s, %lld reads, %d max length\n",
-                  lib_info.size(), metadata.c_str(), type.c_str(), total_reads - start, max_read_len);
+                 lib_info.size(), metadata.c_str(), type.c_str(), total_reads - start, max_read_len);
         }
 
         lib_info.push_back(lib_info_t(&package, start, total_reads - 1, max_read_len, type != "se", metadata));
@@ -200,11 +215,13 @@ inline void ReadAndWriteMultipleLibs(const std::string &lib_file, bool is_revers
 
     FILE *lib_info_file = OpenFileAndCheck(FormatString("%s.lib_info", out_prefix.c_str()), "w");
     fprintf(lib_info_file, "%zu %zu\n", total_bases, total_reads);
+
     for (unsigned i = 0; i < lib_info.size(); ++i) {
         fprintf(lib_info_file, "%s\n", lib_info[i].metadata.c_str());
         fprintf(lib_info_file, "%" PRId64 " %" PRId64 " %d %s\n", lib_info[i].from, lib_info[i].to,
                 lib_info[i].max_read_len, lib_info[i].is_pe ? "pe" : "se");
     }
+
     fclose(lib_info_file);
 }
 
@@ -249,11 +266,13 @@ inline void WriteMultipleLibs(SequencePackage &package, std::vector<lib_info_t> 
 
     FILE *lib_info_file = OpenFileAndCheck(FormatString("%s.lib_info", file_prefix.c_str()), "w");
     fprintf(lib_info_file, "%zu %zu\n", package.base_size(), package.size());
+
     for (unsigned i = 0; i < lib_info.size(); ++i) {
         fprintf(lib_info_file, "%s\n", lib_info[i].metadata.c_str());
         fprintf(lib_info_file, "%" PRId64 " %" PRId64 " %d %s\n", lib_info[i].from, lib_info[i].to,
                 lib_info[i].max_read_len, lib_info[i].is_pe ? "pe" : "se");
     }
+
     fclose(lib_info_file);
 }
 

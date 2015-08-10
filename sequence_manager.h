@@ -32,8 +32,8 @@
 #include "edge_io.h"
 
 #ifndef KSEQ_INITED
-#define KSEQ_INITED
-KSEQ_INIT(gzFile, gzread)
+    #define KSEQ_INITED
+    KSEQ_INIT(gzFile, gzread)
 #endif
 
 /**
@@ -61,7 +61,7 @@ struct SequenceManager {
     std::vector<multi_t> *multi_; // edges or contigs' multiplicity
     std::vector<float> *float_multi_;
     std::vector<gzFile> files_; // for reading sorted edges
-    std::vector<kseq_t*> kseq_readers_; // for paired reading
+    std::vector<kseq_t *> kseq_readers_; // for paired reading
     EdgeReader edge_reader_;
     bool edge_reader_inited_;
 
@@ -89,11 +89,14 @@ struct SequenceManager {
         for (auto iter = kseq_readers_.begin(); iter != kseq_readers_.end(); ++iter) {
             kseq_destroy(*iter);
         }
+
         for (auto iter = files_.begin(); iter != files_.end(); ++iter) {
             gzclose(*iter);
         }
+
         files_.clear();
         kseq_readers_.clear();
+
         if (edge_reader_inited_) {
             edge_reader_.destroy();
             edge_reader_inited_ = false;

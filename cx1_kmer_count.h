@@ -70,9 +70,9 @@ static const int kSentinelValue = 4;
 
 #define LONG_READS
 #ifdef LONG_READS
-static const int kSentinelOffset = 65535;
+    static const int kSentinelOffset = 65535;
 #else
-static const int kSentinelOffset = 255;
+    static const int kSentinelOffset = 255;
 #endif
 
 struct count_global_t {
@@ -118,14 +118,14 @@ struct count_global_t {
     uint16_t *first_0_out;
     uint16_t *last_0_in;
 #endif
-    int32_t* lv1_items; // each item is an offset (read ID and position) in differential representation
+    int32_t *lv1_items; // each item is an offset (read ID and position) in differential representation
 
     int64_t *lv2_read_info; // to store where this lv2_item (k+1)-mer come from
     int64_t *lv2_read_info_db; // double buffer
-    uint32_t* lv2_substrings; // stripped format
-    uint32_t* lv2_substrings_db; // double buffer
-    uint32_t* permutation; // permutation of { 1, ..., lv2_num_items }. for sorting (as value in a key-value pair)
-    uint32_t* permutation_db;    // double buffer
+    uint32_t *lv2_substrings; // stripped format
+    uint32_t *lv2_substrings_db; // double buffer
+    uint32_t *permutation; // permutation of { 1, ..., lv2_num_items }. for sorting (as value in a key-value pair)
+    uint32_t *permutation_db;    // double buffer
 
 #ifndef USE_GPU
     uint64_t *cpu_sort_space;
@@ -153,14 +153,14 @@ struct count_global_t {
 
 int64_t encode_lv1_diff_base(int64_t read_id, count_global_t &g);
 void    read_input_prepare(count_global_t &g); // num_items_, num_cpu_threads_ and num_output_threads_ must be set here
-void*   lv0_calc_bucket_size(void*); // pthread working function
+void   *lv0_calc_bucket_size(void *); // pthread working function
 void    init_global_and_set_cx1(count_global_t &g);
-void*   lv1_fill_offset(void*); // pthread working function
+void   *lv1_fill_offset(void *); // pthread working function
 void    lv1_direct_sort_and_count(count_global_t &g);
-void*   lv2_extract_substr(void*); // pthread working function
+void   *lv2_extract_substr(void *); // pthread working function
 void    lv2_sort(count_global_t &g);
 void    lv2_pre_output_partition(count_global_t &g);
-void*   lv2_output(void*); // pthread working function
+void   *lv2_output(void *); // pthread working function
 void    lv2_post_output(count_global_t &g);
 void    post_proc(count_global_t &g);
 

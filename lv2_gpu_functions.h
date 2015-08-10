@@ -25,9 +25,9 @@
 // single thread
 void cuda_init();
 void get_cuda_memory(size_t &free_mem, size_t &total_mem);
-void alloc_gpu_buffers(void* &gpu_key_buffer1, void* &gpu_key_buffer2, void* &gpu_value_buffer1, void* &gpu_value_buffer2, size_t max_num_items);
-void free_gpu_buffers(void* gpu_key_buffer1, void* gpu_key_buffer2, void* gpu_value_buffer1, void* gpu_value_buffer2);
+void alloc_gpu_buffers(void *&gpu_key_buffer1, void *&gpu_key_buffer2, void *&gpu_value_buffer1, void *&gpu_value_buffer2, size_t max_num_items);
+void free_gpu_buffers(void *gpu_key_buffer1, void *gpu_key_buffer2, void *gpu_value_buffer1, void *gpu_value_buffer2);
 void lv2_gpu_sort(uint32_t *lv2_substrings, uint32_t *permutation, int words_per_substring, int64_t lv2_num_items,
-                  void* gpu_key_buffer1, void* gpu_key_buffer2, void* gpu_value_buffer1, void* gpu_value_buffer2);
+                  void *gpu_key_buffer1, void *gpu_key_buffer2, void *gpu_value_buffer1, void *gpu_value_buffer2);
 
 #endif // SDBG_BUILDER_LV2_GPU_FUNCTIONS_H__

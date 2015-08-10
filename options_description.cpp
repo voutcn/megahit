@@ -22,6 +22,7 @@ using namespace std;
 ostream &operator <<(ostream &os, const OptionsDescription &desc) {
     for (unsigned i = 0; i < desc.options.size(); ++i)
         os << desc.options[i] << endl;
+
     return os;
 }
 
@@ -30,8 +31,9 @@ ostream &operator <<(ostream &os, const OptionsDescription::Option &option) {
 }
 
 void OptionsDescription::Parse(int &argc, char *argv[]) {
-    struct option long_options[options.size()+1];
+    struct option long_options[options.size() + 1];
     string short_options;
+
     for (unsigned i = 0; i < options.size(); ++i) {
         long_options[i].name = options[i].long_name.c_str();
         long_options[i].flag = 0;
@@ -41,13 +43,17 @@ void OptionsDescription::Parse(int &argc, char *argv[]) {
         if (options[i].type == kOptionBool) {
             if (options[i].short_name != "")
                 short_options += options[i].short_name;
+
             long_options[i].has_arg = no_argument;
-        } else {
+        }
+        else {
             if (options[i].short_name != "")
                 short_options += options[i].short_name + ":";
+
             long_options[i].has_arg = required_argument;
         }
     }
+
     long_options[options.size()].name = 0;
     long_options[options.size()].has_arg = 0;
     long_options[options.size()].flag = 0;
@@ -62,6 +68,7 @@ void OptionsDescription::Parse(int &argc, char *argv[]) {
 
         if (ch == '?')
             throw logic_error("uknown option");
+
         //throw exception();
 
         if (ch != 0) {
@@ -83,8 +90,10 @@ void OptionsDescription::Parse(int &argc, char *argv[]) {
     }
 
     int index = 1;
+
     for (int i = optind; i < argc; ++i)
         argv[index++] = argv[i];
+
     argc = index;
 
     for (unsigned i = 0; i < options.size(); ++i)
@@ -93,8 +102,10 @@ void OptionsDescription::Parse(int &argc, char *argv[]) {
 
 OptionsDescription::operator string() const {
     stringstream ss;
+
     for (unsigned i = 0; i < options.size(); ++i)
         ss << options[i] << endl;
+
     return ss.str();
 }
 
@@ -158,6 +169,7 @@ void OptionsDescription::Option::Parse() {
         case kOptionBool:
             if (value != "" || value == "false")
                 *(bool *)pointer = true;
+
             break;
 
         case kOptionInt:
@@ -183,6 +195,7 @@ OptionsDescription::Option::operator string() const {
         s += "      ";
 
     s += "--" + long_name;
+
     if (type != kOptionBool)
         s += " arg";
 

@@ -36,6 +36,7 @@ void SequenceManager::set_file(const std::string &file_name) {
 
     files_[0] = file_name == "-" ? gzdopen(fileno(stdin), "r") : gzopen(file_name.c_str(), "r");
     assert(files_[0] != NULL);
+
     if (f_type == kFastxReads || f_type == kMegahitContigs) {
         kseq_readers_[0] = kseq_init(files_[0]);
         assert(kseq_readers_[0] != NULL);
@@ -54,6 +55,7 @@ void SequenceManager::set_pe_files(const std::string &file_name1, const std::str
     files_[1] = file_name2 == "-" ? gzdopen(fileno(stdin), "r") : gzopen(file_name2.c_str(), "r");
 
     assert(files_[0] != NULL);
+
     if (f_type == kFastxReads || f_type == kMegahitContigs) {
         for (int i = 0; i < 2; ++i) {
             kseq_readers_[i] = kseq_init(files_[i]);
@@ -71,8 +73,14 @@ void SequenceManager::set_edge_files(const std::string &file_prefix) {
     edge_reader_.set_file_prefix(file_prefix);
     edge_reader_.read_info();
     edge_reader_.init_files();
-    if (edge_reader_.is_unsorted()) { f_type = kMegahitEdges; }
-    else { f_type = kSortedEdges; }
+
+    if (edge_reader_.is_unsorted()) {
+        f_type = kMegahitEdges;
+    }
+    else {
+        f_type = kSortedEdges;
+    }
+
     edge_reader_inited_ = true;
 }
 
@@ -81,15 +89,20 @@ inline void trimN(const char *s, int len, int &out_bpos, int &out_epos) {
     out_epos = len;
 
     int i;
+
     for (i = 0; i < len; ++i) {
         if (s[i] == 'N' || s[i] == 'n') {
-            if (out_bpos < len) { break; }
-        } else {
+            if (out_bpos < len) {
+                break;
+            }
+        }
+        else {
             if (out_bpos == len) {
                 out_bpos = i;
             }
         }
     }
+
     out_epos = i;
 }
 
@@ -118,21 +131,25 @@ int64_t SequenceManager::ReadShortReads(int64_t max_num, int64_t max_num_bases, 
                     if (reverse) {
                         package_->AppendReverseSeq(kseq_readers_[0]->seq.s + b0, e0 - b0);
                         package_->AppendReverseSeq(kseq_readers_[1]->seq.s + b1, e1 - b1);
-                    } else {
+                    }
+                    else {
                         package_->AppendSeq(kseq_readers_[0]->seq.s + b0, e0 - b0);
                         package_->AppendSeq(kseq_readers_[1]->seq.s + b1, e1 - b1);
                     }
 
                     num_bases += e0 - b0 + e1 - b1;
+
                     if (num_bases >= max_num_bases) {
                         return i + 2;
                     }
-                } else {
+                }
+                else {
                     assert(kseq_read(kseq_readers_[1]) < 0);
                     return i;
                 }
             }
-        } else {
+        }
+        else {
             for (int64_t i = 0; i < max_num; ++i) {
                 if (kseq_read(kseq_readers_[0]) >= 0) {
                     int b = 0, e = kseq_readers_[0]->seq.l;
@@ -143,43 +160,55 @@ int64_t SequenceManager::ReadShortReads(int64_t max_num, int64_t max_num_bases, 
 
                     if (reverse) {
                         package_->AppendReverseSeq(kseq_readers_[0]->seq.s + b, e - b);
-                    } else {
+                    }
+                    else {
                         package_->AppendSeq(kseq_readers_[0]->seq.s + b, e - b);
                     }
 
                     num_bases += e - b;
+
                     if (num_bases >= max_num_bases && i % 2 == 1) {
                         return i + 1;
                     }
-                } else {
+                }
+                else {
                     return i;
                 }
             }
         }
 
         return max_num;
-    } else if (f_type == kBinaryReads) {
+    }
+    else if (f_type == kBinaryReads) {
         uint32_t read_len;
+
         for (int64_t i = 0; i < max_num; ++i) {
             if (gzread(files_[0], &read_len, sizeof(read_len)) == 0) {
                 return i;
             }
 
             int num_words = DivCeiling(read_len, 16);
+
             if (buf_.size() < (unsigned)num_words) {
                 buf_.resize(num_words);
             }
+
             assert((unsigned)gzread(files_[0], &buf_[0], sizeof(uint32_t) * num_words) == num_words * sizeof(uint32_t));
+
             if (!reverse) {
                 package_->AppendSeq(&buf_[0], read_len);
-            } else {
+            }
+            else {
                 package_->AppendRevSeq(&buf_[0], read_len);
             }
+
             num_bases += read_len;
+
             if (read_len >= max_num_bases && i % 2 == 1) {
                 return i + 1;
             }
         }
+
         return max_num;
     }
 
@@ -195,22 +224,29 @@ int64_t SequenceManager::ReadEdges(int64_t max_num, bool append) {
     if (f_type == kMegahitEdges) {
         for (int64_t i = 0; i < max_num; ++i) {
             uint32_t *next_edge = edge_reader_.NextUnsortedEdge();
+
             if (next_edge == NULL) {
                 return i;
             }
+
             package_->AppendSeq(next_edge, edge_reader_.kmer_size() + 1);
             multi_->push_back(next_edge[edge_reader_.words_per_edge() - 1] & kMaxMulti_t);
         }
+
         return max_num;
-    } else if (f_type == kSortedEdges) {
+    }
+    else if (f_type == kSortedEdges) {
         for (int64_t i = 0; i < max_num; ++i) {
             uint32_t *next_edge = edge_reader_.NextSortedEdge();
+
             if (next_edge == NULL) {
                 return i;
             }
+
             package_->AppendSeq(next_edge, edge_reader_.kmer_size() + 1);
             multi_->push_back(next_edge[edge_reader_.words_per_edge() - 1] & kMaxMulti_t);
         }
+
         return max_num;
     }
 
@@ -227,22 +263,29 @@ int64_t SequenceManager::ReadEdgesWithFixedLen(int64_t max_num, bool append) {
     if (f_type == kMegahitEdges) {
         for (int64_t i = 0; i < max_num; ++i) {
             uint32_t *next_edge = edge_reader_.NextUnsortedEdge();
+
             if (next_edge == NULL) {
                 return i;
             }
+
             package_->AppendFixedLenSeq(next_edge, edge_reader_.kmer_size() + 1);
             multi_->push_back(next_edge[edge_reader_.words_per_edge() - 1] & kMaxMulti_t);
         }
+
         return max_num;
-    } else if (f_type == kSortedEdges) {
+    }
+    else if (f_type == kSortedEdges) {
         for (int64_t i = 0; i < max_num; ++i) {
             uint32_t *next_edge = edge_reader_.NextSortedEdge();
+
             if (next_edge == NULL) {
                 return i;
             }
+
             package_->AppendFixedLenSeq(next_edge, edge_reader_.kmer_size() + 1);
             multi_->push_back(next_edge[edge_reader_.words_per_edge() - 1] & kMaxMulti_t);
         }
+
         return max_num;
     }
 
@@ -259,6 +302,7 @@ int64_t SequenceManager::ReadMegahitContigs(int64_t max_num, int64_t max_num_bas
         if (multi_ != NULL) {
             multi_->clear();
         }
+
         package_->clear();
     }
 
@@ -283,51 +327,44 @@ int64_t SequenceManager::ReadMegahitContigs(int64_t max_num, int64_t max_num_bas
                 }
 
                 std::string ss(kseq_readers_[0]->seq.s);
+
                 for (int i = 0; i < k_to_ - k_from_; ++i) {
                     ss.push_back(ss[i + k_from_]);
                 }
 
                 if (reverse) {
                     package_->AppendReverseSeq(ss.c_str(), ss.length());
-                } else {
+                }
+                else {
                     package_->AppendSeq(ss.c_str(), ss.length());
                 }
-            } else {
+            }
+            else {
                 if (reverse) {
                     package_->AppendReverseSeq(kseq_readers_[0]->seq.s, kseq_readers_[0]->seq.l);
-                } else {
+                }
+                else {
                     package_->AppendSeq(kseq_readers_[0]->seq.s, kseq_readers_[0]->seq.l);
                 }
             }
+            
+            float mul = atof(kseq_readers_[0]->comment.s + 13);
 
             if (multi_ != NULL) {
-                if (calc_depth) {
-                    double depth_from = atof(kseq_readers_[0]->comment.s + 13);
-
-                    int num_kmer = kseq_readers_[0]->seq.l - k_from_ + 1;
-                    int num_nextk1 = kseq_readers_[0]->seq.l - (k_to_ + 1) + 1;
-                    int internal_max = std::min(k_to_ + 1 - k_from_ + 1, num_nextk1);
-                    int num_external = internal_max - 1;
-                    int num_internal = num_kmer - num_external * 2;
-
-                    double exp_num_kmer = (double)num_external * (num_external + 1) / (k_to_ + 1 - k_from_ + 1)
-                                          + (double)internal_max / (k_to_ + 1 - k_from_ + 1) * num_internal;
-                    exp_num_kmer *= depth_from;
-                    multi_->push_back(std::min(int(exp_num_kmer * k_from_ / (k_to_ + 1) / num_nextk1 + 0.5), kMaxMulti_t));
-                } else {
-                    multi_->push_back((multi_t)atof(kseq_readers_[0]->comment.s + 13));
-                }
+                multi_->push_back(std::min(kMaxMulti_t, (int)(mul + 0.5)));
             }
 
             if (float_multi_ != NULL) {
-                float_multi_->push_back(atof(kseq_readers_[0]->comment.s + 13));
+                float_multi_->push_back(mul);
             }
 
             num_bases += kseq_readers_[0]->seq.l;
+
             if (num_bases >= max_num_bases) {
                 return i + 1;
             }
-        } else {
+        }
+        else {
             return i;
         }
     }
@@ -339,6 +376,7 @@ void SequenceManager::WriteBinarySequences(FILE *file, bool reverse, int64_t fro
     if (to == -1) {
         to = package_->size() - 1;
     }
+
     uint32_t len;
     std::vector<uint32_t> s;
 
@@ -350,15 +388,18 @@ void SequenceManager::WriteBinarySequences(FILE *file, bool reverse, int64_t fro
             for (int j = 0; j < (int)s.size(); ++j) {
                 s[j] = bit_operation::Reverse(s[j]);
             }
+
             for (int j = 0, k = s.size() - 1; j < k; ++j, --k) {
                 std::swap(s[j], s[k]);
             }
 
             int shift = (16 - len % 16)  * 2;
+
             if (shift != 32) {
                 for (int j = 0; j < (int)s.size() - 1; ++j) {
-                    s[j] = (s[j] << shift) | (s[j+1] >> (32 - shift));
+                    s[j] = (s[j] << shift) | (s[j + 1] >> (32 - shift));
                 }
+
                 s.back() <<= shift;
             }
         }

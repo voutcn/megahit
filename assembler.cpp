@@ -104,10 +104,12 @@ void ParseAsmOption(int argc, char *argv[]) {
 
     try {
         desc.Parse(argc, argv);
+
         if (opt.sdbg_name == "") {
             throw std::logic_error("no succinct de Bruijn graph name!");
         }
-    } catch (std::exception &e) {
+    }
+    catch (std::exception &e) {
         std::cerr << e.what() << std::endl;
         std::cerr << "Usage: " << argv[0] << " -s sdbg_name -o output_prefix" << std::endl;
         std::cerr << "options:" << std::endl;
@@ -126,7 +128,7 @@ void PrintStat(Histgram<int64_t> &h) {
 
 int main_assemble(int argc, char **argv) {
     AutoMaxRssRecorder recorder;
-    
+
     ParseAsmOption(argc, argv);
 
     SuccinctDBG dbg;
@@ -148,6 +150,7 @@ int main_assemble(int argc, char **argv) {
         if (opt.num_cpu_threads == 0) {
             opt.num_cpu_threads = omp_get_max_threads();
         }
+
         omp_set_num_threads(opt.num_cpu_threads);
         xlog("Number of CPU threads: %d\n", opt.num_cpu_threads);
 
@@ -178,9 +181,11 @@ int main_assemble(int argc, char **argv) {
         timer.start();
         uint32_t num_bubbles = unitig_graph.MergeBubbles(true, opt.careful_bubble);
         uint32_t num_complex_bubbles = 0;
+
         if (opt.merge_len > 0) {
             num_complex_bubbles += unitig_graph.MergeComplexBubbles(opt.merge_similar, opt.merge_len, true, opt.careful_bubble);
         }
+
         timer.stop();
         xlog("Number of bubbles/complex bubbles removed: %u/%u, Time elapsed(sec): %lf\n",
              num_bubbles, num_complex_bubbles, timer.elapsed());
@@ -239,6 +244,7 @@ int main_assemble(int argc, char **argv) {
         }
 
         uint32_t num_complex_bubbles = 0;
+
         if (opt.merge_len > 0)
             num_complex_bubbles = unitig_graph.MergeComplexBubbles(opt.merge_similar, opt.merge_len, opt.is_final_round, false);
 
@@ -250,14 +256,15 @@ int main_assemble(int argc, char **argv) {
 
         if (!opt.is_final_round) {
             unitig_graph.OutputContigs(out_addi_contig_file, NULL, hist, true, 0);
-        } else {
+        }
+        else {
             // unitig_graph.OutputContigs(out_contig_file, out_final_contig_file, hist, false, opt.min_standalone);
             unitig_graph.OutputContigs(out_contig_file, opt.output_standalone ? out_final_contig_file : NULL, hist, false, opt.min_standalone);
         }
 
         PrintStat(hist);
         fprintf(out_addi_contig_info, "%lld %lld\n", (long long)hist.size(), (long long)hist.sum());
-        
+
         fclose(out_addi_contig_file);
         fclose(out_addi_contig_info);
     }

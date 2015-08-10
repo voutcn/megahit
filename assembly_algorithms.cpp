@@ -45,21 +45,26 @@ int64_t Trim(SuccinctDBG &dbg, int len, int min_final_standalone) {
     int64_t number_tips = 0;
 
     #pragma omp parallel for reduction(+:number_tips)
+
     for (int64_t node_idx = 0; node_idx < dbg.size; ++node_idx) {
         if (dbg.IsLast(node_idx) && !removed_nodes.get(node_idx) && dbg.NodeOutdegreeZero(node_idx)) {
             vector<int64_t> path = {node_idx};
             int64_t prev_node;
             int64_t cur_node = node_idx;
             bool is_tip = false;
+
             for (int i = 1; i < len; ++i) {
                 prev_node = dbg.UniquePrevNode(cur_node);
+
                 if (prev_node == -1) {
                     is_tip = dbg.NodeIndegreeZero(cur_node); // && (i + dbg.kmer_k - 1 < min_final_standalone);
                     break;
-                } else if (dbg.UniqueNextNode(prev_node) == -1) {
+                }
+                else if (dbg.UniqueNextNode(prev_node) == -1) {
                     is_tip = true;
                     break;
-                } else {
+                }
+                else {
                     path.push_back(prev_node);
                     cur_node = prev_node;
                 }
@@ -69,26 +74,32 @@ int64_t Trim(SuccinctDBG &dbg, int len, int min_final_standalone) {
                 for (unsigned i = 0; i < path.size(); ++i) {
                     removed_nodes.set(path[i]);
                 }
+
                 ++number_tips;
             }
         }
     }
 
     #pragma omp parallel for reduction(+:number_tips)
+
     for (int64_t node_idx = 0; node_idx < dbg.size; ++node_idx) {
         if (dbg.IsLast(node_idx) && !removed_nodes.get(node_idx) && dbg.NodeIndegreeZero(node_idx)) {
             vector<int64_t> path = {node_idx};
             int64_t next_node;
             int64_t cur_node = node_idx;
             bool is_tip = false;
+
             for (int i = 1; i < len; ++i) {
                 next_node = dbg.UniqueNextNode(cur_node);
+
                 if (next_node == -1) {
                     is_tip = dbg.NodeOutdegreeZero(cur_node); // && (i + dbg.kmer_k - 1 < min_final_standalone);
                     break;
-                } else if (dbg.UniquePrevNode(next_node) == -1) {
+                }
+                else if (dbg.UniquePrevNode(next_node) == -1) {
                     is_tip = true;
-                } else {
+                }
+                else {
                     path.push_back(next_node);
                     cur_node = next_node;
                 }
@@ -98,12 +109,14 @@ int64_t Trim(SuccinctDBG &dbg, int len, int min_final_standalone) {
                 for (unsigned i = 0; i < path.size(); ++i) {
                     removed_nodes.set(path[i]);
                 }
+
                 ++number_tips;
             }
         }
     }
 
     #pragma omp parallel for
+
     for (int64_t node_idx = 0; node_idx < dbg.size; ++node_idx) {
         if (removed_nodes.get(node_idx)) {
             dbg.DeleteAllEdges(node_idx);
@@ -117,7 +130,7 @@ int64_t RemoveTips(SuccinctDBG &dbg, int max_tip_len, int min_final_standalone) 
     int64_t number_tips = 0;
     xtimer_t timer;
     removed_nodes.reset(dbg.size);
-    
+
     for (int len = 2; len < max_tip_len; len *= 2) {
         xlog("Removing tips with length less than %d; ", len);
         timer.reset();
@@ -126,6 +139,7 @@ int64_t RemoveTips(SuccinctDBG &dbg, int max_tip_len, int min_final_standalone) 
         timer.stop();
         xlog_ext("Accumulated tips removed: %lld; time elapsed: %.4f\n", (long long)number_tips, timer.elapsed());
     }
+
     xlog("Removing tips with length less than %d; ", max_tip_len);
     timer.reset();
     timer.start();
