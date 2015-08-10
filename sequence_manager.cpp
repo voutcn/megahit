@@ -347,29 +347,15 @@ int64_t SequenceManager::ReadMegahitContigs(int64_t max_num, int64_t max_num_bas
                     package_->AppendSeq(kseq_readers_[0]->seq.s, kseq_readers_[0]->seq.l);
                 }
             }
+            
+            float mul = atof(kseq_readers_[0]->comment.s + 13);
 
             if (multi_ != NULL) {
-                if (calc_depth) {
-                    double depth_from = atof(kseq_readers_[0]->comment.s + 13);
-
-                    int num_kmer = kseq_readers_[0]->seq.l - k_from_ + 1;
-                    int num_nextk1 = kseq_readers_[0]->seq.l - (k_to_ + 1) + 1;
-                    int internal_max = std::min(k_to_ + 1 - k_from_ + 1, num_nextk1);
-                    int num_external = internal_max - 1;
-                    int num_internal = num_kmer - num_external * 2;
-
-                    double exp_num_kmer = (double)num_external * (num_external + 1) / (k_to_ + 1 - k_from_ + 1)
-                                          + (double)internal_max / (k_to_ + 1 - k_from_ + 1) * num_internal;
-                    exp_num_kmer *= depth_from;
-                    multi_->push_back(std::min(int(exp_num_kmer * k_from_ / (k_to_ + 1) / num_nextk1 + 0.5), kMaxMulti_t));
-                }
-                else {
-                    multi_->push_back((multi_t)atof(kseq_readers_[0]->comment.s + 13));
-                }
+                multi_->push_back(std::min(kMaxMulti_t, (int)(mul + 0.5)));
             }
 
             if (float_multi_ != NULL) {
-                float_multi_->push_back(atof(kseq_readers_[0]->comment.s + 13));
+                float_multi_->push_back(mul);
             }
 
             num_bases += kseq_readers_[0]->seq.l;

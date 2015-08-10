@@ -408,12 +408,15 @@ static bool ReadReadsAndProcessKernel(IterateGlobalData &globals,
                         rev_kmer_p.kmer.ReverseComplement(globals.next_k1);
                     }
 
+                    float mul = (kmer_mul[j] - (j - (globals.step + 1) >= 0 ? kmer_mul[j - (globals.step + 1)] : 0)) / (globals.step + 1);
+                    assert(mul <= kMaxMulti_t + 1);
+
                     if (kmer_p.kmer < rev_kmer_p.kmer) {
-                        kmer_p.ann = (kmer_mul[j] - (j - (globals.step + 1) >= 0 ? kmer_mul[j - (globals.step + 1)] : 0)) / (globals.step + 1);
+                        kmer_p.ann = std::min(kMaxMulti_t, int(mul + 0.5));
                         iterative_edges.find_or_insert(kmer_p);
                     }
                     else {
-                        rev_kmer_p.ann = (kmer_mul[j] - (j - (globals.step + 1) >= 0 ? kmer_mul[j - (globals.step + 1)] : 0)) / (globals.step + 1);
+                        rev_kmer_p.ann = std::min(kMaxMulti_t, int(mul + 0.5));
                         iterative_edges.find_or_insert(rev_kmer_p);
                     }
 
