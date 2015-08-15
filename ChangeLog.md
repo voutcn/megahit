@@ -1,3 +1,10 @@
+### 1.0.2 / 2015-07-31 HKT
+
+* Fixed a bug when number of large multiplicities > INT_MAX
+* Fixed dead loop in local assembler when # of reads is 0
+* Use `mmap` for edge/sdbg IO
+* Correct the rounding of edge multiplicity from float to integer
+
 ### 1.0.1 / 2015-07-31 HKT
 
 * Fixed number of SdBG edges 32-bit integer overflow.

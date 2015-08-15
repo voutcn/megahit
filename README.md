@@ -49,6 +49,11 @@ To fine tune parameters for specific datasets, please find our suggestions on [t
 
 For other questions, please first refer to [our wiki](https://github.com/voutcn/megahit/wiki). Please [report an issue](https://github.com/voutcn/megahit/issues) in github when necessary.
 
+##Useful Links
+[MEGAHIT wiki](https://github.com/voutcn/megahit/wiki)
+[MEGABOX](http://hku-bal.github.io/megabox/): MEGAHIT assemblies of challenging metagenome data sets
+[An example of real assembly with MEGAHIT](https://github.com/voutcn/megahit/wiki/An-example-of-real-assembly)
+
 ##Citing MEGAHIT
 
 * Li, D., Liu, C-M., Luo, R., Sadakane, K., and Lam, T-W., (2015) MEGAHIT: An ultra-fast single-node solution for large and complex metagenomics assembly via succinct de Bruijn graph. *Bioinformatics*, doi: 10.1093/bioinformatics/btv033 [PMID: [25609793](http://www.ncbi.nlm.nih.gov/pubmed/25609793)].
