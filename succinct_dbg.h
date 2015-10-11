@@ -213,7 +213,7 @@ class SuccinctDBG {
     long long f_[kAlphabetSize + 2];
     long long rank_f_[kAlphabetSize + 2]; // = rs_last_.Rank(f_[i] - 1)
 
-    unsigned int num_tip_nodes_;
+    int64_t num_tip_nodes_;
     int uint32_per_tip_nodes_;
 
     // auxiliary memory
