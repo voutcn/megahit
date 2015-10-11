@@ -1,4 +1,4 @@
-### 1.0.2 / 2015-07-31 HKT
+### 1.0.2 / 2015-08-15 HKT
 
 * Fixed a bug when number of large multiplicities > INT_MAX
 * Fixed dead loop in local assembler when # of reads is 0
