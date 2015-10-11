@@ -1,3 +1,7 @@
+### 1.0.3 / 2015-10-11 HKT
+
+* Hotfix of number of tip nodes in SdBG 32 bit integer overflow
+
 ### 1.0.2 / 2015-08-15 HKT
 
 * Fixed a bug when number of large multiplicities > INT_MAX
