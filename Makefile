@@ -217,6 +217,7 @@ TOOLKIT += $(TOOLS_DIR)/contigs_to_fastg.cpp
 TOOLKIT += $(TOOLS_DIR)/read_stat.cpp
 TOOLKIT += $(TOOLS_DIR)/trim_low_qual_tail.cpp
 TOOLKIT += $(TOOLS_DIR)/filter_by_len.cpp
+TOOLKIT += $(TOOLS_DIR)/extract_pe_reads.cpp
 
 #-------------------------------------------------------------------------------
 # CPU objectives
