@@ -103,8 +103,8 @@ int main_extract_pe(int argc, char **argv) {
         }
     }
 
-    for (auto &item : reads) {
-        output_seq(item.second, out_se);
+    for (auto it = reads.begin(); it != reads.end(); ++it) {
+        output_seq(it->second, out_se);
     }
 
     kseq_destroy(seq);
