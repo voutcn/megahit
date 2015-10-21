@@ -59,11 +59,11 @@ For other questions, please first refer to [our wiki](https://github.com/voutcn/
 
 * Li, D., Liu, C-M., Luo, R., Sadakane, K., and Lam, T-W., (2015) MEGAHIT: An ultra-fast single-node solution for large and complex metagenomics assembly via succinct de Bruijn graph. *Bioinformatics*, doi: 10.1093/bioinformatics/btv033 [PMID: [25609793](http://www.ncbi.nlm.nih.gov/pubmed/25609793)].
 
-##License
+##License & Supports
 
 ```
     MEGAHIT
-    Copyright (C) 2014-2015  The University of Hong Kong
+    Copyright (C) 2014-2015  The University of Hong Kong & L3 Bioinformatics Limited
 
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -79,9 +79,4 @@ For other questions, please first refer to [our wiki](https://github.com/voutcn/
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 ```
 
-Third-party codes used in MEGAHIT:
-
-* [IDBA package](https://github.com/loneknightpy/idba) under GPLv2
-* [CUB](https://github.com/NVlabs/cub) under "New BSD" license
-* [klib](https://github.com/attractivechaos/klib) under MIT license
-* [CityHash](https://code.google.com/p/cityhash/) under MIT license
+MEGAHIT is released under GPLv3. For personalized customization and commercial supports, please contact L3 Bioinformatics Limited (rbluo <at> l3-bioinfo.com).
