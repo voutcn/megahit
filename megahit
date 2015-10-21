@@ -2,7 +2,7 @@
 
 #-------------------------------------------------------------------------
 # MEGAHIT
-# Copyright (C) 2014 - 2015 The University of Hong Kong
+# Copyright (C) 2014 - 2015 The University of Hong Kong & L3 Bioinformatics Limited
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -37,7 +37,8 @@ from datetime import datetime
 
 megahit_version_str = ""
 usage_message = '''
-Copyright (c) The University of Hong Kong
+Copyright (c) The University of Hong Kong & L3 Bioinformatics Limited
+contact: Dinghua Li <dhli@cs.hku.hk>
 
 Usage:
   megahit [options] {-1 <pe1> -2 <pe2> | --12 <pe12> | -r <se>} [-o <out_dir>]

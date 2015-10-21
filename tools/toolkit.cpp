@@ -1,6 +1,6 @@
 /*
  *  MEGAHIT
- *  Copyright (C) 2014 - 2015 The University of Hong Kong
+ *  Copyright (C) 2014 - 2015 The University of Hong Kong & L3 Bioinformatics Limited
  *
  *  This program is free software: you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -28,6 +28,7 @@ int main_contig2fastg(int argc, char **argv);
 int main_read_stat(int argc, char **argv);
 int main_trim_lowq_tail(int argc, char **argv);
 int main_filter_by_len(int argc, char **argv);
+int main_extract_pe(int argc, char **argv);
 
 void show_help(const char *program_name) {
     fprintf(stderr, "Usage: %s <sub_program> [sub options]\n"
@@ -36,6 +37,7 @@ void show_help(const char *program_name) {
             "       readstat              calculate read stats (# of reads, bases, longest, shortest, average)\n"
             "       trim                  trim low quality tail of fastq reads\n"
             "       filterbylen           filter contigs by length\n"
+            "       extractpe             extract pe reads and se reads from fasta/fastq files\n"
             "       dumpversion           dump version\n",
             program_name);
 }
@@ -61,6 +63,9 @@ int main(int argc, char **argv) {
     else if (strcmp(argv[1], "dumpversion") == 0) {
         printf("%s\n", PACKAGE_VERSION);
         return 0;
+    }
+    else if (strcmp(argv[1], "extractpe") == 0) {
+        return main_extract_pe(argc - 1, argv + 1);
     }
     else {
         show_help(argv[0]);

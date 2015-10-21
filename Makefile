@@ -1,6 +1,6 @@
 #-------------------------------------------------------------------------------
 # MEGAHIT
-# Copyright (C) 2014 The University of Hong Kong
+# Copyright (C) 2014-2015 The University of Hong Kong & L3 Bioinformatics Limited
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -217,6 +217,7 @@ TOOLKIT += $(TOOLS_DIR)/contigs_to_fastg.cpp
 TOOLKIT += $(TOOLS_DIR)/read_stat.cpp
 TOOLKIT += $(TOOLS_DIR)/trim_low_qual_tail.cpp
 TOOLKIT += $(TOOLS_DIR)/filter_by_len.cpp
+TOOLKIT += $(TOOLS_DIR)/extract_pe_reads.cpp
 
 #-------------------------------------------------------------------------------
 # CPU objectives
