@@ -79,4 +79,4 @@ For other questions, please first refer to [our wiki](https://github.com/voutcn/
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 ```
 
-MEGAHIT is released under GPLv3. For personalized customization and commercial supports, please contact L3 Bioinformatics Limited (rbluo at l3-bioinfo.com).
+MEGAHIT is released under GPLv3. For personalized customization and commercial supports, please contact L3 Bioinformatics Limited (rb at l3-bioinfo.com).
