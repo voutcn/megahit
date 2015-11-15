@@ -50,6 +50,7 @@ struct IterateGlobalData {
     char dna_map[256];
 
     std::string contig_file;
+    std::string bubble_file;
     std::string read_file;
     std::string read_format;
     std::string output_prefix;
@@ -69,6 +70,7 @@ struct IterateGlobalData {
 
 struct iter_opt_t {
     string contig_file;
+    string bubble_file;
     string read_file;
     string read_format;
     int num_cpu_threads;
@@ -95,6 +97,7 @@ static void ParseIterOptions(int argc, char *argv[]) {
     OptionsDescription desc;
 
     desc.AddOption("contig_file", "c", opt.contig_file, "(*) contigs file, fasta/fastq format, output by assembler");
+    desc.AddOption("bubble_file", "b", opt.bubble_file, "(*) bubble file, fasta/fastq format, output by assembler");
     desc.AddOption("read_file", "r", opt.read_file, "(*) reads to be aligned. \"-\" for stdin. Can be gzip'ed.");
     desc.AddOption("read_format", "f", opt.read_format, "(*) reads' format. fasta, fastq or binary.");
     desc.AddOption("num_cpu_threads", "t", opt.num_cpu_threads, "number of cpu threads, at least 2. 0 for auto detect.");
@@ -112,6 +115,9 @@ static void ParseIterOptions(int argc, char *argv[]) {
         }
         else if (opt.contig_file == "") {
             throw std::logic_error("No contig file!");
+        }
+        else if (opt.bubble_file == "") {
+            throw std::logic_error("No bubble file!");
         }
         else if (opt.read_file == "") {
             throw std::logic_error("No reads file!");
@@ -158,6 +164,7 @@ static void InitGlobalData(IterateGlobalData &globals) {
     globals.num_cpu_threads = opt.num_cpu_threads;
     globals.read_format = opt.read_format;
     globals.contig_file = opt.contig_file;
+    globals.bubble_file = opt.bubble_file;
     globals.read_file = opt.read_file;
     globals.output_prefix = opt.output_prefix;
 }
@@ -486,7 +493,7 @@ static void ReadReadsAndProcess(IterateGlobalData &globals,
 }
 
 template<uint32_t kNumKmerWord_p, typename kmer_word_p_t>
-static void ReadContigsAndBuildHash(IterateGlobalData &globals,
+static void ReadContigsAndBuildHash(IterateGlobalData &globals, std::string file_name, 
                                     HashTable<KmerPlus<kNumKmerWord_p, kmer_word_p_t, MarginalKmer>, Kmer<kNumKmerWord_p, kmer_word_p_t> > &crusial_kmers) {
     SequencePackage packages[2];
     std::vector<float> f_muls[2];
@@ -497,7 +504,7 @@ static void ReadContigsAndBuildHash(IterateGlobalData &globals,
     seq_manager.set_file_type(SequenceManager::kMegahitContigs);
     seq_manager.set_package(&packages[input_thread_index]);
     seq_manager.set_float_multiplicity_vector(&f_muls[input_thread_index]);
-    seq_manager.set_file(globals.contig_file);
+    seq_manager.set_file(file_name);
 
     pthread_create(&input_thread, NULL, ReadContigsThread, &seq_manager);
 
@@ -567,7 +574,8 @@ template <uint32_t kNumKmerWord_p, typename kmer_word_p_t>
 bool IterateToNextK(IterateGlobalData &globals) {
     if (Kmer<kNumKmerWord_p, kmer_word_p_t>::max_size() >= (unsigned)globals.kmer_k + 1) {
         HashTable<KmerPlus<kNumKmerWord_p, kmer_word_p_t, MarginalKmer>, Kmer<kNumKmerWord_p, kmer_word_p_t> > crusial_kmers;
-        ReadContigsAndBuildHash(globals, crusial_kmers);
+        ReadContigsAndBuildHash(globals, globals.bubble_file, crusial_kmers);
+        ReadContigsAndBuildHash(globals, globals.contig_file, crusial_kmers);
         ReadReadsAndProcess(globals, crusial_kmers);
         return true;
     }

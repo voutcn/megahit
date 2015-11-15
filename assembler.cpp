@@ -80,6 +80,10 @@ struct asm_opt_t {
         return output_prefix + ".addi.fa";
     }
 
+    string bubble_file() {
+        return output_prefix + ".bubble_seq.fa";
+    }
+
 };
 
 static asm_opt_t opt;
@@ -175,15 +179,18 @@ int main_assemble(int argc, char **argv) {
     timer.stop();
     xlog("unitig graph size: %u, time for building: %lf\n", unitig_graph.size(), timer.elapsed());
 
+    FILE *bubble_file = OpenFileAndCheck(opt.bubble_file().c_str(), "w");
+    Histgram<int64_t> bubble_hist;
+
     // remove bubbles
     if (!opt.no_bubble) {
         timer.reset();
         timer.start();
-        uint32_t num_bubbles = unitig_graph.MergeBubbles(true, opt.careful_bubble);
+        uint32_t num_bubbles = unitig_graph.MergeBubbles(true, opt.careful_bubble, bubble_file, bubble_hist);
         uint32_t num_complex_bubbles = 0;
 
         if (opt.merge_len > 0) {
-            num_complex_bubbles += unitig_graph.MergeComplexBubbles(opt.merge_similar, opt.merge_len, true, opt.careful_bubble);
+            num_complex_bubbles += unitig_graph.MergeComplexBubbles(opt.merge_similar, opt.merge_len, true, opt.careful_bubble, bubble_file, bubble_hist);
         }
 
         timer.stop();
@@ -219,7 +226,6 @@ int main_assemble(int argc, char **argv) {
                                    hist, false, opt.min_standalone);
 
         PrintStat(hist);
-        fprintf(out_contig_info, "%lld %lld\n", (long long)hist.size(), (long long)hist.sum());
 
         timer.stop();
         xlog("Time to output: %lf\n", timer.elapsed());
@@ -246,7 +252,7 @@ int main_assemble(int argc, char **argv) {
         uint32_t num_complex_bubbles = 0;
 
         if (opt.merge_len > 0)
-            num_complex_bubbles = unitig_graph.MergeComplexBubbles(opt.merge_similar, opt.merge_len, opt.is_final_round, false);
+            num_complex_bubbles = unitig_graph.MergeComplexBubbles(opt.merge_similar, opt.merge_len, opt.is_final_round, false, bubble_file, bubble_hist);
 
         timer.stop();
         xlog("Number of local low depth unitigs removed: %lld, complex bubbles removed: %u, time: %lf\n",
@@ -268,10 +274,13 @@ int main_assemble(int argc, char **argv) {
         fclose(out_addi_contig_file);
         fclose(out_addi_contig_info);
     }
+    
+    fprintf(out_contig_info, "%lld %lld\n", (long long)(hist.size() + bubble_hist.size()), (long long)(hist.sum() + bubble_hist.sum()));
 
     fclose(out_contig_file);
     fclose(out_contig_info);
     fclose(out_final_contig_file);
+    fclose(bubble_file);
 
     return 0;
 }

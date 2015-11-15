@@ -356,9 +356,12 @@ void UnitigGraph::InitFromSdBG() {
     omp_destroy_lock(&path_lock);
 }
 
-uint32_t UnitigGraph::MergeBubbles(bool permanent_rm, bool careful) {
+uint32_t UnitigGraph::MergeBubbles(bool permanent_rm, bool careful, FILE *bubble_file, Histgram<int64_t> &hist) {
     int max_bubble_len = sdbg_->kmer_k + 2; // allow 1 indel
     uint32_t num_removed = 0;
+    omp_lock_t output_lock;
+    omp_init_lock(&output_lock);
+    long long output_id = 0;
 
     std::vector<std::tuple<double, int64_t, vertexID_t, int64_t> > branches; // depth, representative id, id, out_id
 
@@ -432,22 +435,40 @@ uint32_t UnitigGraph::MergeBubbles(bool permanent_rm, bool careful) {
             }
 
             std::sort(branches.begin(), branches.end());
+            bool careful_merged = false;
 
             for (int j = 1; j < outdegree; ++j) {
-                if (!careful || -std::get<0>(branches[j]) < -std::get<0>(branches[0]) * 0.2) {
-                    UnitigGraphVertex &vj = vertices_[std::get<2>(branches[j])];
-                    vj.is_dead = true;
-                    ++num_removed;
+                UnitigGraphVertex &vj = vertices_[std::get<2>(branches[j])];
+                vj.is_dead = true;
+                ++num_removed;
+
+                if (careful && -std::get<0>(branches[j]) >= -std::get<0>(branches[0]) * 0.2) {
+                    careful_merged = true;
+                    string label = VertexToDNAString(sdbg_, vj);
+                    WriteContig(label, sdbg_->kmer_k, output_id, 0, -std::get<0>(branches[j]), &output_lock, bubble_file);
+                    hist.insert(label.length());
                 }
+            }
+
+            if (careful_merged) {
+                UnitigGraphVertex &leftVertex = vertices_[i];
+                UnitigGraphVertex &rightVertex = vertices_[start_node_map_[std::get<3>(branches[0])]];
+                string left_label = VertexToDNAString(sdbg_, leftVertex);
+                string right_label = VertexToDNAString(sdbg_, rightVertex);
+                WriteContig(left_label, sdbg_->kmer_k, output_id, 0, leftVertex.depth * 1.0 / leftVertex.length, &output_lock, bubble_file);
+                WriteContig(right_label, sdbg_->kmer_k, output_id, 0, rightVertex.depth * 1.0 / rightVertex.length, &output_lock, bubble_file);
+                hist.insert(left_label.length());
+                hist.insert(right_label.length());
             }
         }
     }
+    omp_destroy_lock(&output_lock);
 
     Refresh_(!permanent_rm);
     return num_removed;
 }
 
-uint32_t UnitigGraph::MergeComplexBubbles(double similarity, int merge_level, bool permanent_rm, bool careful) {
+uint32_t UnitigGraph::MergeComplexBubbles(double similarity, int merge_level, bool permanent_rm, bool careful, FILE *bubble_file, Histgram<int64_t> &hist) {
     int max_bubble_len = sdbg_->kmer_k * merge_level / similarity + 0.5;
 
     if (max_bubble_len * (1 - similarity) < 1) {
@@ -458,6 +479,10 @@ uint32_t UnitigGraph::MergeComplexBubbles(double similarity, int merge_level, bo
 
     std::vector<std::tuple<double, int64_t, vertexID_t, std::vector<int64_t>, bool> > branches; // depth, representative id, id, in_out_ids, strand
     std::vector<std::string> vertex_labels;
+
+    long long output_id = 0;
+    omp_lock_t output_lock;
+    omp_init_lock(&output_lock);
 
     #pragma omp parallel for private(branches, vertex_labels) reduction(+: num_removed)
 
@@ -493,7 +518,9 @@ uint32_t UnitigGraph::MergeComplexBubbles(double similarity, int merge_level, bo
             }
 
             std::sort(branches.begin(), branches.end());
+            std::vector<vertexID_t> left_or_right;
 
+            bool careful_merged = false;
             for (int j = 0; j < outdegree; ++j) {
                 UnitigGraphVertex &vj = vertices_[std::get<2>(branches[j])];
 
@@ -516,10 +543,6 @@ uint32_t UnitigGraph::MergeComplexBubbles(double similarity, int merge_level, bo
                         continue;
                     }
 
-                    if (careful && -std::get<0>(branches[k]) >= -std::get<0>(branches[j]) * 0.2) {
-                        continue;
-                    }
-
                     if (std::get<3>(branches[j]) != std::get<3>(branches[k])) {
                         continue;
                     }
@@ -538,12 +561,35 @@ uint32_t UnitigGraph::MergeComplexBubbles(double similarity, int merge_level, bo
                         if (GetSimilarity(vertex_labels[j], vertex_labels[k], similarity) >= similarity) {
                             num_removed++;
                             vk.is_dead = true;
+
+                            if (careful && -std::get<0>(branches[k]) >= -std::get<0>(branches[j]) * 0.2) {
+                                careful_merged = true;
+                                WriteContig(vertex_labels[k], sdbg_->kmer_k, output_id, 0, -std::get<0>(branches[j]), &output_lock, bubble_file);
+                                hist.insert(vertex_labels[k].length());
+                                for (int ni = 0; ni < 8; ++ni) {
+                                    if (std::get<3>(branches[k])[ni] != -1) {
+                                        left_or_right.push_back(start_node_map_[std::get<3>(branches[k])[ni]]);
+                                    }
+                                }
+                            }
                         }
                     }
                 }
             }
+
+            if (careful_merged) {
+                std::sort(left_or_right.begin(), left_or_right.end());
+                for (int j = 0, sz = unique(left_or_right.begin(), left_or_right.end()) - left_or_right.begin();
+                     j < sz; ++j) {
+                    UnitigGraphVertex &vertex = vertices_[left_or_right[j]];
+                    string label = VertexToDNAString(sdbg_, vertex);
+                    WriteContig(label, sdbg_->kmer_k, output_id, 0, vertex.depth * 1.0 / vertex.length, &output_lock, bubble_file);
+                    hist.insert(label.length());
+                }
+            }
         }
     }
+    omp_destroy_lock(&output_lock);
 
     Refresh_(!permanent_rm);
     return num_removed;

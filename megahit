@@ -766,9 +766,6 @@ def build_graph(kmer_k, kmer_from, num_edge_files):
             build_cmd += ["--input_prefix", graph_prefix(kmer_k)]
             file_size += os.path.getsize(graph_prefix(kmer_k) + ".edges.0")
 
-        if (os.path.exists(contig_prefix(kmer_from) + ".contigs.fa")):
-            build_cmd += ["--contig", contig_prefix(kmer_from) + ".contigs.fa"]
-
         if (os.path.exists(contig_prefix(kmer_from) + ".addi.fa")):
             build_cmd += ["--addi_contig", contig_prefix(kmer_from) + ".addi.fa"]
             file_size += os.path.getsize(contig_prefix(kmer_from) + ".addi.fa")
@@ -776,6 +773,10 @@ def build_graph(kmer_k, kmer_from, num_edge_files):
         if (os.path.exists(contig_prefix(kmer_from) + ".local.fa")):
             build_cmd += ["--local_contig", contig_prefix(kmer_from) + ".local.fa"]
             file_size += os.path.getsize(contig_prefix(kmer_from) + ".local.fa")
+
+        if (os.path.exists(contig_prefix(kmer_from) + ".contigs.fa")):
+            build_cmd += ["--contig", contig_prefix(kmer_from) + ".contigs.fa"]
+            build_cmd += ["--bubble", contig_prefix(kmer_from) + ".bubble_seq.fa"]
 
         if file_size == 0:
             return False # not build
@@ -822,6 +823,7 @@ def iterate(cur_k, step):
 
         iterate_cmd = [opt.bin_dir + "megahit_asm_core", "iterate",
                        "-c", contig_prefix(cur_k) + ".contigs.fa",
+                       "-b", contig_prefix(cur_k) + ".bubble_seq.fa",
                        "-t", str(opt.num_cpu_threads),
                        "-k", str(cur_k),
                        "-s", str(step),
@@ -876,7 +878,8 @@ def assemble(cur_k):
                         "--low_local_ratio", str(opt.low_local_ratio),
                         "--min_depth", str(opt.min_count)]
 
-        if cur_k < (opt.k_min + opt.k_max) / 2 and cur_k < 60:
+        # if cur_k < (opt.k_min + opt.k_max) / 2 and cur_k < 60:
+        if cur_k < opt.k_max:
             assembly_cmd.append("--careful_bubble")
 
         if cur_k == opt.k_max:

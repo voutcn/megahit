@@ -39,6 +39,7 @@ struct seq2sdbg_opt_t {
     int kmer_k;
     int kmer_from;
     std::string contig;
+    std::string bubble_seq;
     std::string addi_contig;
     std::string local_contig;
     std::string input_prefix;
@@ -99,6 +100,7 @@ struct seq2sdbg_global_t {
     bool need_mercy;
 
     std::string contig;
+    std::string bubble_seq;
     std::string addi_contig;
     std::string local_contig;
     std::string input_prefix;

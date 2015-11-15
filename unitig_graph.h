@@ -85,8 +85,8 @@ class UnitigGraph {
         return vertices_.size();
     }
     bool RemoveLocalLowDepth(double min_depth, int min_len, int local_width, double local_ratio, int64_t &num_removed, bool permanent_rm = false);
-    uint32_t MergeBubbles(bool permanent_rm, bool careful);
-    uint32_t MergeComplexBubbles(double similarity, int merge_level, bool permanent_rm, bool careful);
+    uint32_t MergeBubbles(bool permanent_rm, bool careful, FILE *bubble_file, Histgram<int64_t> &hist);
+    uint32_t MergeComplexBubbles(double similarity, int merge_level, bool permanent_rm, bool careful, FILE *bubble_file, Histgram<int64_t> &hist);
 
     // output
     void OutputContigs(FILE *contig_file, FILE *final_file, Histgram<int64_t> &hist, bool change_only, int min_final_standalone);
