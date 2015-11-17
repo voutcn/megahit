@@ -261,6 +261,7 @@ int main_seq2sdbg(int argc, char **argv) {
     desc.AddOption("num_cpu_threads", "t", opt.num_cpu_threads, "number of CPU threads. At least 2.");
     desc.AddOption("num_output_threads", "", opt.num_output_threads, "number of threads for output. Must be less than num_cpu_threads");
     desc.AddOption("contig", "", opt.contig, "contigs from previous k");
+    desc.AddOption("bubble", "", opt.bubble_seq, "bubble sequence from previous k");
     desc.AddOption("addi_contig", "", opt.addi_contig, "additional contigs from previous k");
     desc.AddOption("local_contig", "", opt.local_contig, "local contigs from previous k");
     desc.AddOption("input_prefix", "", opt.input_prefix, "files input_prefix.edges.* output by count module, can be gzip'ed.");
@@ -331,6 +332,7 @@ int main_seq2sdbg(int argc, char **argv) {
     globals.num_edge_files = opt.num_edge_files;
     globals.output_prefix = opt.output_prefix;
     globals.contig = opt.contig;
+    globals.bubble_seq = opt.bubble_seq;
     globals.addi_contig = opt.addi_contig;
     globals.local_contig = opt.local_contig;
     globals.mem_flag = opt.mem_flag;

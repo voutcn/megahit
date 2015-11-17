@@ -372,7 +372,7 @@ def check_opt():
     if len(opt.k_list) == 0:
         raise Usage("k list should not be empty!")
 
-    if opt.k_list[0] < 15 or opt.k_list[len(opt.k_list) - 1] > 127:
+    if opt.k_list[0] < 15 or opt.k_list[len(opt.k_list) - 1] > 255:
         raise Usage("All k's should be in range [15, 127]")
 
     for k in opt.k_list:
@@ -411,15 +411,22 @@ def check_opt():
     if opt.num_cpu_threads <= 1:
         raise Usage("num_cpu_threads should be at least 2.")
 
+def check_reads():
     # reads
-    if len(opt.pe1) != len(opt.pe2):
-        raise Usage("Number of paired-end files not match!")
-    for r in opt.pe1 + opt.pe2 + opt.se + opt.pe12:
-        if not os.path.exists(r):
-            raise Usage("Cannot find file " + r)
+    global opt
+    global cp
+    if (not opt.continue_mode) or (cp > opt.last_cp):
+        if len(opt.pe1) != len(opt.pe2):
+            raise Usage("Number of paired-end files not match!")
+        for r in opt.pe1 + opt.pe2 + opt.se + opt.pe12:
+            if not os.path.exists(r):
+                raise Usage("Cannot find file " + r)
 
-    if opt.input_cmd == "" and len(opt.pe1 + opt.pe2 + opt.se + opt.pe12) == 0:
-        raise Usage("No input files or input command!")
+        if opt.input_cmd == "" and len(opt.pe1 + opt.pe2 + opt.se + opt.pe12) == 0:
+            raise Usage("No input files or input command!")
+
+    write_cp()
+
 
 def detect_available_mem():
     mem = long()
@@ -759,9 +766,6 @@ def build_graph(kmer_k, kmer_from, num_edge_files):
             build_cmd += ["--input_prefix", graph_prefix(kmer_k)]
             file_size += os.path.getsize(graph_prefix(kmer_k) + ".edges.0")
 
-        if (os.path.exists(contig_prefix(kmer_from) + ".contigs.fa")):
-            build_cmd += ["--contig", contig_prefix(kmer_from) + ".contigs.fa"]
-
         if (os.path.exists(contig_prefix(kmer_from) + ".addi.fa")):
             build_cmd += ["--addi_contig", contig_prefix(kmer_from) + ".addi.fa"]
             file_size += os.path.getsize(contig_prefix(kmer_from) + ".addi.fa")
@@ -769,6 +773,10 @@ def build_graph(kmer_k, kmer_from, num_edge_files):
         if (os.path.exists(contig_prefix(kmer_from) + ".local.fa")):
             build_cmd += ["--local_contig", contig_prefix(kmer_from) + ".local.fa"]
             file_size += os.path.getsize(contig_prefix(kmer_from) + ".local.fa")
+
+        if (os.path.exists(contig_prefix(kmer_from) + ".contigs.fa")):
+            build_cmd += ["--contig", contig_prefix(kmer_from) + ".contigs.fa"]
+            build_cmd += ["--bubble", contig_prefix(kmer_from) + ".bubble_seq.fa"]
 
         if file_size == 0:
             return False # not build
@@ -815,6 +823,7 @@ def iterate(cur_k, step):
 
         iterate_cmd = [opt.bin_dir + "megahit_asm_core", "iterate",
                        "-c", contig_prefix(cur_k) + ".contigs.fa",
+                       "-b", contig_prefix(cur_k) + ".bubble_seq.fa",
                        "-t", str(opt.num_cpu_threads),
                        "-k", str(cur_k),
                        "-s", str(step),
@@ -853,7 +862,7 @@ def iterate(cur_k, step):
 def assemble(cur_k):
     global cp
     if (not opt.continue_mode) or (cp > opt.last_cp):
-        min_standalone = max(opt.k_max * 3 - 1, opt.min_contig_len)
+        min_standalone = max(min(opt.k_max * 3 - 1, opt.min_contig_len * 1.5), opt.min_contig_len)
         if (opt.max_tip_len >= 0):
             min_standalone = max(opt.max_tip_len + opt.k_max - 1, opt.min_contig_len)
 
@@ -861,7 +870,6 @@ def assemble(cur_k):
                         "-s", graph_prefix(cur_k),
                         "-o", contig_prefix(cur_k),
                         "-t", str(opt.num_cpu_threads),
-                        "--max_tip_len", str(opt.max_tip_len),
                         "--min_standalone", str(min_standalone),
                         "--prune_level", str(opt.prune_level),
                         "--merge_len", str(int(opt.merge_len)),
@@ -869,7 +877,13 @@ def assemble(cur_k):
                         "--low_local_ratio", str(opt.low_local_ratio),
                         "--min_depth", str(opt.min_count)]
 
-        if cur_k < (opt.k_min + opt.k_max) / 2 and cur_k < 60:
+        if opt.max_tip_len == -1 and cur_k * 3 - 1 > opt.min_contig_len * 1.5:
+            assembly_cmd += ["--max_tip_len", str(max(1, opt.min_contig_len * 1.5 + 1 - cur_k))]
+        else:
+            assembly_cmd += ["--max_tip_len", str(opt.max_tip_len)]
+
+        # if cur_k < (opt.k_min + opt.k_max) / 2 and cur_k < 60:
+        if cur_k < opt.k_max:
             assembly_cmd.append("--careful_bubble")
 
         if cur_k == opt.k_max:
@@ -880,7 +894,7 @@ def assemble(cur_k):
 
         if opt.no_local:
             assembly_cmd.append("--output_standalone")
-
+            
         try:
             logging.info("--- [%s] Assembling contigs from SdBG for k = %d ---" % (datetime.now().strftime("%c"), cur_k))
             logging.debug("cmd: %s" % (" ").join(assembly_cmd))
@@ -992,6 +1006,7 @@ def main(argv = None):
         check_opt()
         check_builder()
         make_out_dir()
+        check_reads()
 
         logging.basicConfig(level = logging.NOTSET,
                             format = '%(message)s',
@@ -1009,6 +1024,7 @@ def main(argv = None):
 
         logging.info(megahit_version_str)
         logging.info("--- [%s] Start assembly. Number of CPU threads %d ---" % (datetime.now().strftime("%c"), opt.num_cpu_threads))
+        logging.info("--- [%s] Available memory: %d, used: %d" % (datetime.now().strftime("%c"), detect_available_mem(), opt.host_mem))
         logging.info("--- [%s] k list: %s ---" % (datetime.now().strftime("%c"), ','.join(map(str, opt.k_list))))
 
         if not opt.continue_mode:

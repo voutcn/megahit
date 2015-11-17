@@ -489,6 +489,22 @@ void read_seq_and_prepare(seq2sdbg_global_t &globals) {
 
         seq_manager.ReadMegahitContigs(1LL << 60, 1LL << 60, append_to_package, contig_reverse, discard_flag, extend_loop, calc_depth);
         seq_manager.clear();
+
+        // read bubble
+        seq_manager.set_file_type(SequenceManager::kMegahitContigs);
+        seq_manager.set_file(globals.bubble_seq);
+        seq_manager.set_kmer_size(globals.kmer_from, globals.kmer_k);
+        seq_manager.set_min_len(globals.kmer_k + 1);
+
+        contig_reverse = true;
+        append_to_package = true;
+        discard_flag = 0;
+        extend_loop = true;
+        calc_depth = false;
+
+        seq_manager.ReadMegahitContigs(1LL << 60, 1LL << 60, append_to_package, contig_reverse, discard_flag, extend_loop, calc_depth);
+        seq_manager.clear();
+
     }
 
     if (globals.addi_contig != "") {
