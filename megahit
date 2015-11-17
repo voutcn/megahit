@@ -372,7 +372,7 @@ def check_opt():
     if len(opt.k_list) == 0:
         raise Usage("k list should not be empty!")
 
-    if opt.k_list[0] < 15 or opt.k_list[len(opt.k_list) - 1] > 127:
+    if opt.k_list[0] < 15 or opt.k_list[len(opt.k_list) - 1] > 255:
         raise Usage("All k's should be in range [15, 127]")
 
     for k in opt.k_list:
@@ -862,7 +862,7 @@ def iterate(cur_k, step):
 def assemble(cur_k):
     global cp
     if (not opt.continue_mode) or (cp > opt.last_cp):
-        min_standalone = max(opt.k_max * 3 - 1, opt.min_contig_len)
+        min_standalone = max(min(opt.k_max * 3 - 1, opt.min_contig_len * 1.5), opt.min_contig_len)
         if (opt.max_tip_len >= 0):
             min_standalone = max(opt.max_tip_len + opt.k_max - 1, opt.min_contig_len)
 
@@ -870,13 +870,17 @@ def assemble(cur_k):
                         "-s", graph_prefix(cur_k),
                         "-o", contig_prefix(cur_k),
                         "-t", str(opt.num_cpu_threads),
-                        "--max_tip_len", str(opt.max_tip_len),
                         "--min_standalone", str(min_standalone),
                         "--prune_level", str(opt.prune_level),
                         "--merge_len", str(int(opt.merge_len)),
                         "--merge_similar", str(opt.merge_similar),
                         "--low_local_ratio", str(opt.low_local_ratio),
                         "--min_depth", str(opt.min_count)]
+
+        if opt.max_tip_len == -1 and cur_k * 3 - 1 > opt.min_contig_len * 1.5:
+            assembly_cmd += ["--max_tip_len", str(max(1, opt.min_contig_len * 1.5 + 1 - cur_k))]
+        else:
+            assembly_cmd += ["--max_tip_len", str(opt.max_tip_len)]
 
         # if cur_k < (opt.k_min + opt.k_max) / 2 and cur_k < 60:
         if cur_k < opt.k_max:
@@ -890,7 +894,7 @@ def assemble(cur_k):
 
         if opt.no_local:
             assembly_cmd.append("--output_standalone")
-
+            
         try:
             logging.info("--- [%s] Assembling contigs from SdBG for k = %d ---" % (datetime.now().strftime("%c"), cur_k))
             logging.debug("cmd: %s" % (" ").join(assembly_cmd))
