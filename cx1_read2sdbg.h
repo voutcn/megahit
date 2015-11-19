@@ -40,6 +40,7 @@ struct read2sdbg_opt_t {
     int num_cpu_threads;
     int num_output_threads;
     std::string read_lib_file;
+    std::string assist_seq_file;
     std::string output_prefix;
     int mem_flag;
     bool need_mercy;
@@ -86,6 +87,7 @@ struct read2sdbg_global_t {
     int mem_flag;
     bool need_mercy;
     std::string read_lib_file;
+    std::string assist_seq_file;
     std::string output_prefix;
 
     int num_k1_per_read; // max_read_len - kmer_k

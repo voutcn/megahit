@@ -97,7 +97,38 @@ int64_t encode_lv1_diff_base(int64_t read_id, count_global_t &g) {
 
 void read_input_prepare(count_global_t &globals) { // num_items_, num_cpu_threads_ and num_output_threads_ must be set here
     bool is_reverse = true;
+
+    int64_t num_bases, num_reads;
+    GetBinaryLibSize(globals.read_lib_file, num_bases, num_reads);
+
+    if (globals.assist_seq_file != "") {
+        FILE *assist_seq_info = OpenFileAndCheck((globals.assist_seq_file + ".info").c_str(), "r");
+        long long num_ass_bases, num_ass_seq;
+        assert(fscanf(assist_seq_info, "%lld%lld", &num_ass_seq, &num_ass_bases) == 2);
+        fclose(assist_seq_info);
+
+        num_bases += num_ass_bases;
+        num_reads += num_ass_seq;
+    }
+    
+    globals.package.reserve_num_seq(num_reads);
+    globals.package.reserve_bases(num_bases);
+
     ReadBinaryLibs(globals.read_lib_file, globals.package, globals.lib_info, is_reverse);
+
+    if (globals.assist_seq_file != "") {
+        SequenceManager seq_manager;
+        seq_manager.set_file_type(SequenceManager::kFastxReads);
+        seq_manager.set_file(globals.assist_seq_file);
+
+        bool reverse_read = true;
+        bool append_to_package = true;
+        bool trimN = false;
+
+        seq_manager.ReadShortReads(1LL << 60, 1LL << 60, append_to_package, reverse_read, trimN);
+        seq_manager.clear();
+    }
+    
     globals.max_read_length = globals.package.max_read_len();
     globals.num_reads = globals.package.size();
 
