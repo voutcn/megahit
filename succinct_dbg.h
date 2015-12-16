@@ -53,6 +53,7 @@ class SuccinctDBG {
             free(invalid_);
             free(is_tip_);
             free(tip_node_seq_);
+            free(prefix_lkt_);
         }
 
         FreeMul();
@@ -206,6 +207,7 @@ class SuccinctDBG {
     unsigned long long *is_tip_;
     unsigned long long *invalid_;
     uint32_t *tip_node_seq_;
+    int64_t *prefix_lkt_;
     multi2_t *edge_multi_;
     multi_t *edge_large_multi_;
     khash_t(k64v16) *large_multi_h_;
@@ -215,6 +217,7 @@ class SuccinctDBG {
 
     int64_t num_tip_nodes_;
     int uint32_per_tip_nodes_;
+    int prefix_lk_len_;
 
     // auxiliary memory
     RankAndSelect4Bits rs_w_;

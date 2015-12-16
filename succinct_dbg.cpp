@@ -399,8 +399,16 @@ int64_t SuccinctDBG::Index(uint8_t *seq) {
 }
 
 int64_t SuccinctDBG::IndexBinarySearch(uint8_t *seq) {
-    int64_t l = f_[seq[kmer_k - 1]];
-    int64_t r = f_[seq[kmer_k - 1] + 1] - 1;
+    // int64_t l = f_[seq[kmer_k - 1]];
+    // int64_t r = f_[seq[kmer_k - 1] + 1] - 1;
+
+    // only work if k > 8
+    int pre = 0;
+    for (int i = 0; i < prefix_lk_len_; ++i) {
+        pre = pre * 4 + seq[kmer_k - 1 - i] - 1;
+    }
+    int64_t l = prefix_lkt_[pre * 2];
+    int64_t r = prefix_lkt_[pre * 2 + 1];
 
     while (l <= r) {
         int cmp = 0;
@@ -450,7 +458,7 @@ int64_t SuccinctDBG::IndexBinarySearch(uint8_t *seq) {
             y = Backward(y);
             uint8_t c = GetW(y);
 
-            if (c < seq[i]) {
+            if (c < seq[i]) {   
                 cmp = -1;
                 break;
             }
@@ -558,6 +566,7 @@ void SuccinctDBG::LoadFromMultiFile(const char *dbg_name, bool need_multiplicity
     size = sdbg_reader.num_items();
     num_tip_nodes_ = sdbg_reader.num_tips();
     uint32_per_tip_nodes_ = sdbg_reader.words_per_tip_label();
+    prefix_lk_len_ = sdbg_reader.prefix_lkt_len();
 
     size_t word_needed_w = (size + kWCharsPerWord - 1) / kWCharsPerWord;
     size_t word_needed_last = (size + kBitsPerULL - 1) / kBitsPerULL;
@@ -566,6 +575,7 @@ void SuccinctDBG::LoadFromMultiFile(const char *dbg_name, bool need_multiplicity
     last_ = (unsigned long long *) MallocAndCheck(sizeof(unsigned long long) * word_needed_last, __FILE__, __LINE__);
     is_tip_ = (unsigned long long *) MallocAndCheck(sizeof(unsigned long long) * word_needed_last, __FILE__, __LINE__);
     tip_node_seq_ = (uint32_t *) MallocAndCheck(sizeof(uint32_t) * num_tip_nodes_ * sdbg_reader.words_per_tip_label(), __FILE__, __LINE__);
+    prefix_lkt_ = (int64_t *) MallocAndCheck(sizeof(int64_t) * sdbg_reader.prefix_lkt_size() * 2, __FILE__, __LINE__);
 
     if (need_multiplicity) {
         if (sdbg_reader.num_large_mul() > (1 << 30) ||
@@ -579,6 +589,10 @@ void SuccinctDBG::LoadFromMultiFile(const char *dbg_name, bool need_multiplicity
     }
     else {
         need_to_free_mul_ = false;
+    }
+
+    for (int i = 0; i < sdbg_reader.prefix_lkt_size() * 2; ++i) {
+        prefix_lkt_[i] = sdbg_reader.prefix_lkt(i);
     }
 
     unsigned long long packed_w = 0;
