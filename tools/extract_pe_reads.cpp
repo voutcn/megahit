@@ -82,10 +82,13 @@ int main_extract_pe(int argc, char **argv) {
             has12 = true;
         }
 
-        string header = string(seq->name.s, seq->name.l - has12 ? 2 : 0);
+        string header = string(seq->name.s, seq->name.l - (has12 ? 2 : 0));
         auto it = reads.find(header);
         if (it != reads.end()) {
             int cmp = strcmp(it->second.name.c_str(), seq->name.s);
+            if (cmp == 0) {
+                cmp = strcmp(it->second.comment.c_str(), seq->comment.s);
+            }
             if (cmp < 0) {
                 output_seq(it->second, out_pe);
                 output_seq(seq, out_pe);
