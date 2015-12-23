@@ -270,7 +270,7 @@ class SdbgReader {
         if (fscanf(sdbg_info, "%d", &pre_lkt_len_) == EOF) {
             pre_lkt_len_ = 0;
             pre_lkt_size_ = num_buckets_;
-            while (1 << (pre_lkt_len_ * 2) < num_buckets_) {
+            while ((1 << (pre_lkt_len_ * 2)) < num_buckets_) {
                 ++pre_lkt_size_;
             }
             pre_lkt_.resize(pre_lkt_size_ * 2);

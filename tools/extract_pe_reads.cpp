@@ -68,7 +68,6 @@ int main_extract_pe(int argc, char **argv) {
         exit(1);
     }
 
-
     gzFile fp = string(argv[1]) == "-" ? gzdopen(fileno(stdin), "r") : gzopen(argv[1], "r");
     FILE *out_se = fopen((string(argc >= 3 ? argv[2] : argv[1])+".se").c_str(), "w");
     FILE *out_pe = fopen((string(argc >= 3 ? argv[2] : argv[1])+".pe").c_str(), "w");
