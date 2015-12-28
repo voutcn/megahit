@@ -237,7 +237,7 @@ int main_assemble(int argc, char **argv) {
     FILE *out_contig_info = OpenFileAndCheck((opt.contig_file() + ".info").c_str(), "w");
     FILE *out_final_contig_file = OpenFileAndCheck(opt.final_contig_file().c_str(), "w");
 
-    if (!(opt.is_final_round && opt.prune_level >= 1)) { // otherwise output after local low depth pruning
+    if (!(opt.is_final_round && opt.prune_level >= 1 && opt.prune_level < 3)) { // otherwise output after local low depth pruning
         timer.reset();
         timer.start();
         hist.clear();
