@@ -36,6 +36,7 @@ import time
 from datetime import datetime
 
 megahit_version_str = ""
+max_k_allowed = 127
 usage_message = '''
 Copyright (c) The University of Hong Kong & L3 Bioinformatics Limited
 contact: Dinghua Li <dhli@cs.hku.hk>
@@ -55,10 +56,10 @@ Usage:
 Optional Arguments:
   Basic assembly options:
     --min-count              <int>          minimum multiplicity for filtering (k_min+1)-mers, default 2
-    --k-min                  <int>          minimum kmer size (<= 127), must be odd number, default 21
-    --k-max                  <int>          maximum kmer size (<= 127), must be odd number, default 99
+    --k-min                  <int>          minimum kmer size (<= %d), must be odd number, default 21
+    --k-max                  <int>          maximum kmer size (<= %d), must be odd number, default 99
     --k-step                 <int>          increment of kmer size of each iteration (<= 28), must be even number, default 20
-    --k-list                 <int,int,..>   comma-separated list of kmer size (all must be odd, in the range 15-127, increment <= 28);
+    --k-list                 <int,int,..>   comma-separated list of kmer size (all must be odd, in the range 15-%d, increment <= 28);
                                             override `--k-min', `--k-max' and `--k-step'
 
   Advanced assembly options:
@@ -76,8 +77,8 @@ Optional Arguments:
                                             meta            '--min-count 2 --k-list 21,41,61,81,99'             (generic metagenomes, default)
                                             meta-sensitive  '--min-count 2 --k-list 21,31,41,51,61,71,81,91,99' (more sensitive but slower)
                                             meta-large      '--min-count 2 --k-list 27,37,47,57,67,77,87'       (large & complex metagenomes, like soil)
-                                            bulk            '--min-count 3 --k-list 31,51,71,91,99 --no-mercy'  (experimental, standard bulk sequencing with >= 30x depth)
-                                            single-cell     '--min-count 3 --k-list 21,33,55,77,99,121 --merge_level 20,0.96' (experimental, single cell data)
+                                            bulk            '--min-count 3 --k-list 21,33,55,77,99,121 --no-mercy --prune-level 3'  (experimental, standard bulk sequencing)
+                                            single-cell     '--min-count 3 --k-list 21,33,55,77,99,121 --merge-level 20,0.96' (experimental, single cell data)
 
   Hardware options:
     -m/--memory              <float>        max memory in byte to be used in SdBG construction; default 0.9
@@ -100,7 +101,7 @@ Other Arguments:
     -h/--help                               print the usage message
     -v/--version                            print version
     --verbose                               verbose mode
-'''
+''' % (max_k_allowed, max_k_allowed, max_k_allowed)
 
 if sys.version > '3':
     long = int
@@ -372,8 +373,8 @@ def check_opt():
     if len(opt.k_list) == 0:
         raise Usage("k list should not be empty!")
 
-    if opt.k_list[0] < 15 or opt.k_list[len(opt.k_list) - 1] > 255:
-        raise Usage("All k's should be in range [15, 127]")
+    if opt.k_list[0] < 15 or opt.k_list[len(opt.k_list) - 1] > max_k_allowed:
+        raise Usage("All k's should be in range [15, %d]" % max_k_allowed)
 
     for k in opt.k_list:
         if k % 2 == 0:
@@ -488,9 +489,13 @@ def check_bin():
 
 def get_version():
     global megahit_version_str
+    global max_k_allowed
     megahit_version_str = "MEGAHIT " + \
                           subprocess.Popen([opt.bin_dir + "megahit_asm_core", "dumpversion"],
                                            stdout=subprocess.PIPE).communicate()[0].rstrip().decode('utf-8')
+
+    max_k_allowed = int(subprocess.Popen([opt.bin_dir + "megahit_asm_core", "kmax"],
+                                           stdout=subprocess.PIPE).communicate()[0].rstrip().decode('utf-8'))
 
 def check_builder():
     if not os.path.exists(opt.bin_dir + opt.builder):
