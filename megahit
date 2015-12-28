@@ -359,8 +359,8 @@ def check_opt():
         elif opt.presets == "bulk":
             opt.min_count = 3
             opt.prune_level = 3
-            opt.k_min = 27
-            opt.k_max = 127
+            opt.k_min = 21
+            opt.k_max = 121
             opt.k_step = 10
             opt.set_list_by_min_max_step = True
         elif opt.presets == "single-cell":
