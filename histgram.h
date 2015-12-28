@@ -44,7 +44,7 @@ class Histgram {
         return *this;
     }
 
-    void insert(value_type value, unsigned count = 1) {
+    void insert(value_type value, size_t count = 1) {
         while (__sync_lock_test_and_set(&lock_, 1)) while (lock_);
 
         map_[value] += count;
@@ -52,8 +52,8 @@ class Histgram {
         __sync_lock_release(&lock_);
     }
 
-    unsigned count(value_type value) const {
-        typename std::map<value_type, unsigned>::const_iterator iter = map_.find(value);
+    size_t count(value_type value) const {
+        typename std::map<value_type, size_t>::const_iterator iter = map_.find(value);
 
         if (iter == map_.end())
             return 0;
@@ -61,13 +61,13 @@ class Histgram {
             return iter->second;
     }
 
-    unsigned count(value_type from, value_type to) const {
+    size_t count(value_type from, value_type to) const {
         if (from >= to)
             return 0;
 
-        unsigned sum = 0;
+        size_t sum = 0;
 
-        for (typename std::map<value_type, unsigned>::const_iterator iter = map_.lower_bound(from);
+        for (typename std::map<value_type, size_t>::const_iterator iter = map_.lower_bound(from);
                 iter != map_.end() && iter->first < to; ++iter)
             sum += iter->second;
 
@@ -92,7 +92,7 @@ class Histgram {
     double sum() const {
         double sum_ = 0;
 
-        for (typename std::map<value_type, unsigned>::const_iterator iter = map_.begin(); iter != map_.end(); ++iter)
+        for (typename std::map<value_type, size_t>::const_iterator iter = map_.begin(); iter != map_.end(); ++iter)
             sum_ += 1.0 * iter->first * iter->second;
 
         return sum_;
@@ -101,9 +101,9 @@ class Histgram {
     double variance() const {
         double sum = 0;
         double square_sum = 0;
-        unsigned n = size();
+        size_t n = size();
 
-        for (typename std::map<value_type, unsigned>::const_iterator iter = map_.begin(); iter != map_.end(); ++iter) {
+        for (typename std::map<value_type, size_t>::const_iterator iter = map_.begin(); iter != map_.end(); ++iter) {
             sum += 1.0 * iter->first * iter->second;
             square_sum += 1.0 * iter->first * iter->first * iter->second;
         }
@@ -116,10 +116,10 @@ class Histgram {
     }
 
     value_type median() const {
-        unsigned half = size() / 2;
-        unsigned sum = 0;
+        size_t half = size() / 2;
+        size_t sum = 0;
 
-        for (typename std::map<value_type, unsigned>::const_iterator iter = map_.begin(); iter != map_.end(); ++iter) {
+        for (typename std::map<value_type, size_t>::const_iterator iter = map_.begin(); iter != map_.end(); ++iter) {
             sum += iter->second;
 
             if (sum > half)
@@ -130,10 +130,10 @@ class Histgram {
     }
 
     value_type percentile(double p) const {
-        unsigned half = size() * p;
-        unsigned sum = 0;
+        size_t half = size() * p;
+        size_t sum = 0;
 
-        for (typename std::map<value_type, unsigned>::const_iterator iter = map_.begin(); iter != map_.end(); ++iter) {
+        for (typename std::map<value_type, size_t>::const_iterator iter = map_.begin(); iter != map_.end(); ++iter) {
             sum += iter->second;
 
             if (sum > half)
@@ -144,11 +144,11 @@ class Histgram {
     }
 
     double up_mean(double p) const {
-        unsigned count = size() * p;
-        unsigned sum = 0;
+        size_t count = size() * p;
+        size_t sum = 0;
         double total = 0;
 
-        for (typename std::map<value_type, unsigned>::const_reverse_iterator iter = map_.rbegin(); iter != map_.rend(); ++iter) {
+        for (typename std::map<value_type, size_t>::const_reverse_iterator iter = map_.rbegin(); iter != map_.rend(); ++iter) {
             sum += iter->second;
             total += iter->second * iter->first;
 
@@ -162,7 +162,7 @@ class Histgram {
     value_type Nx(double x) {
         double total = 0;
 
-        for (typename std::map<value_type, unsigned>::const_reverse_iterator iter = map_.rbegin(); iter != map_.rend(); ++iter) {
+        for (typename std::map<value_type, size_t>::const_reverse_iterator iter = map_.rbegin(); iter != map_.rend(); ++iter) {
             total += iter->second * iter->first;
 
             if (total >= x)
@@ -172,13 +172,32 @@ class Histgram {
         return 0;
     }
 
-    unsigned Trim(double fraction) {
-        unsigned trim_size = unsigned(size() * fraction / 2 + 0.5);
+    /** Return the first local minimum or zero if a minimum is not
+     * found. */
+    value_type FirstLocalMinimum() const
+    {
+        const size_t kSmoothing = 4;
+        auto minimum = map_.begin();
+        size_t count = 0;
+        for (auto it = map_.begin(); it != map_.end(); ++it) {
+            if (it->second <= minimum->second) {
+                minimum = it;
+                count = 0;
+            } else if (++count >= kSmoothing)
+                break;
+        }
+        if (minimum->first == maximum())
+            return 0;
+        return minimum->first;
+    }
+
+    size_t Trim(double fraction) {
+        size_t trim_size = size_t(size() * fraction / 2 + 0.5);
         std::deque<value_type> trim_values;
 
-        unsigned sum = 0;
+        size_t sum = 0;
 
-        for (typename std::map<value_type, unsigned>::iterator iter = map_.begin(); iter != map_.end(); ++iter) {
+        for (typename std::map<value_type, size_t>::iterator iter = map_.begin(); iter != map_.end(); ++iter) {
             if (sum + iter->second <= trim_size) {
                 sum += iter->second;
                 trim_values.push_back(iter->first);
@@ -191,7 +210,7 @@ class Histgram {
 
         sum = 0;
 
-        for (typename std::map<value_type, unsigned>::reverse_iterator iter = map_.rbegin(); iter != map_.rend(); ++iter) {
+        for (typename std::map<value_type, size_t>::reverse_iterator iter = map_.rbegin(); iter != map_.rend(); ++iter) {
             if (sum + iter->second <= trim_size) {
                 sum += iter->second;
                 trim_values.push_back(iter->first);
@@ -202,9 +221,9 @@ class Histgram {
 
         size_ -= sum;
 
-        unsigned trimmed = 0;
+        size_t trimmed = 0;
 
-        for (unsigned i = 0; i < trim_values.size(); ++i) {
+        for (size_t i = 0; i < trim_values.size(); ++i) {
             trimmed += map_[trim_values[i]];
             map_.erase(trim_values[i]);
         }
@@ -212,12 +231,12 @@ class Histgram {
         return trimmed;
     }
 
-    unsigned TrimLow(value_type threshold) {
+    size_t TrimLow(value_type threshold) {
         std::deque<value_type> trim_values;
 
-        unsigned sum = 0;
+        size_t sum = 0;
 
-        for (typename std::map<value_type, unsigned>::iterator iter = map_.begin(); iter != map_.end(); ++iter) {
+        for (typename std::map<value_type, size_t>::iterator iter = map_.begin(); iter != map_.end(); ++iter) {
             if (iter->first < threshold) {
                 sum += iter->second;
                 trim_values.push_back(iter->first);
@@ -228,9 +247,9 @@ class Histgram {
 
         size_ -= sum;
 
-        unsigned trimmed = 0;
+        size_t trimmed = 0;
 
-        for (unsigned i = 0; i < trim_values.size(); ++i) {
+        for (size_t i = 0; i < trim_values.size(); ++i) {
             trimmed += map_[trim_values[i]];
             map_.erase(trim_values[i]);
         }
@@ -247,7 +266,7 @@ class Histgram {
         return map_.empty();
     }
 
-    uint32_t size() const {
+    size_t size() const {
         return size_;
     }
 
@@ -258,8 +277,8 @@ class Histgram {
     }
 
   private:
-    std::map<value_type, unsigned> map_;
-    uint32_t size_;
+    std::map<value_type, size_t> map_;
+    size_t size_;
     volatile int lock_;
 };
 

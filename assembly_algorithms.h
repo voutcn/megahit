@@ -34,6 +34,8 @@ namespace assembly_algorithms {
 int64_t NextSimplePathNode(SuccinctDBG &dbg, int64_t curr_node); // return -1 if cannot extend, else the node index (whose last must be 1)
 int64_t PrevSimplePathNode(SuccinctDBG &dbg, int64_t curr_node); // return -1 if cannot extend, else the incoming edge index (whose last may not be 1)
 
+double SetMinDepth(SuccinctDBG &dbg);
+
 // tips removal
 int64_t Trim(SuccinctDBG &dbg, int len, int min_final_standalone);
 int64_t RemoveTips(SuccinctDBG &dbg, int max_tip_len, int min_final_standalone);

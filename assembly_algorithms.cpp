@@ -21,6 +21,7 @@
 #include "assembly_algorithms.h"
 #include <assert.h>
 #include <stdio.h>
+#include <math.h>
 #include <omp.h>
 #include <assert.h>
 #include <vector>
@@ -32,6 +33,7 @@
 #include "atomic_bit_vector.h"
 #include "unitig_graph.h"
 #include "utils.h"
+#include "histgram.h"
 
 using std::vector;
 using std::string;
@@ -40,6 +42,31 @@ using std::map;
 namespace assembly_algorithms {
 
 static AtomicBitVector removed_nodes;
+
+double SetMinDepth(SuccinctDBG &dbg) {
+    Histgram<multi_t> hist;
+
+    #pragma omp parallel for
+    for (int64_t i = 0; i < dbg.size; ++i) {
+        if (dbg.IsValidEdge(i)) {
+            hist.insert(dbg.EdgeMultiplicity(i));
+        }
+    }
+
+    double cov = hist.FirstLocalMinimum();
+    for (int repeat = 1; repeat <= 100; ++repeat) {
+        hist.TrimLow((multi_t)roundf(cov));
+        unsigned median = hist.median();
+        double cov1 = sqrt(median);
+        if (abs(cov - cov1) < 1e-2) {
+            return cov;
+        }
+        cov = cov1;
+    }
+
+    xwarning("Cannot detect min depth: unconverged");
+    return 1;
+}
 
 int64_t Trim(SuccinctDBG &dbg, int len, int min_final_standalone) {
     int64_t number_tips = 0;

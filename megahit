@@ -65,7 +65,7 @@ Optional Arguments:
     --no-mercy                              do not add mercy kmers
     --no-bubble                             do not merge bubbles
     --merge-level            <l,s>          merge complex bubbles of length <= l*kmer_size and similarity >= s, default 20,0.98
-    --prune-level            <int>          strength of local low depth pruning (0-2), default 2
+    --prune-level            <int>          strength of local low depth pruning (0-3), default 2
     --low-local-ratio        <float>        ratio threshold to define low local coverage contigs, default 0.2
     --max-tip-len            <int>          remove tips less than this value; default 2*k for iteration of kmer_size=k
     --no-local                              disable local assembly
@@ -394,8 +394,8 @@ def check_opt():
     elif opt.min_count == 1:
         opt.kmin_1pass = True
         opt.no_mercy = True
-    if opt.prune_level < 0 or opt.prune_level > 2:
-        raise Usage("prune level must be in 0-2.")
+    if opt.prune_level < 0 or opt.prune_level > 3:
+        raise Usage("prune level must be in 0-3.")
     if opt.merge_len < 0:
         raise Usage("merge_level: length must be >= 0")
     if opt.merge_similar < 0 or opt.merge_similar > 1:
@@ -876,6 +876,9 @@ def assemble(cur_k):
                         "--merge_similar", str(opt.merge_similar),
                         "--low_local_ratio", str(opt.low_local_ratio),
                         "--min_depth", str(opt.min_count)]
+
+        if opt.prune_level == 3:
+            assembly_cmd += ["--auto_depth"]
 
         if opt.max_tip_len == -1 and cur_k * 3 - 1 > opt.min_contig_len * 1.5:
             assembly_cmd += ["--max_tip_len", str(max(1, opt.min_contig_len * 1.5 + 1 - cur_k))]

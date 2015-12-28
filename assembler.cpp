@@ -51,6 +51,8 @@ struct asm_opt_t {
     double low_local_ratio;
     bool output_standalone;
     bool careful_bubble;
+    bool regular_asm;
+    bool auto_depth;
 
     asm_opt_t() {
         output_prefix = "out";
@@ -66,6 +68,7 @@ struct asm_opt_t {
         is_final_round = false;
         output_standalone = false;
         careful_bubble = false;
+        auto_depth = false;
     }
 
     string contig_file() {
@@ -99,12 +102,13 @@ void ParseAsmOption(int argc, char *argv[]) {
     desc.AddOption("no_bubble", "", opt.no_bubble, "do not remove bubbles");
     desc.AddOption("merge_len", "", opt.merge_len, "merge complex bubbles of length <= merge_len * k");
     desc.AddOption("merge_similar", "", opt.merge_similar, "min similarity of complex bubble merging");
-    desc.AddOption("prune_level", "", opt.prune_level, "strength of low local depth contig pruning (0-2)");
+    desc.AddOption("prune_level", "", opt.prune_level, "strength of low local depth contig pruning (0-3)");
     desc.AddOption("low_local_ratio", "", opt.low_local_ratio, "ratio to define low depth contigs");
-    desc.AddOption("min_depth", "", opt.min_depth, "if prune_level is 2, permanently remove low local coverage unitigs under this threshold");
+    desc.AddOption("min_depth", "", opt.min_depth, "if prune_level >= 2, permanently remove low local coverage unitigs under this threshold");
     desc.AddOption("is_final_round", "", opt.is_final_round, "this is the last iteration");
     desc.AddOption("output_standalone", "", opt.output_standalone, "output standalone contigs to *.final.contigs.fa");
     desc.AddOption("careful_bubble", "", opt.careful_bubble, "remove bubble carefully");
+    desc.AddOption("auto_depth", "", opt.auto_depth, "use sqrt(median) as min_depth");
 
     try {
         desc.Parse(argc, argv);
@@ -161,6 +165,11 @@ int main_assemble(int argc, char **argv) {
         if (opt.max_tip_len == -1) {
             opt.max_tip_len = dbg.kmer_k * 2;
         }
+
+        if (opt.auto_depth) {
+            opt.min_depth = assembly_algorithms::SetMinDepth(dbg);
+            xlog("min depth set to %.3lf\n", opt.min_depth);
+        }
     }
 
     if (opt.max_tip_len > 0) { // tips removal
@@ -202,7 +211,19 @@ int main_assemble(int argc, char **argv) {
     static const int kLocalWidth = 1000;
     int64_t num_removed = 0;
 
-    if (opt.prune_level >= 2) {
+    if (opt.prune_level >= 3) {
+        timer.reset();
+        timer.start();
+        num_removed = unitig_graph.RemoveLowDepth(opt.min_depth);
+
+        unitig_graph.MergeBubbles(true, opt.careful_bubble, bubble_file, bubble_hist);
+        if (opt.merge_len > 0) {
+            unitig_graph.MergeComplexBubbles(opt.merge_similar, opt.merge_len, true, opt.careful_bubble, bubble_file, bubble_hist);
+        }
+
+        timer.stop();
+        xlog("Unitigs removed in (more-)excessive pruning: %lld, time: %lf\n", (long long)num_removed, timer.elapsed());
+    } else if (opt.prune_level >= 2) {
         timer.reset();
         timer.start();
         unitig_graph.RemoveLocalLowDepth(opt.min_depth, opt.max_tip_len, kLocalWidth, std::min(opt.low_local_ratio, 0.1), num_removed, true);
@@ -232,7 +253,7 @@ int main_assemble(int argc, char **argv) {
     }
 
     // remove local low depth & output additional contigs
-    if (opt.prune_level >= 1) {
+    if (opt.prune_level >= 1 && opt.prune_level < 3) {
         FILE *out_addi_contig_file = OpenFileAndCheck(opt.addi_contig_file().c_str(), "w");
         FILE *out_addi_contig_info = OpenFileAndCheck((opt.addi_contig_file() + ".info").c_str(), "w");
 
