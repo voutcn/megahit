@@ -52,7 +52,7 @@ int main_read_stat(int argc, char **argv) {
 
     double avg_len = total_len * 1.0 / num_reads;
 
-    printf("number reads: %lld\ntotal size:%lld\nlongest: %d\nshortest: %d\navg: %lf\n", num_reads, total_len, max_len, min_len, avg_len);
+    printf("number reads: %lld\ntotal size: %lld\nlongest: %d\nshortest: %d\navg: %lf\n", num_reads, total_len, max_len, min_len, avg_len);
 
     kseq_destroy(seq);
     gzclose(fp);

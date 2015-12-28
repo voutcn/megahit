@@ -595,6 +595,21 @@ uint32_t UnitigGraph::MergeComplexBubbles(double similarity, int merge_level, bo
     return num_removed;
 }
 
+int64_t UnitigGraph::RemoveLowDepth(double min_depth) {
+    int64_t num_removed = 0;
+    #pragma omp parallel for schedule(dynamic, 1) reduction(+: num_removed)
+
+    for (vertexID_t i = 0; i < vertices_.size(); ++i) {
+        if (!vertices_[i].is_deleted && vertices_[i].depth < min_depth) {
+            vertices_[i].is_dead = true;
+            ++num_removed;
+        }
+    }
+
+    Refresh_(false);
+    return num_removed;
+}
+
 bool UnitigGraph::RemoveLocalLowDepth(double min_depth, int min_len, int local_width, double local_ratio, int64_t &num_removed, bool permanent_rm) {
     bool is_changed = false;
     bool need_refresh = false;

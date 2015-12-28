@@ -47,6 +47,7 @@ int main_kmer_count(int argc, char **argv) {
     desc.AddOption("num_cpu_threads", "", opt.num_cpu_threads, "number of CPU threads. At least 2.");
     desc.AddOption("num_output_threads", "", opt.num_output_threads, "number of threads for output. Must be less than num_cpu_threads");
     desc.AddOption("read_lib_file", "", opt.read_lib_file, "read library configuration file.");
+    desc.AddOption("assist_seq", "", opt.assist_seq_file, "input assisting fast[aq] file (FILE_NAME.info should exist), can be gzip'ed.");
     desc.AddOption("output_prefix", "", opt.output_prefix, "output prefix");
     desc.AddOption("mem_flag", "", opt.mem_flag, "memory options. 0: minimize memory usage; 1: automatically use moderate memory; other: use all available mem specified by '--host_mem'");
 
@@ -108,6 +109,7 @@ int main_kmer_count(int argc, char **argv) {
     globals.num_cpu_threads = opt.num_cpu_threads;
     globals.num_output_threads = opt.num_output_threads;
     globals.read_lib_file = opt.read_lib_file.c_str();
+    globals.assist_seq_file = opt.assist_seq_file;
     globals.output_prefix = opt.output_prefix.c_str();
     globals.mem_flag = opt.mem_flag;
 
@@ -148,6 +150,7 @@ int main_read2sdbg(int argc, char **argv) {
     desc.AddOption("num_cpu_threads", "", opt.num_cpu_threads, "number of CPU threads. At least 2.");
     desc.AddOption("num_output_threads", "", opt.num_output_threads, "number of threads for output. Must be less than num_cpu_threads");
     desc.AddOption("read_lib_file", "", opt.read_lib_file, "input fast[aq] file, can be gzip'ed. \"-\" for stdin.");
+    desc.AddOption("assist_seq", "", opt.assist_seq_file, "input assisting fast[aq] file (FILE_NAME.info should exist), can be gzip'ed.");
     desc.AddOption("output_prefix", "", opt.output_prefix, "output prefix");
     desc.AddOption("mem_flag", "", opt.mem_flag, "memory options. 0: minimize memory usage; 1: automatically use moderate memory; other: use all available mem specified by '--host_mem'");
     desc.AddOption("need_mercy", "", opt.need_mercy, "to add mercy edges.");
@@ -205,6 +208,7 @@ int main_read2sdbg(int argc, char **argv) {
     globals.num_cpu_threads = opt.num_cpu_threads;
     globals.num_output_threads = opt.num_output_threads;
     globals.read_lib_file = opt.read_lib_file;
+    globals.assist_seq_file = opt.assist_seq_file;
     globals.output_prefix = opt.output_prefix;
     globals.mem_flag = opt.mem_flag;
     globals.need_mercy = opt.need_mercy;

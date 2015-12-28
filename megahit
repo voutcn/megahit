@@ -36,6 +36,7 @@ import time
 from datetime import datetime
 
 megahit_version_str = ""
+max_k_allowed = 127
 usage_message = '''
 Copyright (c) The University of Hong Kong & L3 Bioinformatics Limited
 contact: Dinghua Li <dhli@cs.hku.hk>
@@ -54,44 +55,50 @@ Usage:
 
 Optional Arguments:
   Basic assembly options:
-    --min-count              <int>          minimum multiplicity for filtering (k_min+1)-mers, default 2
-    --k-min                  <int>          minimum kmer size (<= 127), must be odd number, default 21
-    --k-max                  <int>          maximum kmer size (<= 127), must be odd number, default 99
-    --k-step                 <int>          increment of kmer size of each iteration (<= 28), must be even number, default 20
-    --k-list                 <int,int,..>   comma-separated list of kmer size (all must be odd, in the range 15-127, increment <= 28);
+    --min-count              <int>          minimum multiplicity for filtering (k_min+1)-mers [2]
+    --k-min                  <int>          minimum kmer size (<= %d), must be odd number [21]
+    --k-max                  <int>          maximum kmer size (<= %d), must be odd number [99]
+    --k-step                 <int>          increment of kmer size of each iteration (<= 28), must be even number [20]
+    --k-list                 <int,int,..>   comma-separated list of kmer size (all must be odd, in the range 15-%d, increment <= 28);
                                             override `--k-min', `--k-max' and `--k-step'
 
   Advanced assembly options:
     --no-mercy                              do not add mercy kmers
     --no-bubble                             do not merge bubbles
-    --merge-level            <l,s>          merge complex bubbles of length <= l*kmer_size and similarity >= s, default 20,0.98
-    --prune-level            <int>          strength of local low depth pruning (0-2), default 2
-    --low-local-ratio        <float>        ratio threshold to define low local coverage contigs, default 0.2
-    --max-tip-len            <int>          remove tips less than this value; default 2*k for iteration of kmer_size=k
+    --merge-level            <l,s>          merge complex bubbles of length <= l*kmer_size and similarity >= s [20,0.98]
+    --prune-level            <int>          strength of local low depth pruning (0-3) [2]
+    --prune-depth            <int>          remove unitigs with avg kmer depth less than this value [auto]
+    --low-local-ratio        <float>        ratio threshold to define low local coverage contigs [0.2]
+    --max-tip-len            <int>          remove tips less than this value [2*k]
     --no-local                              disable local assembly
     --kmin-1pass                            use 1pass mode to build SdBG of k_min
 
   Presets parameters:
     --presets                <str>          override a group of parameters; possible values:
-                                            meta            '--min-count 2 --k-list 21,41,61,81,99'             (generic metagenomes, default)
-                                            meta-sensitive  '--min-count 2 --k-list 21,31,41,51,61,71,81,91,99' (more sensitive but slower)
-                                            meta-large      '--min-count 2 --k-list 27,37,47,57,67,77,87'       (large & complex metagenomes, like soil)
-                                            bulk            '--min-count 3 --k-list 31,51,71,91,99 --no-mercy'  (experimental, standard bulk sequencing with >= 30x depth)
-                                            single-cell     '--min-count 3 --k-list 21,33,55,77,99,121 --merge_level 20,0.96' (experimental, single cell data)
+                                            meta: '--min-count 2 --k-min 21 --k-max 99 --k-step 20'
+                                            (generic metagenomes, default)
+                                            meta-sensitive: '--min-count 2 --k-min 21 --k-max 99 --k-step 10'
+                                            (more sensitive but slower)
+                                            meta-large: '--min-count 2 --k-min 27 --k-max 87 --k-step 10'
+                                            (large & complex metagenomes, like soil)
+                                            bulk: '--min-count 3 --k-min 27 --k-max 127 --k-step 10 --prune-level 3'
+                                            (experimental, standard bulk sequencing)
+                                            single-cell: '--min-count 3 --k-min 27 --k-max 127 --k-step 22 --merge-level 20,0.96'
+                                            (experimental, single cell data)
 
   Hardware options:
-    -m/--memory              <float>        max memory in byte to be used in SdBG construction; default 0.9
-                                            (if set between 0-1, fraction of the machine's total memory)
-    --mem-flag               <int>          SdBG builder memory mode, default 1
-                                            0: minimum; 1: moderate; others: use all memory specified by '-m/--memory'.
+    -m/--memory              <float>        max memory in byte to be used in SdBG construction
+                                            (if set between 0-1, fraction of the machine's total memory) [0.9]
+    --mem-flag               <int>          SdBG builder memory mode
+                                            0: minimum; 1: moderate; others: use all memory specified by '-m/--memory' [1]
     --use-gpu                               use GPU
     --gpu-mem                <float>        GPU memory in byte to be used. Default: auto detect to use up all free GPU memory. 
     -t/--num-cpu-threads     <int>          number of CPU threads, at least 2. Default: auto detect to use all CPU threads.
 
   Output options:
-    -o/--out-dir             <string>       output directory, default ./megahit_out
+    -o/--out-dir             <string>       output directory [./megahit_out]
     --out-prefix             <string>       output prefix (the contig file will be OUT_DIR/OUT_PREFIX.contigs.fa)
-    --min-contig-len         <int>          minimum length of contigs to output, default 200
+    --min-contig-len         <int>          minimum length of contigs to output [200]
     --keep-tmp-files                        keep all temporary files
 
 Other Arguments:
@@ -100,7 +107,7 @@ Other Arguments:
     -h/--help                               print the usage message
     -v/--version                            print version
     --verbose                               verbose mode
-'''
+''' % (max_k_allowed, max_k_allowed, max_k_allowed)
 
 if sys.version > '3':
     long = int
@@ -129,6 +136,7 @@ class Options():
         self.merge_len = 20
         self.merge_similar = 0.98
         self.prune_level = 2
+        self.prune_depth = -1
         self.num_cpu_threads = False
         self.low_local_ratio = 0.2
         self.temp_dir = self.out_dir + "tmp/"
@@ -204,6 +212,7 @@ def parse_opt(argv):
                                      "max-tip-len=",
                                      "no-bubble",
                                      "prune-level=",
+                                     "prune-depth=",
                                      "merge-level=",
                                      "low-local-ratio=",
                                      "keep-tmp-files",
@@ -261,6 +270,8 @@ def parse_opt(argv):
             opt.merge_len = int(opt.merge_len)
         elif option == "--prune-level":
             opt.prune_level = int(value)
+        elif option == "--prune-depth":
+            opt.prune_depth = float(value)
         elif option == "--no-bubble":
             opt.no_bubble = True
         elif option == "--no-mercy":
@@ -337,17 +348,21 @@ def check_opt():
             opt.set_list_by_min_max_step = False
         elif opt.presets == "meta-sensitive":
             opt.min_count = 2
-            opt.k_list = [21,31,41,51,61,71,81,91,99]
-            opt.set_list_by_min_max_step = False
+            opt.k_min = 21
+            opt.k_max = 99
+            opt.k_step = 10
+            opt.set_list_by_min_max_step = True
         elif opt.presets == "meta-large":
             opt.min_count = 2
             opt.k_list = [27,37,47,57,67,77,87]
             opt.set_list_by_min_max_step = False
         elif opt.presets == "bulk":
             opt.min_count = 3
-            opt.no_mercy = True
-            opt.k_list = [31,51,71,91,99]
-            opt.set_list_by_min_max_step = False
+            opt.prune_level = 3
+            opt.k_min = 21
+            opt.k_max = 121
+            opt.k_step = 10
+            opt.set_list_by_min_max_step = True
         elif opt.presets == "single-cell":
             opt.min_count = 3
             opt.k_list = [21,33,55,77,99,121]
@@ -372,8 +387,8 @@ def check_opt():
     if len(opt.k_list) == 0:
         raise Usage("k list should not be empty!")
 
-    if opt.k_list[0] < 15 or opt.k_list[len(opt.k_list) - 1] > 255:
-        raise Usage("All k's should be in range [15, 127]")
+    if opt.k_list[0] < 15 or opt.k_list[len(opt.k_list) - 1] > max_k_allowed:
+        raise Usage("All k's should be in range [15, %d]" % max_k_allowed)
 
     for k in opt.k_list:
         if k % 2 == 0:
@@ -394,8 +409,8 @@ def check_opt():
     elif opt.min_count == 1:
         opt.kmin_1pass = True
         opt.no_mercy = True
-    if opt.prune_level < 0 or opt.prune_level > 2:
-        raise Usage("prune level must be in 0-2.")
+    if opt.prune_level < 0 or opt.prune_level > 3:
+        raise Usage("prune level must be in 0-3.")
     if opt.merge_len < 0:
         raise Usage("merge_level: length must be >= 0")
     if opt.merge_similar < 0 or opt.merge_similar > 1:
@@ -410,6 +425,8 @@ def check_opt():
         opt.num_cpu_threads = multiprocessing.cpu_count()
     if opt.num_cpu_threads <= 1:
         raise Usage("num_cpu_threads should be at least 2.")
+    if opt.prune_depth < 0 and opt.prune_level < 3:
+        opt.prune_depth = opt.min_count
 
 def check_reads():
     # reads
@@ -488,9 +505,13 @@ def check_bin():
 
 def get_version():
     global megahit_version_str
+    global max_k_allowed
     megahit_version_str = "MEGAHIT " + \
                           subprocess.Popen([opt.bin_dir + "megahit_asm_core", "dumpversion"],
                                            stdout=subprocess.PIPE).communicate()[0].rstrip().decode('utf-8')
+
+    max_k_allowed = int(subprocess.Popen([opt.bin_dir + "megahit_asm_core", "kmax"],
+                                           stdout=subprocess.PIPE).communicate()[0].rstrip().decode('utf-8'))
 
 def check_builder():
     if not os.path.exists(opt.bin_dir + opt.builder):
@@ -557,7 +578,6 @@ def write_lib():
             print("interleaved " + opt.pe12[i], file=lib)
 
     for i in range(0, len(opt.pe1)):
-
         if inpipe_cmd(opt.pe1[i]) != "":
             f1 = opt.temp_dir + "inpipe.pe1." + str(i)
         else:
@@ -875,7 +895,7 @@ def assemble(cur_k):
                         "--merge_len", str(int(opt.merge_len)),
                         "--merge_similar", str(opt.merge_similar),
                         "--low_local_ratio", str(opt.low_local_ratio),
-                        "--min_depth", str(opt.min_count)]
+                        "--min_depth", str(opt.prune_depth)]
 
         if opt.max_tip_len == -1 and cur_k * 3 - 1 > opt.min_contig_len * 1.5:
             assembly_cmd += ["--max_tip_len", str(max(1, opt.min_contig_len * 1.5 + 1 - cur_k))]

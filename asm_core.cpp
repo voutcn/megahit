@@ -37,7 +37,8 @@ void show_help(const char *program_name) {
             "       local                 local asssembly\n"
             "       iterate               extract iterative edges\n"
             "       buildlib              build read library\n"
-            "       dumpversion           dump version\n",
+            "       dumpversion           dump version\n"
+            "       kmax                  the largest k value supported\n",
             program_name);
 }
 
@@ -62,6 +63,9 @@ int main(int argc, char **argv) {
     else if (strcmp(argv[1], "dumpversion") == 0) {
         printf("%s\n", PACKAGE_VERSION);
         return 0;
+    }
+    else if (strcmp(argv[1], "kmax") == 0) {
+        printf("%d\n", kMaxK);
     }
     else {
         show_help(argv[0]);

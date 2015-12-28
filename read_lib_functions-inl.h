@@ -225,10 +225,13 @@ inline void ReadAndWriteMultipleLibs(const std::string &lib_file, bool is_revers
     fclose(lib_info_file);
 }
 
-inline void ReadBinaryLibs(const std::string &file_prefix, SequencePackage &package, std::vector<lib_info_t> &lib_info, bool is_reverse = false) {
-    package.clear();
-    lib_info.clear();
+inline void GetBinaryLibSize(const std::string &file_prefix, int64_t &total_bases, int64_t &num_reads) {
+    std::ifstream lib_info_file(file_prefix + ".lib_info");
+    assert(lib_info_file >> total_bases >> num_reads);
+}
 
+inline void ReadBinaryLibs(const std::string &file_prefix, SequencePackage &package, std::vector<lib_info_t> &lib_info,
+                           bool is_reverse = false, bool append_to_package = false) {
     std::ifstream lib_info_file(file_prefix + ".lib_info");
     int64_t start, end;
     int max_read_len;
@@ -252,7 +255,6 @@ inline void ReadBinaryLibs(const std::string &file_prefix, SequencePackage &pack
 
     xlog("Before reading, sizeof seq_package: %lld\n", package.size_in_byte());
 
-    bool append_to_package = false;
     seq_manager.ReadShortReads(1LL << 60, 1LL << 60, append_to_package, is_reverse);
 
     xlog("After reading, sizeof seq_package: %lld\n", package.size_in_byte());

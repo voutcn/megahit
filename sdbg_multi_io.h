@@ -210,12 +210,16 @@ class SdbgReader {
     int num_files_;
     int num_buckets_;
 
+    int pre_lkt_len_;
+    int pre_lkt_size_;
+
     int cur_bucket_;
     long long cur_bucket_cnt_;
     long long cur_vol_;
     void *cur_bucket_ptr_;
 
     std::vector<SdbgPartitionRecord> p_rec_;
+    std::vector<long long> pre_lkt_;
     std::vector<long long> file_sizes_;
     std::vector<int> fds_;
     void *mmap_;
@@ -263,6 +267,27 @@ class SdbgReader {
             f_[i / (num_buckets_ / 4) + 2] = acc;
         }
 
+        if (fscanf(sdbg_info, "%d", &pre_lkt_len_) == EOF) {
+            pre_lkt_len_ = 0;
+            pre_lkt_size_ = num_buckets_;
+            while ((1 << (pre_lkt_len_ * 2)) < num_buckets_) {
+                ++pre_lkt_len_;
+            }
+            pre_lkt_.resize(pre_lkt_size_ * 2);
+
+            for (long long acc = 0, i = 0; i < pre_lkt_size_; ++i) {
+                pre_lkt_[i * 2] = acc;
+                acc += p_rec_[i].num_items;
+                pre_lkt_[i * 2 + 1] = acc - 1;
+            }
+        } else {
+            pre_lkt_size_ = 1 << (pre_lkt_len_ * 2);
+            pre_lkt_.resize(pre_lkt_size_ * 2);
+            for (int i = 0; i < pre_lkt_size_; ++i) {
+                assert(fscanf(sdbg_info, "%lld%lld", &pre_lkt_[i*2], &pre_lkt_[i*2+1]) == 2);
+            }
+        }
+
         fclose(sdbg_info);
     }
 
@@ -271,6 +296,12 @@ class SdbgReader {
     }
     int words_per_tip_label() const {
         return words_per_tip_label_;
+    }
+    int prefix_lkt_len() const {
+        return pre_lkt_len_;
+    }
+    int prefix_lkt_size() const {
+        return pre_lkt_size_;
     }
     long long num_items() const {
         return num_items_;
@@ -283,6 +314,12 @@ class SdbgReader {
     }
     const long long *f() const {
         return f_;
+    }
+    long long bucket_size(int i) const {
+        return p_rec_[i].num_items;
+    }
+    long long prefix_lkt(int i) const {
+        return pre_lkt_[i];
     }
 
     void init_files() {

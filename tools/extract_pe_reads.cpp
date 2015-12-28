@@ -63,35 +63,37 @@ void output_seq(const Seq &seq, FILE *file) {
 }
 
 int main_extract_pe(int argc, char **argv) {
-    if (argc < 2) {
-        fprintf(stderr, "%s <in.fa[fq]>\n", argv[0]);
+    if (argc < 2 || ((string(argv[1]) == "-" ) && argc < 3)) {
+        fprintf(stderr, "%s <in.[fa|fq][.gz]> [out_prefix]\n", argv[0]);
         exit(1);
     }
 
-    gzFile fp = gzopen(argv[1], "r");
-    FILE *out_se = fopen((string(argv[1])+".se").c_str(), "w");
-    FILE *out_pe = fopen((string(argv[1])+".pe").c_str(), "w");
+    gzFile fp = string(argv[1]) == "-" ? gzdopen(fileno(stdin), "r") : gzopen(argv[1], "r");
+    FILE *out_se = fopen((string(argc >= 3 ? argv[2] : argv[1])+".se").c_str(), "w");
+    FILE *out_pe = fopen((string(argc >= 3 ? argv[2] : argv[1])+".pe").c_str(), "w");
     kseq_t *seq = kseq_init(fp); // kseq to read files
 
     unordered_map<string, Seq> reads; // header -> seq, qual, which strand
 
     while (kseq_read(seq) >= 0) {
-        if (seq->name.l < 2 || seq->name.s[seq->name.l-2] != '/' || (seq->name.s[seq->name.l-1] != '1' && seq->name.s[seq->name.l-1] != '2')) {
-            output_seq(seq, out_se);
+        bool has12 = false;
+        if (seq->name.l > 2 && seq->name.s[seq->name.l-2] == '/' && (seq->name.s[seq->name.l-1] == '1' || seq->name.s[seq->name.l-1] != '2')) {
+            has12 = true;
         }
 
-        string header = string(seq->name.s, seq->name.l - 2);
+        string header = string(seq->name.s, seq->name.l - (has12 ? 2 : 0));
         auto it = reads.find(header);
         if (it != reads.end()) {
             int cmp = strcmp(it->second.name.c_str(), seq->name.s);
+            if (cmp == 0) {
+                cmp = strcmp(it->second.comment.c_str(), seq->comment.s);
+            }
             if (cmp < 0) {
                 output_seq(it->second, out_pe);
                 output_seq(seq, out_pe);
-            } else if (cmp > 0) {
+            } else {
                 output_seq(seq, out_pe);
                 output_seq(it->second, out_pe);
-            } else {
-                assert(false);
             }
 
             reads.erase(it);

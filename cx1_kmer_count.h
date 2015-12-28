@@ -39,6 +39,7 @@ struct count_opt_t {
     int num_cpu_threads;
     int num_output_threads;
     std::string read_lib_file;
+    std::string assist_seq_file;
     std::string output_prefix;
     int mem_flag;
     bool need_mercy;
@@ -88,6 +89,7 @@ struct count_global_t {
     int64_t gpu_mem;
     int mem_flag;
     std::string read_lib_file;
+    std::string assist_seq_file;
     std::string output_prefix;
 
     int words_per_edge; // number of (32-bit) words needed to represent a (k+1)-mer
