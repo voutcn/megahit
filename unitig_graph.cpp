@@ -600,7 +600,7 @@ int64_t UnitigGraph::RemoveLowDepth(double min_depth) {
     #pragma omp parallel for schedule(dynamic, 1) reduction(+: num_removed)
 
     for (vertexID_t i = 0; i < vertices_.size(); ++i) {
-        if (vertices_[i].is_deleted && vertices_[i].depth < min_depth) {
+        if (!vertices_[i].is_deleted && vertices_[i].depth < min_depth) {
             vertices_[i].is_dead = true;
             ++num_removed;
         }
