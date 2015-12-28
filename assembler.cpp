@@ -64,7 +64,7 @@ struct asm_opt_t {
         merge_similar = 0.98;
         prune_level = 2;
         low_local_ratio = 0.2;
-        min_depth = 1.5;
+        min_depth = -1;
         is_final_round = false;
         output_standalone = false;
         careful_bubble = false;
@@ -108,7 +108,6 @@ void ParseAsmOption(int argc, char *argv[]) {
     desc.AddOption("is_final_round", "", opt.is_final_round, "this is the last iteration");
     desc.AddOption("output_standalone", "", opt.output_standalone, "output standalone contigs to *.final.contigs.fa");
     desc.AddOption("careful_bubble", "", opt.careful_bubble, "remove bubble carefully");
-    desc.AddOption("auto_depth", "", opt.auto_depth, "use sqrt(median) as min_depth");
 
     try {
         desc.Parse(argc, argv);
@@ -166,7 +165,7 @@ int main_assemble(int argc, char **argv) {
             opt.max_tip_len = dbg.kmer_k * 2;
         }
 
-        if (opt.auto_depth) {
+        if (opt.min_depth <= 0) {
             opt.min_depth = assembly_algorithms::SetMinDepth(dbg);
             xlog("min depth set to %.3lf\n", opt.min_depth);
         }
