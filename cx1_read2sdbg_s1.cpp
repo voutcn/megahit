@@ -116,9 +116,10 @@ void s1_read_input_prepare(read2sdbg_global_t &globals) {
 
     if (globals.assist_seq_file != "") {
         SequenceManager seq_manager;
+        seq_manager.set_readlib_type(SequenceManager::kSingle);
         seq_manager.set_file_type(SequenceManager::kFastxReads);
         seq_manager.set_file(globals.assist_seq_file);
-
+        seq_manager.set_package(&globals.package);
 
         bool reverse_read = true;
         bool append_to_package = true;
@@ -128,6 +129,7 @@ void s1_read_input_prepare(read2sdbg_global_t &globals) {
         seq_manager.clear();
     }
 
+    globals.package.BuildLookup();
     globals.max_read_length = globals.package.max_read_len();
     globals.num_reads = globals.package.size();
 
@@ -146,13 +148,13 @@ void s1_read_input_prepare(read2sdbg_global_t &globals) {
     globals.num_k1_per_read = globals.max_read_length - globals.kmer_k;
 
     if (globals.kmer_freq_threshold == 1) {
-        globals.is_solid.reset(globals.num_k1_per_read * globals.num_reads, 1);
+        // do not need to count solid kmers
+        globals.mem_packed_reads = globals.package.size_in_byte();
     }
     else {
         globals.is_solid.reset(globals.num_k1_per_read * globals.num_reads);
+        globals.mem_packed_reads = DivCeiling(globals.num_k1_per_read * globals.num_reads, 8) + globals.package.size_in_byte();
     }
-
-    globals.mem_packed_reads = DivCeiling(globals.num_k1_per_read * globals.num_reads, 8) + globals.package.size_in_byte();
 
     int64_t mem_low_bound = globals.mem_packed_reads
                             + kNumBuckets * sizeof(int64_t) * (globals.num_cpu_threads * 3 + 1)
