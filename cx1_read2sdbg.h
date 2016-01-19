@@ -100,7 +100,9 @@ struct read2sdbg_global_t {
     int64_t tot_bucket_size;
     int words_per_read; // number of (32-bit) words needed to represent a read in 2-bit-per-char format
     int read_length_mask;
-    int64_t num_reads; // total number of reads
+    int64_t num_reads; // total number of reads (including assist seq)
+    int64_t num_short_read_bases; // number of bases in short reads excl assist seq
+    int64_t num_short_reads; // total number of short reads
     // new sorting
     int64_t max_bucket_size_for_dynamic_sort;
     int64_t max_sorting_items;

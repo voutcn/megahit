@@ -119,7 +119,7 @@ void s2_read_mercy_prepare(read2sdbg_global_t &globals) {
     uint64_t offset_mask = (1 << globals.offset_num_bits) - 1; // 0000....00011..11
     uint64_t num_mercy = 0;
     AtomicBitVector read_marker;
-    read_marker.reset(globals.num_reads);
+    read_marker.reset(globals.num_short_reads);
 
     for (int fid = 0; fid < globals.num_mercy_files; ++fid) {
         FILE *fp = OpenFileAndCheck(FormatString("%s.mercy_cand.%d", globals.output_prefix.c_str(), fid), "rb");
@@ -271,23 +271,24 @@ void *s2_lv0_calc_bucket_size(void *_data) {
 
         int last_char_offset = globals.kmer_k;
         int64_t full_offset = globals.num_k1_per_read * read_id;
+        bool is_solid = globals.kmer_freq_threshold == 1 || read_id >= globals.num_short_reads;
 
         while (true) {
-            if (globals.kmer_freq_threshold == 1 || globals.is_solid.get(full_offset)) {
+            if (is_solid || globals.is_solid.get(full_offset)) {
                 bool is_palindrome = rev_edge.cmp(edge, globals.kmer_k + 1) == 0;
                 bucket_sizes[(edge.data_[0] << 2) >> (kCharsPerEdgeWord - kBucketPrefixLength) * kBitsPerEdgeChar]++;
 
                 if (!is_palindrome)
                     bucket_sizes[(rev_edge.data_[0] << 2) >> (kCharsPerEdgeWord - kBucketPrefixLength) * kBitsPerEdgeChar]++;
 
-                if (last_char_offset == globals.kmer_k || !(globals.kmer_freq_threshold == 1 || globals.is_solid.get(full_offset - 1))) {
+                if (last_char_offset == globals.kmer_k || !(is_solid || globals.is_solid.get(full_offset - 1))) {
                     bucket_sizes[edge.data_[0] >> (kCharsPerEdgeWord - kBucketPrefixLength) * kBitsPerEdgeChar]++;
 
                     if (!is_palindrome)
                         bucket_sizes[(rev_edge.data_[0] << 4) >> (kCharsPerEdgeWord - kBucketPrefixLength) * kBitsPerEdgeChar]++;
                 }
 
-                if (last_char_offset == read_length - 1 || !(globals.kmer_freq_threshold == 1 || globals.is_solid.get(full_offset + 1))) {
+                if (last_char_offset == read_length - 1 || !(is_solid || globals.is_solid.get(full_offset + 1))) {
                     bucket_sizes[(edge.data_[0] << 4) >> (kCharsPerEdgeWord - kBucketPrefixLength) * kBitsPerEdgeChar]++;
 
                     if (!is_palindrome)
@@ -523,13 +524,14 @@ void *s2_lv1_fill_offset(void *_data) {
         // shift the key char by char
         int last_char_offset = globals.kmer_k;
         int64_t full_offset = globals.num_k1_per_read * read_id;
+        bool is_solid = globals.kmer_freq_threshold == 1 || read_id >= globals.num_short_reads;
 
         while (true) {
-            if (globals.kmer_freq_threshold == 1 || globals.is_solid.get(full_offset)) {
+            if (is_solid || globals.is_solid.get(full_offset)) {
                 bool is_palindrome = rev_edge.cmp(edge, globals.kmer_k + 1) == 0;
 
                 // left $
-                if (last_char_offset == globals.kmer_k || !(globals.kmer_freq_threshold == 1 || globals.is_solid.get(full_offset - 1))) {
+                if (last_char_offset == globals.kmer_k || !(is_solid || globals.is_solid.get(full_offset - 1))) {
                     key = edge.data_[0] >> (kCharsPerEdgeWord - kBucketPrefixLength) * kBitsPerEdgeChar;
                     CHECK_AND_SAVE_OFFSET(last_char_offset - globals.kmer_k, 0, 0);
 
@@ -549,7 +551,7 @@ void *s2_lv1_fill_offset(void *_data) {
                 }
 
                 // right $
-                if (last_char_offset == read_length - 1 || !(globals.kmer_freq_threshold == 1 || globals.is_solid.get(full_offset + 1))) {
+                if (last_char_offset == read_length - 1 || !(is_solid || globals.is_solid.get(full_offset + 1))) {
                     key = (edge.data_[0] << 4) >> (kCharsPerEdgeWord - kBucketPrefixLength) * kBitsPerEdgeChar;
                     CHECK_AND_SAVE_OFFSET(last_char_offset - globals.kmer_k, 0, 2);
 
