@@ -46,9 +46,9 @@ typedef CX1<read2sdbg_global_t, kNumBuckets>::bucketpartition_data_t bucketparti
 typedef CX1<read2sdbg_global_t, kNumBuckets>::outputpartition_data_t outputpartition_data_t;
 
 // helper functions
-inline int64_t EncodeOffset(int64_t read_id, int offset, int strand, int length_num_bits, int edge_type) {
+inline int64_t EncodeOffset(int64_t read_id, int offset, int strand, SequencePackage &p, int edge_type) {
     // edge_type: 0 left $; 1 solid; 2 right $
-    return (read_id << (length_num_bits + 3)) | (offset << 3) | (edge_type << 1) | strand;
+    return ((p.get_start_index(read_id) + offset) << 3) |(edge_type << 1) | strand;
 }
 
 // helper: see whether two lv2 items have the same (k-1)-mer
@@ -101,7 +101,7 @@ inline int Extract_b(uint32_t *item, int num_words, int64_t spacing) {
 
 // cx1 core functions
 int64_t s2_encode_lv1_diff_base(int64_t read_id, read2sdbg_global_t &globals) {
-    return EncodeOffset(read_id, 0, 0, globals.offset_num_bits, 0);
+    return EncodeOffset(read_id, 0, 0, globals.package, 0);
 }
 
 void s2_read_mercy_prepare(read2sdbg_global_t &globals) {
@@ -499,11 +499,11 @@ void *s2_lv1_fill_offset(void *_data) {
         rev_edge.ReverseComplement(globals.kmer_k + 1);
 
         // ===== this is a macro to save some copy&paste ================
-#define CHECK_AND_SAVE_OFFSET(offset, strand, edge_type)                                                                    \
+#define CHECK_AND_SAVE_OFFSET(offset, strand, edge_type)                                                                \
     do {                                                                                                                \
         if (globals.cx1.cur_lv1_buckets_[key]) {                                                                        \
             int key_ = globals.cx1.bucket_rank_[key];                                                                   \
-            int64_t full_offset = EncodeOffset(read_id, offset, strand, globals.offset_num_bits, edge_type);            \
+            int64_t full_offset = EncodeOffset(read_id, offset, strand, globals.package, edge_type);                    \
             int64_t differential = full_offset - prev_full_offsets[key_];                                               \
             if (differential > cx1_t::kDifferentialLimit) {                                                             \
                 pthread_mutex_lock(&globals.lv1_items_scanning_lock);                                                   \
@@ -581,7 +581,6 @@ void *s2_lv1_fill_offset(void *_data) {
 
 void s2_lv2_extract_substr_(int bp_from, int bp_to, read2sdbg_global_t &globals, uint32_t *substr, int num_items) {
     int *lv1_p = globals.lv1_items + globals.cx1.rp_[0].rp_bucket_offsets[bp_from];
-    int64_t offset_mask = (1 << globals.offset_num_bits) - 1; // 0000....00011..11
 
     for (int b = bp_from; b < bp_to; ++b) {
         for (int t = 0; t < globals.num_cpu_threads; ++t) {
@@ -596,8 +595,8 @@ void s2_lv2_extract_substr_(int bp_from, int bp_to, read2sdbg_global_t &globals,
                     full_offset = globals.cx1.lv1_items_special_[-1 - * (lv1_p++)];
                 }
 
-                int64_t read_id = full_offset >> (globals.offset_num_bits + 3);
-                int offset = (full_offset >> 3) & offset_mask;
+                int64_t read_id = globals.package.get_id(full_offset >> 3);
+                int offset = (full_offset >> 3) - globals.package.get_start_index(read_id);
                 int strand = full_offset & 1;
                 int edge_type = (full_offset >> 1) & 3;
                 int read_length = globals.package.length(read_id);

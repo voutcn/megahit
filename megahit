@@ -107,7 +107,7 @@ Other Arguments:
     -h/--help                               print the usage message
     -v/--version                            print version
     --verbose                               verbose mode
-''' % (max_k_allowed, max_k_allowed, max_k_allowed)
+'''
 
 if sys.version > '3':
     long = int
@@ -505,6 +505,7 @@ def check_bin():
 
 def get_version():
     global megahit_version_str
+    global usage_message
     global max_k_allowed
     megahit_version_str = "MEGAHIT " + \
                           subprocess.Popen([opt.bin_dir + "megahit_asm_core", "dumpversion"],
@@ -512,6 +513,9 @@ def get_version():
 
     max_k_allowed = int(subprocess.Popen([opt.bin_dir + "megahit_asm_core", "kmax"],
                                            stdout=subprocess.PIPE).communicate()[0].rstrip().decode('utf-8'))
+
+    usage_message = usage_message % (max_k_allowed, max_k_allowed, max_k_allowed)
+
 
 def check_builder():
     if not os.path.exists(opt.bin_dir + opt.builder):

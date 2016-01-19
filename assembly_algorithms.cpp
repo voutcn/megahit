@@ -25,19 +25,19 @@
 #include <omp.h>
 #include <assert.h>
 #include <vector>
-#include <map>
 #include <algorithm>
-#include <unordered_set>
 #include <parallel/algorithm>
+#include <unordered_set>
+#include <queue>
 
 #include "atomic_bit_vector.h"
-#include "unitig_graph.h"
 #include "utils.h"
 #include "histgram.h"
 
 using std::vector;
 using std::string;
-using std::map;
+using std::unordered_set;
+using std::queue;
 
 namespace assembly_algorithms {
 
@@ -180,6 +180,62 @@ int64_t RemoveTips(SuccinctDBG &dbg, int max_tip_len, int min_final_standalone) 
     }
 
     return number_tips;
+}
+
+void MarkSubGraph(SuccinctDBG &dbg, const char* seq, int seq_len) {
+    AtomicBitVector marked(dbg.size);
+    vector<uint8_t> seq_uint8(seq_len);
+    vector<uint8_t> dna_map(256, 3);
+
+    for (int i = 0; i < 10; ++i) {
+        dna_map["ACGTNacgtn"[i]] = "1234312343"[i] - '0';
+    }
+
+    for (int i = 0; i < seq_len; ++i) {
+        seq_uint8[i] = dna_map[seq[i]]; 
+    }
+
+    for (int i = 0; i + dbg.kmer_k + 1 < seq_len; ++i) {
+        int64_t id = dbg.IndexBinarySearchEdge(&seq_uint8[i]);
+        if (id != -1 && !marked.get(id)) {
+            int64_t rev_id = dbg.EdgeReverseComplement(id);
+            marked.set(id);
+            marked.set(rev_id);
+
+            queue<int64_t> q;
+            q.push(id);
+            q.push(rev_id);
+
+            while (!q.empty()) {
+                id = q.front(); q.pop();
+                int64_t next_edges[4], prev_edges[4];
+                int ind = dbg.IncomingEdges(id, prev_edges);
+                int outd = dbg.OutgoingEdges(id, next_edges);
+
+                for (int j = 0; j < ind; ++j) {
+                    if (!marked.get(prev_edges[j])) {
+                        marked.set(prev_edges[j]);
+                        q.push(prev_edges[j]);
+                    }
+                }
+
+                for (int j = 0; j < outd; ++j) {
+                    if (!marked.get(next_edges[j])) {
+                        marked.set(next_edges[j]);
+                        q.push(next_edges[j]);
+                    }
+                }
+            }
+        }
+    }
+
+    int64_t num_marked = 0;
+    for (int64_t i = 0; i < dbg.size; ++i) {
+        if (!marked.get(i)) dbg.SetInvalidEdge(i);
+        else num_marked++;
+    }
+
+    xlog("Number edges marked: %lld", num_marked);
 }
 
 } // namespace assembly_algorithms
