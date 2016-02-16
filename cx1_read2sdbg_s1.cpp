@@ -52,8 +52,8 @@ typedef CX1<read2sdbg_global_t, kNumBuckets>::outputpartition_data_t outputparti
 /**
  * @brief encode read_id and its offset in one int64_t
  */
-inline int64_t EncodeOffset(int64_t read_id, int offset, int strand, int length_num_bits) {
-    return (read_id << (length_num_bits + 1)) | (offset << 1) | strand;
+inline int64_t EncodeOffset(int64_t read_id, int offset, int strand, SequencePackage &p) {
+    return ((p.get_start_index(read_id) + offset) << 1) | strand;
 }
 
 // helper: see whether two lv2 items have the same (k-1)-mer
@@ -91,7 +91,7 @@ inline uint8_t ExtractPrevNext(int i, int64_t *readinfo) {
 // cx1 core functions
 
 int64_t s1_encode_lv1_diff_base(int64_t read_id, read2sdbg_global_t &g) {
-    return EncodeOffset(read_id, 0, 0, g.offset_num_bits);
+    return EncodeOffset(read_id, 0, 0, g.package);
 }
 
 void s1_read_input_prepare(read2sdbg_global_t &globals) {
@@ -436,11 +436,11 @@ void *s1_lv1_fill_offset(void *_data) {
         rev_k_minus1_mer.ReverseComplement(globals.kmer_k - 1);
 
         // ===== this is a macro to save some copy&paste ================
-#define CHECK_AND_SAVE_OFFSET(offset, strand)                                                                      \
+#define CHECK_AND_SAVE_OFFSET(offset, strand)                                                                  \
     do {                                                                                                       \
         if (globals.cx1.cur_lv1_buckets_[key]) {                                                               \
             int key_ = globals.cx1.bucket_rank_[key];                                                          \
-            int64_t full_offset = EncodeOffset(read_id, offset, strand, globals.offset_num_bits);              \
+            int64_t full_offset = EncodeOffset(read_id, offset, strand, globals.package);                      \
             int64_t differential = full_offset - prev_full_offsets[key_];                                      \
             if (differential > cx1_t::kDifferentialLimit) {                                                    \
                 pthread_mutex_lock(&globals.lv1_items_scanning_lock);                                          \
@@ -515,7 +515,6 @@ void *s1_lv1_fill_offset(void *_data) {
 
 void s1_extract_subtstr_(int bp_from, int bp_to, read2sdbg_global_t &globals, uint32_t *substr, int64_t *readinfo_ptr, int num_items) {
     int *lv1_p = globals.lv1_items + globals.cx1.rp_[0].rp_bucket_offsets[bp_from];
-    int64_t offset_mask = (1 << globals.offset_num_bits) - 1; // 0000....00011..11
 
     for (int b = bp_from; b < bp_to; ++b) {
         for (int t = 0; t < globals.num_cpu_threads; ++t) {
@@ -530,9 +529,9 @@ void s1_extract_subtstr_(int bp_from, int bp_to, read2sdbg_global_t &globals, ui
                     full_offset = globals.cx1.lv1_items_special_[-1 - * (lv1_p++)];
                 }
 
-                int64_t read_id = full_offset >> (globals.offset_num_bits + 1);
+                int64_t read_id = globals.package.get_id(full_offset >> 1);
                 int strand = full_offset & 1;
-                int offset = (full_offset >> 1) & offset_mask;
+                int offset = (full_offset >> 1) - globals.package.get_start_index(read_id);
                 int read_length = globals.package.length(read_id);
                 int num_chars_to_copy = globals.kmer_k - 1;
                 unsigned char prev, next, head, tail; // (k+1)=abScd, prev=a, head=b, tail=c, next=d
@@ -675,7 +674,6 @@ void s1_lv2_output_(int from, int to, int tid, read2sdbg_global_t &globals, uint
     int count_prev_head[5][5];
     int count_tail_next[5][5];
     int count_head_tail[(1 << 2 * kBWTCharNumBits) - 1];
-    int64_t offset_mask = (1 << globals.offset_num_bits) - 1;
     int64_t *thread_edge_counting = globals.thread_edge_counting + tid * (kMaxMulti_t + 1);
 
     for (int i = from; i < to; i = end_idx) {
@@ -752,8 +750,8 @@ void s1_lv2_output_(int from, int to, int tid, read2sdbg_global_t &globals, uint
                 for (int j = 0; j < count_head_tail[head_and_tail]; ++j, ++i) {
                     int64_t read_info = readinfo_ptr[permutation[i]] >> 6;
                     int strand = read_info & 1;
-                    int offset = ((read_info >> 1) & offset_mask) - 1;
-                    int64_t read_id = read_info >> (1 + globals.offset_num_bits);
+                    int64_t read_id = globals.package.get_id(read_info >> 1);
+                    int offset = (read_info >> 1) - globals.package.get_start_index(read_id) - 1;
                     int l_offset = strand == 0 ? offset : offset + 1;
                     int r_offset = strand == 0 ? offset + 1 : offset;
 
@@ -762,13 +760,13 @@ void s1_lv2_output_(int from, int to, int tid, read2sdbg_global_t &globals, uint
 
                     if (!(has_in & (1 << head))) {
                         // no in
-                        int64_t packed_mercy_cand = (read_id << (globals.offset_num_bits + 2)) | (l_offset << 2) | (1 + strand);
+                        int64_t packed_mercy_cand = ((globals.package.get_start_index(read_id) + l_offset) << 2) | (1 + strand);
                         fwrite(&packed_mercy_cand, sizeof(packed_mercy_cand), 1, globals.mercy_files[read_id & (globals.num_mercy_files - 1)]);
                     }
 
                     if (!(has_out & (1 << tail))) {
                         // no out
-                        int64_t packed_mercy_cand = (read_id << (globals.offset_num_bits + 2)) | (r_offset << 2) | (2 - strand);
+                        int64_t packed_mercy_cand = ((globals.package.get_start_index(read_id) + r_offset) << 2) | (2 - strand);
                         fwrite(&packed_mercy_cand, sizeof(packed_mercy_cand), 1, globals.mercy_files[read_id & (globals.num_mercy_files - 1)]);
                     }
                 }
@@ -778,27 +776,27 @@ void s1_lv2_output_(int from, int to, int tid, read2sdbg_global_t &globals, uint
                 for (int j = 0; j < count_head_tail[head_and_tail]; ++j, ++i) {
                     int64_t read_info = readinfo_ptr[permutation[i]] >> 6;
                     int strand = read_info & 1;
-                    int offset = ((read_info >> 1) & offset_mask) - 1;
-                    int64_t read_id = read_info >> (1 + globals.offset_num_bits);
+                    int64_t read_id = globals.package.get_id(read_info >> 1);
+                    int offset = (read_info >> 1) - globals.package.get_start_index(read_id) - 1;
                     int l_offset = strand == 0 ? offset : offset + 1;
                     int r_offset = strand == 0 ? offset + 1 : offset;
 
                     if (l_has_out & (1 << head)) {
                         if (has_in & (1 << head)) {
                             // has both in & out
-                            int64_t packed_mercy_cand = (read_id << (globals.offset_num_bits + 2)) | (l_offset << 2) | 0;
+                            int64_t packed_mercy_cand = ((globals.package.get_start_index(read_id) + l_offset) << 2) | 0;
                             fwrite(&packed_mercy_cand, sizeof(packed_mercy_cand), 1, globals.mercy_files[read_id & (globals.num_mercy_files - 1)]);
                         }
                         else {
                             // has out but no in
-                            int64_t packed_mercy_cand = (read_id << (globals.offset_num_bits + 2)) | (l_offset << 2) | (1 + strand);
+                            int64_t packed_mercy_cand = ((globals.package.get_start_index(read_id) + l_offset) << 2) | (1 + strand);
                             fwrite(&packed_mercy_cand, sizeof(packed_mercy_cand), 1, globals.mercy_files[read_id & (globals.num_mercy_files - 1)]);
                         }
                     }
                     else {
                         if (has_in & (1 << head)) {
                             // has in but no out
-                            int64_t packed_mercy_cand = (read_id << (globals.offset_num_bits + 2)) | (l_offset << 2) | (2 - strand);
+                            int64_t packed_mercy_cand = ((globals.package.get_start_index(read_id) + l_offset) << 2) | (2 - strand);
                             fwrite(&packed_mercy_cand, sizeof(packed_mercy_cand), 1, globals.mercy_files[read_id & (globals.num_mercy_files - 1)]);
                         }
                     }
@@ -806,19 +804,19 @@ void s1_lv2_output_(int from, int to, int tid, read2sdbg_global_t &globals, uint
                     if (r_has_in & (1 << tail)) {
                         if (has_out & (1 << tail)) {
                             // has both in & out
-                            int64_t packed_mercy_cand = (read_id << (globals.offset_num_bits + 2)) | (r_offset << 2) | 0;
+                            int64_t packed_mercy_cand = ((globals.package.get_start_index(read_id) + r_offset) << 2) | 0;
                             fwrite(&packed_mercy_cand, sizeof(packed_mercy_cand), 1, globals.mercy_files[read_id & (globals.num_mercy_files - 1)]);
                         }
                         else {
                             // has in but no out
-                            int64_t packed_mercy_cand = (read_id << (globals.offset_num_bits + 2)) | (r_offset << 2) | (2 - strand);
+                            int64_t packed_mercy_cand = ((globals.package.get_start_index(read_id) + r_offset) << 2) | (2 - strand);
                             fwrite(&packed_mercy_cand, sizeof(packed_mercy_cand), 1, globals.mercy_files[read_id & (globals.num_mercy_files - 1)]);
                         }
                     }
                     else {
                         if (has_out & (1 << tail)) {
                             // has out but no in
-                            int64_t packed_mercy_cand = (read_id << (globals.offset_num_bits + 2)) | (r_offset << 2) | (1 + strand);
+                            int64_t packed_mercy_cand = ((globals.package.get_start_index(read_id) + r_offset) << 2) | (1 + strand);
                             fwrite(&packed_mercy_cand, sizeof(packed_mercy_cand), 1, globals.mercy_files[read_id & (globals.num_mercy_files - 1)]);
                         }
                     }

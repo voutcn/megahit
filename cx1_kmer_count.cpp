@@ -49,8 +49,8 @@ typedef CX1<count_global_t, kNumBuckets>::outputpartition_data_t outputpartition
 /**
  * @brief encode read_id and its offset in one int64_t
  */
-inline int64_t EncodeOffset(int64_t read_id, int offset, int strand, int length_num_bits) {
-    return (read_id << (length_num_bits + 1)) | (offset << 1) | strand;
+inline int64_t EncodeOffset(int64_t read_id, int offset, int strand, SequencePackage &p) {
+    return ((p.get_start_index(read_id) + offset) << 1) | strand;
 }
 
 inline bool IsDifferentEdges(uint32_t *item1, uint32_t *item2, int num_words, int spacing) {
@@ -92,7 +92,7 @@ inline void PackEdge(uint32_t *dest, uint32_t *item, int counting, struct count_
 // function pass to CX1
 
 int64_t encode_lv1_diff_base(int64_t read_id, count_global_t &g) {
-    return EncodeOffset(read_id, 0, 0, g.offset_num_bits);
+    return EncodeOffset(read_id, 0, 0, g.package);
 }
 
 void read_input_prepare(count_global_t &globals) { // num_items_, num_cpu_threads_ and num_output_threads_ must be set here
@@ -129,6 +129,7 @@ void read_input_prepare(count_global_t &globals) { // num_items_, num_cpu_thread
         seq_manager.clear();
     }
     
+    globals.package.BuildLookup();
     globals.max_read_length = globals.package.max_read_len();
     globals.num_reads = globals.package.size();
 
@@ -369,11 +370,11 @@ void init_global_and_set_cx1(count_global_t &globals) {
 
     // --- malloc read first_in / last_out ---
 #ifdef LONG_READS
-    globals.first_0_out = (uint16_t *) MallocAndCheck(globals.num_reads * sizeof(uint16_t), __FILE__, __LINE__);
-    globals.last_0_in = (uint16_t *) MallocAndCheck(globals.num_reads * sizeof(uint16_t), __FILE__, __LINE__);
+    globals.first_0_out = (uint32_t *) MallocAndCheck(globals.num_reads * sizeof(uint32_t), __FILE__, __LINE__);
+    globals.last_0_in = (uint32_t *) MallocAndCheck(globals.num_reads * sizeof(uint32_t), __FILE__, __LINE__);
 #else
-    globals.first_0_out = (unsigned char *) MallocAndCheck(globals.num_reads * sizeof(unsigned char), __FILE__, __LINE__);
-    globals.last_0_in = (unsigned char *) MallocAndCheck(globals.num_reads * sizeof(unsigned char), __FILE__, __LINE__);
+    globals.first_0_out = (uint8_t *) MallocAndCheck(globals.num_reads * sizeof(uint8_t), __FILE__, __LINE__);
+    globals.last_0_in = (uint8_t *) MallocAndCheck(globals.num_reads * sizeof(uint8_t), __FILE__, __LINE__);
 #endif
     memset(globals.first_0_out, 0xFF, globals.num_reads * sizeof(globals.first_0_out[0]));
     memset(globals.last_0_in, 0xFF, globals.num_reads * sizeof(globals.last_0_in[0]));
@@ -424,7 +425,7 @@ void *lv1_fill_offset(void *_data) {
     do {                                                                                                        \
         if (globals.cx1.cur_lv1_buckets_[key]) {                                                                \
             int key_ = globals.cx1.bucket_rank_[key];                                                           \
-            int64_t full_offset = EncodeOffset(read_id, offset, strand, globals.offset_num_bits);               \
+            int64_t full_offset = EncodeOffset(read_id, offset, strand, globals.package);                       \
             int64_t differential = full_offset - prev_full_offsets[key_];                                       \
             if (differential > cx1_t::kDifferentialLimit) {                                                     \
                 pthread_mutex_lock(&globals.lv1_items_scanning_lock);                                           \
@@ -473,7 +474,6 @@ void *lv1_fill_offset(void *_data) {
 
 inline void lv2_extract_substr_(uint32_t *substrings_p, int64_t *read_info_p, count_global_t &globals, int start_bucket, int end_bucket, int num_items) {
     int *lv1_p = globals.lv1_items + globals.cx1.rp_[0].rp_bucket_offsets[start_bucket];
-    int64_t offset_mask = (1 << globals.offset_num_bits) - 1; // 0000....00011..11
 
     for (int b = start_bucket; b < end_bucket; ++b) {
         for (int t = 0; t < globals.num_cpu_threads; ++t) {
@@ -488,9 +488,9 @@ inline void lv2_extract_substr_(uint32_t *substrings_p, int64_t *read_info_p, co
                     full_offset = globals.cx1.lv1_items_special_[-1 - * (lv1_p++)];
                 }
 
-                int64_t read_id = full_offset >> (globals.offset_num_bits + 1);
+                int64_t read_id = globals.package.get_id(full_offset >> 1);
                 int strand = full_offset & 1;
-                int offset = (full_offset >> 1) & offset_mask;
+                int offset = (full_offset >> 1) - globals.package.get_start_index(read_id);
                 int num_chars_to_copy = globals.kmer_k + 1;
 
                 int read_length = globals.package.length(read_id);
@@ -621,7 +621,6 @@ void lv2_output_(int64_t start_index, int64_t end_index, int thread_id, count_gl
                  uint32_t *substrings, uint32_t *permutation, int64_t *read_infos, int num_items) {
     uint32_t packed_edge[32];
     int count_prev[5], count_next[5];
-    int64_t offset_mask = (1 << globals.offset_num_bits) - 1;
     int64_t *thread_edge_counting = globals.thread_edge_counting + thread_id * (kMaxMulti_t + 1);
 
     int from_;
@@ -670,9 +669,9 @@ void lv2_output_(int64_t start_index, int64_t end_index, int thread_id, count_gl
         if (!has_in && count >= globals.kmer_freq_threshold) {
             for (int j = from_; j < to_; ++j) {
                 int64_t read_info = read_infos[permutation[j]] >> 6;
+                int64_t read_id = globals.package.get_id(read_info >> 1);
                 int strand = read_info & 1;
-                int offset = (read_info >> 1) & offset_mask;
-                int64_t read_id = read_info >> (1 + globals.offset_num_bits);
+                uint32_t offset = (read_info >> 1) - globals.package.get_start_index(read_id);
 
                 if (strand == 0) {
                     // update last
@@ -710,9 +709,9 @@ void lv2_output_(int64_t start_index, int64_t end_index, int thread_id, count_gl
         if (!has_out && count >= globals.kmer_freq_threshold) {
             for (int j = from_; j < to_; ++j) {
                 int64_t read_info = read_infos[permutation[j]] >> 6;
+                int64_t read_id = globals.package.get_id(read_info >> 1);
                 int strand = read_info & 1;
-                int offset = (read_info >> 1) & offset_mask;
-                int64_t read_id = read_info >> (1 + globals.offset_num_bits);
+                uint32_t offset = (read_info >> 1) - globals.package.get_start_index(read_id);
 
                 if (strand == 0) {
                     // update first

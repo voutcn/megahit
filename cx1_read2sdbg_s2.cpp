@@ -116,7 +116,6 @@ void s2_read_mercy_prepare(read2sdbg_global_t &globals) {
     }
 
     std::vector<uint64_t> mercy_cand;
-    uint64_t offset_mask = (1 << globals.offset_num_bits) - 1; // 0000....00011..11
     uint64_t num_mercy = 0;
     AtomicBitVector read_marker;
     read_marker.reset(globals.num_short_reads);
@@ -154,9 +153,9 @@ void s2_read_mercy_prepare(read2sdbg_global_t &globals) {
             }
 
             uint64_t this_end = std::min(start_idx[tid] + avg, (uint64_t)mercy_cand.size());
-            uint64_t read_id = mercy_cand[this_end] >> (globals.offset_num_bits + 2);
+            uint64_t read_id = globals.package.get_id(mercy_cand[this_end] >> 2);
 
-            while (this_end < mercy_cand.size() && (mercy_cand[this_end] >> (globals.offset_num_bits + 2)) == read_id) {
+            while (this_end < mercy_cand.size() && globals.package.get_id(mercy_cand[this_end] >> 2) == read_id) {
                 ++this_end;
             }
 
@@ -174,7 +173,7 @@ void s2_read_mercy_prepare(read2sdbg_global_t &globals) {
 
             // go read by read
             while (i != end_idx[tid]) {
-                uint64_t read_id = mercy_cand[i] >> (globals.offset_num_bits + 2);
+                uint64_t read_id = globals.package.get_id(mercy_cand[i] >> 2);
                 assert(!read_marker.get(read_id));
                 read_marker.set(read_id);
                 int first_0_out = globals.max_read_length + 1;
@@ -184,17 +183,18 @@ void s2_read_mercy_prepare(read2sdbg_global_t &globals) {
                 std::fill(no_out.begin(), no_out.end(), false);
                 std::fill(has_solid_kmer.begin(), has_solid_kmer.end(), false);
 
-                while (i != end_idx[tid] && (mercy_cand[i] >> (globals.offset_num_bits + 2)) == read_id) {
+                while (i != end_idx[tid] && globals.package.get_id(mercy_cand[i] >> 2) == read_id) {
+                    int offset = (mercy_cand[i] >> 2) - globals.package.get_start_index(read_id);
                     if ((mercy_cand[i] & 3) == 2) {
-                        no_out[(mercy_cand[i] >> 2) & offset_mask] = true;
-                        first_0_out = std::min(first_0_out, int((mercy_cand[i] >> 2) & offset_mask));
+                        no_out[offset] = true;
+                        first_0_out = std::min(first_0_out, offset);
                     }
                     else if ((mercy_cand[i] & 3) == 1) {
-                        no_in[(mercy_cand[i] >> 2) & offset_mask] = true;
-                        last_0_in = std::max(last_0_in, int((mercy_cand[i] >> 2) & offset_mask));
+                        no_in[offset] = true;
+                        last_0_in = std::max(last_0_in, offset);
                     }
 
-                    has_solid_kmer[int((mercy_cand[i] >> 2) & offset_mask)] = true;
+                    has_solid_kmer[offset] = true;
                     ++i;
                 }
 

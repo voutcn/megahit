@@ -71,9 +71,9 @@ static const int kSentinelValue = 4;
 
 #define LONG_READS
 #ifdef LONG_READS
-    static const int kSentinelOffset = 65535;
+    static const uint32_t kSentinelOffset = 4294967295U;
 #else
-    static const int kSentinelOffset = 255;
+    static const uint32_t kSentinelOffset = 255;
 #endif
 
 struct count_global_t {
@@ -114,11 +114,11 @@ struct count_global_t {
     int64_t *readinfo_all;
 
 #ifndef LONG_READS
-    unsigned char *first_0_out;
-    unsigned char *last_0_in; // first potential 0-out-degree k-mer and last potential 0-in-degree k-mer
+    uint8_t *first_0_out;
+    uint8_t *last_0_in; // first potential 0-out-degree k-mer and last potential 0-in-degree k-mer
 #else
-    uint16_t *first_0_out;
-    uint16_t *last_0_in;
+    uint32_t *first_0_out;
+    uint32_t *last_0_in;
 #endif
     int32_t *lv1_items; // each item is an offset (read ID and position) in differential representation
 
