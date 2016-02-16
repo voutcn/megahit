@@ -156,8 +156,8 @@ void s1_read_input_prepare(read2sdbg_global_t &globals) {
         globals.mem_packed_reads = globals.package.size_in_byte();
     }
     else {
-        globals.is_solid.reset(globals.num_k1_per_read * globals.num_short_reads);
-        globals.mem_packed_reads = DivCeiling(globals.num_k1_per_read * globals.num_short_reads, 8) + globals.package.size_in_byte();
+        globals.is_solid.reset(globals.package.base_size());
+        globals.mem_packed_reads = DivCeiling(globals.package.base_size(), 8) + globals.package.size_in_byte();
     }
 
     int64_t mem_low_bound = globals.mem_packed_reads
@@ -756,7 +756,7 @@ void s1_lv2_output_(int from, int to, int tid, read2sdbg_global_t &globals, uint
                     int r_offset = strand == 0 ? offset + 1 : offset;
 
                     // mark this is a solid edge
-                    globals.is_solid.set(globals.num_k1_per_read * read_id + offset);
+                    globals.is_solid.set((read_info >> 1) - 1);
 
                     if (!(has_in & (1 << head))) {
                         // no in

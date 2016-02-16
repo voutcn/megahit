@@ -206,7 +206,7 @@ void s2_read_mercy_prepare(read2sdbg_global_t &globals) {
                 int last_no_out = -1;
 
                 for (int i = 0; i + globals.kmer_k < read_length; ++i) {
-                    if (globals.is_solid.get(read_id * globals.num_k1_per_read + i)) {
+                    if (globals.is_solid.get(globals.package.get_start_index(read_id) + i)) {
                         has_solid_kmer[i] = has_solid_kmer[i + 1] = true;
                     }
                 }
@@ -214,7 +214,7 @@ void s2_read_mercy_prepare(read2sdbg_global_t &globals) {
                 for (int i = 0; i + globals.kmer_k <= read_length; ++i) {
                     if (no_in[i] && last_no_out != -1) {
                         for (int j = last_no_out; j < i; ++j) {
-                            globals.is_solid.set(read_id * globals.num_k1_per_read + j);
+                            globals.is_solid.set(globals.package.get_start_index(read_id) + j);
                         }
 
                         num_mercy += i - last_no_out;
@@ -270,7 +270,7 @@ void *s2_lv0_calc_bucket_size(void *_data) {
         rev_edge.ReverseComplement(globals.kmer_k + 1);
 
         int last_char_offset = globals.kmer_k;
-        int64_t full_offset = globals.num_k1_per_read * read_id;
+        int64_t full_offset = globals.package.get_start_index(read_id);
         bool is_solid = globals.kmer_freq_threshold == 1 || read_id >= globals.num_short_reads;
 
         while (true) {
@@ -523,7 +523,7 @@ void *s2_lv1_fill_offset(void *_data) {
 
         // shift the key char by char
         int last_char_offset = globals.kmer_k;
-        int64_t full_offset = globals.num_k1_per_read * read_id;
+        int64_t full_offset = globals.package.get_start_index(read_id);
         bool is_solid = globals.kmer_freq_threshold == 1 || read_id >= globals.num_short_reads;
 
         while (true) {
