@@ -1,3 +1,10 @@
+### 1.0.4-beta / 2016-02-16 HKT
+
+* Faster index of succinct de Bruijn graph via prefix look up
+* Add `--prune-level` 3 and `--prune-depth` options for more aggressive pruning
+* Tune `bulk` parameters
+* Support reads with length >= 65536 bp
+
 ### 1.0.3 / 2015-10-11 HKT
 
 * Hotfix of number of tip nodes in SdBG 32 bit integer overflow

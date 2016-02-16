@@ -66,7 +66,7 @@ Optional Arguments:
     --no-mercy                              do not add mercy kmers
     --no-bubble                             do not merge bubbles
     --merge-level            <l,s>          merge complex bubbles of length <= l*kmer_size and similarity >= s [20,0.98]
-    --prune-level            <int>          strength of local low depth pruning (0-3) [2]
+    --prune-level            <int>          strength of low depth pruning (0-3) [2]
     --prune-depth            <int>          remove unitigs with avg kmer depth less than this value [auto]
     --low-local-ratio        <float>        ratio threshold to define low local coverage contigs [0.2]
     --max-tip-len            <int>          remove tips less than this value [2*k]
