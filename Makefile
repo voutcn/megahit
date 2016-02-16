@@ -239,8 +239,8 @@ LIB_ASM = succinct_dbg.o assembly_algorithms.o options_description.o \
 megahit_sdbg_build: sdbg_builder.cpp cx1_kmer_count.o cx1_read2sdbg_s1.o cx1_read2sdbg_s2.o cx1_seq2sdbg.o options_description.o sequence_manager.o $(DEPS)
 	$(CXX) $(CXXFLAGS) kthread.cpp sdbg_builder.cpp cx1_kmer_count.o options_description.o cx1_read2sdbg_s1.o cx1_read2sdbg_s2.o cx1_seq2sdbg.o sequence_manager.o $(LIB) -o megahit_sdbg_build
 
-megahit_asm_core: $(LIB_ASM) $(LIB_IDBA) asm_core.cpp assembler.cpp local_assemble.cpp iterate_edges.cpp build_read_lib.cpp $(DEPS)
-	$(CXX) $(CXXFLAGS) asm_core.cpp assembler.cpp local_assemble.cpp iterate_edges.cpp build_read_lib.cpp $(LIB_IDBA) $(LIB_ASM) $(LIB) -o megahit_asm_core
+megahit_asm_core: $(LIB_ASM) $(LIB_IDBA) asm_core.o assembler.o local_assemble.o iterate_edges.o build_read_lib.o $(DEPS)
+	$(CXX) $(CXXFLAGS) asm_core.o assembler.o local_assemble.o iterate_edges.o build_read_lib.o $(LIB_IDBA) $(LIB_ASM) $(LIB) -o megahit_asm_core
 
 megahit_toolkit: $(TOOLKIT) $(DEPS)
 	$(CXX) $(CXXFLAGS) $(TOOLKIT) $(LIB) -o megahit_toolkit

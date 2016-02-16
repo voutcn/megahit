@@ -482,6 +482,22 @@ int64_t SuccinctDBG::IndexBinarySearch(uint8_t *seq) {
     return -1;
 }
 
+int64_t SuccinctDBG::IndexBinarySearchEdge(uint8_t *seq) {
+    int64_t node = IndexBinarySearch(seq);
+    if (node == -1) { return -1; }
+    do {
+        uint8_t edge_label = GetW(node);
+        if (edge_label == seq[kmer_k] || edge_label - 4 == seq[kmer_k]) {
+            return node;
+        }
+
+        --node;
+    }
+    while (node >= 0 && !IsLastOrTip(node));
+    return -1;
+}
+
+
 int SuccinctDBG::Label(int64_t edge_or_node_id, uint8_t *seq) {
     int64_t x = edge_or_node_id;
 
@@ -588,7 +604,9 @@ void SuccinctDBG::LoadFromMultiFile(const char *dbg_name, bool need_multiplicity
         need_to_free_mul_ = true;
     }
     else {
-        need_to_free_mul_ = false;
+        is_multi_1_ = (unsigned long long *) MallocAndCheck(sizeof(unsigned long long) * word_needed_last, __FILE__, __LINE__);
+        memset(is_multi_1_, 0, sizeof(unsigned long long) * word_needed_last);
+        need_to_free_mul_ = true;
     }
 
     for (int i = 0; i < sdbg_reader.prefix_lkt_size() * 2; ++i) {
@@ -637,6 +655,8 @@ void SuccinctDBG::LoadFromMultiFile(const char *dbg_name, bool need_multiplicity
                 edge_multi_[i] = item >> 8;
             else
                 edge_large_multi_[i] = item >> 8;
+        } else {
+            is_multi_1_[i / 64] |= (unsigned long long)((item >> 8) <= 1) << (i % 64);
         }
 
         if (UNLIKELY((item >> 8) == kMulti2Sp)) {

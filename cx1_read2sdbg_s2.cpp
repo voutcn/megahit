@@ -46,9 +46,9 @@ typedef CX1<read2sdbg_global_t, kNumBuckets>::bucketpartition_data_t bucketparti
 typedef CX1<read2sdbg_global_t, kNumBuckets>::outputpartition_data_t outputpartition_data_t;
 
 // helper functions
-inline int64_t EncodeOffset(int64_t read_id, int offset, int strand, int length_num_bits, int edge_type) {
+inline int64_t EncodeOffset(int64_t read_id, int offset, int strand, SequencePackage &p, int edge_type) {
     // edge_type: 0 left $; 1 solid; 2 right $
-    return (read_id << (length_num_bits + 3)) | (offset << 3) | (edge_type << 1) | strand;
+    return ((p.get_start_index(read_id) + offset) << 3) | (edge_type << 1) | strand;
 }
 
 // helper: see whether two lv2 items have the same (k-1)-mer
@@ -101,11 +101,11 @@ inline int Extract_b(uint32_t *item, int num_words, int64_t spacing) {
 
 // cx1 core functions
 int64_t s2_encode_lv1_diff_base(int64_t read_id, read2sdbg_global_t &globals) {
-    return EncodeOffset(read_id, 0, 0, globals.offset_num_bits, 0);
+    return EncodeOffset(read_id, 0, 0, globals.package, 0);
 }
 
 void s2_read_mercy_prepare(read2sdbg_global_t &globals) {
-    if (!globals.need_mercy) return;
+    if (!globals.need_mercy || globals.kmer_freq_threshold == 1) return;
 
     xtimer_t timer;
 
@@ -116,10 +116,9 @@ void s2_read_mercy_prepare(read2sdbg_global_t &globals) {
     }
 
     std::vector<uint64_t> mercy_cand;
-    uint64_t offset_mask = (1 << globals.offset_num_bits) - 1; // 0000....00011..11
     uint64_t num_mercy = 0;
     AtomicBitVector read_marker;
-    read_marker.reset(globals.num_reads);
+    read_marker.reset(globals.num_short_reads);
 
     for (int fid = 0; fid < globals.num_mercy_files; ++fid) {
         FILE *fp = OpenFileAndCheck(FormatString("%s.mercy_cand.%d", globals.output_prefix.c_str(), fid), "rb");
@@ -154,9 +153,9 @@ void s2_read_mercy_prepare(read2sdbg_global_t &globals) {
             }
 
             uint64_t this_end = std::min(start_idx[tid] + avg, (uint64_t)mercy_cand.size());
-            uint64_t read_id = mercy_cand[this_end] >> (globals.offset_num_bits + 2);
+            uint64_t read_id = globals.package.get_id(mercy_cand[this_end] >> 2);
 
-            while (this_end < mercy_cand.size() && (mercy_cand[this_end] >> (globals.offset_num_bits + 2)) == read_id) {
+            while (this_end < mercy_cand.size() && globals.package.get_id(mercy_cand[this_end] >> 2) == read_id) {
                 ++this_end;
             }
 
@@ -174,7 +173,7 @@ void s2_read_mercy_prepare(read2sdbg_global_t &globals) {
 
             // go read by read
             while (i != end_idx[tid]) {
-                uint64_t read_id = mercy_cand[i] >> (globals.offset_num_bits + 2);
+                uint64_t read_id = globals.package.get_id(mercy_cand[i] >> 2);
                 assert(!read_marker.get(read_id));
                 read_marker.set(read_id);
                 int first_0_out = globals.max_read_length + 1;
@@ -184,17 +183,18 @@ void s2_read_mercy_prepare(read2sdbg_global_t &globals) {
                 std::fill(no_out.begin(), no_out.end(), false);
                 std::fill(has_solid_kmer.begin(), has_solid_kmer.end(), false);
 
-                while (i != end_idx[tid] && (mercy_cand[i] >> (globals.offset_num_bits + 2)) == read_id) {
+                while (i != end_idx[tid] && globals.package.get_id(mercy_cand[i] >> 2) == read_id) {
+                    int offset = (mercy_cand[i] >> 2) - globals.package.get_start_index(read_id);
                     if ((mercy_cand[i] & 3) == 2) {
-                        no_out[(mercy_cand[i] >> 2) & offset_mask] = true;
-                        first_0_out = std::min(first_0_out, int((mercy_cand[i] >> 2) & offset_mask));
+                        no_out[offset] = true;
+                        first_0_out = std::min(first_0_out, offset);
                     }
                     else if ((mercy_cand[i] & 3) == 1) {
-                        no_in[(mercy_cand[i] >> 2) & offset_mask] = true;
-                        last_0_in = std::max(last_0_in, int((mercy_cand[i] >> 2) & offset_mask));
+                        no_in[offset] = true;
+                        last_0_in = std::max(last_0_in, offset);
                     }
 
-                    has_solid_kmer[int((mercy_cand[i] >> 2) & offset_mask)] = true;
+                    has_solid_kmer[offset] = true;
                     ++i;
                 }
 
@@ -206,7 +206,7 @@ void s2_read_mercy_prepare(read2sdbg_global_t &globals) {
                 int last_no_out = -1;
 
                 for (int i = 0; i + globals.kmer_k < read_length; ++i) {
-                    if (globals.is_solid.get(read_id * globals.num_k1_per_read + i)) {
+                    if (globals.is_solid.get(globals.package.get_start_index(read_id) + i)) {
                         has_solid_kmer[i] = has_solid_kmer[i + 1] = true;
                     }
                 }
@@ -214,7 +214,7 @@ void s2_read_mercy_prepare(read2sdbg_global_t &globals) {
                 for (int i = 0; i + globals.kmer_k <= read_length; ++i) {
                     if (no_in[i] && last_no_out != -1) {
                         for (int j = last_no_out; j < i; ++j) {
-                            globals.is_solid.set(read_id * globals.num_k1_per_read + j);
+                            globals.is_solid.set(globals.package.get_start_index(read_id) + j);
                         }
 
                         num_mercy += i - last_no_out;
@@ -270,24 +270,25 @@ void *s2_lv0_calc_bucket_size(void *_data) {
         rev_edge.ReverseComplement(globals.kmer_k + 1);
 
         int last_char_offset = globals.kmer_k;
-        int64_t full_offset = globals.num_k1_per_read * read_id;
+        int64_t full_offset = globals.package.get_start_index(read_id);
+        bool is_solid = globals.kmer_freq_threshold == 1 || read_id >= globals.num_short_reads;
 
         while (true) {
-            if (globals.is_solid.get(full_offset)) {
+            if (is_solid || globals.is_solid.get(full_offset)) {
                 bool is_palindrome = rev_edge.cmp(edge, globals.kmer_k + 1) == 0;
                 bucket_sizes[(edge.data_[0] << 2) >> (kCharsPerEdgeWord - kBucketPrefixLength) * kBitsPerEdgeChar]++;
 
                 if (!is_palindrome)
                     bucket_sizes[(rev_edge.data_[0] << 2) >> (kCharsPerEdgeWord - kBucketPrefixLength) * kBitsPerEdgeChar]++;
 
-                if (last_char_offset == globals.kmer_k || !globals.is_solid.get(full_offset - 1)) {
+                if (last_char_offset == globals.kmer_k || !(is_solid || globals.is_solid.get(full_offset - 1))) {
                     bucket_sizes[edge.data_[0] >> (kCharsPerEdgeWord - kBucketPrefixLength) * kBitsPerEdgeChar]++;
 
                     if (!is_palindrome)
                         bucket_sizes[(rev_edge.data_[0] << 4) >> (kCharsPerEdgeWord - kBucketPrefixLength) * kBitsPerEdgeChar]++;
                 }
 
-                if (last_char_offset == read_length - 1 || !globals.is_solid.get(full_offset + 1)) {
+                if (last_char_offset == read_length - 1 || !(is_solid || globals.is_solid.get(full_offset + 1))) {
                     bucket_sizes[(edge.data_[0] << 4) >> (kCharsPerEdgeWord - kBucketPrefixLength) * kBitsPerEdgeChar]++;
 
                     if (!is_palindrome)
@@ -499,11 +500,11 @@ void *s2_lv1_fill_offset(void *_data) {
         rev_edge.ReverseComplement(globals.kmer_k + 1);
 
         // ===== this is a macro to save some copy&paste ================
-#define CHECK_AND_SAVE_OFFSET(offset, strand, edge_type)                                                                    \
+#define CHECK_AND_SAVE_OFFSET(offset, strand, edge_type)                                                                \
     do {                                                                                                                \
         if (globals.cx1.cur_lv1_buckets_[key]) {                                                                        \
             int key_ = globals.cx1.bucket_rank_[key];                                                                   \
-            int64_t full_offset = EncodeOffset(read_id, offset, strand, globals.offset_num_bits, edge_type);            \
+            int64_t full_offset = EncodeOffset(read_id, offset, strand, globals.package, edge_type);                    \
             int64_t differential = full_offset - prev_full_offsets[key_];                                               \
             if (differential > cx1_t::kDifferentialLimit) {                                                             \
                 pthread_mutex_lock(&globals.lv1_items_scanning_lock);                                                   \
@@ -522,14 +523,15 @@ void *s2_lv1_fill_offset(void *_data) {
 
         // shift the key char by char
         int last_char_offset = globals.kmer_k;
-        int64_t full_offset = globals.num_k1_per_read * read_id;
+        int64_t full_offset = globals.package.get_start_index(read_id);
+        bool is_solid = globals.kmer_freq_threshold == 1 || read_id >= globals.num_short_reads;
 
         while (true) {
-            if (globals.is_solid.get(full_offset)) {
+            if (is_solid || globals.is_solid.get(full_offset)) {
                 bool is_palindrome = rev_edge.cmp(edge, globals.kmer_k + 1) == 0;
 
                 // left $
-                if (last_char_offset == globals.kmer_k || !globals.is_solid.get(full_offset - 1)) {
+                if (last_char_offset == globals.kmer_k || !(is_solid || globals.is_solid.get(full_offset - 1))) {
                     key = edge.data_[0] >> (kCharsPerEdgeWord - kBucketPrefixLength) * kBitsPerEdgeChar;
                     CHECK_AND_SAVE_OFFSET(last_char_offset - globals.kmer_k, 0, 0);
 
@@ -549,7 +551,7 @@ void *s2_lv1_fill_offset(void *_data) {
                 }
 
                 // right $
-                if (last_char_offset == read_length - 1 || !globals.is_solid.get(full_offset + 1)) {
+                if (last_char_offset == read_length - 1 || !(is_solid || globals.is_solid.get(full_offset + 1))) {
                     key = (edge.data_[0] << 4) >> (kCharsPerEdgeWord - kBucketPrefixLength) * kBitsPerEdgeChar;
                     CHECK_AND_SAVE_OFFSET(last_char_offset - globals.kmer_k, 0, 2);
 
@@ -581,7 +583,6 @@ void *s2_lv1_fill_offset(void *_data) {
 
 void s2_lv2_extract_substr_(int bp_from, int bp_to, read2sdbg_global_t &globals, uint32_t *substr, int num_items) {
     int *lv1_p = globals.lv1_items + globals.cx1.rp_[0].rp_bucket_offsets[bp_from];
-    int64_t offset_mask = (1 << globals.offset_num_bits) - 1; // 0000....00011..11
 
     for (int b = bp_from; b < bp_to; ++b) {
         for (int t = 0; t < globals.num_cpu_threads; ++t) {
@@ -596,8 +597,8 @@ void s2_lv2_extract_substr_(int bp_from, int bp_to, read2sdbg_global_t &globals,
                     full_offset = globals.cx1.lv1_items_special_[-1 - * (lv1_p++)];
                 }
 
-                int64_t read_id = full_offset >> (globals.offset_num_bits + 3);
-                int offset = (full_offset >> 3) & offset_mask;
+                int64_t read_id = globals.package.get_id(full_offset >> 3);
+                int offset = (full_offset >> 3) - globals.package.get_start_index(read_id);
                 int strand = full_offset & 1;
                 int edge_type = (full_offset >> 1) & 3;
                 int read_length = globals.package.length(read_id);

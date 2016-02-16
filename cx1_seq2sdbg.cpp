@@ -504,7 +504,6 @@ void read_seq_and_prepare(seq2sdbg_global_t &globals) {
 
         seq_manager.ReadMegahitContigs(1LL << 60, 1LL << 60, append_to_package, contig_reverse, discard_flag, extend_loop, calc_depth);
         seq_manager.clear();
-
     }
 
     if (globals.addi_contig != "") {
