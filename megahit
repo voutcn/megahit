@@ -81,9 +81,9 @@ Optional Arguments:
                                             (more sensitive but slower)
                                             meta-large: '--min-count 2 --k-min 27 --k-max 87 --k-step 10'
                                             (large & complex metagenomes, like soil)
-                                            bulk: '--min-count 3 --k-min 27 --k-max 127 --k-step 10 --prune-level 3'
+                                            bulk: '--min-count 3 --k-min 21 --k-max 121 --k-step 10 --prune-level 3'
                                             (experimental, standard bulk sequencing)
-                                            single-cell: '--min-count 3 --k-min 27 --k-max 127 --k-step 22 --merge-level 20,0.96'
+                                            single-cell: '--min-count 3 --k-list 21,33,55,77,99,121 --merge-level 20,0.96'
                                             (experimental, single cell data)
 
   Hardware options:
