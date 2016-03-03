@@ -57,76 +57,57 @@ inline void lv2_cpu_sort(uint32_t *lv2_substrings, uint32_t *permutation, uint64
     }
 }
 
-inline void lv2_cpu_sort_st(uint32_t *lv2_substrings, uint32_t *permutation, uint64_t *cpu_sort_space, int words_per_substring, int64_t lv2_num_items) {
-    for (uint32_t i = 0; i < lv2_num_items; ++i) {
-        permutation[i] = i;
-    }
+static const int kRadixBits = 8;
+static const int kThreN = 64;
+static const int kRadixMask = (1 << kRadixBits) - 1;
+static const int kRadixBin = 1 << kRadixBits;
 
-    for (int64_t iteration = words_per_substring - 1; iteration >= 0; --iteration) {
-        uint32_t *lv2_substr_p = lv2_substrings + lv2_num_items * iteration;
+template<int kShift>
+inline void lv2_cpu_radix_sort_st_core_(uint32_t *substr, uint32_t *permutation, int64_t n, int which_word) {
+    if (n > kThreN) {
+        int64_t count[kRadixBin] = {0};
+        uint32_t *bin_s[kRadixBin], *bin_e[kRadixBin];
+        for (int64_t i = 0; i < n; ++i) ++count[substr[permutation[i]] >> kShift & kRadixMask];
+        bin_s[0] = permutation; bin_e[kRadixBin - 1] = permutation + n;
+        for (int i = 1; i < kRadixBin; ++i) bin_e[i-1] = bin_s[i] = bin_s[i-1] + count[i-1];
 
-        for (uint32_t i = 0; i < lv2_num_items; ++i) {
-            cpu_sort_space[i] = uint64_t(*(lv2_substr_p + permutation[i])) << 32;
-            cpu_sort_space[i] |= i;
-        }
-
-        // pss::parallel_stable_sort(cpu_sort_space, cpu_sort_space + lv2_num_items, CompareHigh32Bits());
-        std::sort(cpu_sort_space, cpu_sort_space + lv2_num_items);
-
-        for (uint32_t i = 0; i < lv2_num_items; ++i) {
-            cpu_sort_space[i] &= 0xFFFFFFFFULL;
-            cpu_sort_space[i] |= uint64_t(permutation[cpu_sort_space[i]]) << 32;
-        }
-
-        for (uint32_t i = 0; i < lv2_num_items; ++i) {
-            permutation[i] = cpu_sort_space[i] >> 32;
-        }
-    }
-}
-
-struct CmpSubStr {
-    uint32_t *substr;
-    int64_t num_items;
-    int words_per_substring;
-    CmpSubStr(uint32_t *substr, int64_t num_items, int words_per_substring):
-        substr(substr), num_items(num_items), words_per_substring(words_per_substring) {}
-
-    bool operator() (uint32_t x, uint32_t y) {
-        int64_t idx = 0;
-
-        for (int i = 0; i < words_per_substring; ++i, idx += num_items) {
-            uint32_t xx = substr[x + idx];
-            uint32_t yy = substr[y + idx];
-
-            if (xx > yy) {
-                return false;
-            }
-            else if (yy > xx) {
-                return true;
+        for (int i = 0; i < kRadixBin; ++i) {
+            while (bin_s[i] < bin_e[i]) {
+                uint32_t swapper = *bin_s[i];
+                int bin_tag = substr[swapper] >> kShift & kRadixMask;
+                if (bin_tag != i) {
+                    do {
+                        std::swap(swapper, *(bin_s[bin_tag]++));
+                    } while ((bin_tag = substr[swapper] >> kShift & kRadixMask) != i);
+                    *bin_s[i] = swapper;
+                }
+                ++bin_s[i];
             }
         }
 
-        return false;
-    }
-};
-
-inline void sort_digit(uint32_t *arr, uint32_t *permutation, uint32_t *buf, uint64_t *buckets, int64_t num_items, int shift_bits) {
-    memset(buckets, 0, sizeof(buckets[0]) * (1 << 16));
-
-    for (int64_t i = 0; i < num_items; ++i) {
-        buckets[(arr[permutation[i]] >> shift_bits) & 0xFFFF]++;
-    }
-
-    int64_t acc = 0;
-
-    for (unsigned i = 0; i < (1 << 16); ++i) {
-        int64_t tmp = acc;
-        acc += buckets[i];
-        buckets[i] = tmp;
-    }
-
-    for (int64_t i = 0; i < num_items; ++i) {
-        buf[buckets[(arr[permutation[i]] >> shift_bits) & 0xFFFF]++] = permutation[i];
+        if (kShift > 0) {
+            for (int i = 0; i < kRadixBin; ++i) {
+                lv2_cpu_radix_sort_st_core_<(kShift > kRadixBits ? kShift - kRadixBits : 0)>(substr, 
+                    bin_e[i] - count[i], count[i], which_word);
+            }
+        } else if (which_word > 0) {
+            for (int i = 0; i < kRadixBin; ++i) {
+                lv2_cpu_radix_sort_st_core_<24>(substr + n, 
+                    bin_e[i] - count[i], count[i], which_word - 1);
+            }
+        }
+    } else {
+        for (int64_t i = 1; i < n; ++i) {
+            if (substr[permutation[i]] < substr[permutation[i - 1]]) {
+                uint32_t tmp = permutation[i];
+                permutation[i] = permutation[i-1];
+                int64_t j;
+                for (j = i - 1; j > 0 && substr[tmp] < substr[permutation[j - 1]]; --j) {
+                    permutation[j] = permutation[j-1];
+                }
+                permutation[j] = tmp;
+            }
+        }
     }
 }
 
@@ -134,18 +115,5 @@ inline void lv2_cpu_radix_sort_st(uint32_t *lv2_substrings, uint32_t *permutatio
     for (uint32_t i = 0; i < lv2_num_items; ++i) {
         permutation[i] = i;
     }
-
-    if (lv2_num_items < 65536 * 2) {
-        std::sort(permutation, permutation + lv2_num_items, CmpSubStr(lv2_substrings, lv2_num_items, words_per_substring));
-        return;
-    }
-
-    for (int64_t iteration = words_per_substring - 1; iteration >= 0; --iteration) {
-        uint32_t *lv2_substr_p = lv2_substrings + lv2_num_items * iteration;
-
-        // 1 pass low  16 bits
-        sort_digit(lv2_substr_p, permutation, cpu_sort_space, buckets, lv2_num_items, 0);
-        // 2 pass high 16 bits
-        sort_digit(lv2_substr_p, cpu_sort_space, permutation, buckets, lv2_num_items, 16);
-    }
+    lv2_cpu_radix_sort_st_core_<24>(lv2_substrings, permutation, lv2_num_items, words_per_substring - 1);
 }
