@@ -1,0 +1,2 @@
+megahit --12 readsInterleaved1.fa.gz,readsInterleaved2.fa.bz2 -r readsInterleaved3.fa -o non-gpu-out
+megahit --use-gpu --gpu-mem 5368709120 --12 readsInterleaved1.fa.gz,readsInterleaved2.fa.bz2 -r readsInterleaved3.fa -o gpu-out
