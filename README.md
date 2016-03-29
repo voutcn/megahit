@@ -56,9 +56,9 @@ For other questions, please first refer to [our wiki](https://github.com/voutcn/
 * [An example of real assembly with MEGAHIT](https://github.com/voutcn/megahit/wiki/An-example-of-real-assembly)
 
 ##Citing MEGAHIT
-* If you use MEGAHIT v0.x or want to cite MEGAHIT for general purpose (e.g. review), please cite:
+If you use MEGAHIT v0.x or want to cite MEGAHIT for general purpose (e.g. review), please cite:
 - Li, D., Liu, C-M., Luo, R., Sadakane, K., and Lam, T-W., (2015) MEGAHIT: An ultra-fast single-node solution for large and complex metagenomics assembly via succinct de Bruijn graph. *Bioinformatics*, doi: 10.1093/bioinformatics/btv033 [PMID: [25609793](http://www.ncbi.nlm.nih.gov/pubmed/25609793)].
-* If you use MEGAHIT v1.0 or higher version, or assemblies in [MEGABOX](http://hku-bal.github.io/megabox/), please also cite:
+If you use MEGAHIT v1.0 or higher version, or assemblies in [MEGABOX](http://hku-bal.github.io/megabox/), please also cite:
 - Li, D., Luo, R., Liu, C.M., Leung, C.M., Ting, H.F., Sadakane, K., Yamashita, H. and Lam, T.W., 2016. MEGAHIT v1.0: A Fast and Scalable Metagenome Assembler driven by Advanced Methodologies and Community Practices. Methods.
 
 ##License & Supports
