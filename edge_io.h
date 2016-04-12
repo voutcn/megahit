@@ -89,6 +89,7 @@ class EdgeWriter {
     void write(uint32_t *edge_ptr, int32_t bucket, int tid) {
         // assert(bucket >= cur_bucket_[tid]);
         if (bucket != cur_bucket_[tid]) {
+            megahit_log__("Bucket %d: output via thread %d\n", bucket, tid);
             assert(p_rec_[bucket].thread_id == -1);
             p_rec_[bucket].thread_id = tid;
             p_rec_[bucket].starting_offset = cur_num_edges_[tid];
