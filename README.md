@@ -17,6 +17,8 @@ MEGAHIT is a single node assembler for large and complex metagenomics NGS reads,
 MEGAHIT is suitable for 64-bit Linux and MAC OS X. It requires [zlib](http://www.zlib.net/), python 2.6 or greater and G++ 4.4 or greater (with `-std=c++0x` and [OpenMP](http://openmp.org) support).
 Notably, for MAC OS X, the `g++` in the path is probably the sym-link of `clang`, which do not support OpenMP. Users should have the "real" G++ installed and use `make CXX=/PATH/TO/G++` to specify the compiler.
 
+Please modified the value of `kMaxK` in `definitions.h` if you want to increase the maximum *k*-mer size allowed.
+
 The GPU counterpart further requires [CUDA](https://developer.nvidia.com/cuda-toolkit) 5.5 or greater. Please use `make use_gpu=1` to compile it, and turn on `--use-gpu` to activate GPU acceleration when running MEGAHIT.
 
 Binary release can be found at the [release page](https://github.com/voutcn/megahit/releases). 
