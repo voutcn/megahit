@@ -17,6 +17,8 @@ MEGAHIT is a single node assembler for large and complex metagenomics NGS reads,
 MEGAHIT is suitable for 64-bit Linux and MAC OS X. It requires [zlib](http://www.zlib.net/), python 2.6 or greater and G++ 4.4 or greater (with `-std=c++0x` and [OpenMP](http://openmp.org) support).
 Notably, for MAC OS X, the `g++` in the path is probably the sym-link of `clang`, which do not support OpenMP. Users should have the "real" G++ installed and use `make CXX=/PATH/TO/G++` to specify the compiler.
 
+Please modified the value of `kMaxK` in `definitions.h` if you want to increase the maximum *k*-mer size allowed.
+
 The GPU counterpart further requires [CUDA](https://developer.nvidia.com/cuda-toolkit) 5.5 or greater. Please use `make use_gpu=1` to compile it, and turn on `--use-gpu` to activate GPU acceleration when running MEGAHIT.
 
 Binary release can be found at the [release page](https://github.com/voutcn/megahit/releases). 
@@ -56,8 +58,11 @@ For other questions, please first refer to [our wiki](https://github.com/voutcn/
 * [An example of real assembly with MEGAHIT](https://github.com/voutcn/megahit/wiki/An-example-of-real-assembly)
 
 ##Citing MEGAHIT
+If you use MEGAHIT v0.x or want to cite MEGAHIT for general purpose (e.g. review), please cite:
+- Li, D., Liu, C-M., Luo, R., Sadakane, K., and Lam, T-W., (2015) MEGAHIT: An ultra-fast single-node solution for large and complex metagenomics assembly via succinct de Bruijn graph. *Bioinformatics*, doi: 10.1093/bioinformatics/btv033 [PMID: [25609793](http://www.ncbi.nlm.nih.gov/pubmed/25609793)].
 
-* Li, D., Liu, C-M., Luo, R., Sadakane, K., and Lam, T-W., (2015) MEGAHIT: An ultra-fast single-node solution for large and complex metagenomics assembly via succinct de Bruijn graph. *Bioinformatics*, doi: 10.1093/bioinformatics/btv033 [PMID: [25609793](http://www.ncbi.nlm.nih.gov/pubmed/25609793)].
+If you use MEGAHIT v1.0 or higher version, or assemblies in [MEGABOX](http://hku-bal.github.io/megabox/), please also cite:
+- Li, D., Luo, R., Liu, C.M., Leung, C.M., Ting, H.F., Sadakane, K., Yamashita, H. and Lam, T.W., 2016. MEGAHIT v1.0: A Fast and Scalable Metagenome Assembler driven by Advanced Methodologies and Community Practices. Methods.
 
 ##License & Supports
 
