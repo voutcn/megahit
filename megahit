@@ -789,6 +789,10 @@ def build_graph(kmer_k, kmer_from, num_edge_files):
         if (os.path.exists(graph_prefix(kmer_k) + ".edges.0")):
             build_cmd += ["--input_prefix", graph_prefix(kmer_k)]
             file_size += os.path.getsize(graph_prefix(kmer_k) + ".edges.0")
+            tid = 1
+            while (os.path.exists(graph_prefix(kmer_k) + ".edges." + str(tid))):
+                file_size += os.path.getsize(graph_prefix(kmer_k) + ".edges." + str(tid))
+                tid += 1
 
         if (os.path.exists(contig_prefix(kmer_from) + ".addi.fa")):
             build_cmd += ["--addi_contig", contig_prefix(kmer_from) + ".addi.fa"]
