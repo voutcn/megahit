@@ -33,6 +33,7 @@ import signal
 import multiprocessing
 import logging
 import time
+import tempfile
 from datetime import datetime
 
 megahit_version_str = ""
@@ -93,13 +94,14 @@ Optional Arguments:
                                             0: minimum; 1: moderate; others: use all memory specified by '-m/--memory' [1]
     --use-gpu                               use GPU
     --gpu-mem                <float>        GPU memory in byte to be used. Default: auto detect to use up all free GPU memory. 
-    -t/--num-cpu-threads     <int>          number of CPU threads, at least 2. Default: auto detect to use all CPU threads.
+    -t/--num-cpu-threads     <int>          number of CPU threads, at least 2 if GPU enabled. [# of logical processors]
 
   Output options:
     -o/--out-dir             <string>       output directory [./megahit_out]
     --out-prefix             <string>       output prefix (the contig file will be OUT_DIR/OUT_PREFIX.contigs.fa)
     --min-contig-len         <int>          minimum length of contigs to output [200]
     --keep-tmp-files                        keep all temporary files
+    --tmp-dir                <string>       set temp directory
 
 Other Arguments:
     --continue                              continue a MEGAHIT run from its last available check point.
@@ -139,7 +141,7 @@ class Options():
         self.prune_depth = -1
         self.num_cpu_threads = False
         self.low_local_ratio = 0.2
-        self.temp_dir = self.out_dir + "tmp/"
+        self.temp_dir = ""
         self.contig_dir = self.out_dir + "intermediate_contigs/"
         self.keep_tmp_files = False
         self.builder = "megahit_sdbg_build"
@@ -177,10 +179,11 @@ def make_out_dir():
     else:
         os.mkdir(opt.out_dir)
 
-    if os.path.exists(opt.temp_dir):
-        pass
-    else:
-        os.mkdir(opt.temp_dir)
+    if not opt.continue_mode:
+        if opt.temp_dir == opt.out_dir + "tmp/":
+            os.mkdir(opt.temp_dir)
+        else:
+            opt.temp_dir = tempfile.mkdtemp(dir = opt.temp_dir, prefix = 'megahit_tmp_') + "/"
 
     if os.path.exists(opt.contig_dir):
         pass
@@ -216,6 +219,7 @@ def parse_opt(argv):
                                      "merge-level=",
                                      "low-local-ratio=",
                                      "keep-tmp-files",
+                                     "tmp-dir=",
                                      "mem-flag=",
                                      "continue",
                                      "version",
@@ -297,6 +301,9 @@ def parse_opt(argv):
                 need_continue = True
         elif option == "--out-prefix":
             opt.out_prefix = value
+        elif option == "--tmp-dir":
+            if opt.continue_mode == 0:
+                opt.temp_dir = value + "/"
         elif option in ("--cpu-only", "-l", "--max-read-len", "--no-low-local"):
             continue # historical options, just ignore
         elif option in ("-r", "--read"):
@@ -317,7 +324,8 @@ def parse_opt(argv):
         else:
             raise Usage("Invalid option %s", option)
 
-    opt.temp_dir = opt.out_dir + "tmp/"
+    if opt.temp_dir == "":
+        opt.temp_dir = opt.out_dir + "tmp/"
     opt.contig_dir = opt.out_dir + "intermediate_contigs/"
 
     if need_continue:
@@ -419,12 +427,13 @@ def check_opt():
         raise Usage("low_local_ratio should be in (0, 0.5].")
     if opt.num_cpu_threads > multiprocessing.cpu_count():
         print("Maximum number of available CPU thread is %d." % multiprocessing.cpu_count(), file=sys.stderr);
-        print("Number of thread is reset to the %d." % max(2, multiprocessing.cpu_count()), file=sys.stderr);
+        print("Number of thread is reset to the %d." % multiprocessing.cpu_count(), file=sys.stderr);
         opt.num_cpu_threads = multiprocessing.cpu_count()
+    if opt.num_cpu_threads == 1 and opt.use_gpu:
+        opt.num_cpu_threads = 2
+        print("GPU enabled. Number of thread is reset to the 2.", file=sys.stderr);
     if opt.num_cpu_threads == 0:
         opt.num_cpu_threads = multiprocessing.cpu_count()
-    if opt.num_cpu_threads <= 1:
-        raise Usage("num_cpu_threads should be at least 2.")
     if opt.prune_depth < 0 and opt.prune_level < 3:
         opt.prune_depth = opt.min_count
 
@@ -464,6 +473,7 @@ def detect_available_mem():
 def write_opt(argv):
     with open(opt_file_name(), "w") as f:
         print("\n".join(argv), file=f)
+        print("MEGAHIT_TEMP_DIR: " + opt.temp_dir, file=f)
     f.close()
 
 def prepare_continue():
@@ -479,11 +489,15 @@ def prepare_continue():
     with open(opt_file_name(), "r") as f:
         argv = []
         for line in f:
-            argv.append(line.strip())
+            if line.startswith("MEGAHIT_TEMP_DIR: "):
+                temp_dir = line.strip()[18:]
+            else:
+                argv.append(line.strip())
         print("Continue with options: " + " ".join(argv), file=sys.stderr)
         t_dir = opt.out_dir
         opt = Options()
         opt.out_dir = t_dir
+        opt.temp_dir = temp_dir;
         opt.continue_mode = True # avoid dead loop
         parse_opt(argv)
     f.close()
@@ -789,6 +803,10 @@ def build_graph(kmer_k, kmer_from, num_edge_files):
         if (os.path.exists(graph_prefix(kmer_k) + ".edges.0")):
             build_cmd += ["--input_prefix", graph_prefix(kmer_k)]
             file_size += os.path.getsize(graph_prefix(kmer_k) + ".edges.0")
+            tid = 1
+            while (os.path.exists(graph_prefix(kmer_k) + ".edges." + str(tid))):
+                file_size += os.path.getsize(graph_prefix(kmer_k) + ".edges." + str(tid))
+                tid += 1
 
         if (os.path.exists(contig_prefix(kmer_from) + ".addi.fa")):
             build_cmd += ["--addi_contig", contig_prefix(kmer_from) + ".addi.fa"]

@@ -38,11 +38,13 @@ inline T1 DivCeiling(T1 a, T2 b) {
 }
 
 inline void megahit_log__(const char *format, ...) {
+    static volatile int lock_ = 0;
+    while (__sync_lock_test_and_set(&lock_, 1)) while (lock_);
     va_list args;
     va_start(args, format);
     vfprintf(stderr, format, args);
     va_end(args);
-    fflush(stderr);
+    __sync_lock_release(&lock_);
 }
 
 #define xlog_ext(str, args...) megahit_log__(str, ##args);
