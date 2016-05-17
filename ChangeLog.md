@@ -1,3 +1,10 @@
+### 1.0.5 / 2016-05-17 HKT
+
+* Removed the requirement for CPU_thread >= 2.
+* Added the `--tmp-dir` option
+* More user-friendly error message when seeing bad pair-end files
+* Fixed a bug that may stop an assembly earlier
+
 ### 1.0.4-beta / 2016-02-16 HKT
 
 * Faster index of succinct de Bruijn graph via prefix look up

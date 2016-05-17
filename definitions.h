@@ -26,7 +26,7 @@
 #include "kmer.h"
 
 #ifndef PACKAGE_VERSION
-    #define PACKAGE_VERSION "v1.0.4-beta"
+    #define PACKAGE_VERSION "v1.0.5"
 #endif
 
 typedef uint16_t multi_t;
