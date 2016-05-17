@@ -94,7 +94,7 @@ Optional Arguments:
                                             0: minimum; 1: moderate; others: use all memory specified by '-m/--memory' [1]
     --use-gpu                               use GPU
     --gpu-mem                <float>        GPU memory in byte to be used. Default: auto detect to use up all free GPU memory. 
-    -t/--num-cpu-threads     <int>          number of CPU threads, at least 2. Default: auto detect to use all CPU threads.
+    -t/--num-cpu-threads     <int>          number of CPU threads, at least 2 if GPU enabled. [# of logical processors]
 
   Output options:
     -o/--out-dir             <string>       output directory [./megahit_out]
@@ -427,12 +427,13 @@ def check_opt():
         raise Usage("low_local_ratio should be in (0, 0.5].")
     if opt.num_cpu_threads > multiprocessing.cpu_count():
         print("Maximum number of available CPU thread is %d." % multiprocessing.cpu_count(), file=sys.stderr);
-        print("Number of thread is reset to the %d." % max(2, multiprocessing.cpu_count()), file=sys.stderr);
+        print("Number of thread is reset to the %d." % multiprocessing.cpu_count(), file=sys.stderr);
         opt.num_cpu_threads = multiprocessing.cpu_count()
+    if opt.num_cpu_threads == 1 and opt.use_gpu:
+        opt.num_cpu_threads = 2
+        print("GPU enabled. Number of thread is reset to the 2.", file=sys.stderr);
     if opt.num_cpu_threads == 0:
         opt.num_cpu_threads = multiprocessing.cpu_count()
-    if opt.num_cpu_threads <= 1:
-        raise Usage("num_cpu_threads should be at least 2.")
     if opt.prune_depth < 0 and opt.prune_level < 3:
         opt.prune_depth = opt.min_count
 
