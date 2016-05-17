@@ -130,7 +130,7 @@ struct SequenceManager {
         min_len_ = min_len;    // only apply to megahit contigs
     }
 
-    int64_t ReadShortReads(int64_t max_num, int64_t max_num_bases, bool append, bool reverse, bool trimN = false);
+    int64_t ReadShortReads(int64_t max_num, int64_t max_num_bases, bool append, bool reverse, bool trimN = false, std::string file_name = "");
     int64_t ReadEdges(int64_t max_num, bool append);
     int64_t ReadEdgesWithFixedLen(int64_t max_num, bool append);
     int64_t ReadShortedEdges(int64_t max_num, int kmer_size, bool append);

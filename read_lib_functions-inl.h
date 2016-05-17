@@ -89,7 +89,7 @@ inline void ReadMultipleLibs(const std::string &lib_file, SequencePackage &packa
         }
 
         int64_t start = package.size();
-        seq_manager.ReadShortReads(1LL << 60, 1LL << 60, append_to_package, is_reverse, trimN);
+        seq_manager.ReadShortReads(1LL << 60, 1LL << 60, append_to_package, is_reverse, trimN, metadata);
         seq_manager.clear();
         int64_t end = package.size() - 1;
 
@@ -180,7 +180,7 @@ inline void ReadAndWriteMultipleLibs(const std::string &lib_file, bool is_revers
         int max_read_len = 0;
 
         while (true) {
-            reads_this_batch = seq_manager.ReadShortReads(reads_per_bach, bases_per_bach, false, is_reverse, trimN);
+            reads_this_batch = seq_manager.ReadShortReads(reads_per_bach, bases_per_bach, false, is_reverse, trimN, metadata);
 
             if (reads_this_batch == 0) {
                 break;

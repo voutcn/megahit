@@ -22,6 +22,7 @@
 
 #include <assert.h>
 #include <zlib.h>
+#include <string>
 
 #include "utils.h"
 #include "bit_operation.h"
@@ -106,7 +107,7 @@ inline void trimN(const char *s, int len, int &out_bpos, int &out_epos) {
     out_epos = i;
 }
 
-int64_t SequenceManager::ReadShortReads(int64_t max_num, int64_t max_num_bases, bool append, bool reverse, bool trimN) {
+int64_t SequenceManager::ReadShortReads(int64_t max_num, int64_t max_num_bases, bool append, bool reverse, bool trimN, std::string file_name) {
     if (!append) {
         package_->clear();
     }
@@ -118,7 +119,9 @@ int64_t SequenceManager::ReadShortReads(int64_t max_num, int64_t max_num_bases, 
         if (r_type == kPaired) {
             for (int64_t i = 0; i < max_num; i += 2) {
                 if (kseq_read(kseq_readers_[0]) >= 0) {
-                    assert(kseq_read(kseq_readers_[1]) >= 0);
+                    if (kseq_read(kseq_readers_[1]) < 0) {
+                        xerr_and_exit("File(s) %s: Number of sequences not the same in paired files. Abort.\n", file_name.c_str());
+                    }
 
                     int b0 = 0, e0 = kseq_readers_[0]->seq.l;
                     int b1 = 0, e1 = kseq_readers_[1]->seq.l;
@@ -144,7 +147,9 @@ int64_t SequenceManager::ReadShortReads(int64_t max_num, int64_t max_num_bases, 
                     }
                 }
                 else {
-                    assert(kseq_read(kseq_readers_[1]) < 0);
+                    if (kseq_read(kseq_readers_[1]) >= 0) {
+                        xerr_and_exit("File(s) %s: Number of sequences not the same in paired files. Abort.\n", file_name.c_str());
+                    }
                     return i;
                 }
             }
