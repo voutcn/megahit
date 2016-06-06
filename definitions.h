@@ -26,7 +26,7 @@
 #include "kmer.h"
 
 #ifndef PACKAGE_VERSION
-    #define PACKAGE_VERSION "v1.0.5"
+    #define PACKAGE_VERSION "v1.0.6"
 #endif
 
 typedef uint16_t multi_t;
@@ -53,7 +53,8 @@ static const int kLoop = 0x2;
 
 }
 
-static const int kMaxK = 255;
+static const int 
+ = 255;
 static const int kUint32PerKmerMaxK = (kMaxK + 1 + 15) / 16;
 static const int kUint64PerIdbaKmerMaxK = (kMaxK * 2 + 16 + 63) / 64;
 
