@@ -1,4 +1,4 @@
-### 1.0.5 / 2016-06-06 HKT
+### 1.0.6 / 2016-06-06 HKT
 
 * Fixed a bug that ignores edge multiplicity at all. This bug existed since v1.0.4-beta
 
