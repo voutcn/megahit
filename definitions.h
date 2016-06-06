@@ -53,8 +53,7 @@ static const int kLoop = 0x2;
 
 }
 
-static const int 
- = 255;
+static const int kMaxK = 255;
 static const int kUint32PerKmerMaxK = (kMaxK + 1 + 15) / 16;
 static const int kUint64PerIdbaKmerMaxK = (kMaxK * 2 + 16 + 63) / 64;
 
