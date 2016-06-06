@@ -127,9 +127,9 @@ class SuccinctDBG {
     }
 
     int EdgeMultiplicity(int64_t edge_id) {
-        if (is_multi_1_) {
-            return ((is_multi_1_[edge_id / 64] >> (edge_id % 64)) & 1) + 1;
-        }
+        // if (is_multi_1_) {
+        //     return ((is_multi_1_[edge_id / 64] >> (edge_id % 64)) & 1) + 1;
+        // }
 
         if (edge_large_multi_) {
             return edge_large_multi_[edge_id];
