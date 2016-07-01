@@ -577,11 +577,11 @@ def write_cp():
 
 def inpipe_cmd(file_name):
     if file_name.endswith('.gz'):
-        return 'gzip -cd ' + file_name
+        return "gzip -cd '{}'".format(file_name)
     elif file_name.endswith('.bz2'):
-        return 'bzip2 -cd ' + file_name
+        return "bzip2 -cd '{}'".format(file_name)
     else:
-        return "cat " + file_name
+        return "cat '{}'".format(file_name)
 
 def write_lib():
     global opt
