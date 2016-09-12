@@ -194,7 +194,7 @@ void GenMercyEdges(seq2sdbg_global_t &globals) {
     int64_t *edge_lookup = (int64_t *) MallocAndCheck(kLookUpSize * 2 * sizeof(int64_t), __FILE__, __LINE__);
     InitLookupTable(edge_lookup, globals.package);
 
-    std::vector<GenericKmer > mercy_edges;
+    std::vector<GenericKmer> mercy_edges;
 
     SequencePackage read_package[2];
     SequenceManager seq_manager;

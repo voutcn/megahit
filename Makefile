@@ -281,15 +281,15 @@ megahit_sdbg_build_gpu: sdbg_builder.cpp cx1_kmer_count_gpu.o cx1_read2sdbg_s1_g
 .PHONY:
 test: megahit_asm_core megahit_sdbg_build megahit_toolkit
 	-rm -fr example/megahit_out
-	./megahit --verbose --12 example/readsInterleaved1.fa.gz,example/readsInterleaved2.fa.bz2,example/readsInterleaved3.fa -o example/megahit_out -t 4
+	./megahit --12 example/readsInterleaved1.fa.gz,example/readsInterleaved2.fa.bz2,example/readsInterleaved3.fa -o example/megahit_out -t 1
 	-rm -fr example/megahit_out
-	./megahit --verbose --12 example/readsInterleaved1.fa.gz,example/readsInterleaved2.fa.bz2,example/readsInterleaved3.fa -o example/megahit_out -t 4 --kmin-1pass
+	./megahit --12 example/readsInterleaved1.fa.gz,example/readsInterleaved2.fa.bz2,example/readsInterleaved3.fa -o example/megahit_out -t 1 --kmin-1pass
 
 test_gpu: megahit_asm_core megahit_sdbg_build_gpu megahit_toolkit
 	-rm -fr example/megahit_gpu_out
-	./megahit --12 example/readsInterleaved1.fa.gz,example/readsInterleaved2.fa.bz2,example/readsInterleaved3.fa --use-gpu -o example/megahit_gpu_out -t 4
+	./megahit --12 example/readsInterleaved1.fa.gz,example/readsInterleaved2.fa.bz2,example/readsInterleaved3.fa --use-gpu -o example/megahit_gpu_out -t 1
 	-rm -fr example/megahit_gpu_out
-	./megahit --12 example/readsInterleaved1.fa.gz,example/readsInterleaved2.fa.bz2,example/readsInterleaved3.fa --use-gpu -o example/megahit_gpu_out -t 4 --kmin-1pass
+	./megahit --12 example/readsInterleaved1.fa.gz,example/readsInterleaved2.fa.bz2,example/readsInterleaved3.fa --use-gpu -o example/megahit_gpu_out -t 1 --kmin-1pass
 
 release_dir = megahit_$(version)_$(OSUPPER)_CUDA$(NVCC_VERSION)_sm$(SM_ARCH)_$(CPU_ARCH_SUFFIX)-bin
 
