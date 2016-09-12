@@ -186,8 +186,13 @@ public:
     void clear() { vertex_table_.clear(); num_edges_ = 0; }
 
 private:
+#if __cplusplus >= 201103L
+    HashGraph(const HashGraph &) = delete;
+    const HashGraph &operator =(const HashGraph &) = delete;
+#else
     HashGraph(const HashGraph &);
     const HashGraph &operator =(const HashGraph &);
+#endif
 
     bool GetNextVertexAdaptor(const HashGraphVertexAdaptor &current, HashGraphVertexAdaptor &next)
     {
@@ -432,7 +437,7 @@ inline std::ostream &operator <<(std::ostream &os, HashGraph &hash_graph)
 
 namespace std
 {
-template <> inline void swap(HashGraph &x, HashGraph &y)
+inline void swap(HashGraph &x, HashGraph &y)
 { x.swap(y); }
 }
 
