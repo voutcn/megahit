@@ -146,7 +146,7 @@ int main_assemble(int argc, char **argv) {
         timer.reset();
         timer.start();
         xlog("Loading succinct de Bruijn graph: %s ", opt.sdbg_name.c_str());
-        dbg.LoadFromMultiFile(opt.sdbg_name.c_str(), false);
+        dbg.LoadFromMultiFile(opt.sdbg_name.c_str(), true);
         timer.stop();
         xlog_ext("Done. Time elapsed: %lf\n", timer.elapsed());
         xlog("Number of Edges: %lld; K value: %d\n", (long long)dbg.size, dbg.kmer_k);

@@ -73,11 +73,9 @@ class SuccinctDBG {
         rs_w_.Build(w_, size);
         rs_last_.Build(last_, size);
 
-        for (int i = 0; i < kAlphabetSize + 2; ++i) {
+        for (int i = 1; i < kAlphabetSize + 2; ++i) {
             rank_f_[i] = rs_last_.Rank(f_[i] - 1);
         }
-
-        #pragma omp parallel for
 
         for (int64_t i = 0; i < size; ++i) {
             if (GetW(i) == 0) {
@@ -127,9 +125,9 @@ class SuccinctDBG {
     }
 
     int EdgeMultiplicity(int64_t edge_id) {
-        if (is_multi_1_) {
-            return ((is_multi_1_[edge_id / 64] >> (edge_id % 64)) & 1) + 1;
-        }
+        // if (is_multi_1_) {
+        //     return ((is_multi_1_[edge_id / 64] >> (edge_id % 64)) & 1) + 1;
+        // }
 
         if (edge_large_multi_) {
             return edge_large_multi_[edge_id];

@@ -1,3 +1,5 @@
+*If you are using MEGAHIT v1.0.4-beta or v1.0.5, please be advised to update it to the latest version.*
+
 [![Build Status](https://travis-ci.org/voutcn/megahit.svg?branch=master)](https://travis-ci.org/voutcn/megahit)
 [![Build Status](https://drone.io/github.com/voutcn/megahit/status.png)](https://drone.io/github.com/voutcn/megahit/latest)
 
