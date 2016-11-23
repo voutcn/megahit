@@ -206,6 +206,13 @@ int main_assemble(int argc, char **argv) {
              num_bubbles, num_complex_bubbles, timer.elapsed());
     }
 
+    timer.reset();
+    timer.start();
+    uint32_t num_disconnected = unitig_graph.DisconnectWeakLinks(0.1);
+    timer.stop();
+    xlog("Number unitigs disconnected: %u, time: %lf\n", num_disconnected, timer.elapsed());
+
+
     // excessive pruning
     static const int kLocalWidth = 1000;
     int64_t num_removed = 0;

@@ -87,7 +87,10 @@ std::string VertexToDNAString(SuccinctDBG *sdbg_, const UnitigGraphVertex &v) {
         label.append(1, "ACGT"[cur_char > 4 ? (cur_char - 5) : (cur_char - 1)]);
 
         cur_edge = sdbg_->PrevSimplePathEdge(cur_edge);
-        assert(cur_edge != -1);
+        // assert(cur_edge != -1);
+        if (cur_edge == -1) {
+            xerr_and_exit("%lld, %lld, %lld, %lld, (%lld, %lld), %d, %d\n", v.start_node, v.end_node, v.rev_start_node, v.rev_end_node, sdbg_->EdgeReverseComplement(v.end_node), sdbg_->EdgeReverseComplement(v.start_node), v.length, i);
+        }
     }
 
     int8_t cur_char = sdbg_->GetW(cur_edge);
@@ -662,6 +665,107 @@ bool UnitigGraph::RemoveLocalLowDepth(double min_depth, int min_len, int local_w
     num_removed += num_removed_;
 
     return is_changed;
+}
+
+uint32_t UnitigGraph::DisconnectWeakLinks(double local_ratio = 0.1) {
+    vector<int64_t> to_remove;
+    omp_lock_t lock;
+    omp_init_lock(&lock);
+
+    #pragma omp parallel for schedule(dynamic, 1)
+    for (vertexID_t i = 0; i < vertices_.size(); ++i) {
+        if (vertices_[i].is_deleted) {
+            continue;
+        }
+
+        for (int strand = 0; strand < 2; ++strand) {
+            int64_t outgoings[4];
+            double next_depths[4];
+            double total_depth = 0;
+            int outdegree = sdbg_->OutgoingEdges(strand == 0 ? vertices_[i].end_node : vertices_[i].rev_end_node, outgoings);
+
+            if (outdegree <= 1) {
+                continue;
+            }
+
+
+            for (int j = 0; j < outdegree; ++j) {
+                auto next_vertex_iter = start_node_map_.find(outgoings[j]);
+                assert(next_vertex_iter != start_node_map_.end());
+                UnitigGraphVertex &next_vertex = vertices_[next_vertex_iter->second];
+                assert(!next_vertex.is_deleted);
+
+                next_depths[j] = next_vertex.depth * 1.0 / next_vertex.length;
+                total_depth += next_depths[j];
+            }
+
+            for (int j = 0; j < outdegree; ++j) {
+                if (next_depths[j] <= total_depth * local_ratio) {
+                    omp_set_lock(&lock);
+                    to_remove.push_back(outgoings[j]);
+                    omp_unset_lock(&lock);
+                }
+            }
+        }
+    }
+
+    omp_destroy_lock(&lock);
+
+    uint32_t num_removed = to_remove.size();
+
+    for (vertexID_t i = 0; i < to_remove.size(); ++i) {
+        int64_t id = to_remove[i];
+        auto iter = start_node_map_.find(id);
+        if (iter == start_node_map_.end()) { continue; }
+        vertexID_t vid = iter->second;
+
+        if (vertices_[vid].length == 1 || vertices_[vid].start_node == vertices_[vid].rev_start_node) {
+            vertices_[vid].is_dead = true;
+        } else {
+            int64_t rm1, rm2;
+            start_node_map_.remove(id);
+
+            if (vertices_[vid].start_node == id) {
+                rm1 = vertices_[vid].start_node;
+                rm2 = vertices_[vid].rev_end_node;
+
+                vertices_[vid].start_node = sdbg_->NextSimplePathEdge(id);
+                assert(vertices_[vid].start_node != -1);
+                start_node_map_[vertices_[vid].start_node] = vid;
+                vertices_[vid].rev_end_node = sdbg_->PrevSimplePathEdge(vertices_[vid].rev_end_node);
+
+                assert(vertices_[vid].rev_end_node != -1);
+                assert(rm1 != vertices_[vid].start_node);
+                assert(rm2 != vertices_[vid].rev_end_node);
+
+            } else {
+                assert(vertices_[vid].rev_start_node == id);
+
+                rm1 = vertices_[vid].rev_start_node;
+                rm2 = vertices_[vid].end_node;
+
+                vertices_[vid].rev_start_node = sdbg_->NextSimplePathEdge(id);
+                assert(vertices_[vid].rev_start_node != -1);
+
+                start_node_map_[vertices_[vid].rev_start_node] = vid;
+
+                vertices_[vid].end_node = sdbg_->PrevSimplePathEdge(vertices_[vid].end_node);
+
+                assert(vertices_[vid].end_node != -1);
+                assert(rm1 != vertices_[vid].rev_start_node);
+                assert(rm2 != vertices_[vid].end_node);
+            }
+
+            vertices_[vid].depth = (double)vertices_[vid].depth / vertices_[vid].length * (vertices_[vid].length - 1);
+            vertices_[vid].length--;
+
+            sdbg_->SetInvalidEdge(rm1);
+            sdbg_->SetInvalidEdge(rm2);
+        }
+    }
+
+    Refresh_(false);
+    return num_removed;
 }
 
 double UnitigGraph::LocalDepth_(vertexID_t id, int local_width) {
