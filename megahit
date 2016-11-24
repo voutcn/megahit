@@ -58,8 +58,8 @@ Optional Arguments:
   Basic assembly options:
     --min-count              <int>          minimum multiplicity for filtering (k_min+1)-mers [2]
     --k-min                  <int>          minimum kmer size (<= %d), must be odd number [21]
-    --k-max                  <int>          maximum kmer size (<= %d), must be odd number [99]
-    --k-step                 <int>          increment of kmer size of each iteration (<= 28), must be even number [20]
+    --k-max                  <int>          maximum kmer size (<= %d), must be odd number [121]
+    --k-step                 <int>          increment of kmer size of each iteration (<= 28), must be even number [10]
     --k-list                 <int,int,..>   comma-separated list of kmer size (all must be odd, in the range 15-%d, increment <= 28);
                                             override `--k-min', `--k-max' and `--k-step'
 
@@ -76,10 +76,10 @@ Optional Arguments:
 
   Presets parameters:
     --presets                <str>          override a group of parameters; possible values:
-                                            meta: '--min-count 2 --k-min 21 --k-max 99 --k-step 20'
-                                            (generic metagenomes, default)
-                                            meta-sensitive: '--min-count 2 --k-min 21 --k-max 99 --k-step 10'
-                                            (more sensitive but slower)
+                                            meta-fast: '--min-count 2 --k-min 21 --k-max 121 --k-step 20'
+                                            (fast metagenome assembly)
+                                            meta-sensitive: '--min-count 2 --k-min 21 --k-max 121 --k-step 10'
+                                            (default)
                                             meta-large: '--min-count 2 --k-min 27 --k-max 87 --k-step 10'
                                             (large & complex metagenomes, like soil)
                                             bulk: '--min-count 3 --k-min 21 --k-max 121 --k-step 10 --prune-level 3'
@@ -125,8 +125,8 @@ class Options():
         self.out_dir = "./megahit_out/"
         self.min_contig_len = 200
         self.k_min = 21
-        self.k_max = 99
-        self.k_step = 20
+        self.k_max = 121
+        self.k_step = 10
         self.k_list = list()
         self.set_list_by_min_max_step = True
         self.min_count = 2
@@ -352,12 +352,12 @@ def check_opt():
     if opt.presets != "":
         if opt.presets == "meta":
             opt.min_count = 2
-            opt.k_list = [21,41,61,81,99]
+            opt.k_list = [21,41,61,81,101,121]
             opt.set_list_by_min_max_step = False
         elif opt.presets == "meta-sensitive":
             opt.min_count = 2
             opt.k_min = 21
-            opt.k_max = 99
+            opt.k_max = 121
             opt.k_step = 10
             opt.set_list_by_min_max_step = True
         elif opt.presets == "meta-large":
