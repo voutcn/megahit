@@ -962,11 +962,17 @@ uint32_t UnitigGraph::DisconnectWeakLinks(double local_ratio = 0.1) {
 
     uint32_t num_removed = to_remove.size();
 
+#pragma omp parallel for schedule(dynamic, 1)
     for (vertexID_t i = 0; i < to_remove.size(); ++i) {
         int64_t id = to_remove[i];
+
         auto iter = start_node_map_.find(id);
         if (iter == start_node_map_.end()) { continue; }
         vertexID_t vid = iter->second;
+
+        if (!omp_test_lock(&locks_[vid])) {
+            continue;
+        }
 
         if (vertices_[vid].length == 1 || vertices_[vid].start_node == vertices_[vid].rev_start_node) {
             vertices_[vid].is_dead = true;
@@ -1011,6 +1017,11 @@ uint32_t UnitigGraph::DisconnectWeakLinks(double local_ratio = 0.1) {
             sdbg_->SetInvalidEdge(rm1);
             sdbg_->SetInvalidEdge(rm2);
         }
+    }
+
+#pragma omp parallel for
+    for (vertexID_t i = 0; i < vertices_.size(); ++i) {
+        omp_unset_lock(&locks_[i]);
     }
 
     Refresh_(false);
