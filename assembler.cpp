@@ -189,52 +189,76 @@ int main_assemble(int argc, char **argv) {
 
     FILE *bubble_file = OpenFileAndCheck(opt.bubble_file().c_str(), "w");
     Histgram<int64_t> bubble_hist;
-
-    // remove bubbles
-    if (!opt.no_bubble) {
-        timer.reset();
-        timer.start();
-        uint32_t num_bubbles = unitig_graph.MergeBubbles(true, opt.careful_bubble, bubble_file, bubble_hist);
-        uint32_t num_complex_bubbles = 0;
-
-        if (opt.merge_len > 0) {
-            num_complex_bubbles += unitig_graph.MergeComplexBubbles(opt.merge_similar, opt.merge_len, true, opt.careful_bubble, bubble_file, bubble_hist);
-        }
-
-        timer.stop();
-        xlog("Number of bubbles/complex bubbles removed: %u/%u, Time elapsed(sec): %lf\n",
-             num_bubbles, num_complex_bubbles, timer.elapsed());
-    }
-
-    timer.reset();
-    timer.start();
-    uint32_t num_disconnected = unitig_graph.DisconnectWeakLinks(0.1);
-    timer.stop();
-    xlog("Number unitigs disconnected: %u, time: %lf\n", num_disconnected, timer.elapsed());
-
-
-    // excessive pruning
     static const int kLocalWidth = 1000;
-    int64_t num_removed = 0;
 
-    if (opt.prune_level >= 3) {
-        timer.reset();
-        timer.start();
-        num_removed = unitig_graph.RemoveLowDepth(opt.min_depth);
-
-        unitig_graph.MergeBubbles(true, opt.careful_bubble, bubble_file, bubble_hist);
-        if (opt.merge_len > 0) {
-            unitig_graph.MergeComplexBubbles(opt.merge_similar, opt.merge_len, true, opt.careful_bubble, bubble_file, bubble_hist);
+    for (int round = 1; round <= 5; ++round) {
+        if (round > 1) {
+            timer.reset();
+            timer.start();
+            uint32_t num_tips = unitig_graph.RemoveTips(opt.max_tip_len);
+            timer.stop();
+            xlog("Tips removed: %u, time: %lf\n", num_tips, timer.elapsed());
         }
 
-        timer.stop();
-        xlog("Unitigs removed in (more-)excessive pruning: %lld, time: %lf\n", (long long)num_removed, timer.elapsed());
-    } else if (opt.prune_level >= 2) {
+        bool changed = false;
+        // remove bubbles
+        if (!opt.no_bubble) {
+            timer.reset();
+            timer.start();
+            uint32_t num_bubbles = unitig_graph.MergeBubbles(true, opt.careful_bubble, bubble_file, bubble_hist);
+            uint32_t num_complex_bubbles = 0;
+
+            if (opt.merge_len > 0) {
+                num_complex_bubbles += unitig_graph.MergeComplexBubbles(opt.merge_similar, opt.merge_len, true, opt.careful_bubble, bubble_file, bubble_hist);
+            }
+
+            timer.stop();
+            xlog("Number of bubbles/complex bubbles removed: %u/%u, Time elapsed(sec): %lf\n",
+                 num_bubbles, num_complex_bubbles, timer.elapsed());
+
+            uint32_t num_super_bubbles = 0;
+            timer.reset();
+            timer.start();
+            num_super_bubbles = unitig_graph.MergeSuperBubbles(std::min(0.618, 0.1 * round) * opt.merge_len * dbg.kmer_k, true, opt.careful_bubble, bubble_file, bubble_hist);
+            timer.stop();
+            xlog("Super bubbles removed: %u, time: %lf\n",
+                 (long long)num_super_bubbles, num_super_bubbles, timer.elapsed());
+
+            if (num_bubbles + num_complex_bubbles + num_super_bubbles > 0) changed = true;
+        }
+
         timer.reset();
         timer.start();
-        unitig_graph.RemoveLocalLowDepth(opt.min_depth, opt.max_tip_len, kLocalWidth, std::min(opt.low_local_ratio, 0.1), num_removed, true);
+        uint32_t num_disconnected = unitig_graph.DisconnectWeakLinks(0.1);
         timer.stop();
-        xlog("Unitigs removed in excessive pruning: %lld, time: %lf\n", (long long)num_removed, timer.elapsed());
+        xlog("Number unitigs disconnected: %u, time: %lf\n", num_disconnected, timer.elapsed());
+        if (num_disconnected > 0) changed = true;
+
+        // excessive pruning
+        int64_t num_removed = 0;
+
+        if (opt.prune_level >= 3) {
+            timer.reset();
+            timer.start();
+            num_removed = unitig_graph.RemoveLowDepth(opt.min_depth);
+
+            unitig_graph.MergeBubbles(true, opt.careful_bubble, bubble_file, bubble_hist);
+            if (opt.merge_len > 0) {
+                unitig_graph.MergeComplexBubbles(opt.merge_similar, opt.merge_len, true, opt.careful_bubble, bubble_file, bubble_hist);
+            }
+
+            timer.stop();
+            xlog("Unitigs removed in (more-)excessive pruning: %lld, time: %lf\n", (long long)num_removed, timer.elapsed());
+        } else if (opt.prune_level >= 2) {
+            timer.reset();
+            timer.start();
+            unitig_graph.RemoveLocalLowDepth(opt.min_depth, opt.max_tip_len, kLocalWidth, std::min(opt.low_local_ratio, 0.1), num_removed, true);
+            timer.stop();
+            xlog("Unitigs removed in excessive pruning: %lld, time: %lf\n", (long long)num_removed, timer.elapsed());
+        }
+
+        if (num_removed > 0) changed = true;
+        if (!changed) break;
     }
 
     // output contigs
@@ -265,7 +289,7 @@ int main_assemble(int argc, char **argv) {
 
         timer.reset();
         timer.start();
-        num_removed = 0;
+        int64_t num_removed = 0;
         double min_depth = opt.min_depth;
 
         while (min_depth < kMaxMulti_t) {
@@ -284,6 +308,13 @@ int main_assemble(int argc, char **argv) {
         timer.stop();
         xlog("Number of local low depth unitigs removed: %lld, complex bubbles removed: %u, time: %lf\n",
              (long long)num_removed, num_complex_bubbles, timer.elapsed());
+
+        timer.reset();
+        timer.start();
+        uint32_t num_super_bubbles = unitig_graph.MergeSuperBubbles(std::max(2000, opt.merge_len * dbg.kmer_k), opt.is_final_round, false, bubble_file, bubble_hist);
+        timer.stop();
+        xlog("Super bubbles removed: %u, time: %lf\n",
+             (long long)num_super_bubbles, num_super_bubbles, timer.elapsed());
 
         hist.clear();
 
