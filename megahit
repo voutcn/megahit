@@ -717,8 +717,25 @@ def build_lib():
 
     write_cp()
 
+def get_max_read_len():
+    ret = 0
+    with open(opt.lib + ".lib_info") as read_info:
+        for info in read_info.readlines()[2::2]:
+            ret = max(ret, int(info.split()[2]))
+    return ret
+
+
 def set_max_k_by_lib():
-    return
+    if not opt.auto_k or len(opt.k_list) == 1:
+        return False
+
+    max_read_len = get_max_read_len()
+    for k in opt.k_list:
+        if k >= max_read_len + 28:
+            opt.k_max = k
+            return True
+
+
 
 def build_first_graph():
     global cp
@@ -1070,8 +1087,8 @@ def main(argv = None):
         write_lib()
         build_lib()
 
-        if opt.auto_k:
-            set_max_k_by_lib()
+        if set_max_k_by_lib():
+            logging.info("--- [%s] k-max reset to: %d ---" % (datetime.now().strftime("%c"), opt.k_max))
 
         build_first_graph()
 
