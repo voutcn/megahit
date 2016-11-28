@@ -731,7 +731,7 @@ def set_max_k_by_lib():
 
     max_read_len = get_max_read_len()
     for k in opt.k_list:
-        if k >= max_read_len + 28:
+        if k >= max_read_len + 10:
             opt.k_max = k
             return True
 
