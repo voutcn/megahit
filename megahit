@@ -56,12 +56,12 @@ Usage:
 
 Optional Arguments:
   Basic assembly options:
-    --min-count              <int>          minimum multiplicity for filtering (k_min+1)-mers [1]
+    --min-count              <int>          minimum multiplicity for filtering (k_min+1)-mers [2]
     --k-list                 <int,int,..>   comma-separated list of kmer size
                                             all must be odd, in the range 15-%d, increment <= 28);
                                             [auto]
 
-  Another way to set --k-list:
+  Another way to set --k-list (overrides --k-list if one of them set):
     --k-min                  <int>          minimum kmer size (<= %d), must be odd number [21]
     --k-max                  <int>          maximum kmer size (<= %d), must be odd number [141]
     --k-step                 <int>          increment of kmer size of each iteration (<= 28), must be even number [12]
@@ -126,7 +126,7 @@ class Options():
         self.k_list = [21,33,55,77,99,121,143]
         self.auto_k = True
         self.set_list_by_min_max_step = False
-        self.min_count = 1
+        self.min_count = 2
         self.bin_dir = sys.path[0] + "/"
         self.max_tip_len = -1
         self.no_mercy = False
