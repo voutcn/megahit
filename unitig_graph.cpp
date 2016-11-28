@@ -616,11 +616,14 @@ int UnitigGraph::SearchAndMergeSuperBubble_(int64_t source, int max_len, bool ca
 
         if (st.size() == 1 && num_inplay == 0) {
             int64_t sink = st.back();
+            int64_t sink_len = vertices_[start_node_map_[sink]].length;
+            visited[sink].dist -= sink_len;
+            visited[sink].max_dist -= sink_len;
 
-            if ((num_too_long > 0 && visited[sink].dist <= max_len) ||
+            if ((num_too_long > 0 && visited[sink].dist + sink_len <= max_len) ||
                 visited[sink].dist < std::min(visited[sink].max_dist * 0.9, visited[sink].max_dist - 3.0)) {
                 CLEAN_LOCK
-                return 0;
+                return -2;
             }
 
             double total_depth_remain = 0;
@@ -674,11 +677,12 @@ int UnitigGraph::SearchAndMergeSuperBubble_(int64_t source, int max_len, bool ca
 
 uint32_t UnitigGraph::MergeSuperBubbles(int max_len, bool permanent_rm, bool careful, FILE *bubble_file, Histgram<int64_t> &hist) {
     uint32_t num_merged = 0;
+    uint32_t not_similar = 0;
     std::vector<vertexID_t> to_retry;
     omp_lock_t vec_lock;
     omp_init_lock(&vec_lock);
 
-#pragma omp parallel for schedule(dynamic, 1) reduction(+: num_merged)
+#pragma omp parallel for schedule(dynamic, 1) reduction(+: num_merged, not_similar)
     for (vertexID_t i = 0; i < vertices_.size(); ++i) {
         if (vertices_[i].is_deleted) continue;
         int search_res = SearchAndMergeSuperBubble_(vertices_[i].start_node, max_len, careful, bubble_file, hist);
@@ -688,12 +692,15 @@ uint32_t UnitigGraph::MergeSuperBubbles(int max_len, bool permanent_rm, bool car
             omp_set_lock(&vec_lock);
             to_retry.push_back(i);
             omp_unset_lock(&vec_lock);
-        } else if (search_res == 0) {
+        } else {
+            if (search_res == -2) not_similar++;
             int rev_res = SearchAndMergeSuperBubble_(vertices_[i].rev_start_node, max_len, careful, bubble_file, hist);
-            if (rev_res < 0) {
+            if (rev_res == -1) {
                 omp_set_lock(&vec_lock);
                 to_retry.push_back(i);
                 omp_unset_lock(&vec_lock);
+            } else if (rev_res == -2) {
+                not_similar++;
             } else {
                 num_merged += rev_res;
             }
@@ -718,6 +725,7 @@ uint32_t UnitigGraph::MergeSuperBubbles(int max_len, bool permanent_rm, bool car
 
     Refresh_(!permanent_rm);
 
+    xlog("Super bubble rejected b/c not similar: %u\n", not_similar);
     return num_merged;
 }
 
