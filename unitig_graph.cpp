@@ -518,6 +518,7 @@ struct SuperBubbleNodeInfo {
 };
 
 int UnitigGraph::SearchAndMergeSuperBubble_(int64_t source, int max_len, bool careful, FILE *bubble_file, Histgram<int64_t> &hist) {
+    // see miniasm paper
     std::map<int64_t, SuperBubbleNodeInfo> visited;
     std::vector<int64_t> st;
     int num_inplay = 0;
@@ -925,6 +926,7 @@ bool UnitigGraph::RemoveLocalLowDepth(double min_depth, int min_len, int local_w
 }
 
 uint32_t UnitigGraph::DisconnectWeakLinks(double local_ratio = 0.1) {
+    // see metaspades paper
     vector<int64_t> to_remove;
     omp_lock_t lock;
     omp_init_lock(&lock);

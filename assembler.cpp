@@ -311,7 +311,7 @@ int main_assemble(int argc, char **argv) {
 
         timer.reset();
         timer.start();
-        uint32_t num_super_bubbles = unitig_graph.MergeSuperBubbles(std::max(2000, opt.merge_len * dbg.kmer_k), opt.is_final_round, false, bubble_file, bubble_hist);
+        uint32_t num_super_bubbles = unitig_graph.MergeSuperBubbles(opt.merge_len * dbg.kmer_k, opt.is_final_round, false, bubble_file, bubble_hist);
         timer.stop();
         xlog("Super bubbles removed: %u, time: %lf\n",
              (long long)num_super_bubbles, num_super_bubbles, timer.elapsed());
