@@ -57,18 +57,21 @@ Usage:
 Optional Arguments:
   Basic assembly options:
     --min-count              <int>          minimum multiplicity for filtering (k_min+1)-mers [2]
+    --k-list                 <int,int,..>   comma-separated list of kmer size
+                                            all must be odd, in the range 15-%d, increment <= 28);
+                                            [21,29,39,59,79,99,119,141]
+
+  Another way to set --k-list (overrides --k-list if one of them set):
     --k-min                  <int>          minimum kmer size (<= %d), must be odd number [21]
-    --k-max                  <int>          maximum kmer size (<= %d), must be odd number [99]
-    --k-step                 <int>          increment of kmer size of each iteration (<= 28), must be even number [20]
-    --k-list                 <int,int,..>   comma-separated list of kmer size (all must be odd, in the range 15-%d, increment <= 28);
-                                            override `--k-min', `--k-max' and `--k-step'
+    --k-max                  <int>          maximum kmer size (<= %d), must be odd number [141]
+    --k-step                 <int>          increment of kmer size of each iteration (<= 28), must be even number [12]
 
   Advanced assembly options:
     --no-mercy                              do not add mercy kmers
     --no-bubble                             do not merge bubbles
-    --merge-level            <l,s>          merge complex bubbles of length <= l*kmer_size and similarity >= s [20,0.98]
+    --merge-level            <l,s>          merge complex bubbles of length <= l*kmer_size and similarity >= s [20,0.95]
     --prune-level            <int>          strength of low depth pruning (0-3) [2]
-    --prune-depth            <int>          remove unitigs with avg kmer depth less than this value [auto]
+    --prune-depth            <int>          remove unitigs with avg kmer depth less than this value [2]
     --low-local-ratio        <float>        ratio threshold to define low local coverage contigs [0.2]
     --max-tip-len            <int>          remove tips less than this value [2*k]
     --no-local                              disable local assembly
@@ -76,16 +79,9 @@ Optional Arguments:
 
   Presets parameters:
     --presets                <str>          override a group of parameters; possible values:
-                                            meta: '--min-count 2 --k-min 21 --k-max 99 --k-step 20'
-                                            (generic metagenomes, default)
-                                            meta-sensitive: '--min-count 2 --k-min 21 --k-max 99 --k-step 10'
-                                            (more sensitive but slower)
-                                            meta-large: '--min-count 2 --k-min 27 --k-max 87 --k-step 10'
+                                            meta-sensitive: '--min-count 1 --k-list 21,29,39,49,...,129,141'
+                                            meta-large: '--k-min 27 --k-max 127 --k-step 10'
                                             (large & complex metagenomes, like soil)
-                                            bulk: '--min-count 3 --k-min 21 --k-max 121 --k-step 10 --prune-level 3'
-                                            (experimental, standard bulk sequencing)
-                                            single-cell: '--min-count 3 --k-list 21,33,55,77,99,121 --merge-level 20,0.96'
-                                            (experimental, single cell data)
 
   Hardware options:
     -m/--memory              <float>        max memory in byte to be used in SdBG construction
@@ -125,10 +121,11 @@ class Options():
         self.out_dir = "./megahit_out/"
         self.min_contig_len = 200
         self.k_min = 21
-        self.k_max = 99
-        self.k_step = 20
-        self.k_list = list()
-        self.set_list_by_min_max_step = True
+        self.k_max = 141
+        self.k_step = 10
+        self.k_list = [21,29,39,59,79,99,119,141]
+        self.auto_k = True
+        self.set_list_by_min_max_step = False
         self.min_count = 2
         self.bin_dir = sys.path[0] + "/"
         self.max_tip_len = -1
@@ -136,10 +133,10 @@ class Options():
         self.no_local = False
         self.no_bubble = False
         self.merge_len = 20
-        self.merge_similar = 0.98
+        self.merge_similar = 0.95
         self.prune_level = 2
-        self.prune_depth = -1
-        self.num_cpu_threads = False
+        self.prune_depth = 2
+        self.num_cpu_threads = 0
         self.low_local_ratio = 0.2
         self.temp_dir = ""
         self.contig_dir = self.out_dir + "intermediate_contigs/"
@@ -257,13 +254,20 @@ def parse_opt(argv):
             opt.kmin_1pass = True
         elif option == "--k-min":
             opt.k_min = int(value)
+            opt.set_list_by_min_max_step = True
+            opt.auto_k = False
         elif option == "--k-max":
             opt.k_max = int(value)
+            opt.set_list_by_min_max_step = True
+            opt.auto_k = False
         elif option == "--k-step":
             opt.k_step = int(value)
+            opt.set_list_by_min_max_step = True
+            opt.auto_k = False
         elif option == "--k-list":
             opt.k_list = list(map(int, value.split(",")))
             opt.k_list.sort()
+            opt.auto_k = False
             opt.set_list_by_min_max_step = False
         elif option == "--min-count":
             opt.min_count = int(value)
@@ -350,32 +354,18 @@ def check_opt():
 
     # set mode
     if opt.presets != "":
-        if opt.presets == "meta":
-            opt.min_count = 2
-            opt.k_list = [21,41,61,81,99]
+        opt.auto_k = True;
+
+        if opt.presets == "meta-sensitive":
+            opt.min_count = 1
+            opt.k_list = [21,29,39,49,59,69,79,89,99,109,119,129,141]
             opt.set_list_by_min_max_step = False
-        elif opt.presets == "meta-sensitive":
-            opt.min_count = 2
-            opt.k_min = 21
-            opt.k_max = 99
-            opt.k_step = 10
-            opt.set_list_by_min_max_step = True
         elif opt.presets == "meta-large":
-            opt.min_count = 2
-            opt.k_list = [27,37,47,57,67,77,87]
-            opt.set_list_by_min_max_step = False
-        elif opt.presets == "bulk":
-            opt.min_count = 3
-            opt.prune_level = 3
-            opt.k_min = 21
-            opt.k_max = 121
+            opt.min_count = 1
+            opt.k_min = 27
+            opt.k_max = 127
             opt.k_step = 10
             opt.set_list_by_min_max_step = True
-        elif opt.presets == "single-cell":
-            opt.min_count = 3
-            opt.k_list = [21,33,55,77,99,121]
-            opt.merge_similar, opt.merge_len = 0.96, 20
-            opt.set_list_by_min_max_step = False
         else:
             raise Usage("Invalid preset: " + opt.presets)
 
@@ -395,7 +385,7 @@ def check_opt():
     if len(opt.k_list) == 0:
         raise Usage("k list should not be empty!")
 
-    if opt.k_list[0] < 15 or opt.k_list[len(opt.k_list) - 1] > max_k_allowed:
+    if opt.k_list[0] < 15 or opt.k_list[-1] > max_k_allowed:
         raise Usage("All k's should be in range [15, %d]" % max_k_allowed)
 
     for k in opt.k_list:
@@ -406,7 +396,7 @@ def check_opt():
         if opt.k_list[i] - opt.k_list[i-1] > 28:
             raise Usage("k-step/adjacent k difference must be <= 28")
 
-    opt.k_min, opt.k_max = opt.k_list[0], opt.k_list[len(opt.k_list) - 1]
+    opt.k_min, opt.k_max = opt.k_list[0], opt.k_list[-1]
 
     if opt.use_gpu == 0:
         opt.gpu_mem = 0
@@ -724,6 +714,31 @@ def build_lib():
                 delect_file_if_exist(f)
 
     write_cp()
+
+def get_max_read_len():
+    ret = 0
+    with open(opt.lib + ".lib_info") as read_info:
+        for info in read_info.readlines()[2::2]:
+            ret = max(ret, int(info.split()[2]))
+    return ret
+
+
+def set_max_k_by_lib():
+    if not opt.auto_k or len(opt.k_list) == 1:
+        return False
+
+    max_read_len = get_max_read_len()
+    for i in range(0, len(opt.k_list)):
+        if opt.k_list[i] >= max_read_len - 1:
+            opt.k_max = max_read_len - 1 - max_read_len % 2
+            if i > 0 and opt.k_list[i-1] >= opt.k_max - 4:
+                opt.k_list = opt.k_list[:i]
+                opt.k_max = opt.k_list[-1]
+            else:
+                opt.k_list = opt.k_list[:(i+1)]
+                opt.k_list[-1] = opt.k_max
+            return True
+
 
 def build_first_graph():
     global cp
@@ -1067,13 +1082,17 @@ def main(argv = None):
         logging.info(megahit_version_str)
         logging.info("--- [%s] Start assembly. Number of CPU threads %d ---" % (datetime.now().strftime("%c"), opt.num_cpu_threads))
         logging.info("--- [%s] Available memory: %d, used: %d" % (datetime.now().strftime("%c"), detect_available_mem(), opt.host_mem))
-        logging.info("--- [%s] k list: %s ---" % (datetime.now().strftime("%c"), ','.join(map(str, opt.k_list))))
 
         if not opt.continue_mode:
             write_opt(argv[1:]) # for --continue
 
         write_lib()
         build_lib()
+
+        if set_max_k_by_lib():
+            logging.info("--- [%s] k-max reset to: %d ---" % (datetime.now().strftime("%c"), opt.k_max))
+
+        logging.info("--- [%s] k list: %s ---" % (datetime.now().strftime("%c"), ','.join(map(str, opt.k_list))))
 
         build_first_graph()
 
