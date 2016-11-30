@@ -1,3 +1,10 @@
+### 1.0.6 / 2016-11-30 HKT
+
+* Added components to better handle high depth errors
+* Added components to merge super bubbles
+* Fine tuning k-mer sizes to support longer reads (150bp)
+* In general, it produces longer contigs compared to previous versions
+
 ### 1.0.6 / 2016-06-06 HKT
 
 * Fixed a bug that ignores edge multiplicity at all. This bug existed since v1.0.4-beta

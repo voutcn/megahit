@@ -37,16 +37,6 @@ If MEGAHIT is successfully compiled, it can be run by the following command:
 `-1/-2`, `--12` and `-r` are parameters for inputting paired-end, interleaved-paired-end and single-end files. They accept files in fasta (*.fasta*, *.fa*, *.fna*) or fastq (*.fastq*, *.fq*) formats. They also supports gzip files (with *.gz* extensions) and bzip2 files (with *.bz2* extensions). Please run `./megahit -h` for detailed usage message.
 
 ##Assembly Tips
-MEGAHIT `--presets` option provides five preset parameter combinations:
-
-| Presets | Targeting applications |
-|---|---|
-| `meta` | General metagenome assembly, such as guts |
-| `meta-sensitive` | More sensitive metagenome assembly, but slower |
-| `meta-large` | Large and complex metagenome assembly, such as soil |
-| `bulk` | Experimental; assembly of standard bulk sequencing with sufficient depth |
-| `single-cell` | Experimental; single-cell sequence assembly |
-
 To fine tune parameters for specific datasets, please find our suggestions on [this wiki page](https://github.com/voutcn/megahit/wiki/Assembly-Tips).
 
 ##FAQ & Reporting issues
