@@ -1,4 +1,4 @@
-### 1.0.6 / 2016-11-30 HKT
+### 1.1-beta / 2016-11-30 HKT
 
 * Added components to better handle high depth errors
 * Added components to merge super bubbles
