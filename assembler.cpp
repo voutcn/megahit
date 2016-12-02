@@ -44,7 +44,7 @@ struct asm_opt_t {
     int min_standalone;
     double min_depth;
     bool is_final_round;
-    bool no_bubble;
+    int bubble_level;
     int merge_len;
     double merge_similar;
     int prune_level;
@@ -59,7 +59,7 @@ struct asm_opt_t {
         num_cpu_threads = 0;
         max_tip_len = -1;
         min_standalone = 200;
-        no_bubble = false;
+        bubble_level = 3;
         merge_len = 20;
         merge_similar = 0.98;
         prune_level = 2;
@@ -99,7 +99,7 @@ void ParseAsmOption(int argc, char *argv[]) {
     desc.AddOption("num_cpu_threads", "t", opt.num_cpu_threads, "number of cpu threads");
     desc.AddOption("max_tip_len", "", opt.max_tip_len, "max length for tips to be removed. -1 for 2k");
     desc.AddOption("min_standalone", "", opt.min_standalone, "min length of a standalone contig to output to final.contigs.fa");
-    desc.AddOption("no_bubble", "", opt.no_bubble, "do not remove bubbles");
+    desc.AddOption("bubble_level", "", opt.bubble_level, "bubbles level 0-3");
     desc.AddOption("merge_len", "", opt.merge_len, "merge complex bubbles of length <= merge_len * k");
     desc.AddOption("merge_similar", "", opt.merge_similar, "min similarity of complex bubble merging");
     desc.AddOption("prune_level", "", opt.prune_level, "strength of low local depth contig pruning (0-3)");
@@ -202,29 +202,38 @@ int main_assemble(int argc, char **argv) {
 
         bool changed = false;
         // remove bubbles
-        if (!opt.no_bubble) {
+        if (opt.bubble_level >= 1) {
             timer.reset();
             timer.start();
             uint32_t num_bubbles = unitig_graph.MergeBubbles(true, opt.careful_bubble, bubble_file, bubble_hist);
-            uint32_t num_complex_bubbles = 0;
+            timer.stop();
+            xlog("Number of bubbles removed: %u, Time elapsed(sec): %lf\n",
+                 num_bubbles, timer.elapsed());
+            changed |= num_bubbles > 0;
+        }
 
+        if (opt.bubble_level >= 2) {
+
+            timer.reset();
+            timer.start();
+            uint32_t num_complex_bubbles = 0;
             if (opt.merge_len > 0) {
                 num_complex_bubbles += unitig_graph.MergeComplexBubbles(opt.merge_similar, opt.merge_len, true, opt.careful_bubble, bubble_file, bubble_hist);
             }
-
             timer.stop();
-            xlog("Number of bubbles/complex bubbles removed: %u/%u, Time elapsed(sec): %lf\n",
-                 num_bubbles, num_complex_bubbles, timer.elapsed());
+            xlog("Number of complex bubbles removed: %u, Time elapsed(sec): %lf\n",
+                 num_complex_bubbles, timer.elapsed());
+            changed |= num_complex_bubbles > 0;
+        }
 
-            uint32_t num_super_bubbles = 0;
+        if (opt.bubble_level >= 3) {
             timer.reset();
             timer.start();
-            num_super_bubbles = unitig_graph.MergeSuperBubbles(std::min(0.618, 0.1 * round) * opt.merge_len * dbg.kmer_k, true, opt.careful_bubble, bubble_file, bubble_hist);
+            uint32_t num_super_bubbles = unitig_graph.MergeSuperBubbles(std::min(0.618, 0.1 * round) * opt.merge_len * dbg.kmer_k, true, opt.careful_bubble, bubble_file, bubble_hist);
             timer.stop();
             xlog("Super bubbles removed: %u, time: %lf\n",
-                 (long long)num_super_bubbles, num_super_bubbles, timer.elapsed());
-
-            if (num_bubbles + num_complex_bubbles + num_super_bubbles > 0) changed = true;
+                 num_super_bubbles, timer.elapsed());
+            changed |= num_super_bubbles > 0;
         }
 
         timer.reset();
@@ -232,18 +241,17 @@ int main_assemble(int argc, char **argv) {
         uint32_t num_disconnected = unitig_graph.DisconnectWeakLinks(0.1);
         timer.stop();
         xlog("Number unitigs disconnected: %u, time: %lf\n", num_disconnected, timer.elapsed());
-        if (num_disconnected > 0) changed = true;
+        changed |= num_disconnected > 0;
 
         // excessive pruning
         int64_t num_removed = 0;
-
         if (opt.prune_level >= 3) {
             timer.reset();
             timer.start();
             num_removed = unitig_graph.RemoveLowDepth(opt.min_depth);
 
             unitig_graph.MergeBubbles(true, opt.careful_bubble, bubble_file, bubble_hist);
-            if (opt.merge_len > 0) {
+            if (opt.bubble_level >= 2 && opt.merge_len > 0) {
                 unitig_graph.MergeComplexBubbles(opt.merge_similar, opt.merge_len, true, opt.careful_bubble, bubble_file, bubble_hist);
             }
 
@@ -302,19 +310,21 @@ int main_assemble(int argc, char **argv) {
 
         uint32_t num_complex_bubbles = 0;
 
-        if (opt.merge_len > 0)
+        if (opt.bubble_level >= 2 && opt.merge_len > 0) {
             num_complex_bubbles = unitig_graph.MergeComplexBubbles(opt.merge_similar, opt.merge_len, opt.is_final_round, false, bubble_file, bubble_hist);
+            timer.stop();
+            xlog("Number of local low depth unitigs removed: %lld, complex bubbles removed: %u, time: %lf\n",
+                 (long long)num_removed, num_complex_bubbles, timer.elapsed());
+        }
 
-        timer.stop();
-        xlog("Number of local low depth unitigs removed: %lld, complex bubbles removed: %u, time: %lf\n",
-             (long long)num_removed, num_complex_bubbles, timer.elapsed());
-
-        timer.reset();
-        timer.start();
-        uint32_t num_super_bubbles = unitig_graph.MergeSuperBubbles(opt.merge_len * dbg.kmer_k * 0.618, opt.is_final_round, false, bubble_file, bubble_hist);
-        timer.stop();
-        xlog("Super bubbles removed: %u, time: %lf\n",
-             (long long)num_super_bubbles, num_super_bubbles, timer.elapsed());
+        if (opt.bubble_level >= 3) {
+            timer.reset();
+            timer.start();
+            uint32_t num_super_bubbles = unitig_graph.MergeSuperBubbles(opt.merge_len * dbg.kmer_k * 0.618, opt.is_final_round, false, bubble_file, bubble_hist);
+            timer.stop();
+            xlog("Super bubbles removed: %u, time: %lf\n",
+                 (long long)num_super_bubbles, num_super_bubbles, timer.elapsed());
+        }
 
         hist.clear();
 

@@ -68,7 +68,7 @@ Optional Arguments:
 
   Advanced assembly options:
     --no-mercy                              do not add mercy kmers
-    --no-bubble                             do not merge bubbles
+    --bubble-level           <int>          do not merge bubbles 0-3, 0 to disable [3]
     --merge-level            <l,s>          merge complex bubbles of length <= l*kmer_size and similarity >= s [20,0.95]
     --prune-level            <int>          strength of low depth pruning (0-3) [2]
     --prune-depth            <int>          remove unitigs with avg kmer depth less than this value [2]
@@ -131,7 +131,7 @@ class Options():
         self.max_tip_len = -1
         self.no_mercy = False
         self.no_local = False
-        self.no_bubble = False
+        self.bubble_level = 3
         self.merge_len = 20
         self.merge_similar = 0.95
         self.prune_level = 2
@@ -210,7 +210,7 @@ def parse_opt(argv):
                                      "no-mercy",
                                      "no-local",
                                      "max-tip-len=",
-                                     "no-bubble",
+                                     "bubble-level=",
                                      "prune-level=",
                                      "prune-depth=",
                                      "merge-level=",
@@ -280,8 +280,8 @@ def parse_opt(argv):
             opt.prune_level = int(value)
         elif option == "--prune-depth":
             opt.prune_depth = float(value)
-        elif option == "--no-bubble":
-            opt.no_bubble = True
+        elif option == "--bubble-level":
+            opt.bubble_level = int(value)
         elif option == "--no-mercy":
             opt.no_mercy = True
         elif option == "--no-local":
@@ -720,6 +720,7 @@ def get_max_read_len():
     with open(opt.lib + ".lib_info") as read_info:
         for info in read_info.readlines()[2::2]:
             ret = max(ret, int(info.split()[2]))
+    read_info.close()
     return ret
 
 
@@ -729,9 +730,9 @@ def set_max_k_by_lib():
 
     max_read_len = get_max_read_len()
     for i in range(0, len(opt.k_list)):
-        if opt.k_list[i] >= max_read_len - 1:
-            opt.k_max = max_read_len - 1 - max_read_len % 2
-            if i > 0 and opt.k_list[i-1] >= opt.k_max - 4:
+        if opt.k_list[i] >= max_read_len + 20:
+            opt.k_max = max_read_len + 19 - max_read_len % 2
+            if i > 0 and opt.k_list[i-1] >= opt.k_max - 2:
                 opt.k_list = opt.k_list[:i]
                 opt.k_max = opt.k_list[-1]
             else:
@@ -932,7 +933,8 @@ def assemble(cur_k):
                         "--merge_len", str(int(opt.merge_len)),
                         "--merge_similar", str(opt.merge_similar),
                         "--low_local_ratio", str(opt.low_local_ratio),
-                        "--min_depth", str(opt.prune_depth)]
+                        "--min_depth", str(opt.prune_depth),
+                        "--bubble_level", str(opt.bubble_level)]
 
         if opt.max_tip_len == -1 and cur_k * 3 - 1 > opt.min_contig_len * 1.5:
             assembly_cmd += ["--max_tip_len", str(max(1, opt.min_contig_len * 1.5 + 1 - cur_k))]
@@ -945,9 +947,6 @@ def assemble(cur_k):
 
         if cur_k == opt.k_max:
             assembly_cmd.append("--is_final_round")
-
-        if opt.no_bubble:
-            assembly_cmd.append("--no_bubble")
 
         if opt.no_local:
             assembly_cmd.append("--output_standalone")
