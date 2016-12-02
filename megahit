@@ -157,6 +157,7 @@ class Options():
         self.inpipe = dict()
         self.presets = ""
         self.graph_only = False
+        self.force_overwrite = False
 
 opt = Options()
 cp = 0
@@ -171,25 +172,22 @@ def opt_file_name():
     return opt.out_dir + "opts.txt"
 
 def make_out_dir():
-    if os.path.exists(opt.out_dir):
-        pass
-    else:
+    if not os.path.exists(opt.out_dir):
         os.mkdir(opt.out_dir)
 
     if not opt.continue_mode:
         if opt.temp_dir == opt.out_dir + "tmp/":
-            os.mkdir(opt.temp_dir)
+            if not os.path.exists(opt.temp_dir):
+                os.mkdir(opt.temp_dir)
         else:
             opt.temp_dir = tempfile.mkdtemp(dir = opt.temp_dir, prefix = 'megahit_tmp_') + "/"
 
-    if os.path.exists(opt.contig_dir):
-        pass
-    else:
+    if not os.path.exists(opt.contig_dir):
         os.mkdir(opt.contig_dir)
 
 def parse_opt(argv):
     try:
-        opts, args = getopt.getopt(argv, "hm:o:r:t:v1:2:l:", 
+        opts, args = getopt.getopt(argv, "hm:o:r:t:v1:2:l:f", 
                                     ["help",
                                      "read=",
                                      "12=",
@@ -223,6 +221,7 @@ def parse_opt(argv):
                                      "out-prefix=",
                                      "verbose",
                                      "presets=",
+                                     "force"
                                      "graph-only",
                                      "max-read-len=",
                                      "no-low-local",
@@ -324,6 +323,8 @@ def parse_opt(argv):
             opt.presets = value
         elif option == "--graph-only":
             opt.graph_only = True;
+        elif option in ("-f", "--force"):
+            opt.force_overwrite = True
 
         else:
             raise Usage("Invalid option %s", option)
@@ -334,7 +335,7 @@ def parse_opt(argv):
 
     if need_continue:
         prepare_continue()
-    elif opt.continue_mode == 0 and os.path.exists(opt.out_dir):
+    elif opt.continue_mode == 0 and not opt.force_overwrite and os.path.exists(opt.out_dir):
         raise Usage("Output directory " + opt.out_dir + " already exists, please change the parameter -o to another value to avoid overwriting.")
 
 def check_opt():
