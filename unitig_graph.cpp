@@ -362,7 +362,7 @@ void UnitigGraph::InitFromSdBG() {
 
 uint32_t UnitigGraph::RemoveTips(int max_tip_len) {
     uint32_t num_removed = 0;
-    for (int thre = 2; thre < max_tip_len; ++thre) {
+    for (int thre = 2; thre < max_tip_len; thre = std::min(thre * 2, max_tip_len)) {
 #pragma omp parallel for schedule(static) reduction(+: num_removed)
         for (vertexID_t i = 0; i < vertices_.size(); ++i) {
             if (vertices_[i].is_deleted || vertices_[i].length >= thre) {
@@ -389,6 +389,8 @@ uint32_t UnitigGraph::RemoveTips(int max_tip_len) {
         }
 
         Refresh_(false);
+
+        if (thre >= max_tip_len) { break; }
     }
 
     return num_removed;
