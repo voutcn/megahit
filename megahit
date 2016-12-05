@@ -68,7 +68,7 @@ Optional Arguments:
 
   Advanced assembly options:
     --no-mercy                              do not add mercy kmers
-    --bubble-level           <int>          do not merge bubbles 0-3, 0 to disable [3]
+    --bubble-level           <int>          do not merge bubbles 0-3, 0 to disable [2]
     --merge-level            <l,s>          merge complex bubbles of length <= l*kmer_size and similarity >= s [20,0.95]
     --prune-level            <int>          strength of low depth pruning (0-3) [2]
     --prune-depth            <int>          remove unitigs with avg kmer depth less than this value [2]
@@ -131,7 +131,7 @@ class Options():
         self.max_tip_len = -1
         self.no_mercy = False
         self.no_local = False
-        self.bubble_level = 3
+        self.bubble_level = 2
         self.merge_len = 20
         self.merge_similar = 0.95
         self.prune_level = 2
