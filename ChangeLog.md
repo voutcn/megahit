@@ -1,3 +1,9 @@
+### 1.1.1 / 2016-12-08 HKT
+
+* Added `-f` option to force overwrite output directory
+* Added `--bubble-level` option to control bubble merging; though level 3 (i.e. super bubble) is not mature (default level is 2)
+* Optimized the speed of tips removal
+
 ### 1.1-beta / 2016-11-30 HKT
 
 * Added components to better handle high depth errors
