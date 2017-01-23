@@ -68,7 +68,7 @@ Optional Arguments:
 
   Advanced assembly options:
     --no-mercy                              do not add mercy kmers
-    --bubble-level           <int>          do not merge bubbles 0-3, 0 to disable [2]
+    --bubble-level           <int>          intensity of bubble merging (0-2), 0 to disable [2]
     --merge-level            <l,s>          merge complex bubbles of length <= l*kmer_size and similarity >= s [20,0.95]
     --prune-level            <int>          strength of low depth pruning (0-3) [2]
     --prune-depth            <int>          remove unitigs with avg kmer depth less than this value [2]
@@ -427,6 +427,12 @@ def check_opt():
         opt.num_cpu_threads = multiprocessing.cpu_count()
     if opt.prune_depth < 0 and opt.prune_level < 3:
         opt.prune_depth = opt.min_count
+    if opt.bubble_level < 0:
+        print("Reset bubble level to 0.", file=sys.stderr)
+        opt.bubble_level = 0
+    if opt.bubble_level > 2:
+        print("Reset bubble level to 2.", file=sys.stderr)
+        opt.bubble_level = 2
 
 def check_reads():
     # reads
