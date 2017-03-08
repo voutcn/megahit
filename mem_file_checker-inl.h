@@ -21,6 +21,11 @@
 #ifndef MEM_FILE_CHECKER_INL_H__
 #define MEM_FILE_CHECKER_INL_H__
 
+/* fopen64 missing on OS X */
+#ifdef __APPLE__
+#  define fopen64 fopen
+#endif
+
 #include <stdlib.h>
 #include <stdio.h>
 
