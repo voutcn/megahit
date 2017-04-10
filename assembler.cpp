@@ -236,13 +236,6 @@ int main_assemble(int argc, char **argv) {
             changed |= num_super_bubbles > 0;
         }
 
-        timer.reset();
-        timer.start();
-        uint32_t num_disconnected = unitig_graph.DisconnectWeakLinks(0.1);
-        timer.stop();
-        xlog("Number unitigs disconnected: %u, time: %lf\n", num_disconnected, timer.elapsed());
-        changed |= num_disconnected > 0;
-
         // excessive pruning
         int64_t num_removed = 0;
         if (opt.prune_level >= 3) {
@@ -267,6 +260,15 @@ int main_assemble(int argc, char **argv) {
 
         if (num_removed > 0) changed = true;
         if (!changed) break;
+    }
+
+    if (opt.prune_level >= 2) {
+        // timer.reset();
+        // timer.start();
+        // uint32_t num_disconnected = unitig_graph.DisconnectWeakLinks(0.03, true); // TODO: Tuning this parameter
+        // timer.stop();
+        // xlog("Number unitigs disconnected: %u, time: %lf\n", num_disconnected, timer.elapsed());
+        // changed |= num_disconnected > 0;
     }
 
     // output contigs
@@ -325,6 +327,13 @@ int main_assemble(int argc, char **argv) {
             xlog("Super bubbles removed: %u, time: %lf\n",
                  (long long)num_super_bubbles, num_super_bubbles, timer.elapsed());
         }
+
+        timer.reset();
+        timer.start();
+        uint32_t num_disconnected = unitig_graph.DisconnectWeakLinks(0.1, opt.is_final_round);
+        timer.stop();
+        xlog("Number unitigs disconnected: %u, time: %lf\n", num_disconnected, timer.elapsed());
+        // changed |= num_disconnected > 0;
 
         hist.clear();
 

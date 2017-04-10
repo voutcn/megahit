@@ -88,8 +88,8 @@ class UnitigGraph {
     bool RemoveLocalLowDepth(double min_depth, int min_len, int local_width, double local_ratio, int64_t &num_removed, bool permanent_rm = false);
     uint32_t MergeBubbles(bool permanent_rm, bool careful, FILE *bubble_file, Histgram<int64_t> &hist);
     uint32_t MergeComplexBubbles(double similarity, int merge_level, bool permanent_rm, bool careful, FILE *bubble_file, Histgram<int64_t> &hist);
-    uint32_t DisconnectWeakLinks(double local_ratio);
-    uint32_t RemoveTips(int max_tip_len);
+    uint32_t DisconnectWeakLinks(double local_ratio = 0.1, bool permanent_rm = true);
+    uint32_t RemoveTips(int max_tip_len, double relative_depth = 0.2);
     uint32_t MergeSuperBubbles(int max_len, bool permanent_rm, bool careful, FILE *bubble_file, Histgram<int64_t> &hist);
     int SearchAndMergeSuperBubble_(int64_t source, int max_len, bool careful, FILE *bubble_file, Histgram<int64_t> &hist);
 

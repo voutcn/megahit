@@ -360,7 +360,7 @@ void UnitigGraph::InitFromSdBG() {
     omp_destroy_lock(&path_lock);
 }
 
-uint32_t UnitigGraph::RemoveTips(int max_tip_len) {
+uint32_t UnitigGraph::RemoveTips(int max_tip_len, double relative_depth) {
     uint32_t num_removed = 0;
     for (int thre = 2; thre < max_tip_len; thre = std::min(thre * 2, max_tip_len)) {
 #pragma omp parallel for schedule(static) reduction(+: num_removed)
@@ -373,15 +373,19 @@ uint32_t UnitigGraph::RemoveTips(int max_tip_len) {
             int outdegree = sdbg_->OutgoingEdges(vertices_[i].end_node, outs);
             int indegree = sdbg_->OutgoingEdges(vertices_[i].rev_end_node, rev_outs);
 
-            if (indegree + outdegree == 0) {
+            if (indegree + outdegree == 0 && vertices_[i].length < 150) { // WARNING HARDCODE
                 vertices_[i].is_dead = true;
             } else if (outdegree == 1 && indegree == 0) {
                 if (sdbg_->PrevSimplePathEdge(outs[0]) == vertices_[i].end_node) {
-                    vertices_[i].is_dead = true;
+                    auto it = start_node_map_.find(outs[0]);
+                    assert(it != start_node_map_.end());
+                    vertices_[i].is_dead = vertices_[it->second].depth * relative_depth > vertices_[i].depth;
                 }
             } else if (indegree == 1 && outdegree == 0) {
                 if (sdbg_->PrevSimplePathEdge(rev_outs[0]) == vertices_[i].rev_end_node) {
-                    vertices_[i].is_dead = true;
+                    auto it = start_node_map_.find(rev_outs[0]);
+                    assert(it != start_node_map_.end());
+                    vertices_[i].is_dead = vertices_[it->second].depth * relative_depth > vertices_[i].depth;
                 }
             }
 
@@ -927,7 +931,7 @@ bool UnitigGraph::RemoveLocalLowDepth(double min_depth, int min_len, int local_w
     return is_changed;
 }
 
-uint32_t UnitigGraph::DisconnectWeakLinks(double local_ratio = 0.1) {
+uint32_t UnitigGraph::DisconnectWeakLinks(double local_ratio, bool permanent_rm) {
     // see metaspades paper
     vector<int64_t> to_remove;
     omp_lock_t lock;
@@ -1036,7 +1040,8 @@ uint32_t UnitigGraph::DisconnectWeakLinks(double local_ratio = 0.1) {
         omp_unset_lock(&locks_[i]);
     }
 
-    Refresh_(false);
+    bool set_changed = !permanent_rm;
+    Refresh_(set_changed);
     return num_removed;
 }
 
