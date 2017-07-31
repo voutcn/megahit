@@ -66,7 +66,7 @@ inline bool IsDifferentEdges(uint32_t *item1, uint32_t *item2, int num_words, in
 /**
  * @brief pack an edge and its multiplicity to word-aligned spaces
  */
-inline void PackEdge(uint32_t *dest, uint32_t *item, int counting, struct count_global_t &globals, int64_t num_items) {
+inline void PackEdge(uint32_t *dest, uint32_t *item, int64_t counting, struct count_global_t &globals, int64_t num_items) {
     for (int i = 0; i < globals.words_per_edge && i < globals.words_per_substring; ++i) {
         dest[i] = *(item + i * num_items);
     }
@@ -86,7 +86,7 @@ inline void PackEdge(uint32_t *dest, uint32_t *item, int counting, struct count_
         dest[which_word] = 0;
     }
 
-    dest[globals.words_per_edge - 1] |= std::min(kMaxMulti_t, counting);
+    dest[globals.words_per_edge - 1] |= std::min(int64_t(kMaxMulti_t), counting);
 }
 
 // function pass to CX1
