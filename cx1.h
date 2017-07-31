@@ -165,6 +165,7 @@ struct CX1 {
         num_sorting_items = max_sorting_items;
 
         while (num_sorting_items >= min_sorting_items) {
+            xlog("Adjust memory layout: max_lv1_items=%lld, num_sorting_items=%lld", max_lv1_items, num_sorting_items);
             int64_t mem_sorting_items = bytes_per_sorting_item * num_sorting_items;
 
             if (mem_avail < mem_sorting_items) {
@@ -173,7 +174,6 @@ struct CX1 {
             }
 
             max_lv1_items = (mem_avail - mem_sorting_items) / kLv1BytePerItem;
-
             if (max_lv1_items < min_lv1_items || max_lv1_items < num_sorting_items) {
                 num_sorting_items *= 0.95;
             }
@@ -183,9 +183,7 @@ struct CX1 {
         }
 
         if (num_sorting_items < min_sorting_items) {
-            if (num_sorting_items < min_sorting_items) {
-                xerr_and_exit("No enough memory to process CX1.\n");
-            }
+            xerr_and_exit("No enough memory to process CX1.\n");
         }
 
         // --- adjust num_sorting_items to fit more lv1 item ---
