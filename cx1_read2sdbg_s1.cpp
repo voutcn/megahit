@@ -513,15 +513,15 @@ void *s1_lv1_fill_offset(void *_data) {
     return NULL;
 }
 
-void s1_extract_subtstr_(int bp_from, int bp_to, read2sdbg_global_t &globals, uint32_t *substr, int64_t *readinfo_ptr, int num_items) {
+void s1_extract_subtstr_(int bp_from, int bp_to, read2sdbg_global_t &globals, uint32_t *substr, int64_t *readinfo_ptr, int64_t num_items) {
     int *lv1_p = globals.lv1_items + globals.cx1.rp_[0].rp_bucket_offsets[bp_from];
 
     for (int b = bp_from; b < bp_to; ++b) {
         for (int t = 0; t < globals.num_cpu_threads; ++t) {
             int64_t full_offset = globals.cx1.rp_[t].rp_lv1_differential_base;
-            int num = globals.cx1.rp_[t].rp_bucket_sizes[b];
+            int64_t num = globals.cx1.rp_[t].rp_bucket_sizes[b];
 
-            for (int i = 0; i < num; ++i) {
+            for (int64_t i = 0; i < num; ++i) {
                 if (*lv1_p >= 0) {
                     full_offset += *(lv1_p++);
                 }
@@ -669,14 +669,14 @@ void s1_lv2_pre_output_partition(read2sdbg_global_t &globals) {
     globals.cx1.op_[globals.num_output_threads - 1].op_end_index = globals.lv2_num_items_db;
 }
 
-void s1_lv2_output_(int from, int to, int tid, read2sdbg_global_t &globals, uint32_t *substr, uint32_t *permutation, int64_t *readinfo_ptr, int num_items) {
-    int end_idx;
-    int count_prev_head[5][5];
-    int count_tail_next[5][5];
-    int count_head_tail[(1 << 2 * kBWTCharNumBits) - 1];
+void s1_lv2_output_(int64_t from, int64_t to, int tid, read2sdbg_global_t &globals, uint32_t *substr, uint32_t *permutation, int64_t *readinfo_ptr, int64_t num_items) {
+    int64_t end_idx;
+    int64_t count_prev_head[5][5];
+    int64_t count_tail_next[5][5];
+    int64_t count_head_tail[(1 << 2 * kBWTCharNumBits) - 1];
     int64_t *thread_edge_counting = globals.thread_edge_counting + tid * (kMaxMulti_t + 1);
 
-    for (int i = from; i < to; i = end_idx) {
+    for (int64_t i = from; i < to; i = end_idx) {
         end_idx = i + 1;
         uint32_t *first_item = substr + permutation[i];
         memset(count_prev_head, 0, sizeof(count_prev_head));
@@ -743,11 +743,11 @@ void s1_lv2_output_(int from, int to, int tid, read2sdbg_global_t &globals, uint
             uint8_t tail = head_and_tail & 7;
 
             if (head != kSentinelValue && tail != kSentinelValue) {
-                ++thread_edge_counting[std::min(kMaxMulti_t, count_head_tail[head_and_tail])];
+                ++thread_edge_counting[std::min(int64_t(kMaxMulti_t), count_head_tail[head_and_tail])];
             }
 
             if (head != kSentinelValue && tail != kSentinelValue && count_head_tail[head_and_tail] >= globals.kmer_freq_threshold) {
-                for (int j = 0; j < count_head_tail[head_and_tail]; ++j, ++i) {
+                for (int64_t j = 0; j < count_head_tail[head_and_tail]; ++j, ++i) {
                     int64_t read_info = readinfo_ptr[permutation[i]] >> 6;
                     int strand = read_info & 1;
                     int64_t read_id = globals.package.get_id(read_info >> 1);
@@ -773,7 +773,7 @@ void s1_lv2_output_(int from, int to, int tid, read2sdbg_global_t &globals, uint
             }
             else {
                 // not solid, but we still need to tell whether its left/right kmer is solid
-                for (int j = 0; j < count_head_tail[head_and_tail]; ++j, ++i) {
+                for (int64_t j = 0; j < count_head_tail[head_and_tail]; ++j, ++i) {
                     int64_t read_info = readinfo_ptr[permutation[i]] >> 6;
                     int strand = read_info & 1;
                     int64_t read_id = globals.package.get_id(read_info >> 1);
