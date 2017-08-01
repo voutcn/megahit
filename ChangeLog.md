@@ -1,3 +1,7 @@
+### 1.1.2 / 2017-08-01 HKT
+
+* Hotfix of an integer overflow bug
+
 ### 1.1.1 / 2016-12-08 HKT
 
 * Added `-f` option to force overwrite output directory

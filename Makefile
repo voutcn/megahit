@@ -160,7 +160,7 @@ CXXFLAGS = -g -O2 -Wall -Wno-unused-function -Wno-array-bounds -D__STDC_FORMAT_M
 LIB = -lm -lz -lpthread
 
 ifeq "4.5" "$(word 1, $(sort 4.5 $(GCC_VER)))"
-	CXXFLAGS += -static-libstdc++
+	CXXFLAGS += -static-libstdc++ -static
 endif
 
 ifneq ($(disablempopcnt), 1)
