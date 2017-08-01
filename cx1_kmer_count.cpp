@@ -312,11 +312,14 @@ void init_global_and_set_cx1(count_global_t &globals) {
                            - kNumBuckets * sizeof(int64_t) * (globals.num_cpu_threads * 3 + 1)
                            - (kMaxMulti_t + 1) * (globals.num_output_threads + 1) * sizeof(int64_t);
     int64_t min_lv1_items = globals.tot_bucket_size / (kMaxLv1ScanTime - 0.5);
+    xlog("%lld, %lld\n", globals.mem_flag, mem_remained);
+
 
     if (globals.mem_flag == 1) {
         // auto set memory
         globals.cx1.max_lv1_items_ = int64_t(globals.tot_bucket_size / (kDefaultLv1ScanTime - 0.5));
         globals.cx1.max_lv1_items_ = std::max(globals.cx1.max_lv1_items_, globals.max_bucket_size);
+        xlog("%lld, %lld\n", globals.mem_flag, mem_remained);
         int64_t mem_needed = globals.cx1.max_lv1_items_ * cx1_t::kLv1BytePerItem;
         if (mem_needed > mem_remained) {
             globals.cx1.adjust_mem_just_go(mem_remained, lv2_bytes_per_item, min_lv1_items, globals.max_bucket_size,
