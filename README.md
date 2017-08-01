@@ -1,7 +1,6 @@
 *If you are using MEGAHIT v1.0.4-beta or v1.0.5, please be advised to update it to the latest version.*
 
 [![Build Status](https://travis-ci.org/voutcn/megahit.svg?branch=master)](https://travis-ci.org/voutcn/megahit)
-[![Build Status](https://drone.io/github.com/voutcn/megahit/status.png)](https://drone.io/github.com/voutcn/megahit/latest)
 
 ## Getting Started
 
@@ -36,27 +35,27 @@ If MEGAHIT is successfully compiled, it can be run by the following command:
 
 `-1/-2`, `--12` and `-r` are parameters for inputting paired-end, interleaved-paired-end and single-end files. They accept files in fasta (*.fasta*, *.fa*, *.fna*) or fastq (*.fastq*, *.fq*) formats. They also supports gzip files (with *.gz* extensions) and bzip2 files (with *.bz2* extensions). Please run `./megahit -h` for detailed usage message.
 
-##Assembly Tips
+## Assembly Tips
 To fine tune parameters for specific datasets, please find our suggestions on [this wiki page](https://github.com/voutcn/megahit/wiki/Assembly-Tips).
 
-##FAQ & Reporting issues
+## FAQ & Reporting issues
 
 For other questions, please first refer to [our wiki](https://github.com/voutcn/megahit/wiki). Please [report an issue](https://github.com/voutcn/megahit/issues) in github when necessary.
 
-##Useful Links
+## Useful Links
 
 * [MEGAHIT wiki](https://github.com/voutcn/megahit/wiki)
 * [MEGABOX](http://hku-bal.github.io/megabox/): MEGAHIT assemblies of challenging metagenome data sets
 * [An example of real assembly with MEGAHIT](https://github.com/voutcn/megahit/wiki/An-example-of-real-assembly)
 
-##Citing MEGAHIT
+## Citing MEGAHIT
 If you use MEGAHIT v0.x or want to cite MEGAHIT for general purpose (e.g. review), please cite:
 - Li, D., Liu, C-M., Luo, R., Sadakane, K., and Lam, T-W., (2015) MEGAHIT: An ultra-fast single-node solution for large and complex metagenomics assembly via succinct de Bruijn graph. *Bioinformatics*, doi: 10.1093/bioinformatics/btv033 [PMID: [25609793](http://www.ncbi.nlm.nih.gov/pubmed/25609793)].
 
 If you use MEGAHIT v1.0 or higher version, or assemblies in [MEGABOX](http://hku-bal.github.io/megabox/), please also cite:
 - Li, D., Luo, R., Liu, C.M., Leung, C.M., Ting, H.F., Sadakane, K., Yamashita, H. and Lam, T.W., 2016. MEGAHIT v1.0: A Fast and Scalable Metagenome Assembler driven by Advanced Methodologies and Community Practices. Methods.
 
-##License & Supports
+## License & Supports
 
 ```
     MEGAHIT
