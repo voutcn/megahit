@@ -175,18 +175,6 @@ static void *MercyInputThread(void *seq_manager) {
     bool append = false;
     bool reverse = false;
     sm->ReadShortReads(kMaxReads, kMaxBases, append, reverse);
-    // printf("Processing %d reads\n", sm->package_->size());
-
-    // if (sm->package_->size() > 0) {
-    //     for (int i = 0; i < sm->package_->length(0); ++i)
-    //         putchar("ACGT"[sm->package_->get_base(0, i)]);
-    //     puts("");
-
-    //     for (int i = 0; i < sm->package_->length(sm->package_->size() - 1); ++i)
-    //         putchar("ACGT"[sm->package_->get_base(sm->package_->size() - 1, i)]);
-    //     puts("");
-    // }
-
     pthread_exit(NULL);
 }
 
@@ -647,6 +635,7 @@ void init_global_and_set_cx1(seq2sdbg_global_t &globals) {
     if (globals.mem_flag == 1) {
         // auto set memory
         globals.cx1.max_lv1_items_ = std::max(globals.cx1.max_lv2_items_, int64_t(globals.tot_bucket_size / (kDefaultLv1ScanTime - 0.5)));
+        globals.cx1.max_lv1_items_ = std::max(globals.cx1.max_lv1_items_, globals.max_bucket_size);
         int64_t mem_needed = globals.cx1.max_lv1_items_ * cx1_t::kLv1BytePerItem + globals.cx1.max_lv2_items_ * lv2_bytes_per_item;
 
         if (mem_needed > mem_remained) {
@@ -656,6 +645,7 @@ void init_global_and_set_cx1(seq2sdbg_global_t &globals) {
     else if (globals.mem_flag == 0) {
         // min memory
         globals.cx1.max_lv1_items_ = std::max(globals.cx1.max_lv2_items_, int64_t(globals.tot_bucket_size / (kMaxLv1ScanTime - 0.5)));
+        globals.cx1.max_lv1_items_ = std::max(globals.cx1.max_lv1_items_, globals.max_bucket_size);
         int64_t mem_needed = globals.cx1.max_lv1_items_ * cx1_t::kLv1BytePerItem + globals.cx1.max_lv2_items_ * lv2_bytes_per_item;
 
         if (mem_needed > mem_remained) {
@@ -689,7 +679,7 @@ void init_global_and_set_cx1(seq2sdbg_global_t &globals) {
 
     int64_t lv2_bytes_per_item = globals.words_per_substring * sizeof(uint32_t) + sizeof(uint32_t) + sizeof(uint32_t);
 
-    globals.max_sorting_items = std::max(3 * globals.tot_bucket_size * globals.num_cpu_threads / num_non_empty, globals.max_bucket_size * 2);
+    globals.max_sorting_items = std::max(3 * globals.tot_bucket_size * globals.num_cpu_threads / num_non_empty, globals.max_bucket_size);
     globals.cx1.lv1_just_go_ = true;
     globals.num_output_threads = globals.num_cpu_threads;
 
@@ -702,7 +692,8 @@ void init_global_and_set_cx1(seq2sdbg_global_t &globals) {
     if (globals.mem_flag == 1) {
         // auto set memory
         globals.cx1.max_lv1_items_ = int64_t(globals.tot_bucket_size / (kDefaultLv1ScanTime - 0.5));
-        int64_t mem_needed = globals.cx1.max_lv1_items_ * cx1_t::kLv1BytePerItem;
+        globals.cx1.max_lv1_items_ = std::max(globals.cx1.max_lv1_items_, globals.max_bucket_size);
+        int64_t mem_needed = globals.cx1.max_lv1_items_ * cx1_t::kLv1BytePerItem + globals.max_sorting_items * lv2_bytes_per_item;
 
         if (mem_needed > mem_remained) {
             globals.cx1.adjust_mem_just_go(mem_remained, lv2_bytes_per_item, min_lv1_items, globals.max_bucket_size,
@@ -713,7 +704,8 @@ void init_global_and_set_cx1(seq2sdbg_global_t &globals) {
     else if (globals.mem_flag == 0) {
         // min memory
         globals.cx1.max_lv1_items_ = int64_t(globals.tot_bucket_size / (kMaxLv1ScanTime - 0.5));
-        int64_t mem_needed = globals.cx1.max_lv1_items_ * cx1_t::kLv1BytePerItem;
+        globals.cx1.max_lv1_items_ = std::max(globals.cx1.max_lv1_items_, globals.max_bucket_size);
+        int64_t mem_needed = globals.cx1.max_lv1_items_ * cx1_t::kLv1BytePerItem + globals.max_sorting_items * lv2_bytes_per_item;
 
         if (mem_needed > mem_remained) {
             globals.cx1.adjust_mem_just_go(mem_remained, lv2_bytes_per_item, min_lv1_items, globals.max_bucket_size,
@@ -837,15 +829,15 @@ void *lv1_fill_offset(void *_data) {
 //     return y;
 // }
 
-void lv2_extract_substr_(int from_bucket, int to_bucket, seq2sdbg_global_t &globals, uint32_t *substr, int num_items) {
+void lv2_extract_substr_(int from_bucket, int to_bucket, seq2sdbg_global_t &globals, uint32_t *substr, int64_t num_items) {
     int *lv1_p = globals.lv1_items + globals.cx1.rp_[0].rp_bucket_offsets[from_bucket];
 
     for (int bucket = from_bucket; bucket < to_bucket; ++bucket) {
         for (int t = 0; t < globals.num_cpu_threads; ++t) {
             int64_t full_offset = globals.cx1.rp_[t].rp_lv1_differential_base;
-            int num = globals.cx1.rp_[t].rp_bucket_sizes[bucket];
+            int64_t num = globals.cx1.rp_[t].rp_bucket_sizes[bucket];
 
-            for (int i = 0; i < num; ++i) {
+            for (int64_t i = 0; i < num; ++i) {
                 if (*lv1_p >= 0) {
                     full_offset += *(lv1_p++);
                 }
@@ -885,7 +877,7 @@ void lv2_extract_substr_(int from_bucket, int to_bucket, seq2sdbg_global_t &glob
                     CopySubstring(substr, edge_p, offset + start_offset, num_chars_to_copy,
                                   num_items, words_this_seq, globals.words_per_substring);
 
-                    uint32_t *last_word = substr + int64_t(globals.words_per_substring - 1) * num_items;
+                    uint32_t *last_word = substr + (globals.words_per_substring - 1) * num_items;
                     *last_word |= int(num_chars_to_copy == globals.kmer_k) << (kBWTCharNumBits + kBitsPerMulti_t);
                     *last_word |= prev_char << kBitsPerMulti_t;
                     *last_word |= std::max(0, kMaxMulti_t - counting); // then larger counting come first after sorting
@@ -911,7 +903,7 @@ void lv2_extract_substr_(int from_bucket, int to_bucket, seq2sdbg_global_t &glob
                     CopySubstringRC(substr, edge_p, offset + start_offset, num_chars_to_copy,
                                     num_items, words_this_seq, globals.words_per_substring);
 
-                    uint32_t *last_word = substr + int64_t(globals.words_per_substring - 1) * num_items;
+                    uint32_t *last_word = substr + (globals.words_per_substring - 1) * num_items;
                     *last_word |= int(num_chars_to_copy == globals.kmer_k) << (kBWTCharNumBits + kBitsPerMulti_t);
                     *last_word |= prev_char << kBitsPerMulti_t;
                     *last_word |= std::max(0, kMaxMulti_t - counting);
@@ -953,11 +945,11 @@ void lv2_sort(seq2sdbg_global_t &globals) {
 }
 
 
-void output_(int64_t from, int64_t to, seq2sdbg_global_t &globals, uint32_t *substr, uint32_t *permutation, int tid, int num_items) {
-    int start_idx, end_idx;
+void output_(int64_t from, int64_t to, seq2sdbg_global_t &globals, uint32_t *substr, uint32_t *permutation, int tid, int64_t num_items) {
+    int64_t start_idx, end_idx;
     int has_solid_a = 0; // has solid (k+1)-mer aSb
     int has_solid_b = 0; // has solid aSb
-    int last_a[4], outputed_b;
+    int64_t last_a[4], outputed_b;
     uint32_t tip_label[32];
 
     for (start_idx = from; start_idx < to; start_idx = end_idx) {
@@ -977,7 +969,7 @@ void output_(int64_t from, int64_t to, seq2sdbg_global_t &globals, uint32_t *sub
         has_solid_a = has_solid_b = 0;
         outputed_b = 0;
 
-        for (int i = start_idx; i < end_idx; ++i) {
+        for (int64_t i = start_idx; i < end_idx; ++i) {
             uint32_t *cur_item = substr + permutation[i];
             int a = Extract_a(cur_item, globals.words_per_substring, num_items, globals.kmer_k);
             int b = Extract_b(cur_item, globals.words_per_substring, num_items);
@@ -993,7 +985,7 @@ void output_(int64_t from, int64_t to, seq2sdbg_global_t &globals, uint32_t *sub
             }
         }
 
-        for (int i = start_idx, j; i < end_idx; i = j) {
+        for (int64_t i = start_idx, j; i < end_idx; i = j) {
             uint32_t *cur_item = substr + permutation[i];
             int a = Extract_a(cur_item, globals.words_per_substring, num_items, globals.kmer_k);
             int b = Extract_b(cur_item, globals.words_per_substring, num_items);

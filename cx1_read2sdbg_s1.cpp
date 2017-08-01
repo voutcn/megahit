@@ -275,6 +275,7 @@ void s1_init_global_and_set_cx1(read2sdbg_global_t &globals) {
     if (globals.mem_flag == 1) {
         // auto set memory
         globals.cx1.max_lv1_items_ = std::max(globals.cx1.max_lv2_items_, int64_t(globals.tot_bucket_size / (kDefaultLv1ScanTime - 0.5)));
+        globals.cx1.max_lv1_items_ = std::max(globals.cx1.max_lv1_items_, globals.max_bucket_size);
         int64_t mem_needed = globals.cx1.max_lv1_items_ * cx1_t::kLv1BytePerItem + globals.cx1.max_lv2_items_ * lv2_bytes_per_item;
 
         if (mem_needed > mem_remained) {
@@ -284,6 +285,7 @@ void s1_init_global_and_set_cx1(read2sdbg_global_t &globals) {
     else if (globals.mem_flag == 0) {
         // min memory
         globals.cx1.max_lv1_items_ = std::max(globals.cx1.max_lv2_items_, int64_t(globals.tot_bucket_size / (kMaxLv1ScanTime - 0.5)));
+        globals.cx1.max_lv1_items_ = std::max(globals.cx1.max_lv1_items_, globals.max_bucket_size);
         int64_t mem_needed = globals.cx1.max_lv1_items_ * cx1_t::kLv1BytePerItem + globals.cx1.max_lv2_items_ * lv2_bytes_per_item;
 
         if (mem_needed > mem_remained) {
@@ -320,7 +322,7 @@ void s1_init_global_and_set_cx1(read2sdbg_global_t &globals) {
         }
     }
 
-    globals.max_sorting_items = std::max(3 * globals.tot_bucket_size / num_non_empty * globals.num_cpu_threads, globals.max_bucket_size * 2);
+    globals.max_sorting_items = std::max(3 * globals.tot_bucket_size / num_non_empty * globals.num_cpu_threads, globals.max_bucket_size);
 
     lv2_bytes_per_item += sizeof(uint32_t); // CPU memory is used to simulate GPU
 
@@ -334,7 +336,8 @@ void s1_init_global_and_set_cx1(read2sdbg_global_t &globals) {
     if (globals.mem_flag == 1) {
         // auto set memory
         globals.cx1.max_lv1_items_ = int64_t(globals.tot_bucket_size / (kDefaultLv1ScanTime - 0.5));
-        int64_t mem_needed = globals.cx1.max_lv1_items_ * cx1_t::kLv1BytePerItem;
+        globals.cx1.max_lv1_items_ = std::max(globals.cx1.max_lv1_items_, globals.max_bucket_size);
+        int64_t mem_needed = globals.cx1.max_lv1_items_ * cx1_t::kLv1BytePerItem + globals.max_sorting_items * lv2_bytes_per_item;
 
         if (mem_needed > mem_remained) {
             globals.cx1.adjust_mem_just_go(mem_remained, lv2_bytes_per_item, min_lv1_items, globals.max_bucket_size,
@@ -345,7 +348,8 @@ void s1_init_global_and_set_cx1(read2sdbg_global_t &globals) {
     else if (globals.mem_flag == 0) {
         // min memory
         globals.cx1.max_lv1_items_ = int64_t(globals.tot_bucket_size / (kMaxLv1ScanTime - 0.5));
-        int64_t mem_needed = globals.cx1.max_lv1_items_ * cx1_t::kLv1BytePerItem;
+        globals.cx1.max_lv1_items_ = std::max(globals.cx1.max_lv1_items_, globals.max_bucket_size);
+        int64_t mem_needed = globals.cx1.max_lv1_items_ * cx1_t::kLv1BytePerItem + globals.max_sorting_items * lv2_bytes_per_item;
 
         if (mem_needed > mem_remained) {
             globals.cx1.adjust_mem_just_go(mem_remained, lv2_bytes_per_item, min_lv1_items, globals.max_bucket_size,
@@ -513,15 +517,15 @@ void *s1_lv1_fill_offset(void *_data) {
     return NULL;
 }
 
-void s1_extract_subtstr_(int bp_from, int bp_to, read2sdbg_global_t &globals, uint32_t *substr, int64_t *readinfo_ptr, int num_items) {
+void s1_extract_subtstr_(int bp_from, int bp_to, read2sdbg_global_t &globals, uint32_t *substr, int64_t *readinfo_ptr, int64_t num_items) {
     int *lv1_p = globals.lv1_items + globals.cx1.rp_[0].rp_bucket_offsets[bp_from];
 
     for (int b = bp_from; b < bp_to; ++b) {
         for (int t = 0; t < globals.num_cpu_threads; ++t) {
             int64_t full_offset = globals.cx1.rp_[t].rp_lv1_differential_base;
-            int num = globals.cx1.rp_[t].rp_bucket_sizes[b];
+            int64_t num = globals.cx1.rp_[t].rp_bucket_sizes[b];
 
-            for (int i = 0; i < num; ++i) {
+            for (int64_t i = 0; i < num; ++i) {
                 if (*lv1_p >= 0) {
                     full_offset += *(lv1_p++);
                 }
@@ -669,14 +673,14 @@ void s1_lv2_pre_output_partition(read2sdbg_global_t &globals) {
     globals.cx1.op_[globals.num_output_threads - 1].op_end_index = globals.lv2_num_items_db;
 }
 
-void s1_lv2_output_(int from, int to, int tid, read2sdbg_global_t &globals, uint32_t *substr, uint32_t *permutation, int64_t *readinfo_ptr, int num_items) {
-    int end_idx;
-    int count_prev_head[5][5];
-    int count_tail_next[5][5];
-    int count_head_tail[(1 << 2 * kBWTCharNumBits) - 1];
+void s1_lv2_output_(int64_t from, int64_t to, int tid, read2sdbg_global_t &globals, uint32_t *substr, uint32_t *permutation, int64_t *readinfo_ptr, int64_t num_items) {
+    int64_t end_idx;
+    int64_t count_prev_head[5][5];
+    int64_t count_tail_next[5][5];
+    int64_t count_head_tail[(1 << 2 * kBWTCharNumBits) - 1];
     int64_t *thread_edge_counting = globals.thread_edge_counting + tid * (kMaxMulti_t + 1);
 
-    for (int i = from; i < to; i = end_idx) {
+    for (int64_t i = from; i < to; i = end_idx) {
         end_idx = i + 1;
         uint32_t *first_item = substr + permutation[i];
         memset(count_prev_head, 0, sizeof(count_prev_head));
@@ -743,11 +747,11 @@ void s1_lv2_output_(int from, int to, int tid, read2sdbg_global_t &globals, uint
             uint8_t tail = head_and_tail & 7;
 
             if (head != kSentinelValue && tail != kSentinelValue) {
-                ++thread_edge_counting[std::min(kMaxMulti_t, count_head_tail[head_and_tail])];
+                ++thread_edge_counting[std::min(int64_t(kMaxMulti_t), count_head_tail[head_and_tail])];
             }
 
             if (head != kSentinelValue && tail != kSentinelValue && count_head_tail[head_and_tail] >= globals.kmer_freq_threshold) {
-                for (int j = 0; j < count_head_tail[head_and_tail]; ++j, ++i) {
+                for (int64_t j = 0; j < count_head_tail[head_and_tail]; ++j, ++i) {
                     int64_t read_info = readinfo_ptr[permutation[i]] >> 6;
                     int strand = read_info & 1;
                     int64_t read_id = globals.package.get_id(read_info >> 1);
@@ -773,7 +777,7 @@ void s1_lv2_output_(int from, int to, int tid, read2sdbg_global_t &globals, uint
             }
             else {
                 // not solid, but we still need to tell whether its left/right kmer is solid
-                for (int j = 0; j < count_head_tail[head_and_tail]; ++j, ++i) {
+                for (int64_t j = 0; j < count_head_tail[head_and_tail]; ++j, ++i) {
                     int64_t read_info = readinfo_ptr[permutation[i]] >> 6;
                     int strand = read_info & 1;
                     int64_t read_id = globals.package.get_id(read_info >> 1);
