@@ -62,16 +62,14 @@ class AtomicBitVector {
     bool try_lock(size_t i) {
         // assert(i / kBitsPerWord < num_words_);
         word_t *p = data_ + i / kBitsPerWord;
-
-        while (!((*p >> i % kBitsPerWord) & 1)) {
-            word_t old_value = *p;
+        word_t old_value = *p >> i % kBitsPerWord;
+        while (!(old_value & 1)) {
             word_t new_value = old_value | (word_t(1) << (i % kBitsPerWord));
-
             if (__sync_bool_compare_and_swap(p, old_value, new_value)) {
                 return true;
             }
+            old_value = *p >> i % kBitsPerWord;
         }
-
         return false;
     }
 
