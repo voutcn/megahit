@@ -599,7 +599,7 @@ void SuccinctDBG::LoadFromMultiFile(const char *dbg_name, bool need_multiplicity
             edge_large_multi_ = (multi_t *) MallocAndCheck(sizeof(multi_t) * size, __FILE__, __LINE__);
         } else {
             edge_multi_ = (multi2_t *) MallocAndCheck(sizeof(multi2_t) * size, __FILE__, __LINE__);
-            large_multi_h_ = kh_init(k64v16);
+            large_multi_h_.reserve(sdbg_reader.num_large_mul());
         }
         need_to_free_mul_ = true;
     }
@@ -664,9 +664,7 @@ void SuccinctDBG::LoadFromMultiFile(const char *dbg_name, bool need_multiplicity
             assert(mul >= kMulti2Sp);
             if (need_multiplicity) {
                 if (edge_multi_) {
-                    int ret;
-                    khint_t k = kh_put(k64v16, large_multi_h_, i, &ret);
-                    kh_value(large_multi_h_, k) = mul;
+                    large_multi_h_[i] = mul;
                 } else {
                     edge_large_multi_[i] = mul;
                 }

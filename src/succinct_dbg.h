@@ -24,10 +24,9 @@
 #include <vector>
 #include "definitions.h"
 #include "kmlib/kmrns.h"
-#include "khash.h"
+#include "sparsepp/sparsepp/spp.h"
 
 using std::vector;
-KHASH_MAP_INIT_INT64(k64v16, multi_t); // declare khash
 
 class SuccinctDBG {
   public:
@@ -138,7 +137,7 @@ class SuccinctDBG {
             return edge_multi_[edge_id];
         }
         else {
-            return kh_value(large_multi_h_, kh_get(k64v16, large_multi_h_, edge_id));
+            return large_multi_h_[edge_id];
         }
     }
 
@@ -197,7 +196,7 @@ class SuccinctDBG {
             if (edge_multi_ != NULL) {
                 free(edge_multi_);
                 edge_multi_ = NULL;
-                kh_destroy(k64v16, large_multi_h_);
+                large_multi_h_ = std::move(spp::sparse_hash_map<uint64_t, multi_t>());
             } else if (edge_large_multi_ != NULL) {
                 free(edge_large_multi_);
                 edge_large_multi_ = NULL;
@@ -224,7 +223,7 @@ class SuccinctDBG {
     int64_t *prefix_lkt_;
     multi2_t *edge_multi_;
     multi_t *edge_large_multi_;
-    khash_t(k64v16) *large_multi_h_;
+    spp::sparse_hash_map<uint64_t, multi_t> large_multi_h_;
     unsigned long long *is_multi_1_;
 
     long long f_[kAlphabetSize + 2];

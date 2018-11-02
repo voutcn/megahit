@@ -53,7 +53,6 @@ add_executable(megahit
         src/hash.h
         src/histgram.h
         src/iterate_edges.cpp
-        src/khash.h
         src/kmer.h
         src/kmer_plus.h
         src/kseq.h
