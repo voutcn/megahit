@@ -28,9 +28,11 @@
 
 # Sublime Text file
 sftp-config.json
-megahit_asm_core
-megahit_sdbg_build
-megahit_toolkit
+src/megahit_asm_core
+src/megahit_sdbg_build
+src/megahit_toolkit
 *.tar.gz
 *-bin
-example/megahit_out
+src/example/megahit_out
+cmake-build-debug
+.idea

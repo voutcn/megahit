@@ -1,0 +1,96 @@
+cmake_minimum_required(VERSION 3.12)
+project(megahit)
+
+set(CMAKE_CXX_STANDARD 14)
+
+include_directories(src)
+include_directories(src/lib_idba)
+include_directories(sparsepp)
+
+add_executable(megahit
+        src/lib_idba/bit_edges.h
+        src/lib_idba/contig_builder.h
+        src/lib_idba/contig_graph.cpp
+        src/lib_idba/contig_graph.h
+        src/lib_idba/contig_graph_branch_group.cpp
+        src/lib_idba/contig_graph_branch_group.h
+        src/lib_idba/contig_graph_path.h
+        src/lib_idba/contig_graph_vertex.h
+        src/lib_idba/contig_info.cpp
+        src/lib_idba/contig_info.h
+        src/lib_idba/hash_graph.cpp
+        src/lib_idba/hash_graph.h
+        src/lib_idba/hash_graph_path.h
+        src/lib_idba/hash_graph_vertex.h
+        src/lib_idba/hash_map.h
+        src/lib_idba/hash_table.h
+        src/lib_idba/kmer.h
+        src/lib_idba/pool.h
+        src/lib_idba/sequence.cpp
+        src/lib_idba/sequence.h
+        src/lib_idba/vertex_status.h
+        src/asm_core.cpp
+        src/assembler.cpp
+        src/assembly_algorithms.cpp
+        src/assembly_algorithms.h
+        src/atomic_bit_vector.h
+        src/bit_operation.h
+        src/build_read_lib.cpp
+        src/city.cpp
+        src/city.h
+        src/citycrc.h
+        src/cx1.h
+        src/cx1_kmer_count.cpp
+        src/cx1_kmer_count.h
+        src/cx1_read2sdbg.h
+        src/cx1_read2sdbg_s1.cpp
+        src/cx1_read2sdbg_s2.cpp
+        src/cx1_seq2sdbg.cpp
+        src/cx1_seq2sdbg.h
+        src/definitions.h
+        src/edge_io.h
+        src/functional.h
+        src/hash.h
+        src/hash_map.h
+        src/hash_table.h
+        src/histgram.h
+        src/iterate_edges.cpp
+        src/khash.h
+        src/kmer.h
+        src/kmer_plus.h
+        src/kseq.h
+        src/kthread.cpp
+        src/lib_info.h
+        src/local_assemble.cpp
+        src/local_assembler.cpp
+        src/local_assembler.h
+        src/lv2_cpu_sort.h
+        src/lv2_gpu_functions.h
+        src/mem_file_checker-inl.h
+        src/options_description.cpp
+        src/options_description.h
+        src/packed_reads.h
+        src/pool.h
+        src/query_sdbg.cpp
+        src/rank_and_select.h
+        src/read_lib_functions-inl.h
+        src/sdbg_builder.cpp
+        src/sdbg_multi_io.h
+        src/sequence_manager.cpp
+        src/sequence_manager.h
+        src/sequence_package.h
+        src/succinct_dbg.cpp
+        src/succinct_dbg.h
+        src/unitig_graph.cpp
+        src/unitig_graph.h
+        src/utils.h
+        tools/binary-edge-2-ascii.cpp
+        tools/compare-kmer-fasta.cpp
+        tools/contigs_to_fastg.cpp
+        tools/count-uniq-kmer.cpp
+        tools/count_kmer_coverage.cpp
+        tools/extract_pe_reads.cpp
+        tools/filter_by_len.cpp
+        tools/read_stat.cpp
+        tools/toolkit.cpp
+        tools/trim_low_qual_tail.cpp src/kmlib/bitvector.h src/kmlib/kmrns.h)

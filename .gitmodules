@@ -1,0 +1,3 @@
+[submodule "src/sparsepp"]
+	path = src/sparsepp
+	url = git@github.com:greg7mdp/sparsepp.git
