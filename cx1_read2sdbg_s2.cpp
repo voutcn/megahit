@@ -153,7 +153,10 @@ void s2_read_mercy_prepare(read2sdbg_global_t &globals) {
             }
 
             uint64_t this_end = std::min(start_idx[tid] + avg, (uint64_t)mercy_cand.size());
-            uint64_t read_id = globals.package.get_id(mercy_cand[this_end] >> 2);
+            uint64_t read_id = 0;
+            if (this_end < mercy_cand.size()) {
+                read_id = globals.package.get_id(mercy_cand[this_end] >> 2);
+            }
 
             while (this_end < mercy_cand.size() && globals.package.get_id(mercy_cand[this_end] >> 2) == read_id) {
                 ++this_end;
