@@ -1,3 +1,7 @@
+### 1.1.3 / 2018-11-01 PST
+
+* Fixed a bug in mercy edge stage in 1-pass mode
+
 ### 1.1.3 / 2018-03-02 PST
 
 * Fix a bug in atomic bit vector that may cause a race condition
