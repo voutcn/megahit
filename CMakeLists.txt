@@ -63,13 +63,10 @@ add_executable(megahit
         src/local_assembler.cpp
         src/local_assembler.h
         src/lv2_cpu_sort.h
-        src/lv2_gpu_functions.h
         src/mem_file_checker-inl.h
         src/options_description.cpp
         src/options_description.h
         src/packed_reads.h
-        src/query_sdbg.cpp
-        src/rank_and_select.h
         src/read_lib_functions-inl.h
         src/sdbg_builder.cpp
         src/sdbg_multi_io.h

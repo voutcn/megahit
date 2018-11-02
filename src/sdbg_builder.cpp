@@ -28,7 +28,6 @@
 #include "cx1_kmer_count.h"
 #include "cx1_read2sdbg.h"
 #include "cx1_seq2sdbg.h"
-#include "lv2_gpu_functions.h"
 #include "options_description.h"
 #include "utils.h"
 #include "definitions.h"
@@ -69,25 +68,6 @@ int main_kmer_count(int argc, char **argv) {
         if (opt.host_mem == 0) {
             throw std::logic_error("Please specify the host memory!");
         }
-
-        if (opt.gpu_mem == 0) {
-#ifdef USE_GPU
-            size_t free_gpu_mem, total_gpu_mem;
-            get_cuda_memory(free_gpu_mem, total_gpu_mem);
-            opt.gpu_mem = free_gpu_mem;
-#else
-            opt.gpu_mem = 0;
-#endif
-        }
-
-#ifdef USE_GPU
-
-        if (opt.num_output_threads >= opt.num_cpu_threads) {
-            throw std::logic_error("Number of output threads must be less than number of CPU threads!");
-        }
-
-#endif
-
     }
     catch (std::exception &e) {
         std::cerr << e.what() << std::endl;
@@ -169,22 +149,6 @@ int main_read2sdbg(int argc, char **argv) {
         if (opt.host_mem == 0) {
             throw std::logic_error("Please specify the host memory!");
         }
-
-        if (opt.gpu_mem == 0) {
-#ifdef USE_GPU
-            size_t free_gpu_mem, total_gpu_mem;
-            get_cuda_memory(free_gpu_mem, total_gpu_mem);
-            opt.gpu_mem = free_gpu_mem;
-#else
-            opt.gpu_mem = 0;
-#endif
-        }
-
-#ifdef USE_GPU
-        if (opt.num_output_threads >= opt.num_cpu_threads) {
-            throw std::logic_error("Number of output threads must be less than number of CPU threads!");
-        }
-#endif
     }
     catch (std::exception &e) {
         std::cerr << e.what() << std::endl;
@@ -294,22 +258,6 @@ int main_seq2sdbg(int argc, char **argv) {
         if (opt.host_mem == 0) {
             throw std::logic_error("Please specify the host memory!");
         }
-
-        if (opt.gpu_mem == 0) {
-#ifdef USE_GPU
-            size_t free_gpu_mem, total_gpu_mem;
-            get_cuda_memory(free_gpu_mem, total_gpu_mem);
-            opt.gpu_mem = free_gpu_mem;
-#else
-            opt.gpu_mem = 0;
-#endif
-        }
-
-#ifdef USE_GPU
-        if (opt.num_output_threads >= opt.num_cpu_threads) {
-            throw std::logic_error("Number of output threads must be less than number of CPU threads!");
-        }
-#endif
     }
     catch (std::exception &e) {
         std::cerr << e.what() << std::endl;

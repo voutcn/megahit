@@ -30,7 +30,6 @@
 #include "kmer.h"
 
 #include "lv2_cpu_sort.h"
-#include "lv2_gpu_functions.h"
 
 extern void kt_dfor(int n_threads, void (*func)(void *, long, int), void *data, long n);
 
@@ -607,68 +606,6 @@ void init_global_and_set_cx1(seq2sdbg_global_t &globals) {
     globals.words_per_substring = DivCeiling(globals.kmer_k * kBitsPerEdgeChar + kBWTCharNumBits + 1 + kBitsPerMulti_t, kBitsPerEdgeWord);
     globals.words_per_dummy_node = DivCeiling(globals.kmer_k * kBitsPerEdgeChar, kBitsPerEdgeWord);
 
-#ifdef USE_GPU
-    int64_t lv2_mem = globals.gpu_mem - 1073741824; // should reserve ~1G for GPU sorting
-    globals.cx1.max_lv2_items_ = std::min(lv2_mem / cx1_t::kGPUBytePerItem, std::max(globals.max_bucket_size, kMinLv2BatchSizeGPU));
-
-    if (globals.max_bucket_size > globals.cx1.max_lv2_items_) {
-        xerr_and_exit("Bucket too large for GPU: contains %lld items. Please try CPU version.\n", globals.max_bucket_size);
-        // TODO: auto switch to CPU version
-        exit(1);
-    }
-
-    // lv2 bytes: substring (double buffer), permutation
-    int64_t lv2_bytes_per_item = (globals.words_per_substring * sizeof(uint32_t) + sizeof(uint32_t)) * 2;
-
-    if (cx1_t::kCX1Verbose >= 2) {
-        xlog("%d words per substring, num sequences: %ld, words per dummy node ($v): %d\n", globals.words_per_substring, globals.num_seq, globals.words_per_dummy_node);
-    }
-
-    // --- memory stuff ---
-    int64_t mem_remained = globals.host_mem
-                           - globals.mem_packed_seq
-                           - kNumBuckets * sizeof(int64_t) * (globals.num_cpu_threads * 3 + 1);
-
-    int64_t min_lv1_items = globals.tot_bucket_size / (kMaxLv1ScanTime - 0.5);
-    int64_t min_lv2_items = std::max(globals.max_bucket_size, kMinLv2BatchSize);
-
-    if (globals.mem_flag == 1) {
-        // auto set memory
-        globals.cx1.max_lv1_items_ = std::max(globals.cx1.max_lv2_items_, int64_t(globals.tot_bucket_size / (kDefaultLv1ScanTime - 0.5)));
-        globals.cx1.max_lv1_items_ = std::max(globals.cx1.max_lv1_items_, globals.max_bucket_size);
-        int64_t mem_needed = globals.cx1.max_lv1_items_ * cx1_t::kLv1BytePerItem + globals.cx1.max_lv2_items_ * lv2_bytes_per_item;
-
-        if (mem_needed > mem_remained) {
-            globals.cx1.adjust_mem(mem_remained, lv2_bytes_per_item, min_lv1_items, min_lv2_items);
-        }
-    }
-    else if (globals.mem_flag == 0) {
-        // min memory
-        globals.cx1.max_lv1_items_ = std::max(globals.cx1.max_lv2_items_, int64_t(globals.tot_bucket_size / (kMaxLv1ScanTime - 0.5)));
-        globals.cx1.max_lv1_items_ = std::max(globals.cx1.max_lv1_items_, globals.max_bucket_size);
-        int64_t mem_needed = globals.cx1.max_lv1_items_ * cx1_t::kLv1BytePerItem + globals.cx1.max_lv2_items_ * lv2_bytes_per_item;
-
-        if (mem_needed > mem_remained) {
-            globals.cx1.adjust_mem(mem_remained, lv2_bytes_per_item, min_lv1_items, min_lv2_items);
-        }
-        else {
-            globals.cx1.adjust_mem(mem_needed, lv2_bytes_per_item, min_lv1_items, min_lv2_items);
-        }
-    }
-    else {
-        // use all
-        globals.cx1.adjust_mem(mem_remained, lv2_bytes_per_item, min_lv1_items, min_lv2_items);
-    }
-
-    // --- alloc memory ---
-    globals.lv1_items = (int *) MallocAndCheck(globals.cx1.max_lv1_items_ * sizeof(int), __FILE__, __LINE__);
-    globals.lv2_substrings = (uint32_t *) MallocAndCheck(globals.cx1.max_lv2_items_ * globals.words_per_substring * sizeof(uint32_t), __FILE__, __LINE__);
-    globals.permutation = (uint32_t *) MallocAndCheck(globals.cx1.max_lv2_items_ * sizeof(uint32_t), __FILE__, __LINE__);
-    globals.lv2_substrings_db = (uint32_t *) MallocAndCheck(globals.cx1.max_lv2_items_ * globals.words_per_substring * sizeof(uint32_t), __FILE__, __LINE__);
-    globals.permutation_db = (uint32_t *) MallocAndCheck(globals.cx1.max_lv2_items_ * sizeof(uint32_t), __FILE__, __LINE__);
-    alloc_gpu_buffers(globals.gpu_key_buffer1, globals.gpu_key_buffer2, globals.gpu_value_buffer1, globals.gpu_value_buffer2, (size_t)globals.cx1.max_lv2_items_);
-
-#else
     num_non_empty = std::max(1, num_non_empty);
 
     for (int i = 0; i < kNumBuckets; ++i) {
@@ -734,14 +671,10 @@ void init_global_and_set_cx1(seq2sdbg_global_t &globals) {
     // --- init lock ---
     pthread_mutex_init(&globals.lv1_items_scanning_lock, NULL);
 
-#endif
 
     if (cx1_t::kCX1Verbose >= 2) {
         xlog("Memory for sequence: %lld\n", globals.mem_packed_seq);
         xlog("max # lv.1 items = %lld\n", globals.cx1.max_lv1_items_);
-#ifdef USE_GPU
-        xlog("max # lv.2 items = %lld\n", globals.cx1.max_lv2_items_);
-#endif
     }
 
     // --- init output ---
@@ -923,27 +856,6 @@ void *lv2_extract_substr(void *_data) {
     lv2_extract_substr_(bp.bp_start_bucket, bp.bp_end_bucket, globals, substrings_p, globals.cx1.lv2_num_items_);
     pthread_exit(NULL);
 }
-
-void lv2_sort(seq2sdbg_global_t &globals) {
-    xtimer_t local_timer;
-#ifdef USE_GPU
-
-    if (cx1_t::kCX1Verbose >= 4) {
-        local_timer.reset();
-        local_timer.start();
-    }
-
-    lv2_gpu_sort(globals.lv2_substrings, globals.permutation, globals.words_per_substring, globals.cx1.lv2_num_items_,
-                 globals.gpu_key_buffer1, globals.gpu_key_buffer2, globals.gpu_value_buffer1, globals.gpu_value_buffer2);
-
-    if (cx1_t::kCX1Verbose >= 4) {
-        local_timer.stop();
-        xlog("Sorting substrings with GPU...done. Time elapsed: %.4lf\n", local_timer.elapsed());
-    }
-
-#endif
-}
-
 
 void output_(int64_t from, int64_t to, seq2sdbg_global_t &globals, uint32_t *substr, uint32_t *permutation, int tid, int64_t num_items) {
     int64_t start_idx, end_idx;
@@ -1157,13 +1069,8 @@ void post_proc(seq2sdbg_global_t &globals) {
     pthread_mutex_destroy(&globals.lv1_items_scanning_lock);
     free(globals.lv1_items);
     globals.sdbg_writer.destroy();
-#ifdef USE_GPU
-    free(globals.lv2_substrings);
-    free(globals.permutation);
-    free(globals.lv2_substrings_db);
-    free(globals.permutation_db);
-    free_gpu_buffers(globals.gpu_key_buffer1, globals.gpu_key_buffer2, globals.gpu_value_buffer1, globals.gpu_value_buffer2);
-#endif
 }
+
+void lv2_sort(cx1_seq2sdbg::seq2sdbg_global_t&) {}
 
 } // namespace
