@@ -153,7 +153,10 @@ void s2_read_mercy_prepare(read2sdbg_global_t &globals) {
             }
 
             uint64_t this_end = std::min(start_idx[tid] + avg, (uint64_t)mercy_cand.size());
-            uint64_t read_id = globals.package.get_id(mercy_cand[this_end] >> 2);
+            uint64_t read_id = 0;
+            if (this_end < mercy_cand.size()) {
+                read_id = globals.package.get_id(mercy_cand[this_end] >> 2);
+            }
 
             while (this_end < mercy_cand.size() && globals.package.get_id(mercy_cand[this_end] >> 2) == read_id) {
                 ++this_end;
@@ -402,7 +405,7 @@ void s2_init_global_and_set_cx1(read2sdbg_global_t &globals) {
 
     int64_t lv2_bytes_per_item = globals.words_per_substring * sizeof(uint32_t) + sizeof(uint32_t) + sizeof(uint32_t);
 
-    globals.max_sorting_items = std::max(globals.tot_bucket_size * globals.num_cpu_threads / num_non_empty, globals.max_bucket_size * 2);
+    globals.max_sorting_items = std::max(globals.tot_bucket_size * globals.num_cpu_threads / num_non_empty, globals.max_bucket_size);
     globals.cx1.lv1_just_go_ = true;
     globals.num_output_threads = globals.num_cpu_threads;
 

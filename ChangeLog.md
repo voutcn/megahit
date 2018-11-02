@@ -1,3 +1,15 @@
+### 1.1.3 / 2018-11-01 PST
+
+* Fixed a bug in mercy edge stage in 1-pass mode
+
+### 1.1.3 / 2018-03-02 PST
+
+* Fix a bug in atomic bit vector that may cause a race condition
+
+### 1.1.2 / 2017-08-01 HKT
+
+* Hotfix of an integer overflow bug
+
 ### 1.1.1 / 2016-12-08 HKT
 
 * Added `-f` option to force overwrite output directory
