@@ -25,10 +25,12 @@
 #include <vector>
 #include <string>
 #include <deque>
+#include <iostream>
 
 #include <omp.h>
+#include <mutex>
 
-#include "hash_table.h"
+#include "sparsepp/sparsepp/spp.h"
 #include "sequence_package.h"
 #include "kmer_plus.h"
 #include "lib_info.h"
@@ -38,9 +40,8 @@ struct LocalAssembler {
     static const int kMaxNumLocks = 1 << 20;
 
     typedef std::pair<double, double> tlen_t;
-    typedef KmerPlus<2, uint32_t, uint64_t> kmer_plus_t;
     typedef Kmer<2, uint32_t> kmer_t;
-    typedef HashTable<kmer_plus_t, kmer_t> mapper_t;
+    typedef spp::sparse_hash_map<kmer_t, uint64_t, KmerHash> mapper_t;
 
     struct MappingRecord {
         uint32_t contig_id;
@@ -125,6 +126,7 @@ struct LocalAssembler {
     int AddMateToMappingDeque_(size_t read_id, size_t mate_id, const MappingRecord &rec1, const MappingRecord &rec2, bool mapped2, int local_range);
     bool MapToHashMapper_(const mapper_t &mapper, size_t read_id, MappingRecord &rec);
     static void *LocalAssembleThread_(void *task);
+    std::mutex lock_;
 };
 
 #endif

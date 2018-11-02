@@ -184,7 +184,7 @@ endif
 #-------------------------------------------------------------------------------
 STANDALONE_H = kmlib/kmrns.h kmer_plus.h kmer.h lib_info.h \
 			   bit_operation.h kmlib/bitvector.h functional.h \
-			   khash.h kseq.h pool.h packed_reads.h sequence_package.h \
+			   khash.h kseq.h packed_reads.h sequence_package.h \
 			   utils.h mem_file_checker-inl.h read_lib_functions-inl.h \
 			   edge_io.h histgram.h definitions.h lv2_cpu_sort.h sdbg_multi_io.h \
 			   cx1.h

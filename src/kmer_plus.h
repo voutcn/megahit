@@ -63,6 +63,12 @@ struct KmerHash
   {
     return p.kmer.hash();
   }
+
+  template <uint32_t kNumWords, typename kmer_word_t>
+  std::size_t operator()(Kmer<kNumWords, kmer_word_t> const &p) const
+  {
+    return p.hash();
+  }
 };
 
 

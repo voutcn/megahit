@@ -51,8 +51,6 @@ add_executable(megahit
         src/edge_io.h
         src/functional.h
         src/hash.h
-        src/hash_map.h
-        src/hash_table.h
         src/histgram.h
         src/iterate_edges.cpp
         src/khash.h
@@ -70,7 +68,6 @@ add_executable(megahit
         src/options_description.cpp
         src/options_description.h
         src/packed_reads.h
-        src/pool.h
         src/query_sdbg.cpp
         src/rank_and_select.h
         src/read_lib_functions-inl.h

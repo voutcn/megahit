@@ -110,24 +110,23 @@ inline void DecodeContigOffset(uint64_t code, uint32_t &contig_id, uint32_t &con
 }
 
 void LocalAssembler::AddToHashMapper_(mapper_t &mapper, unsigned contig_id, int sparcity) {
-    kmer_plus_t kp;
     kmer_t key;
-    kp.ann = ~0ULL;	// special marker
 
     for (int i = 0, len = contigs_->length(contig_id); i + seed_kmer_ <= len; i += sparcity) {
         uint64_t full_offset = contigs_->get_start_index(contig_id) + i;
         key.init(&contigs_->packed_seq[full_offset / SequencePackage::kCharsPerWord], full_offset % SequencePackage::kCharsPerWord, seed_kmer_);
-        kp.kmer = key.unique_format(seed_kmer_);
-        kmer_plus_t &kp_in_mapper = mapper.find_or_insert_with_lock(kp);
+        auto kmer = key.unique_format(seed_kmer_);
+        auto offset = EncodeContigOffset(contig_id, i, key != kmer);
 
-        if (kp_in_mapper.ann != ~0ULL) {
-            kp_in_mapper.ann |= 1ULL << 63; // mark the highest bit as unused
+      {
+        std::lock_guard<std::mutex> lk(lock_);
+        mapper_t::iterator iter = mapper.find(kmer);
+        if (iter != mapper.end()) {
+          iter->second |= 1ULL << 63; // mark the highest bit as unused
+        } else {
+          mapper[kmer] = offset;
         }
-        else {
-            kp_in_mapper.ann = EncodeContigOffset(contig_id, i, key != kp_in_mapper.kmer);
-        }
-
-        mapper.unlock(kp);
+      }
     }
 }
 
@@ -215,11 +214,11 @@ bool LocalAssembler::MapToHashMapper_(const mapper_t &mapper, size_t read_id, Ma
 
         auto iter = mapper.find(query_strand == 0 ? kmer_f : kmer_r);
 
-        if (iter == mapper.end() || (iter->ann >> 63) != 0) {
+        if (iter == mapper.end() || (iter->second >> 63) != 0) {
             continue;
         }
 
-        DecodeContigOffset(iter->ann, contig_id, contig_offset, contig_strand);
+        DecodeContigOffset(iter->second, contig_id, contig_offset, contig_strand);
         assert(contig_id < contigs_->size());
         assert(contig_offset < contigs_->length(contig_id));
 
