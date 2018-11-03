@@ -156,7 +156,7 @@ DEPS =   ./Makefile \
 CUDALIBFLAG = -L$(CUDA_LIB) -lcuda -lcudart
 GCC_VER := $(shell echo `$(CXX) -dumpversion | cut -f1-2 -d.`)
 
-CXXFLAGS = -g -O2 -Wall -Wno-unused-function -Wno-array-bounds -D__STDC_FORMAT_MACROS -funroll-loops -fprefetch-loop-arrays -fopenmp -I. -std=c++0x -static-libgcc $(CPU_ARCH)
+CXXFLAGS = -O2 -Wall -Wno-unused-function -Wno-array-bounds -D__STDC_FORMAT_MACROS -funroll-loops -fprefetch-loop-arrays -fopenmp -I. -std=c++0x -static-libgcc $(CPU_ARCH)
 LIB = -lm -lz -lpthread
 
 ifeq "4.5" "$(word 1, $(sort 4.5 $(GCC_VER)))"
@@ -184,7 +184,7 @@ endif
 #-------------------------------------------------------------------------------
 STANDALONE_H = kmlib/kmrns.h kmer_plus.h kmer.h lib_info.h \
 			   bit_operation.h kmlib/bitvector.h \
-			   khash.h kseq.h packed_reads.h sequence_package.h \
+			   succinct_dbg.h kseq.h packed_reads.h sequence_package.h \
 			   utils.h mem_file_checker-inl.h read_lib_functions-inl.h \
 			   edge_io.h histgram.h definitions.h lv2_cpu_sort.h sdbg_multi_io.h \
 			   cx1.h
@@ -234,7 +234,7 @@ TOOLKIT += $(TOOLS_DIR)/extract_pe_reads.cpp
 #-------------------------------------------------------------------------------
 # asm_core objectives
 #-------------------------------------------------------------------------------
-LIB_ASM = succinct_dbg.o assembly_algorithms.o options_description.o \
+LIB_ASM = assembly_algorithms.o options_description.o \
 				  unitig_graph.o sequence_manager.o local_assembler.o city.o
 
 #-------------------------------------------------------------------------------

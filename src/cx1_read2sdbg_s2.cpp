@@ -106,7 +106,7 @@ int64_t s2_encode_lv1_diff_base(int64_t read_id, read2sdbg_global_t &globals) {
 void s2_read_mercy_prepare(read2sdbg_global_t &globals) {
     if (!globals.need_mercy || globals.kmer_freq_threshold == 1) return;
 
-    xtimer_t timer;
+    SimpleTimer timer;
 
     if (cx1_t::kCX1Verbose >= 3) {
         timer.reset();

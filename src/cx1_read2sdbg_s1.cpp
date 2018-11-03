@@ -746,7 +746,7 @@ void s1_lv2_output_(int64_t from, int64_t to, int tid, read2sdbg_global_t &globa
 }
 
 void *s1_lv2_output(void *_op) {
-    xtimer_t local_timer;
+    SimpleTimer local_timer;
 
     if (cx1_t::kCX1Verbose >= 4) {
         local_timer.start();

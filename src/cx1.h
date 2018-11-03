@@ -441,7 +441,7 @@ struct CX1 {
 
     // === go go go ===
     inline void run() {
-        xtimer_t lv0_timer;
+        SimpleTimer lv0_timer;
 
         // read input & prepare
         if (kCX1Verbose >= 2) {
@@ -492,7 +492,7 @@ struct CX1 {
         lv1_start_bucket_ = 0;
 
         while (lv1_start_bucket_ < kNumBuckets) {
-            xtimer_t lv1_timer;
+            SimpleTimer lv1_timer;
 
             lv1_iteration++;
 
@@ -539,7 +539,7 @@ struct CX1 {
                 lv2_start_bucket_ = lv1_start_bucket_;
 
                 while (lv2_start_bucket_ < lv1_end_bucket_) {
-                    xtimer_t lv2_timer;
+                    SimpleTimer lv2_timer;
 
                     lv2_iteration++;
                     lv2_end_bucket_ = find_end_buckets_(lv2_start_bucket_, lv1_end_bucket_, max_lv2_items_, lv2_num_items_);

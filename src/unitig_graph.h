@@ -28,8 +28,8 @@
 
 #include "sparsepp/sparsepp/spp.h"
 #include "histgram.h"
+#include "succinct_dbg.h"
 
-class SuccinctDBG;
 struct UnitigGraphVertex {
     UnitigGraphVertex(int64_t start_node, int64_t end_node,
                       int64_t rev_start_node, int64_t rev_end_node, int64_t depth, uint32_t length):

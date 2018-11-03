@@ -446,7 +446,7 @@ void read_seq_and_prepare(seq2sdbg_global_t &globals) {
     }
 
     if (globals.need_mercy) {
-        xtimer_t timer;
+        SimpleTimer timer;
 
         if (cx1_t::kCX1Verbose >= 3) {
             timer.reset();
