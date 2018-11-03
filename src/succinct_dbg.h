@@ -192,8 +192,6 @@ class SDBG {
         SetInvalidEdge(i);
       }
     }
-
-    in_or_out_zero.reset(size_);
   }
 
   uint64_t size() const {
@@ -264,11 +262,9 @@ class SDBG {
 
   uint64_t Forward(uint64_t edge_id) const { // the last edge edge_id points to
     uint8_t a = GetW(edge_id);
-
     if (a > 4) {
       a -= 4;
     }
-
     int64_t count_a = rs_w_.Rank(a, edge_id);
     return rs_last_.Select(rank_f_[a] + count_a - 1);
   }
@@ -301,13 +297,9 @@ class SDBG {
       for (int i = k_ - 1; i >= 0; --i) {
         if (IsTip(y)) {
           uint32_t const *tip_node_seq = &tip_node_seq_[uint32_per_tip_nodes_ * (rs_is_tip_.Rank(y) - 1)];
-
-          for (int j = 0; j < i; ++j) {
-            uint8_t
-                c =
-                (tip_node_seq[j / kCharsPerUint32] >> (kCharsPerUint32 - 1 - j % kCharsPerUint32) * kBitsPerChar) & 3;
-            c++;
-
+          for (unsigned j = 0; j < static_cast<unsigned>(i); ++j) {
+            auto c = ((tip_node_seq[j / kCharsPerUint32] >>
+                (kCharsPerUint32 - 1 - j % kCharsPerUint32) * kBitsPerChar) & 3) + 1;
             if (c < seq[i - j]) {
               cmp = -1;
               break;
@@ -321,10 +313,8 @@ class SDBG {
             if (IsTip(mid)) {
               cmp = -1;
             } else {
-              uint8_t c =
-                  (tip_node_seq[i / kCharsPerUint32] >> (kCharsPerUint32 - 1 - i % kCharsPerUint32) * kBitsPerChar) & 3;
-              c++;
-
+              auto c = ((tip_node_seq[i / kCharsPerUint32] >>
+                  (kCharsPerUint32 - 1 - i % kCharsPerUint32) * kBitsPerChar) & 3) + 1;
               if (c < seq[0]) {
                 cmp = -1;
                 break;
@@ -334,7 +324,6 @@ class SDBG {
               }
             }
           }
-
           break;
         }
 
@@ -358,7 +347,6 @@ class SDBG {
         l = mid + 1;
       }
     }
-
     return -1;
   }
   /**
@@ -368,19 +356,14 @@ class SDBG {
    * @return the length of label (always k)
    */
   uint32_t Label(uint64_t id, uint8_t *seq) const {
-
     int64_t x = id;
-
     for (int i = k_ - 1; i >= 0; --i) {
       if (IsTip(x)) {
         uint32_t const *tip_node_seq = &tip_node_seq_[uint32_per_tip_nodes_ * (rs_is_tip_.Rank(x) - 1)];
-
         for (int j = 0; j <= i; ++j) {
-          seq[i - j] =
-              (tip_node_seq[j / kCharsPerUint32] >> (kCharsPerUint32 - 1 - j % kCharsPerUint32) * kBitsPerChar) & 3;
-          seq[i - j]++;
+          seq[i - j] = static_cast<uint8_t>(((tip_node_seq[j / kCharsPerUint32] >>
+              (kCharsPerUint32 - 1 - j % kCharsPerUint32) * kBitsPerChar) & 3) + 1);
         }
-
         break;
       }
 
@@ -392,7 +375,6 @@ class SDBG {
         seq[i] -= 4;
       }
     }
-
     return k_;
   }
 
@@ -400,6 +382,13 @@ class SDBG {
   static const uint8_t kFlagWriteOut = 0x1;
   static const uint8_t kFlagMustEq0 = 0x2;
   static const uint8_t kFlagMustEq1 = 0x4;
+  /**
+   * An internal function to collect incoming edges & in-degrees
+   * @tparam flag
+   * @param edge_id
+   * @param incomings the incoming edges will be written in the address if kFlagWriteOut is set
+   * @return in degree of the edge; -1 if edge or flag invalid
+   */
   template<uint8_t flag = 0>
   int ComputeIncomings(uint64_t edge_id, uint64_t *incomings) const {
     if (!IsValidEdge(edge_id)) {
@@ -441,7 +430,13 @@ class SDBG {
     }
     return indegree;
   }
-
+  /**
+   * An internal function to collect outgoing edges & in-degrees
+   * @tparam flag
+   * @param edge_id
+   * @param outgoings the outgoing edges will be written in the address if kFlagWriteOut is set
+   * @return out degree of the edge; -1 if edge or flag invalid
+   */
   template<uint8_t flag = 0>
   int ComputeOutgoings(uint64_t edge_id, uint64_t *outgoings) const {
     if (!IsValidEdge(edge_id)) {
@@ -468,7 +463,6 @@ class SDBG {
   }
 
  public:
-
   /**
    * the in-degree of a node/edge
    * @param edge_id
@@ -524,7 +518,7 @@ class SDBG {
    * @return if the edge has only one outgoing edge, return that one; otherwise -1
    */
   int64_t UniqueNextEdge(uint64_t edge_id) const {
-    uint64_t ret = -1;
+    uint64_t ret = 0;
     if (ComputeOutgoings<kFlagWriteOut | kFlagMustEq1>(edge_id, &ret) == 1) {
       return ret;
     } else {
@@ -536,7 +530,7 @@ class SDBG {
    * @return if the edge has only one incoming edge, return that one; otherwise -1
    */
   int64_t UniquePrevEdge(uint64_t edge_id) const {
-    uint64_t ret = -1;
+    uint64_t ret = 0;
     if (ComputeIncomings<kFlagWriteOut | kFlagMustEq1>(edge_id, &ret) == 1) {
       return ret;
     } else {
@@ -585,36 +579,33 @@ class SDBG {
     }
 
     int i, j;
-
     for (i = 0, j = k_; i < j; ++i, --j) {
       std::swap(seq[i], seq[j]);
       seq[i] = 5 - seq[i];
       seq[j] = 5 - seq[j];
     }
-
     if (i == j) {
       seq[i] = 5 - seq[i];
     }
 
     int64_t rev_node = IndexBinarySearch(seq);
-
     if (rev_node == -1) return -1;
-
     do {
       uint8_t edge_label = GetW(rev_node);
-
       if (edge_label == seq[k_] || edge_label - 4 == seq[k_]) {
         return rev_node;
       }
-
       --rev_node;
     } while (rev_node >= 0 && !IsLastOrTip(rev_node));
 
     return -1;
   }
 
-  // WARNING: use this with cautions
-  // After that EdgeMultiplicty() are invalid
+  /**
+   * free mulitiplicity of all edges to reduce memory
+   * WARNING: use this with cautions
+   * After that EdgeMultiplicty() are invalid
+   */
   void FreeMultiplicity() {
     small_mul_ = std::move(std::vector<small_mul_type>());
     large_mul_ = std::move(std::vector<mul_type>());
@@ -639,22 +630,21 @@ class SDBG {
   std::vector<uint64_t> prefix_lkt_;
   std::vector<small_mul_type> small_mul_;
   std::vector<mul_type> large_mul_;
-  AtomicBitVector in_or_out_zero;
 #ifdef USE_KASH
   khash_t(k64v16) *kh_;
 #else
   spp::sparse_hash_map<uint64_t, multi_t> large_mul_lookup_;
 #endif
 
-  ull_t f_[kAlphabetSize + 2]{};
-  ull_t rank_f_[kAlphabetSize + 2]{}; // = rs_last_.Rank(f_[i] - 1)
+  uint64_t f_[kAlphabetSize + 2]{};
+  uint64_t rank_f_[kAlphabetSize + 2]{}; // = rs_last_.Rank(f_[i] - 1)
 
   uint64_t num_tip_nodes_{};
   uint32_t uint32_per_tip_nodes_{};
   uint32_t prefix_lk_len_{};
 
   // auxiliary memory
-  RankAndSelect4Bits rs_w_;
+  kmlib::RankAndSelect<kAlphabetSize, kWAlphabetSize> rs_w_;
   RankAndSelect1Bit rs_last_;
   Rank1Bit rs_is_tip_;
 };
