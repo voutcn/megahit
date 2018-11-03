@@ -33,7 +33,6 @@ add_executable(megahit
         src/assembler.cpp
         src/assembly_algorithms.cpp
         src/assembly_algorithms.h
-        src/atomic_bit_vector.h
         src/bit_operation.h
         src/build_read_lib.cpp
         src/city.cpp
@@ -72,7 +71,6 @@ add_executable(megahit
         src/sequence_manager.cpp
         src/sequence_manager.h
         src/sequence_package.h
-        src/succinct_dbg.cpp
         src/succinct_dbg.h
         src/unitig_graph.cpp
         src/unitig_graph.h
@@ -86,4 +84,10 @@ add_executable(megahit
         tools/filter_by_len.cpp
         tools/read_stat.cpp
         tools/toolkit.cpp
-        tools/trim_low_qual_tail.cpp src/kmlib/bitvector.h src/kmlib/kmrns.h)
+        tools/trim_low_qual_tail.cpp
+        src/kmlib/bitvector.h
+        src/kmlib/kmrns.h
+        src/kmlib/kmbit.h
+        src/kmlib/kmsort.h
+        src/kmlib/kmthread.h
+        src/sequence/kmer.h src/sequence/kmer_plus.h src/khash.h)

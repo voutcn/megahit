@@ -24,8 +24,14 @@
 #include <vector>
 #include "definitions.h"
 #include "kmlib/kmrns.h"
-#include "sparsepp/sparsepp/spp.h"
 #include "sdbg_multi_io.h"
+#include "kmlib/bitvector.h"
+
+#ifdef USE_KHASH
+#include "khash.h"
+#else
+#include "sparsepp/sparsepp/spp.h"
+#endif
 
 using std::vector;
 
@@ -37,6 +43,9 @@ using std::vector;
 template<typename mul_type = uint16_t, typename small_mul_type = uint8_t>
 class SDBG {
  public:
+#ifdef USE_KHASH
+  KHASH_MAP_INIT_INT64(k64v16, mul_type); // declare khash
+#endif
   // constants
   static const unsigned kAlphabetSize = 4;
   static const unsigned kWAlphabetSize = 9;
@@ -79,19 +88,23 @@ class SDBG {
 
     if (sdbg_reader.num_large_mul() > (1 << 30) ||
         sdbg_reader.num_large_mul() > size_ * 0.08) {
-      large_mul.resize(size_);
+      large_mul_.resize(size_);
     } else {
-      small_mul.resize(size_);
+      small_mul_.resize(size_);
+#ifdef USE_KHASH
+      kh_ = kh_init(k64v16);
+#else
       large_mul_lookup_.reserve(sdbg_reader.num_large_mul());
+#endif
     }
 
     for (int i = 0; i < sdbg_reader.prefix_lkt_size() * 2; ++i) {
       prefix_lkt_[i] = sdbg_reader.prefix_lkt(i);
     }
 
-    unsigned long long packed_w = 0;
-    unsigned long long packed_last = 0;
-    unsigned long long packed_tip = 0;
+    ull_t packed_w = 0;
+    ull_t packed_last = 0;
+    ull_t packed_tip = 0;
 
     int64_t w_word_idx = 0;
     int64_t last_word_idx = 0;
@@ -99,7 +112,7 @@ class SDBG {
     int w_word_offset = 0;
     int last_word_offset = 0;
 
-    int64_t tip_label_offset = 0;
+    uint64_t tip_label_offset = 0;
     uint16_t item = 0;
 
     for (uint64_t i = 0; LIKELY(i < size_); ++i) {
@@ -126,18 +139,24 @@ class SDBG {
         packed_tip = packed_last = 0;
       }
 
-      if (!small_mul.empty())
-        small_mul[i] = item >> 8;
+      if (!small_mul_.empty())
+        small_mul_[i] = item >> 8;
       else
-        large_mul[i] = item >> 8;
+        large_mul_[i] = item >> 8;
 
       if (UNLIKELY((item >> 8) == kMulti2Sp)) {
         multi_t mul = sdbg_reader.NextLargeMul();
         assert(mul >= kMulti2Sp);
-        if (!small_mul.empty()) {
+        if (!small_mul_.empty()) {
+#ifdef USE_KHASH
+          int ret;
+          khint_t k = kh_put(k64v16, kh_, i, &ret);
+          kh_value(kh_, k) = mul;
+#else
           large_mul_lookup_[i] = mul;
+#endif
         } else {
-          large_mul[i] = mul;
+          large_mul_[i] = mul;
         }
       }
 
@@ -164,7 +183,7 @@ class SDBG {
     rs_w_.Build(&w_[0], size_);
     rs_last_.Build(&last_[0], size_);
 
-    for (int i = 1; i < kAlphabetSize + 2; ++i) {
+    for (unsigned i = 1; i < kAlphabetSize + 2; ++i) {
       rank_f_[i] = rs_last_.Rank(f_[i] - 1);
     }
 
@@ -173,6 +192,8 @@ class SDBG {
         SetInvalidEdge(i);
       }
     }
+
+    in_or_out_zero.reset(size_);
   }
 
   uint64_t size() const {
@@ -205,6 +226,8 @@ class SDBG {
         return i - 1;
       }
     }
+    assert(false);
+    return 6;
   }
 
   bool IsValidEdge(uint64_t edge_id) const {
@@ -224,18 +247,22 @@ class SDBG {
   }
 
   int EdgeMultiplicity(uint64_t edge_id) const {
-    if (large_mul.size()) {
-      return large_mul[edge_id];
+    if (large_mul_.size()) {
+      return large_mul_[edge_id];
     }
 
-    if (__builtin_expect(small_mul[edge_id] != kMulti2Sp, 1)) {
-      return small_mul[edge_id];
+    if (LIKELY(small_mul_[edge_id] != kMulti2Sp)) {
+      return small_mul_[edge_id];
     } else {
+#ifdef USE_KHASH
+      return kh_value(kh_, kh_get(k64v16, kh_, edge_id));
+#else
       return large_mul_lookup_.at(edge_id);
+#endif
     }
   }
 
-  int64_t Forward(uint64_t edge_id) const { // the last edge edge_id points to
+  uint64_t Forward(uint64_t edge_id) const { // the last edge edge_id points to
     uint8_t a = GetW(edge_id);
 
     if (a > 4) {
@@ -246,7 +273,7 @@ class SDBG {
     return rs_last_.Select(rank_f_[a] + count_a - 1);
   }
 
-  int64_t Backward(uint64_t edge_id) const { // the first edge points to edge_id
+  uint64_t Backward(uint64_t edge_id) const { // the first edge points to edge_id
     uint8_t a = GetNodeLastChar(edge_id);
     int64_t count_a = rs_last_.Rank(edge_id - 1) - rank_f_[a];
     return rs_w_.Select(a, count_a);
@@ -260,7 +287,7 @@ class SDBG {
   int64_t IndexBinarySearch(const uint8_t *seq) const {
     // only work if k > 8
     int pre = 0;
-    for (int i = 0; i < prefix_lk_len_; ++i) {
+    for (uint32_t i = 0; i < prefix_lk_len_; ++i) {
       pre = pre * 4 + seq[k_ - 1 - i] - 1;
     }
     uint64_t l = prefix_lkt_[pre * 2];
@@ -340,7 +367,7 @@ class SDBG {
    * @param seq the label will be written to this address
    * @return the length of label (always k)
    */
-  int Label(uint64_t id, uint8_t *seq) const {
+  uint32_t Label(uint64_t id, uint8_t *seq) const {
 
     int64_t x = id;
 
@@ -373,13 +400,13 @@ class SDBG {
   static const uint8_t kFlagWriteOut = 0x1;
   static const uint8_t kFlagMustEq0 = 0x2;
   static const uint8_t kFlagMustEq1 = 0x4;
-  template <uint8_t flag = 0>
+  template<uint8_t flag = 0>
   int ComputeIncomings(uint64_t edge_id, uint64_t *incomings) const {
     if (!IsValidEdge(edge_id)) {
       return -1;
     }
 
-    int64_t first_income = Backward(edge_id);
+    uint64_t first_income = Backward(edge_id);
     uint8_t c = GetW(first_income);
     int count_ones = IsLastOrTip(first_income);
     int indegree = IsValidEdge(first_income);
@@ -394,7 +421,7 @@ class SDBG {
       }
     }
 
-    for (int64_t y = first_income + 1; count_ones < 5 && y < size_; ++y) {
+    for (uint64_t y = first_income + 1; count_ones < 5 && y < size_; ++y) {
       count_ones += IsLastOrTip(y);
       uint8_t cur_char = GetW(y);
 
@@ -415,7 +442,7 @@ class SDBG {
     return indegree;
   }
 
-  template <uint8_t flag = 0>
+  template<uint8_t flag = 0>
   int ComputeOutgoings(uint64_t edge_id, uint64_t *outgoings) const {
     if (!IsValidEdge(edge_id)) {
       return -1;
@@ -439,6 +466,7 @@ class SDBG {
 
     return outdegree;
   }
+
  public:
 
   /**
@@ -588,9 +616,13 @@ class SDBG {
   // WARNING: use this with cautions
   // After that EdgeMultiplicty() are invalid
   void FreeMultiplicity() {
-    small_mul = std::move(std::vector<small_mul_type>());
-    large_mul = std::move(std::vector<mul_type>());
+    small_mul_ = std::move(std::vector<small_mul_type>());
+    large_mul_ = std::move(std::vector<mul_type>());
+#ifdef USE_KHASH
+    kh_destroy(k64v16, kh_);
+#else
     large_mul_lookup_ = std::move(spp::sparse_hash_map<uint64_t, multi_t>());
+#endif
   }
 
  private:
@@ -605,22 +637,26 @@ class SDBG {
   std::vector<ull_t> invalid_;
   std::vector<uint32_t> tip_node_seq_;
   std::vector<uint64_t> prefix_lkt_;
-  std::vector<small_mul_type> small_mul;
-  std::vector<mul_type> large_mul;
+  std::vector<small_mul_type> small_mul_;
+  std::vector<mul_type> large_mul_;
+  AtomicBitVector in_or_out_zero;
+#ifdef USE_KASH
+  khash_t(k64v16) *kh_;
+#else
   spp::sparse_hash_map<uint64_t, multi_t> large_mul_lookup_;
+#endif
 
-  long long f_[kAlphabetSize + 2]{};
-  long long rank_f_[kAlphabetSize + 2]{}; // = rs_last_.Rank(f_[i] - 1)
+  ull_t f_[kAlphabetSize + 2]{};
+  ull_t rank_f_[kAlphabetSize + 2]{}; // = rs_last_.Rank(f_[i] - 1)
 
-  int64_t num_tip_nodes_{};
-  int uint32_per_tip_nodes_{};
-  int prefix_lk_len_{};
+  uint64_t num_tip_nodes_{};
+  uint32_t uint32_per_tip_nodes_{};
+  uint32_t prefix_lk_len_{};
 
   // auxiliary memory
   RankAndSelect4Bits rs_w_;
   RankAndSelect1Bit rs_last_;
   Rank1Bit rs_is_tip_;
-
 };
 
 using SuccinctDBG = SDBG<>;

@@ -41,8 +41,6 @@ using std::queue;
 
 namespace assembly_algorithms {
 
-static AtomicBitVector removed_nodes;
-
 double SetMinDepth(SuccinctDBG &dbg) {
   Histgram<multi_t> hist;
 
@@ -68,14 +66,15 @@ double SetMinDepth(SuccinctDBG &dbg) {
   return 1;
 }
 
-int64_t Trim(SuccinctDBG &dbg, int len, int min_final_standalone) {
+int64_t Trim(SuccinctDBG &dbg, int len, AtomicBitVector &ignored) {
   int64_t number_tips = 0;
+  AtomicBitVector to_remove(dbg.size());
 
 #pragma omp parallel for reduction(+:number_tips)
   for (uint64_t id = 0; id < dbg.size(); ++id) {
-    if (!removed_nodes.get(id) && dbg.EdgeOutdegreeZero(id)) {
+    if (!ignored.get(id) && dbg.EdgeOutdegreeZero(id)) {
       vector<uint64_t> path = {id};
-      int64_t prev;
+      int64_t prev = -1;
       int64_t cur = id;
       bool is_tip = false;
 
@@ -94,18 +93,23 @@ int64_t Trim(SuccinctDBG &dbg, int len, int min_final_standalone) {
       }
       if (is_tip) {
         for (unsigned long i : path) {
-          removed_nodes.set(i);
+          to_remove.set(i);
         }
         ++number_tips;
+        ignored.set(id);
+        ignored.set(path.back());
+        if (prev != -1) {
+          ignored.unset(prev);
+        }
       }
     }
   }
 
 #pragma omp parallel for reduction(+:number_tips)
   for (uint64_t id = 0; id < dbg.size(); ++id) {
-    if (!removed_nodes.get(id) && dbg.EdgeIndegreeZero(id)) {
+    if (!ignored.get(id) && dbg.EdgeIndegreeZero(id)) {
       vector<uint64_t> path = {id};
-      int64_t next;
+      int64_t next = -1;
       int64_t cur = id;
       bool is_tip = false;
 
@@ -124,16 +128,21 @@ int64_t Trim(SuccinctDBG &dbg, int len, int min_final_standalone) {
       }
       if (is_tip) {
         for (unsigned long i : path) {
-          removed_nodes.set(i);
+          to_remove.set(i);
         }
         ++number_tips;
+        ignored.set(id);
+        ignored.set(path.back());
+        if (next != -1) {
+          ignored.unset(next);
+        }
       }
     }
   }
 
 #pragma omp parallel for
   for (uint64_t id = 0; id < dbg.size(); ++id) {
-    if (removed_nodes.get(id)) {
+    if (to_remove.get(id)) {
       dbg.SetInvalidEdge(id);
     }
   }
@@ -143,13 +152,20 @@ int64_t Trim(SuccinctDBG &dbg, int len, int min_final_standalone) {
 int64_t RemoveTips(SuccinctDBG &dbg, int max_tip_len, int min_final_standalone) {
   int64_t number_tips = 0;
   SimpleTimer timer;
-  removed_nodes.reset(dbg.size());
+  AtomicBitVector ignored(dbg.size());
+
+#pragma omp parallel for
+  for (uint64_t id = 0; id < dbg.size(); ++id) {
+    if (!dbg.EdgeIndegreeZero(id) && !dbg.EdgeOutdegreeZero(id)) {
+      ignored.set(id);
+    }
+  }
 
   for (int len = 2; len < max_tip_len; len *= 2) {
     xlog("Removing tips with length less than %d; ", len);
     timer.reset();
     timer.start();
-    number_tips += Trim(dbg, len, min_final_standalone);
+    number_tips += Trim(dbg, len, ignored);
     timer.stop();
     xlog_ext("Accumulated tips removed: %lld; time elapsed: %.4f\n", (long long) number_tips, timer.elapsed());
   }
@@ -157,14 +173,9 @@ int64_t RemoveTips(SuccinctDBG &dbg, int max_tip_len, int min_final_standalone) 
   xlog("Removing tips with length less than %d; ", max_tip_len);
   timer.reset();
   timer.start();
-  number_tips += Trim(dbg, max_tip_len, min_final_standalone);
+  number_tips += Trim(dbg, max_tip_len, ignored);
   timer.stop();
   xlog_ext("Accumulated tips removed: %lld; time elapsed: %.4f\n", (long long) number_tips, timer.elapsed());
-
-  {
-    AtomicBitVector empty;
-    removed_nodes.swap(empty);
-  }
 
   return number_tips;
 }
