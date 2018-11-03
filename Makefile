@@ -316,6 +316,20 @@ release_cpu: megahit_asm_core megahit_sdbg_build megahit_toolkit megahit README.
 	   $(cpu_release_dir)
 	tar zvcf $(cpu_release_dir).tar.gz $(cpu_release_dir)
 
+INSTALL	?= install
+PREFIX	?= /usr/local
+DESTDIR	?= .
+STRIP	?= strip
+
+.PHONY:
+install:
+	$(INSTALL) -d $(DESTDIR)$(PREFIX)/bin
+	$(INSTALL) -c megahit megahit_* $(DESTDIR)$(PREFIX)/bin
+
+.PHONY:
+install-strip: install
+	$(STRIP) $(DESTDIR)$(PREFIX)/bin/megahit_*
+
 .PHONY:
 clean:
 	-rm -fr *.i* *.cubin *.cu.c *.cudafe* *.fatbin.c *.ptx *.hash *.cu.cpp *.o .*.o .*.cpp \
