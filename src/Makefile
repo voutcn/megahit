@@ -167,3 +167,17 @@ clean:
 		$(LIB_ASM) \
 		example/megahit_*out \
 		megahit_asm_core megahit_sdbg_build megahit_toolkit
+
+INSTALL	?= install
+PREFIX	?= /usr/local
+DESTDIR	?= .
+STRIP	?= strip
+
+.PHONY:
+install:
+	$(INSTALL) -d $(DESTDIR)$(PREFIX)/bin
+	$(INSTALL) -c megahit megahit_* $(DESTDIR)$(PREFIX)/bin
+
+.PHONY:
+install-strip: install
+	$(STRIP) $(DESTDIR)$(PREFIX)/bin/megahit_*
