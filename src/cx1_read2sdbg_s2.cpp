@@ -412,7 +412,7 @@ void s2_init_global_and_set_cx1(read2sdbg_global_t &globals) {
     globals.sdbg_writer.set_kmer_size(globals.kmer_k);
     globals.sdbg_writer.set_num_buckets(kNumBuckets);
     globals.sdbg_writer.set_file_prefix(globals.output_prefix);
-    globals.sdbg_writer.init_files();
+    globals.sdbg_writer.InitFiles();
 }
 
 void *s2_lv1_fill_offset(void *_data) {
@@ -722,7 +722,7 @@ void output_(int64_t from, int64_t to, read2sdbg_global_t &globals, uint32_t *su
             }
 
             int w, last, is_dollar = 0;
-            int64_t count = std::min(j - i, int64_t(kMaxMulti_t));
+            int64_t count = std::min(j - i, int64_t(kMaxMul));
 
             if (a == kSentinelValue) {
                 assert(b != kSentinelValue);
@@ -752,7 +752,13 @@ void output_(int64_t from, int64_t to, read2sdbg_global_t &globals, uint32_t *su
                 }
             }
 
-            globals.sdbg_writer.write(tid, cur_item[0] >> (32 - kBucketPrefixLength * 2), w, last, is_dollar, count, tip_label);
+          globals.sdbg_writer.Write(tid,
+                                    cur_item[0] >> (32 - kBucketPrefixLength * 2),
+                                    w,
+                                    last,
+                                    is_dollar,
+                                    count,
+                                    tip_label);
         }
     }
 }

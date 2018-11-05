@@ -235,7 +235,7 @@ int64_t SequenceManager::ReadEdges(int64_t max_num, bool append) {
             }
 
             package_->AppendSeq(next_edge, edge_reader_.kmer_size() + 1);
-            multi_->push_back(next_edge[edge_reader_.words_per_edge() - 1] & kMaxMulti_t);
+            multi_->push_back(next_edge[edge_reader_.words_per_edge() - 1] & kMaxMul);
         }
 
         return max_num;
@@ -249,7 +249,7 @@ int64_t SequenceManager::ReadEdges(int64_t max_num, bool append) {
             }
 
             package_->AppendSeq(next_edge, edge_reader_.kmer_size() + 1);
-            multi_->push_back(next_edge[edge_reader_.words_per_edge() - 1] & kMaxMulti_t);
+            multi_->push_back(next_edge[edge_reader_.words_per_edge() - 1] & kMaxMul);
         }
 
         return max_num;
@@ -274,7 +274,7 @@ int64_t SequenceManager::ReadEdgesWithFixedLen(int64_t max_num, bool append) {
             }
 
             package_->AppendFixedLenSeq(next_edge, edge_reader_.kmer_size() + 1);
-            multi_->push_back(next_edge[edge_reader_.words_per_edge() - 1] & kMaxMulti_t);
+            multi_->push_back(next_edge[edge_reader_.words_per_edge() - 1] & kMaxMul);
         }
 
         return max_num;
@@ -288,7 +288,7 @@ int64_t SequenceManager::ReadEdgesWithFixedLen(int64_t max_num, bool append) {
             }
 
             package_->AppendFixedLenSeq(next_edge, edge_reader_.kmer_size() + 1);
-            multi_->push_back(next_edge[edge_reader_.words_per_edge() - 1] & kMaxMulti_t);
+            multi_->push_back(next_edge[edge_reader_.words_per_edge() - 1] & kMaxMul);
         }
 
         return max_num;
@@ -356,7 +356,7 @@ int64_t SequenceManager::ReadMegahitContigs(int64_t max_num, int64_t max_num_bas
             float mul = atof(kseq_readers_[0]->comment.s + 13);
 
             if (multi_ != NULL) {
-                multi_->push_back(std::min(kMaxMulti_t, (int)(mul + 0.5)));
+                multi_->push_back(std::min(kMaxMul, (int)(mul + 0.5)));
             }
 
             if (float_multi_ != NULL) {

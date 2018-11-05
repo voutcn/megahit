@@ -161,7 +161,7 @@ void s1_read_input_prepare(read2sdbg_global_t &globals) {
 
     int64_t mem_low_bound = globals.mem_packed_reads
                             + kNumBuckets * sizeof(int64_t) * (globals.num_cpu_threads * 3 + 1)
-                            + (kMaxMulti_t + 1) * (globals.num_output_threads + 1) * sizeof(int64_t);
+                            + (kMaxMul + 1) * (globals.num_output_threads + 1) * sizeof(int64_t);
     mem_low_bound *= 1.05;
 
     if (mem_low_bound > globals.host_mem) {
@@ -270,7 +270,7 @@ void s1_init_global_and_set_cx1(read2sdbg_global_t &globals) {
                            - globals.mem_packed_reads
                            - globals.num_cpu_threads * 65536 * sizeof(uint64_t) // radix sort buckets
                            - kNumBuckets * sizeof(int64_t) * (globals.num_cpu_threads * 3 + 1)
-                           - (kMaxMulti_t + 1) * (globals.num_output_threads + 1) * sizeof(int64_t);
+                           - (kMaxMul + 1) * (globals.num_output_threads + 1) * sizeof(int64_t);
     int64_t min_lv1_items = globals.tot_bucket_size / (kMaxLv1ScanTime - 0.5);
 
     if (globals.mem_flag == 1) {
@@ -339,10 +339,10 @@ void s1_init_global_and_set_cx1(read2sdbg_global_t &globals) {
     pthread_mutex_init(&globals.lv1_items_scanning_lock, NULL); // init lock
 
     // --- initialize stat ---
-    globals.edge_counting = (int64_t *) MallocAndCheck((kMaxMulti_t + 1) * sizeof(int64_t), __FILE__, __LINE__);
-    globals.thread_edge_counting = (int64_t *) MallocAndCheck((kMaxMulti_t + 1) * globals.num_output_threads * sizeof(int64_t), __FILE__, __LINE__);
-    memset(globals.edge_counting, 0, (kMaxMulti_t + 1) * sizeof(int64_t));
-    memset(globals.thread_edge_counting, 0, sizeof(int64_t) * (kMaxMulti_t + 1) * globals.num_output_threads);
+    globals.edge_counting = (int64_t *) MallocAndCheck((kMaxMul + 1) * sizeof(int64_t), __FILE__, __LINE__);
+    globals.thread_edge_counting = (int64_t *) MallocAndCheck((kMaxMul + 1) * globals.num_output_threads * sizeof(int64_t), __FILE__, __LINE__);
+    memset(globals.edge_counting, 0, (kMaxMul + 1) * sizeof(int64_t));
+    memset(globals.thread_edge_counting, 0, sizeof(int64_t) * (kMaxMul + 1) * globals.num_output_threads);
 }
 
 void *s1_lv1_fill_offset(void *_data) {
@@ -593,7 +593,7 @@ void s1_lv2_output_(int64_t from, int64_t to, int tid, read2sdbg_global_t &globa
     int64_t count_prev_head[5][5];
     int64_t count_tail_next[5][5];
     int64_t count_head_tail[(1 << 2 * kBWTCharNumBits) - 1];
-    int64_t *thread_edge_counting = globals.thread_edge_counting + tid * (kMaxMulti_t + 1);
+    int64_t *thread_edge_counting = globals.thread_edge_counting + tid * (kMaxMul + 1);
 
     for (int64_t i = from; i < to; i = end_idx) {
         end_idx = i + 1;
@@ -662,7 +662,7 @@ void s1_lv2_output_(int64_t from, int64_t to, int tid, read2sdbg_global_t &globa
             uint8_t tail = head_and_tail & 7;
 
             if (head != kSentinelValue && tail != kSentinelValue) {
-                ++thread_edge_counting[std::min(int64_t(kMaxMulti_t), count_head_tail[head_and_tail])];
+                ++thread_edge_counting[std::min(int64_t(kMaxMul), count_head_tail[head_and_tail])];
             }
 
             if (head != kSentinelValue && tail != kSentinelValue && count_head_tail[head_and_tail] >= globals.kmer_freq_threshold) {
@@ -820,15 +820,15 @@ void s1_lv1_direct_sort_and_count(read2sdbg_global_t &globals) {
 
 void s1_post_proc(read2sdbg_global_t &globals) {
     for (int t = 0; t < globals.num_output_threads; ++t) {
-        for (int i = 1; i <= kMaxMulti_t; ++i) {
-            globals.edge_counting[i] += globals.thread_edge_counting[t * (kMaxMulti_t + 1) + i];
+        for (int i = 1; i <= kMaxMul; ++i) {
+            globals.edge_counting[i] += globals.thread_edge_counting[t * (kMaxMul + 1) + i];
         }
     }
 
     // --- stat ---
     int64_t num_solid_edges = 0;
 
-    for (int i = globals.kmer_freq_threshold; i <= kMaxMulti_t; ++i) {
+    for (int i = globals.kmer_freq_threshold; i <= kMaxMul; ++i) {
         num_solid_edges += globals.edge_counting[i];
     }
 
@@ -838,7 +838,7 @@ void s1_post_proc(read2sdbg_global_t &globals) {
 
     FILE *counting_file = OpenFileAndCheck((std::string(globals.output_prefix) + ".counting").c_str(), "w");
 
-    for (int64_t i = 1, acc = 0; i <= kMaxMulti_t; ++i) {
+    for (int64_t i = 1, acc = 0; i <= kMaxMul; ++i) {
         acc += globals.edge_counting[i];
         fprintf(counting_file, "%lld %lld\n", (long long)i, (long long)acc);
     }

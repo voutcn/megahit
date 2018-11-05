@@ -85,7 +85,7 @@ inline void PackEdge(uint32_t *dest, uint32_t *item, int64_t counting, struct co
         dest[which_word] = 0;
     }
 
-    dest[globals.words_per_edge - 1] |= std::min(int64_t(kMaxMulti_t), counting);
+    dest[globals.words_per_edge - 1] |= std::min(int64_t(kMaxMul), counting);
 }
 
 // function pass to CX1
@@ -149,7 +149,7 @@ void read_input_prepare(count_global_t &globals) { // num_items_, num_cpu_thread
     int64_t mem_low_bound = globals.mem_packed_reads
                             + globals.num_reads * sizeof(unsigned char) * 2 // first_in0 & last_out0
                             + kNumBuckets * sizeof(int64_t) * (globals.num_cpu_threads * 3 + 1)
-                            + (kMaxMulti_t + 1) * (globals.num_output_threads + 1) * sizeof(int64_t);
+                            + (kMaxMul + 1) * (globals.num_output_threads + 1) * sizeof(int64_t);
     mem_low_bound *= 1.05;
 
     if (mem_low_bound > globals.host_mem) {
@@ -220,7 +220,7 @@ void init_global_and_set_cx1(count_global_t &globals) {
     }
 
     globals.words_per_substring = DivCeiling((globals.kmer_k + 1) * kBitsPerEdgeChar, kBitsPerEdgeWord);
-    globals.words_per_edge = DivCeiling((globals.kmer_k + 1) * kBitsPerEdgeChar + kBitsPerMulti_t, kBitsPerEdgeWord);
+    globals.words_per_edge = DivCeiling((globals.kmer_k + 1) * kBitsPerEdgeChar + kBitsPerMul, kBitsPerEdgeWord);
 
     if (cx1_t::kCX1Verbose >= 2) {
         xlog("%d words per substring, %d words per edge\n", globals.words_per_substring, globals.words_per_edge);
@@ -248,7 +248,7 @@ void init_global_and_set_cx1(count_global_t &globals) {
                            - globals.num_cpu_threads * 65536 * sizeof(uint64_t) // radix sort buckets
                            - globals.num_reads * sizeof(unsigned char) * 2 // first_in0 & last_out0
                            - kNumBuckets * sizeof(int64_t) * (globals.num_cpu_threads * 3 + 1)
-                           - (kMaxMulti_t + 1) * (globals.num_output_threads + 1) * sizeof(int64_t);
+                           - (kMaxMul + 1) * (globals.num_output_threads + 1) * sizeof(int64_t);
     int64_t min_lv1_items = globals.tot_bucket_size / (kMaxLv1ScanTime - 0.5);
 
 
@@ -312,9 +312,9 @@ void init_global_and_set_cx1(count_global_t &globals) {
     memset(globals.last_0_in, 0xFF, globals.num_reads * sizeof(globals.last_0_in[0]));
 
     // --- initialize stat ---
-    globals.edge_counting = (int64_t *) MallocAndCheck((kMaxMulti_t + 1) * sizeof(int64_t), __FILE__, __LINE__);
-    globals.thread_edge_counting = (int64_t *) MallocAndCheck((kMaxMulti_t + 1) * globals.num_output_threads * sizeof(int64_t), __FILE__, __LINE__);
-    memset(globals.edge_counting, 0, (kMaxMulti_t + 1) * sizeof(int64_t));
+    globals.edge_counting = (int64_t *) MallocAndCheck((kMaxMul + 1) * sizeof(int64_t), __FILE__, __LINE__);
+    globals.thread_edge_counting = (int64_t *) MallocAndCheck((kMaxMul + 1) * globals.num_output_threads * sizeof(int64_t), __FILE__, __LINE__);
+    memset(globals.edge_counting, 0, (kMaxMul + 1) * sizeof(int64_t));
 
     // --- initialize lock ---
     pthread_mutex_init(&globals.lv1_items_scanning_lock, NULL); // init lock
@@ -535,7 +535,7 @@ void lv2_output_(int64_t start_index, int64_t end_index, int thread_id, count_gl
                  uint32_t *substrings, uint32_t *permutation, int64_t *read_infos, int64_t num_items) {
     uint32_t packed_edge[32];
     int64_t count_prev[5], count_next[5];
-    int64_t *thread_edge_counting = globals.thread_edge_counting + thread_id * (kMaxMulti_t + 1);
+    int64_t *thread_edge_counting = globals.thread_edge_counting + thread_id * (kMaxMul + 1);
 
     int64_t from_;
     int64_t to_;
@@ -660,7 +660,7 @@ void lv2_output_(int64_t start_index, int64_t end_index, int thread_id, count_gl
             }
         }
 
-        ++thread_edge_counting[std::min(count, int64_t(kMaxMulti_t))];
+        ++thread_edge_counting[std::min(count, int64_t(kMaxMul))];
 
         if (count >= globals.kmer_freq_threshold) {
             PackEdge(packed_edge, first_item, count, globals, num_items);
@@ -744,8 +744,8 @@ void lv2_post_output(count_global_t &globals) {
 
 void post_proc(count_global_t &globals) {
     for (int t = 0; t < globals.num_output_threads; ++t) {
-        for (int i = 1; i <= kMaxMulti_t; ++i) {
-            globals.edge_counting[i] += globals.thread_edge_counting[t * (kMaxMulti_t + 1) + i];
+        for (int i = 1; i <= kMaxMul; ++i) {
+            globals.edge_counting[i] += globals.thread_edge_counting[t * (kMaxMul + 1) + i];
         }
     }
 
@@ -778,7 +778,7 @@ void post_proc(count_global_t &globals) {
     // --- stat ---
     int64_t num_solid_edges = 0;
 
-    for (int i = globals.kmer_freq_threshold; i <= kMaxMulti_t; ++i) {
+    for (int i = globals.kmer_freq_threshold; i <= kMaxMul; ++i) {
         num_solid_edges += globals.edge_counting[i];
     }
 
@@ -788,7 +788,7 @@ void post_proc(count_global_t &globals) {
 
     FILE *counting_file = OpenFileAndCheck((globals.output_prefix + ".counting").c_str(), "w");
 
-    for (int64_t i = 1, acc = 0; i <= kMaxMulti_t; ++i) {
+    for (int64_t i = 1, acc = 0; i <= kMaxMul; ++i) {
         acc += globals.edge_counting[i];
         fprintf(counting_file, "%lld %lld\n", (long long)i, (long long)acc);
     }

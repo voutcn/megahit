@@ -25,7 +25,7 @@
 #include <iostream>
 #include <stdexcept>
 
-#include "succinct_dbg.h"
+#include "sdbg/sdbg.h"
 #include "assembly_algorithms.h"
 #include "utils.h"
 #include "options_description.h"
@@ -330,7 +330,7 @@ int main_assemble(int argc, char **argv) {
     int64_t num_removed = 0;
     double min_depth = opt.min_depth;
 
-    while (min_depth < kMaxMulti_t) {
+    while (min_depth < kMaxMul) {
       if (!unitig_graph.RemoveLocalLowDepth(min_depth,
                                             opt.max_tip_len,
                                             kLocalWidth,

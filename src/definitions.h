@@ -29,22 +29,12 @@
     #define PACKAGE_VERSION "v1.1.3"
 #endif
 
-typedef uint16_t multi_t;
-static const int kBitsPerMulti_t = 16;
-static const int kMaxMulti_t = 65535;
-
-typedef uint8_t multi2_t;
-static const int kMaxMulti2_t = 254;
-static const multi2_t kMulti2Sp = 255;
+#include "sdbg/sdbg_def.h"
 
 static const int kBitsPerEdgeWord = 32;
 static const int kBitsPerEdgeChar = 2;
 static const int kCharsPerEdgeWord = 16;
 static const int kEdgeCharMask = 0x3;
-static const int kAlphabetSize = 4;
-static const char dna_chars[] = "ACGT";
-
-static const int kMaxNumCPUThreads = 255;
 
 namespace contig_flag {
 
@@ -53,7 +43,6 @@ static const int kLoop = 0x2;
 
 }
 
-static const int kMaxK = 255;
 static const int kUint32PerKmerMaxK = (kMaxK + 1 + 15) / 16;
 static const int kUint64PerIdbaKmerMaxK = (kMaxK * 2 + 16 + 63) / 64;
 

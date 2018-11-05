@@ -15,9 +15,10 @@
  * words used. The maximum value can be calculated by max_size().
  * The value of k is not stored, many functions require a explict parameter k to work
  */
-template<unsigned NumWords = 4, typename T = uint64_t>
-struct Kmer {
-  using word_t = T;
+template<unsigned NumWords = 4, typename WordType = uint64_t>
+class Kmer {
+ public:
+  using word_t = WordType;
   static const unsigned kNumWords = NumWords;
 
   Kmer() {

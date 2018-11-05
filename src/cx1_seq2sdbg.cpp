@@ -76,7 +76,7 @@ inline int ExtractFirstChar(uint32_t *item) {
 }
 
 inline int Extract_a(uint32_t *item, int num_words, int64_t spacing, int kmer_k) {
-    int non_dollar = (item[(num_words - 1) * spacing] >> (kBWTCharNumBits + kBitsPerMulti_t)) & 1;
+    int non_dollar = (item[(num_words - 1) * spacing] >> (kBWTCharNumBits + kBitsPerMul)) & 1;
 
     if (non_dollar) {
         int which_word = (kmer_k - 1) / kCharsPerEdgeWord;
@@ -89,11 +89,11 @@ inline int Extract_a(uint32_t *item, int num_words, int64_t spacing, int kmer_k)
 }
 
 inline int Extract_b(uint32_t *item, int num_words, int64_t spacing) {
-    return (item[(num_words - 1) * spacing] >> kBitsPerMulti_t) & ((1 << kBWTCharNumBits) - 1);
+    return (item[(num_words - 1) * spacing] >> kBitsPerMul) & ((1 << kBWTCharNumBits) - 1);
 }
 
 inline int ExtractCounting(uint32_t *item, int num_words, int64_t spacing) {
-    return item[(num_words - 1) * spacing] & kMaxMulti_t;
+    return item[(num_words - 1) * spacing] & kMaxMul;
 }
 
 // cx1 core functions
@@ -530,7 +530,7 @@ void read_seq_and_prepare(seq2sdbg_global_t &globals) {
     globals.package.BuildLookup();
     globals.num_seq = globals.package.size();
 
-    globals.mem_packed_seq = globals.package.size_in_byte() + globals.multiplicity.size() * sizeof(multi_t);
+    globals.mem_packed_seq = globals.package.size_in_byte() + globals.multiplicity.size() * sizeof(mul_t);
     int64_t mem_low_bound = globals.mem_packed_seq
                             + kNumBuckets * sizeof(int64_t) * (globals.num_cpu_threads * 3 + 1);
     mem_low_bound *= 1.05;
@@ -603,7 +603,7 @@ void init_global_and_set_cx1(seq2sdbg_global_t &globals) {
         }
     }
 
-    globals.words_per_substring = DivCeiling(globals.kmer_k * kBitsPerEdgeChar + kBWTCharNumBits + 1 + kBitsPerMulti_t, kBitsPerEdgeWord);
+    globals.words_per_substring = DivCeiling(globals.kmer_k * kBitsPerEdgeChar + kBWTCharNumBits + 1 + kBitsPerMul, kBitsPerEdgeWord);
     globals.words_per_dummy_node = DivCeiling(globals.kmer_k * kBitsPerEdgeChar, kBitsPerEdgeWord);
 
     num_non_empty = std::max(1, num_non_empty);
@@ -682,7 +682,7 @@ void init_global_and_set_cx1(seq2sdbg_global_t &globals) {
     globals.sdbg_writer.set_kmer_size(globals.kmer_k);
     globals.sdbg_writer.set_num_buckets(kNumBuckets);
     globals.sdbg_writer.set_file_prefix(globals.output_prefix);
-    globals.sdbg_writer.init_files();
+    globals.sdbg_writer.InitFiles();
 }
 
 void *lv1_fill_offset(void *_data) {
@@ -811,9 +811,9 @@ void lv2_extract_substr_(int from_bucket, int to_bucket, seq2sdbg_global_t &glob
                                   num_items, words_this_seq, globals.words_per_substring);
 
                     uint32_t *last_word = substr + (globals.words_per_substring - 1) * num_items;
-                    *last_word |= int(num_chars_to_copy == globals.kmer_k) << (kBWTCharNumBits + kBitsPerMulti_t);
-                    *last_word |= prev_char << kBitsPerMulti_t;
-                    *last_word |= std::max(0, kMaxMulti_t - counting); // then larger counting come first after sorting
+                    *last_word |= int(num_chars_to_copy == globals.kmer_k) << (kBWTCharNumBits + kBitsPerMul);
+                    *last_word |= prev_char << kBitsPerMul;
+                    *last_word |= std::max(0, kMaxMul - counting); // then larger counting come first after sorting
                 }
                 else {
                     int prev_char;
@@ -837,9 +837,9 @@ void lv2_extract_substr_(int from_bucket, int to_bucket, seq2sdbg_global_t &glob
                                     num_items, words_this_seq, globals.words_per_substring);
 
                     uint32_t *last_word = substr + (globals.words_per_substring - 1) * num_items;
-                    *last_word |= int(num_chars_to_copy == globals.kmer_k) << (kBWTCharNumBits + kBitsPerMulti_t);
-                    *last_word |= prev_char << kBitsPerMulti_t;
-                    *last_word |= std::max(0, kMaxMulti_t - counting);
+                    *last_word |= int(num_chars_to_copy == globals.kmer_k) << (kBWTCharNumBits + kBitsPerMul);
+                    *last_word |= prev_char << kBitsPerMul;
+                    *last_word |= std::max(0, kMaxMul - counting);
                 }
 
                 substr++;
@@ -946,7 +946,13 @@ void output_(int64_t from, int64_t to, seq2sdbg_global_t &globals, uint32_t *sub
                 }
             }
 
-            globals.sdbg_writer.write(tid, cur_item[0] >> (32 - kBucketPrefixLength * 2), w, last, is_dollar, kMaxMulti_t - ExtractCounting(cur_item, globals.words_per_substring, num_items), tip_label);
+            globals.sdbg_writer.Write(tid,
+                                      cur_item[0] >> (32 - kBucketPrefixLength * 2),
+                                      w,
+                                      last,
+                                      is_dollar,
+                                      kMaxMul - ExtractCounting(cur_item, globals.words_per_substring, num_items),
+                                      tip_label);
         }
     }
 }
@@ -1068,7 +1074,7 @@ void post_proc(seq2sdbg_global_t &globals) {
     // --- cleaning ---
     pthread_mutex_destroy(&globals.lv1_items_scanning_lock);
     free(globals.lv1_items);
-    globals.sdbg_writer.destroy();
+    globals.sdbg_writer.Finalize();
 }
 
 void lv2_sort(cx1_seq2sdbg::seq2sdbg_global_t&) {}

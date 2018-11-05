@@ -2,8 +2,8 @@
 // Created by vout on 3/3/2018.
 //
 
-#ifndef KMLIB_RANK_AND_SELECT_H
-#define KMLIB_RANK_AND_SELECT_H
+#ifndef KMLIB_RNS_H
+#define KMLIB_RNS_H
 
 #include <stdint.h>
 #include <stdio.h>
@@ -62,7 +62,7 @@ template<
 >
 class RankAndSelect {
  public:
-  using ull_t = unsigned long long;
+  using ull_t = uint64_t;
   using interval_t = uint32_t;
   static const unsigned kBitsPerByte = 8;
   static const unsigned kBitsPerULL = sizeof(ull_t) * kBitsPerByte;
@@ -339,8 +339,7 @@ class RankAndSelect {
   }
 
   uint8_t GetBaseAt(uint64_t i) const {
-    return
-        (*(packed_array_ + i / kBasesPerWord)
+    return (*(packed_array_ + i / kBasesPerWord)
             >> (i % kBasesPerWord * kBitsPerBase)) & ((1 << kBitsPerBase) - 1);
   }
 
@@ -378,4 +377,4 @@ using RankAndSelect4Bits = kmlib::RankAndSelect<4, 9>;
 using RankAndSelect1Bit = kmlib::RankAndSelect<1, 2>;
 using Rank1Bit = kmlib::RankAndSelect<1, 2, kmlib::rnsmode::kRankOnly>;
 
-#endif //KMLIB_RANK_AND_SELECT_H
+#endif // KMLIB_RNS_H

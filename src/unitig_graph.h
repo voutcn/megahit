@@ -28,7 +28,7 @@
 
 #include "sparsepp/sparsepp/spp.h"
 #include "histgram.h"
-#include "succinct_dbg.h"
+#include "sdbg/sdbg.h"
 
 struct UnitigGraphVertex {
     UnitigGraphVertex(int64_t start_node, int64_t end_node,

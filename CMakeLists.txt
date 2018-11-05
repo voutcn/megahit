@@ -67,11 +67,9 @@ add_executable(megahit
         src/packed_reads.h
         src/read_lib_functions-inl.h
         src/sdbg_builder.cpp
-        src/sdbg_multi_io.h
         src/sequence_manager.cpp
         src/sequence_manager.h
         src/sequence_package.h
-        src/succinct_dbg.h
         src/unitig_graph.cpp
         src/unitig_graph.h
         src/utils.h
@@ -90,4 +88,4 @@ add_executable(megahit
         src/kmlib/kmbit.h
         src/kmlib/kmsort.h
         src/kmlib/kmthread.h
-        src/sequence/kmer.h src/sequence/kmer_plus.h src/khash.h)
+        src/sequence/kmer.h src/sequence/kmer_plus.h src/khash.h src/sdbg/sdbg_meta.h src/kmlib/kmcompactvector.h src/kmlib/test_compactvector.cpp src/sdbg/sdbg_def.h src/sdbg/sdbg_meta.cpp src/sdbg/sdbg_raw_content.h src/sdbg/sdbg_raw_content.cpp src/sdbg/sdbg.h src/sdbg/sdbg_writer.h src/sdbg/sdbg_writer.cpp src/utils/buffered_reader.cpp src/utils/buffered_reader.h)

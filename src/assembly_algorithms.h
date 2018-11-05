@@ -23,7 +23,7 @@
 
 #include <vector>
 #include <string>
-#include "succinct_dbg.h"
+#include "sdbg/sdbg.h"
 
 using std::vector;
 using std::string;

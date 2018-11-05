@@ -26,9 +26,8 @@
 #include <stdint.h>
 #include <vector>
 #include <string>
-#include "definitions.h"
 #include "cx1.h"
-#include "sdbg_multi_io.h"
+#include "sdbg/sdbg_writer.h"
 #include "sequence_manager.h"
 
 struct seq2sdbg_opt_t {
@@ -117,7 +116,7 @@ struct seq2sdbg_global_t {
 
     // big arrays
     SequencePackage package;
-    std::vector<multi_t> multiplicity;
+    std::vector<mul_t> multiplicity;
 
     int32_t *lv1_items; // each item is an offset (read ID and position) in differential representation
 

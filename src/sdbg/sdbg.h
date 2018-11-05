@@ -1,187 +1,50 @@
-/*
- *  MEGAHIT
- *  Copyright (C) 2014 - 2015 The University of Hong Kong & L3 Bioinformatics Limited
- *
- *  This program is free software: you can redistribute it and/or modify
- *  it under the terms of the GNU General Public License as published by
- *  the Free Software Foundation, either version 3 of the License, or
- *  (at your option) any later version.
- *
- *  This program is distributed in the hope that it will be useful,
- *  but WITHOUT ANY WARRANTY; without even the implied warranty of
- *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- *  GNU General Public License for more details.
- *
- *  You should have received a copy of the GNU General Public License
- *  along with this program.  If not, see <http://www.gnu.org/licenses/>.
- */
+//
+// Created by vout on 11/5/18.
+//
 
-/* contact: Dinghua Li <dhli@cs.hku.hk> */
+#ifndef MEGAHIT_SDBG_H
+#define MEGAHIT_SDBG_H
 
-#ifndef SUCCINCT_DBG_H_
-#define SUCCINCT_DBG_H_
-#include <assert.h>
+#include "sdbg_def.h"
+#include "sdbg_raw_content.h"
+
+#include <cassert>
 #include <vector>
-#include "definitions.h"
+#include <iostream>
 #include "kmlib/kmrns.h"
-#include "sdbg_multi_io.h"
 #include "kmlib/bitvector.h"
-
-#ifdef USE_KHASH
-#include "khash.h"
-#else
-#include "sparsepp/sparsepp/spp.h"
-#endif
 
 using std::vector;
 
 /**
  * Succicent De Bruijn graph
- * @tparam mul_type the type of multiplicity
- * @tparam small_mul_type the type of small multiplicity
  */
-template<typename mul_type = uint16_t, typename small_mul_type = uint8_t>
 class SDBG {
- public:
-#ifdef USE_KHASH
-  KHASH_MAP_INIT_INT64(k64v16, mul_type); // declare khash
-#endif
-  // constants
-  static const unsigned kAlphabetSize = 4;
-  static const unsigned kWAlphabetSize = 9;
-  static const unsigned kWBitsPerChar = 4;
-  static const unsigned kWCharsPerWord = sizeof(unsigned long long) * 8 / kWBitsPerChar;
-  static const unsigned kWCharMask = 0xF;
-  static const unsigned kMaxKmerK = kMaxK + 1;
-  static const unsigned kCharsPerUint32 = 16;
-  static const unsigned kBitsPerChar = 2;
-  static const unsigned kBitsPerULL = 64;
-
  public:
   SDBG() = default;
   ~SDBG() = default;
 
   void LoadFromFile(const char *dbg_name) {
-    SdbgReader sdbg_reader;
-    sdbg_reader.set_file_prefix(std::string(dbg_name));
-    sdbg_reader.read_info();
-    sdbg_reader.init_files();
+    content_ = ReadSdbgFromFile(dbg_name);
+    k_ = content_.meta.k();
+    size_ = content_.meta.size();
+    rs_is_tip_.Build(content_.tip.data(), size_);
+    rs_w_.Build(content_.w.data(), size_);
+    rs_last_.Build(content_.last.data(), size_);
+    invalid_ = std::move(kmlib::AtomicBitVector<uint64_t>(size_, content_.tip.data()));
 
-    for (int i = 0; i < 6; ++i) {
-      f_[i] = sdbg_reader.f()[i];
+    // build f and prefix_look_up_
+    prefix_look_up_.resize(content_.meta.bucket_size());
+    std::fill(f_, f_ + kAlphabetSize + 2, 0);
+    f_[0] = -1;
+    for (auto it = content_.meta.sorted_begin(); it != content_.meta.sorted_end(); ++it) {
+      f_[it->bucket_id / (content_.meta.bucket_size() / kAlphabetSize) + 2] += it->num_items;
+      prefix_look_up_[it->bucket_id].first = it->accumulate_item_count;
+      prefix_look_up_[it->bucket_id].second = it->accumulate_item_count + it->num_items - 1;
     }
-
-    k_ = sdbg_reader.kmer_size();
-    size_ = sdbg_reader.num_items();
-    num_tip_nodes_ = sdbg_reader.num_tips();
-    uint32_per_tip_nodes_ = sdbg_reader.words_per_tip_label();
-    prefix_lk_len_ = sdbg_reader.prefix_lkt_len();
-
-    size_t word_needed_w = (size_ + kWCharsPerWord - 1) / kWCharsPerWord;
-    size_t word_needed_last = (size_ + kBitsPerULL - 1) / kBitsPerULL;
-
-    w_.resize(word_needed_w);
-    last_.resize(word_needed_last);
-    is_tip_.resize(word_needed_last);
-    tip_node_seq_.resize(size_t(num_tip_nodes_) * sdbg_reader.words_per_tip_label());
-    prefix_lkt_.resize(sdbg_reader.prefix_lkt_size() * 2);
-
-    if (sdbg_reader.num_large_mul() > (1 << 30) ||
-        sdbg_reader.num_large_mul() > size_ * 0.08) {
-      large_mul_.resize(size_);
-    } else {
-      small_mul_.resize(size_);
-#ifdef USE_KHASH
-      kh_ = kh_init(k64v16);
-#else
-      large_mul_lookup_.reserve(sdbg_reader.num_large_mul());
-#endif
+    for (unsigned i = 2; i < kAlphabetSize + 2; ++i) {
+      f_[i] += f_[i - 1];
     }
-
-    for (int i = 0; i < sdbg_reader.prefix_lkt_size() * 2; ++i) {
-      prefix_lkt_[i] = sdbg_reader.prefix_lkt(i);
-    }
-
-    ull_t packed_w = 0;
-    ull_t packed_last = 0;
-    ull_t packed_tip = 0;
-
-    int64_t w_word_idx = 0;
-    int64_t last_word_idx = 0;
-
-    int w_word_offset = 0;
-    int last_word_offset = 0;
-
-    uint64_t tip_label_offset = 0;
-    uint16_t item = 0;
-
-    for (uint64_t i = 0; LIKELY(i < size_); ++i) {
-      assert(sdbg_reader.NextItem(item));
-
-      packed_w |= (unsigned long long) (item & 0xF) << w_word_offset;
-      w_word_offset += kWBitsPerChar;
-
-      if (w_word_offset == kBitsPerULL) {
-        w_[w_word_idx++] = packed_w;
-        w_word_offset = 0;
-        packed_w = 0;
-      }
-
-      packed_last |= (unsigned long long) ((item >> 4) & 1) << last_word_offset;
-      packed_tip |= (unsigned long long) ((item >> 5) & 1) << last_word_offset;
-
-      last_word_offset++;
-
-      if (last_word_offset == kBitsPerULL) {
-        last_[last_word_idx] = packed_last;
-        is_tip_[last_word_idx++] = packed_tip;
-        last_word_offset = 0;
-        packed_tip = packed_last = 0;
-      }
-
-      if (!small_mul_.empty())
-        small_mul_[i] = item >> 8;
-      else
-        large_mul_[i] = item >> 8;
-
-      if (UNLIKELY((item >> 8) == kMulti2Sp)) {
-        multi_t mul = sdbg_reader.NextLargeMul();
-        assert(mul >= kMulti2Sp);
-        if (!small_mul_.empty()) {
-#ifdef USE_KHASH
-          int ret;
-          khint_t k = kh_put(k64v16, kh_, i, &ret);
-          kh_value(kh_, k) = mul;
-#else
-          large_mul_lookup_[i] = mul;
-#endif
-        } else {
-          large_mul_[i] = mul;
-        }
-      }
-
-      if (UNLIKELY((item >> 5) & 1)) {
-        sdbg_reader.NextTipLabel(&tip_node_seq_[tip_label_offset]);
-        tip_label_offset += sdbg_reader.words_per_tip_label();
-      }
-    }
-
-    if (w_word_offset != 0) {
-      w_[w_word_idx++] = packed_w;
-    }
-
-    if (last_word_offset != 0) {
-      last_[last_word_idx] = packed_last;
-      is_tip_[last_word_idx++] = packed_tip;
-    }
-
-    assert(!sdbg_reader.NextItem(item));
-    assert(tip_label_offset == num_tip_nodes_ * sdbg_reader.words_per_tip_label());
-
-    invalid_ = is_tip_;
-    rs_is_tip_.Build(&is_tip_[0], size_);
-    rs_w_.Build(&w_[0], size_);
-    rs_last_.Build(&last_[0], size_);
 
     for (unsigned i = 1; i < kAlphabetSize + 2; ++i) {
       rank_f_[i] = rs_last_.Rank(f_[i] - 1);
@@ -203,15 +66,15 @@ class SDBG {
   }
 
   uint8_t GetW(uint64_t x) const {
-    return (w_[x / kWCharsPerWord] >> (x % kWCharsPerWord * kWBitsPerChar)) & kWCharMask;
+    return content_.w[x];
   }
 
   bool IsLast(uint64_t x) const {
-    return (last_[x / 64] >> (x % 64)) & 1;
+    return content_.last[x];
   }
 
   bool IsLastOrTip(uint64_t x) const {
-    return ((last_[x / 64] | is_tip_[x / 64]) >> (x % 64)) & 1;
+    return ((content_.last.data()[x / 64] | content_.tip.data()[x / 64]) >> (x % 64)) & 1;
   }
 
   int64_t GetLastIndex(uint64_t x) const {
@@ -219,44 +82,39 @@ class SDBG {
   }
 
   uint8_t GetNodeLastChar(uint64_t x) const {
-    for (uint8_t i = 1; i < 6; ++i) {
-      if (f_[i] > x) {
+    for (uint8_t i = 1; i < kAlphabetSize + 2; ++i) {
+      if (f_[i] > int64_t(x)) {
         return i - 1;
       }
     }
-    assert(false);
-    return 6;
+    return kAlphabetSize + 2;
   }
 
   bool IsValidEdge(uint64_t edge_id) const {
-    return !((invalid_[edge_id / 64] >> (edge_id % 64)) & 1);
+    return !invalid_.get(edge_id);
   }
 
   bool IsTip(uint64_t edge_id) const {
-    return (is_tip_[edge_id / 64] >> (edge_id % 64)) & 1;
+    return content_.tip[edge_id];
   }
 
   void SetValidEdge(uint64_t edge_id) {
-    __sync_fetch_and_and(&invalid_[edge_id / 64], ~(1ULL << (edge_id % 64)));
+    invalid_.unset(edge_id);
   }
 
   void SetInvalidEdge(uint64_t edge_id) {
-    __sync_fetch_and_or(&invalid_[edge_id / 64], 1ULL << (edge_id % 64));
+    invalid_.set(edge_id);
   }
 
   int EdgeMultiplicity(uint64_t edge_id) const {
-    if (large_mul_.size()) {
-      return large_mul_[edge_id];
+    if (content_.full_mul.size()) {
+      return content_.full_mul[edge_id];
     }
 
-    if (LIKELY(small_mul_[edge_id] != kMulti2Sp)) {
-      return small_mul_[edge_id];
+    if (content_.small_mul[edge_id] != kSmallMulSentinel) {
+      return content_.small_mul[edge_id];
     } else {
-#ifdef USE_KHASH
-      return kh_value(kh_, kh_get(k64v16, kh_, edge_id));
-#else
-      return large_mul_lookup_.at(edge_id);
-#endif
+      return content_.large_mul.at(edge_id);
     }
   }
 
@@ -281,13 +139,12 @@ class SDBG {
    * @return the index of the sequence in the graph, -1 if not exists
    */
   int64_t IndexBinarySearch(const uint8_t *seq) const {
-    // only work if k > 8
-    int pre = 0;
-    for (uint32_t i = 0; i < prefix_lk_len_; ++i) {
-      pre = pre * 4 + seq[k_ - 1 - i] - 1;
+    uint64_t prefix = 0;
+    for (uint64_t i = 0; (1U << (i * 2)) < prefix_look_up_.size(); ++i) {
+      prefix = prefix * kAlphabetSize + seq[k_ - 1 - i] - 1;
     }
-    uint64_t l = prefix_lkt_[pre * 2];
-    uint64_t r = prefix_lkt_[pre * 2 + 1];
+    auto l = prefix_look_up_[prefix].first;
+    auto r = prefix_look_up_[prefix].second;
 
     while (l <= r) {
       int cmp = 0;
@@ -296,10 +153,12 @@ class SDBG {
 
       for (int i = k_ - 1; i >= 0; --i) {
         if (IsTip(y)) {
-          uint32_t const *tip_node_seq = &tip_node_seq_[uint32_per_tip_nodes_ * (rs_is_tip_.Rank(y) - 1)];
+          uint32_t const *tip_node_seq = content_.tip_lables.data() +
+              content_.meta.words_per_tip_label() * (rs_is_tip_.Rank(y) - 1);
           for (unsigned j = 0; j < static_cast<unsigned>(i); ++j) {
-            auto c = ((tip_node_seq[j / kCharsPerUint32] >>
-                (kCharsPerUint32 - 1 - j % kCharsPerUint32) * kBitsPerChar) & 3) + 1;
+            auto c = ((tip_node_seq[j / kCharsPerLabelWord] >>
+                                                            (kCharsPerLabelWord - 1 - j % kCharsPerLabelWord)
+                                                                * kBitsPerChar) & 3) + 1;
             if (c < seq[i - j]) {
               cmp = -1;
               break;
@@ -313,8 +172,8 @@ class SDBG {
             if (IsTip(mid)) {
               cmp = -1;
             } else {
-              auto c = ((tip_node_seq[i / kCharsPerUint32] >>
-                  (kCharsPerUint32 - 1 - i % kCharsPerUint32) * kBitsPerChar) & 3) + 1;
+              auto c = ((tip_node_seq[i / kCharsPerLabelWord] >>
+                  (kCharsPerLabelWord - 1 - i % kCharsPerLabelWord) * kBitsPerChar) & 3) + 1;
               if (c < seq[0]) {
                 cmp = -1;
                 break;
@@ -359,10 +218,12 @@ class SDBG {
     int64_t x = id;
     for (int i = k_ - 1; i >= 0; --i) {
       if (IsTip(x)) {
-        uint32_t const *tip_node_seq = &tip_node_seq_[uint32_per_tip_nodes_ * (rs_is_tip_.Rank(x) - 1)];
+        uint32_t const *tip_node_seq = content_.tip_lables.data() +
+            content_.meta.words_per_tip_label() * (rs_is_tip_.Rank(x) - 1);
         for (int j = 0; j <= i; ++j) {
-          seq[i - j] = static_cast<uint8_t>(((tip_node_seq[j / kCharsPerUint32] >>
-              (kCharsPerUint32 - 1 - j % kCharsPerUint32) * kBitsPerChar) & 3) + 1);
+          seq[i - j] = static_cast<uint8_t>(
+              ((tip_node_seq[j / kCharsPerLabelWord] >>
+              (kCharsPerLabelWord - 1 - j % kCharsPerLabelWord) * kBitsPerChar) & 3) + 1);
         }
         break;
       }
@@ -570,7 +431,7 @@ class SDBG {
       return -1;
     }
 
-    uint8_t seq[kMaxKmerK + 1];
+    uint8_t seq[kMaxK + 1];
     assert(k_ == Label(edge_id, seq));
     seq[k_] = GetW(edge_id);
 
@@ -607,13 +468,9 @@ class SDBG {
    * After that EdgeMultiplicty() are invalid
    */
   void FreeMultiplicity() {
-    small_mul_ = std::move(std::vector<small_mul_type>());
-    large_mul_ = std::move(std::vector<mul_type>());
-#ifdef USE_KHASH
-    kh_destroy(k64v16, kh_);
-#else
-    large_mul_lookup_ = std::move(spp::sparse_hash_map<uint64_t, multi_t>());
-#endif
+    content_.large_mul = std::move(spp::sparse_hash_map<uint64_t, mul_t>());
+    content_.small_mul = std::move(std::vector<small_mul_t>());
+    content_.full_mul = std::move(std::vector<mul_t>());
   }
 
  private:
@@ -621,27 +478,12 @@ class SDBG {
   uint32_t k_{};
 
   // main memory
-  using ull_t = RankAndSelect4Bits::ull_t;
-  std::vector<ull_t> w_;
-  std::vector<ull_t> last_;
-  std::vector<ull_t> is_tip_;
-  std::vector<ull_t> invalid_;
-  std::vector<uint32_t> tip_node_seq_;
-  std::vector<uint64_t> prefix_lkt_;
-  std::vector<small_mul_type> small_mul_;
-  std::vector<mul_type> large_mul_;
-#ifdef USE_KASH
-  khash_t(k64v16) *kh_;
-#else
-  spp::sparse_hash_map<uint64_t, multi_t> large_mul_lookup_;
-#endif
+  SdbgRawContent content_;
+  kmlib::AtomicBitVector<uint64_t> invalid_;
+  std::vector<std::pair<int64_t, int64_t>> prefix_look_up_;
 
-  uint64_t f_[kAlphabetSize + 2]{};
-  uint64_t rank_f_[kAlphabetSize + 2]{}; // = rs_last_.Rank(f_[i] - 1)
-
-  uint64_t num_tip_nodes_{};
-  uint32_t uint32_per_tip_nodes_{};
-  uint32_t prefix_lk_len_{};
+  int64_t f_[kAlphabetSize + 2]{};
+  int64_t rank_f_[kAlphabetSize + 2]{}; // = rs_last_.Rank(f_[i] - 1)
 
   // auxiliary memory
   kmlib::RankAndSelect<kAlphabetSize, kWAlphabetSize> rs_w_;
@@ -649,6 +491,6 @@ class SDBG {
   Rank1Bit rs_is_tip_;
 };
 
-using SuccinctDBG = SDBG<>;
+using SuccinctDBG = SDBG;
 
-#endif // SUCCINCT_DBG_H_
+#endif //MEGAHIT_SDBG_H

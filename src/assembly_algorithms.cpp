@@ -42,10 +42,10 @@ using std::queue;
 namespace assembly_algorithms {
 
 double SetMinDepth(SuccinctDBG &dbg) {
-  Histgram<multi_t> hist;
+  Histgram<mul_t> hist;
 
 #pragma omp parallel for
-  for (int64_t i = 0; i < dbg.size(); ++i) {
+  for (uint64_t i = 0; i < dbg.size(); ++i) {
     if (dbg.IsValidEdge(i)) {
       hist.insert(dbg.EdgeMultiplicity(i));
     }
@@ -53,7 +53,7 @@ double SetMinDepth(SuccinctDBG &dbg) {
 
   double cov = hist.FirstLocalMinimum();
   for (int repeat = 1; repeat <= 100; ++repeat) {
-    hist.TrimLow((multi_t) roundf(cov));
+    hist.TrimLow((mul_t) roundf(cov));
     unsigned median = hist.median();
     double cov1 = sqrt(median);
     if (abs(cov - cov1) < 1e-2) {

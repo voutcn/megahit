@@ -26,9 +26,12 @@ class AtomicBitVector {
    * @brief Constructor
    * @param size the size (number of bits) of the bit vector
    */
-  explicit AtomicBitVector(size_t size = 0)
+  explicit AtomicBitVector(size_t size = 0, WordType const *src = nullptr)
       : size_(size),
         data_array_((size + kBitsPerWord - 1) / kBitsPerWord, 0) {
+    if (src != nullptr) {
+      std::copy(src, src + data_array_.size(), data_array_.begin());
+    }
   }
 
   ~AtomicBitVector() = default;
@@ -62,10 +65,9 @@ class AtomicBitVector {
    * @param i the index of the bit
    * @return value of the i-th bit
    */
-  bool get(size_t i) {
-    return static_cast<bool>(
-        (data_array_[i / kBitsPerWord].v.load(std::memory_order_acquire)
-            >> i % kBitsPerWord) & 1);
+  bool get(size_t i) const {
+    return (data_array_[i / kBitsPerWord].v.load(std::memory_order_acquire)
+            >> i % kBitsPerWord) & 1;
   }
 
   /*!
@@ -145,6 +147,8 @@ class AtomicBitVector {
   static const unsigned kBitsPerWord = sizeof(WordType) * kBitsPerByte;
   size_t size_;
   ArrayType data_array_;
+
+  static_assert(sizeof(AtomicWrapper<WordType>) == sizeof(WordType), "");
 };
 
 } // namespace kmlib

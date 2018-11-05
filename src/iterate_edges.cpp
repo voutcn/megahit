@@ -210,7 +210,7 @@ class WriteEdgeFunc {
         next_k_ = nextk1 - 1;
         last_shift_ = nextk1 % 16;
         last_shift_ = (last_shift_ == 0 ? 0 : 16 - last_shift_) * 2;
-        words_per_edge_ = DivCeiling(nextk1 * 2 + kBitsPerMulti_t, 32);
+        words_per_edge_ = DivCeiling(nextk1 * 2 + kBitsPerMul, 32);
         packed_edges_.resize(omp_get_max_threads() * words_per_edge_);
     }
 
@@ -234,7 +234,7 @@ class WriteEdgeFunc {
         }
 
         packed_edge[end_word] = (w << last_shift_);
-        assert((packed_edge[words_per_edge_ - 1] & kMaxMulti_t) == 0);
+        assert((packed_edge[words_per_edge_ - 1] & kMaxMul) == 0);
         packed_edge[words_per_edge_ - 1] |= kp.ann;
         edge_writer_->write_unsorted(packed_edge, tid);
     }
@@ -416,17 +416,17 @@ static bool ReadReadsAndProcessKernel(
                     }
 
                     float mul = (kmer_mul[j] - (j - (globals.step + 1) >= 0 ? kmer_mul[j - (globals.step + 1)] : 0)) / (globals.step + 1);
-                    assert(mul <= kMaxMulti_t + 1);
+                    assert(mul <= kMaxMul + 1);
 
                     if (kmer_p.kmer < rev_kmer_p.kmer) {
-                        kmer_p.ann = std::min(kMaxMulti_t, int(mul + 0.5));
+                        kmer_p.ann = std::min(kMaxMul, int(mul + 0.5));
 
                         omp_set_lock(&lock);
                         iterative_edges.insert(kmer_p);
                         omp_unset_lock(&lock);
                     }
                     else {
-                        rev_kmer_p.ann = std::min(kMaxMulti_t, int(mul + 0.5));
+                        rev_kmer_p.ann = std::min(kMaxMul, int(mul + 0.5));
 
                         omp_set_lock(&lock);
                         iterative_edges.insert(rev_kmer_p);

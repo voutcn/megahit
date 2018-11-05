@@ -25,12 +25,12 @@
 #include <stdint.h>
 #include <vector>
 #include <string>
-#include "definitions.h"
 #include "cx1.h"
-#include "sdbg_multi_io.h"
+#include "sdbg/sdbg_writer.h"
 #include "kmlib/bitvector.h"
 #include "sequence_package.h"
 #include "lib_info.h"
+#include "definitions.h"
 
 struct read2sdbg_opt_t {
     int kmer_k;

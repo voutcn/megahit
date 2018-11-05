@@ -31,7 +31,7 @@
 
 #include "utils.h"
 #include "definitions.h"
-#include "succinct_dbg.h"
+#include "sdbg/sdbg.h"
 #include "assembly_algorithms.h"
 #include "kmlib/bitvector.h"
 
@@ -118,7 +118,7 @@ std::string VertexToDNAString(SuccinctDBG *sdbg_, const UnitigGraphVertex &v) {
 
   assert(cur_edge == v.start_node);
 
-  uint8_t seq[sdbg_->kMaxKmerK];
+  uint8_t seq[kMaxK];
   sdbg_->Label(v.start_node, seq);
 
   for (int i = sdbg_->k() - 1; i >= 0; --i) {
@@ -1372,7 +1372,7 @@ void UnitigGraph::OutputContigs(FILE *contig_file, FILE *final_file, Histgram<in
       continue;
     }
 
-    double multi = std::min((double) kMaxMulti_t, (double) vertices_[i].depth / vertices_[i].length);
+    double multi = std::min((double) kMaxMul, (double) vertices_[i].depth / vertices_[i].length);
 
     if (change_only) {
       multi = 1;
