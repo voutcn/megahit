@@ -26,12 +26,10 @@ class SDBG {
 
   void LoadFromFile(const char *dbg_name) {
     content_ = ReadSdbgFromFile(dbg_name);
-    k_ = content_.meta.k();
-    size_ = content_.meta.size();
-    rs_is_tip_.Build(content_.tip.data(), size_);
-    rs_w_.Build(content_.w.data(), size_);
-    rs_last_.Build(content_.last.data(), size_);
-    invalid_ = std::move(kmlib::AtomicBitVector<uint64_t>(size_, content_.tip.data()));
+    rs_is_tip_.Build(content_.tip.data(), content_.meta.size());
+    rs_w_.Build(content_.w.data(), content_.meta.size());
+    rs_last_.Build(content_.last.data(), content_.meta.size());
+    invalid_ = kmlib::AtomicBitVector<uint64_t>(content_.meta.size(), content_.tip.data());
 
     // build f and prefix_look_up_
     prefix_look_up_.resize(content_.meta.bucket_size());
@@ -50,7 +48,7 @@ class SDBG {
       rank_f_[i] = rs_last_.Rank(f_[i] - 1);
     }
 
-    for (uint64_t i = 0; i < size_; ++i) {
+    for (uint64_t i = 0; i < content_.meta.size(); ++i) {
       if (GetW(i) == 0) {
         SetInvalidEdge(i);
       }
@@ -58,11 +56,11 @@ class SDBG {
   }
 
   uint64_t size() const {
-    return size_;
+    return content_.meta.size();
   }
 
-  uint32_t k() const {
-    return k_;
+  size_t k() const {
+    return content_.meta.k();
   }
 
   uint8_t GetW(uint64_t x) const {
@@ -141,7 +139,7 @@ class SDBG {
   int64_t IndexBinarySearch(const uint8_t *seq) const {
     uint64_t prefix = 0;
     for (uint64_t i = 0; (1U << (i * 2)) < prefix_look_up_.size(); ++i) {
-      prefix = prefix * kAlphabetSize + seq[k_ - 1 - i] - 1;
+      prefix = prefix * kAlphabetSize + seq[k() - 1 - i] - 1;
     }
     auto l = prefix_look_up_[prefix].first;
     auto r = prefix_look_up_[prefix].second;
@@ -151,7 +149,7 @@ class SDBG {
       uint64_t mid = (l + r) / 2;
       uint64_t y = mid;
 
-      for (int i = k_ - 1; i >= 0; --i) {
+      for (int i = k() - 1; i >= 0; --i) {
         if (IsTip(y)) {
           uint32_t const *tip_node_seq = content_.tip_lables.data() +
               content_.meta.words_per_tip_label() * (rs_is_tip_.Rank(y) - 1);
@@ -216,7 +214,7 @@ class SDBG {
    */
   uint32_t Label(uint64_t id, uint8_t *seq) const {
     int64_t x = id;
-    for (int i = k_ - 1; i >= 0; --i) {
+    for (int i = k() - 1; i >= 0; --i) {
       if (IsTip(x)) {
         uint32_t const *tip_node_seq = content_.tip_lables.data() +
             content_.meta.words_per_tip_label() * (rs_is_tip_.Rank(x) - 1);
@@ -236,7 +234,7 @@ class SDBG {
         seq[i] -= 4;
       }
     }
-    return k_;
+    return k();
   }
 
  private:
@@ -271,7 +269,7 @@ class SDBG {
       }
     }
 
-    for (uint64_t y = first_income + 1; count_ones < 5 && y < size_; ++y) {
+    for (uint64_t y = first_income + 1; count_ones < 5 && y < size(); ++y) {
       count_ones += IsLastOrTip(y);
       uint8_t cur_char = GetW(y);
 
@@ -432,15 +430,15 @@ class SDBG {
     }
 
     uint8_t seq[kMaxK + 1];
-    assert(k_ == Label(edge_id, seq));
-    seq[k_] = GetW(edge_id);
+    assert(k() == Label(edge_id, seq));
+    seq[k()] = GetW(edge_id);
 
-    if (seq[k_] > 4) {
-      seq[k_] -= 4;
+    if (seq[k()] > 4) {
+      seq[k()] -= 4;
     }
 
     int i, j;
-    for (i = 0, j = k_; i < j; ++i, --j) {
+    for (i = 0, j = k(); i < j; ++i, --j) {
       std::swap(seq[i], seq[j]);
       seq[i] = 5 - seq[i];
       seq[j] = 5 - seq[j];
@@ -453,7 +451,7 @@ class SDBG {
     if (rev_node == -1) return -1;
     do {
       uint8_t edge_label = GetW(rev_node);
-      if (edge_label == seq[k_] || edge_label - 4 == seq[k_]) {
+      if (edge_label == seq[k()] || edge_label - 4 == seq[k()]) {
         return rev_node;
       }
       --rev_node;
@@ -474,18 +472,11 @@ class SDBG {
   }
 
  private:
-  uint64_t size_{};
-  uint32_t k_{};
-
-  // main memory
   SdbgRawContent content_;
   kmlib::AtomicBitVector<uint64_t> invalid_;
   std::vector<std::pair<int64_t, int64_t>> prefix_look_up_;
-
   int64_t f_[kAlphabetSize + 2]{};
   int64_t rank_f_[kAlphabetSize + 2]{}; // = rs_last_.Rank(f_[i] - 1)
-
-  // auxiliary memory
   kmlib::RankAndSelect<kAlphabetSize, kWAlphabetSize> rs_w_;
   RankAndSelect1Bit rs_last_;
   Rank1Bit rs_is_tip_;

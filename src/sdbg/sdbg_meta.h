@@ -10,9 +10,9 @@
 #include <cstdint>
 #include <cstddef>
 #include <cstring>
-#include <string>
 #include <vector>
 #include <limits>
+#include <fstream>
 
 /**
  * @brief bucket record of a SDBG
@@ -45,16 +45,16 @@ class SdbgMetadata {
   size_t size_{};
   size_t k_{};
   size_t words_per_tip_label_{};
-  size_t num_buckets_{};
   size_t num_files_{};
   size_t num_tips_{};
   size_t num_large_mul_{};
   std::vector<SdbgBucketRecord> bucket_rec_;
-  std::vector<SdbgBucketRecord> bucket_rec_sorted_;
  public:
   SdbgMetadata() = default;
-  explicit SdbgMetadata(const std::string &file_name);
-  explicit SdbgMetadata(const std::vector<SdbgBucketRecord> &bucket_rec);
+  void Serialize(std::ofstream &os);
+  SdbgMetadata& Deserialize(std::ifstream &is);
+  SdbgMetadata& FromBucketRecord(const std::vector<SdbgBucketRecord> &bucket_rec,
+      size_t k, size_t words_per_tip_label);
   ~SdbgMetadata() = default;
   size_t k() const {
     return k_;
@@ -74,11 +74,11 @@ class SdbgMetadata {
   size_t words_per_tip_label() const {
     return words_per_tip_label_;
   }
-  std::vector<SdbgBucketRecord>::const_iterator sorted_begin() {
-    return bucket_rec_sorted_.begin();
+  std::vector<SdbgBucketRecord>::const_iterator sorted_begin() const {
+    return bucket_rec_.begin();
   }
-  std::vector<SdbgBucketRecord>::const_iterator sorted_end() {
-    return bucket_rec_sorted_.end();
+  std::vector<SdbgBucketRecord>::const_iterator sorted_end() const {
+    return bucket_rec_.end();
   }
 };
 

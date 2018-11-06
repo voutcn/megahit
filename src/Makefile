@@ -132,8 +132,8 @@ LIB_ASM = sdbg/sdbg_writer.o sdbg/sdbg_raw_content.o \
 #-------------------------------------------------------------------------------
 # CPU Applications
 #-------------------------------------------------------------------------------
-megahit_sdbg_build: sdbg_builder.cpp cx1_kmer_count.o cx1_read2sdbg_s1.o cx1_read2sdbg_s2.o cx1_seq2sdbg.o options_description.o sequence_manager.o  sdbg/sdbg_writer.o $(DEPS)
-	$(CXX) $(CXXFLAGS) kthread.cpp sdbg_builder.cpp cx1_kmer_count.o options_description.o cx1_read2sdbg_s1.o cx1_read2sdbg_s2.o cx1_seq2sdbg.o sequence_manager.o  sdbg/sdbg_writer.o $(LIB) -o megahit_sdbg_build
+megahit_sdbg_build: sdbg_builder.cpp cx1_kmer_count.o cx1_read2sdbg_s1.o cx1_read2sdbg_s2.o cx1_seq2sdbg.o options_description.o sequence_manager.o  sdbg/sdbg_writer.o sdbg/sdbg_meta.o $(DEPS)
+	$(CXX) $(CXXFLAGS) kthread.cpp sdbg_builder.cpp cx1_kmer_count.o options_description.o cx1_read2sdbg_s1.o cx1_read2sdbg_s2.o cx1_seq2sdbg.o sequence_manager.o  sdbg/sdbg_writer.o sdbg/sdbg_meta.o $(LIB) -o megahit_sdbg_build
 
 megahit_asm_core: $(LIB_ASM) $(LIB_IDBA) asm_core.o assembler.o local_assemble.o iterate_edges.o build_read_lib.o $(DEPS)
 	$(CXX) $(CXXFLAGS) asm_core.o assembler.o local_assemble.o iterate_edges.o build_read_lib.o $(LIB_IDBA) $(LIB_ASM) $(LIB) -o megahit_asm_core

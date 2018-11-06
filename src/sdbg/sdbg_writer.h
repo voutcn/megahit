@@ -54,8 +54,8 @@ class SdbgWriter {
   }
 
   void InitFiles();
-  void Write(unsigned tid, int32_t bucket, int w, int last, int tip, mul_t multiplicity,
-             LabelWordType *packed_tip_label);
+  void Write(unsigned tid, int32_t bucket_id, int w, int last, int tip, mul_t multiplicity,
+             label_word_t *packed_tip_label);
   void Finalize();
   int64_t num_edges() {
     int64_t total_edges = 0;
