@@ -25,11 +25,11 @@ class SDBG {
   ~SDBG() = default;
 
   void LoadFromFile(const char *dbg_name) {
-    content_ = ReadSdbgFromFile(dbg_name);
+    ReadSdbgFromFile(dbg_name, &content_);
     rs_is_tip_.Build(content_.tip.data(), content_.meta.size());
     rs_w_.Build(content_.w.data(), content_.meta.size());
     rs_last_.Build(content_.last.data(), content_.meta.size());
-    invalid_ = kmlib::AtomicBitVector<uint64_t>(content_.meta.size(), content_.tip.data());
+    invalid_.FromPtr(content_.meta.size(), content_.tip.data());
 
     // build f and prefix_look_up_
     prefix_look_up_.resize(content_.meta.bucket_size());

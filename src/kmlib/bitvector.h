@@ -19,7 +19,7 @@ namespace kmlib {
  * @details Update of each bit is threads safe via set and get.
  * It can also be used as a vector of bit locks via try_lock, lock and unlock
  */
-template <typename WordType = uint64_t>
+template<typename WordType = uint64_t>
 class AtomicBitVector {
  public:
   /*!
@@ -34,6 +34,20 @@ class AtomicBitVector {
     }
   }
 
+  AtomicBitVector(AtomicBitVector &&rhs)
+      : size_(rhs.size_), data_array_(std::move(rhs.data_array_)) {}
+
+  AtomicBitVector &operator=(AtomicBitVector &&rhs) {
+    size_ = rhs.size_;
+    data_array_ = std::move(rhs.data_array_);
+    return *this;
+  }
+
+  AtomicBitVector& FromPtr(size_t size, WordType const *src) {
+    size_ = size;
+    data_array_.resize((size + kBitsPerWord - 1) / kBitsPerWord);
+    std::copy(src, src + data_array_.size(), data_array_.begin());
+  }
   ~AtomicBitVector() = default;
 
   /*!
@@ -67,7 +81,7 @@ class AtomicBitVector {
    */
   bool get(size_t i) const {
     return (data_array_[i / kBitsPerWord].v.load(std::memory_order_acquire)
-            >> i % kBitsPerWord) & 1;
+        >> i % kBitsPerWord) & 1;
   }
 
   /*!

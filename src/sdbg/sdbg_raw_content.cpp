@@ -9,21 +9,20 @@
 #include "utils/buffered_reader.h"
 #include "sdbg_item.h"
 
-SdbgRawContent ReadSdbgFromFile(const std::string &file_prefix) {
-  SdbgRawContent raw_content;
+void ReadSdbgFromFile(const std::string &file_prefix, SdbgRawContent *raw_content) {
   std::ifstream is((file_prefix + ".sdbg_info").c_str());
-  raw_content.meta.Deserialize(is);
-  const auto &metadata = raw_content.meta;
-  raw_content.w.resize(metadata.size());
-  raw_content.last.resize(metadata.size());
-  raw_content.tip.resize(metadata.size());
-  raw_content.tip_lables.resize(metadata.words_per_tip_label() * metadata.num_tips());
+  raw_content->meta.Deserialize(is);
+  const auto &metadata = raw_content->meta;
+  raw_content->w.resize(metadata.size());
+  raw_content->last.resize(metadata.size());
+  raw_content->tip.resize(metadata.size());
+  raw_content->tip_lables.resize(metadata.words_per_tip_label() * metadata.num_tips());
   bool use_full_mul = metadata.num_large_mul() >= metadata.size() * 0.08;
   if (use_full_mul) {
-    raw_content.full_mul.resize(metadata.size());
+    raw_content->full_mul.resize(metadata.size());
   } else {
-    raw_content.small_mul.resize(metadata.size());
-    raw_content.large_mul.reserve(metadata.num_large_mul());
+    raw_content->small_mul.resize(metadata.size());
+    raw_content->large_mul.reserve(metadata.num_large_mul());
   }
 
   BufferedReader in;
@@ -44,27 +43,27 @@ SdbgRawContent ReadSdbgFromFile(const std::string &file_prefix) {
     }
     assert(file_offset == bucket_it->starting_offset);
     SdbgItem item;
-    label_word_t *tip_label_ptr = &raw_content.tip_lables[
+    label_word_t *tip_label_ptr = &raw_content->tip_lables[
         bucket_it->accumulate_tip_count * metadata.words_per_tip_label()];
 
     for (size_t i = 0; i < bucket_it->num_items; ++i) {
       size_t index = i + bucket_it->accumulate_item_count;
       file_offset += in.read(&item);
-      raw_content.w[index] = item.w;
-      raw_content.last[index] = item.last;
-      raw_content.tip[index] = item.tip;
+      raw_content->w[index] = item.w;
+      raw_content->last[index] = item.last;
+      raw_content->tip[index] = item.tip;
       mul_t mul = item.mul;
       if (mul == kSmallMulSentinel) {
         file_offset += in.read(&mul);
       }
       if (use_full_mul) {
-        raw_content.full_mul[index] = mul;
+        raw_content->full_mul[index] = mul;
       } else {
         if (mul < kMaxSmallMul) {
-          raw_content.small_mul[index] = mul;
+          raw_content->small_mul[index] = mul;
         } else {
-          raw_content.small_mul[index] = kSmallMulSentinel;
-          raw_content.large_mul[index] = mul;
+          raw_content->small_mul[index] = kSmallMulSentinel;
+          raw_content->large_mul[index] = mul;
         }
       }
       if (item.tip) {
@@ -72,8 +71,7 @@ SdbgRawContent ReadSdbgFromFile(const std::string &file_prefix) {
         tip_label_ptr += metadata.words_per_tip_label();
       }
     }
-    assert(tip_label_ptr - raw_content.tip_lables.data() ==
+    assert(tip_label_ptr - raw_content->tip_lables.data() ==
         ptrdiff_t((bucket_it->accumulate_tip_count + bucket_it->num_tips) * metadata.words_per_tip_label()));
   }
-  return raw_content;
 }

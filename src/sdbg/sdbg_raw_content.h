@@ -26,6 +26,6 @@ struct SdbgRawContent {
 };
 
 
-SdbgRawContent ReadSdbgFromFile(const std::string &file_prefix);
+void ReadSdbgFromFile(const std::string &file_prefix, SdbgRawContent *raw_content);
 
 #endif //MEGAHIT_SDBG_RAW_CONTENT_H
