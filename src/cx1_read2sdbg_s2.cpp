@@ -176,7 +176,7 @@ void s2_read_mercy_prepare(read2sdbg_global_t &globals) {
             // go read by read
             while (i != end_idx[tid]) {
                 uint64_t read_id = globals.package.get_id(mercy_cand[i] >> 2);
-                assert(!read_marker.get(read_id));
+                assert(!read_marker.at(read_id));
                 read_marker.set(read_id);
                 int first_0_out = globals.max_read_length + 1;
                 int last_0_in = -1;
@@ -208,7 +208,7 @@ void s2_read_mercy_prepare(read2sdbg_global_t &globals) {
                 int last_no_out = -1;
 
                 for (int i = 0; i + globals.kmer_k < read_length; ++i) {
-                    if (globals.is_solid.get(globals.package.get_start_index(read_id) + i)) {
+                    if (globals.is_solid.at(globals.package.get_start_index(read_id) + i)) {
                         has_solid_kmer[i] = has_solid_kmer[i + 1] = true;
                     }
                 }
@@ -276,21 +276,21 @@ void *s2_lv0_calc_bucket_size(void *_data) {
         bool is_solid = globals.kmer_freq_threshold == 1 || read_id >= globals.num_short_reads;
 
         while (true) {
-            if (is_solid || globals.is_solid.get(full_offset)) {
+            if (is_solid || globals.is_solid.at(full_offset)) {
                 bool is_palindrome = rev_edge.cmp(edge, globals.kmer_k + 1) == 0;
                 bucket_sizes[(edge.data_[0] << 2) >> (kCharsPerEdgeWord - kBucketPrefixLength) * kBitsPerEdgeChar]++;
 
                 if (!is_palindrome)
                     bucket_sizes[(rev_edge.data_[0] << 2) >> (kCharsPerEdgeWord - kBucketPrefixLength) * kBitsPerEdgeChar]++;
 
-                if (last_char_offset == globals.kmer_k || !(is_solid || globals.is_solid.get(full_offset - 1))) {
+                if (last_char_offset == globals.kmer_k || !(is_solid || globals.is_solid.at(full_offset - 1))) {
                     bucket_sizes[edge.data_[0] >> (kCharsPerEdgeWord - kBucketPrefixLength) * kBitsPerEdgeChar]++;
 
                     if (!is_palindrome)
                         bucket_sizes[(rev_edge.data_[0] << 4) >> (kCharsPerEdgeWord - kBucketPrefixLength) * kBitsPerEdgeChar]++;
                 }
 
-                if (last_char_offset == read_length - 1 || !(is_solid || globals.is_solid.get(full_offset + 1))) {
+                if (last_char_offset == read_length - 1 || !(is_solid || globals.is_solid.at(full_offset + 1))) {
                     bucket_sizes[(edge.data_[0] << 4) >> (kCharsPerEdgeWord - kBucketPrefixLength) * kBitsPerEdgeChar]++;
 
                     if (!is_palindrome)
@@ -472,11 +472,11 @@ void *s2_lv1_fill_offset(void *_data) {
         bool is_solid = globals.kmer_freq_threshold == 1 || read_id >= globals.num_short_reads;
 
         while (true) {
-            if (is_solid || globals.is_solid.get(full_offset)) {
+            if (is_solid || globals.is_solid.at(full_offset)) {
                 bool is_palindrome = rev_edge.cmp(edge, globals.kmer_k + 1) == 0;
 
                 // left $
-                if (last_char_offset == globals.kmer_k || !(is_solid || globals.is_solid.get(full_offset - 1))) {
+                if (last_char_offset == globals.kmer_k || !(is_solid || globals.is_solid.at(full_offset - 1))) {
                     key = edge.data_[0] >> (kCharsPerEdgeWord - kBucketPrefixLength) * kBitsPerEdgeChar;
                     CHECK_AND_SAVE_OFFSET(last_char_offset - globals.kmer_k, 0, 0);
 
@@ -496,7 +496,7 @@ void *s2_lv1_fill_offset(void *_data) {
                 }
 
                 // right $
-                if (last_char_offset == read_length - 1 || !(is_solid || globals.is_solid.get(full_offset + 1))) {
+                if (last_char_offset == read_length - 1 || !(is_solid || globals.is_solid.at(full_offset + 1))) {
                     key = (edge.data_[0] << 4) >> (kCharsPerEdgeWord - kBucketPrefixLength) * kBitsPerEdgeChar;
                     CHECK_AND_SAVE_OFFSET(last_char_offset - globals.kmer_k, 0, 2);
 
@@ -826,24 +826,20 @@ void s2_lv1_direct_sort_and_proc(read2sdbg_global_t &globals) {
 }
 
 void s2_post_proc(read2sdbg_global_t &globals) {
+    globals.sdbg_writer.Finalize();
     if (cx1_t::kCX1Verbose >= 2) {
         xlog("Number of $ A C G T A- C- G- T-:\n");
     }
-
     xlog("");
-
     for (int i = 0; i < 9; ++i) {
-        xlog_ext("%lld ", (long long)globals.sdbg_writer.num_w(i));
+        xlog_ext("%lld ", (long long)globals.sdbg_writer.final_meta().w_count(i));
     }
-
     xlog_ext("\n");
-
     if (cx1_t::kCX1Verbose >= 2) {
-        xlog("Total number of edges: %lld\n", (long long)globals.sdbg_writer.num_edges());
-        xlog("Total number of ONEs: %lld\n", (long long)globals.sdbg_writer.num_last1());
-        xlog("Total number of $v edges: %lld\n", (long long)globals.sdbg_writer.num_tips());
+        xlog("Total number of edges: %lld\n", (long long) globals.sdbg_writer.final_meta().item_count());
+        xlog("Total number of ONEs: %lld\n", (long long)globals.sdbg_writer.final_meta().ones_in_last());
+        xlog("Total number of $v edges: %lld\n", (long long)globals.sdbg_writer.final_meta().tip_count());
     }
-
     // --- clean ---
     pthread_mutex_destroy(&globals.lv1_items_scanning_lock);
     free(globals.lv1_items);

@@ -1053,28 +1053,26 @@ void lv1_direct_sort_and_proc(seq2sdbg_global_t &globals) {
 }
 
 void post_proc(seq2sdbg_global_t &globals) {
+    globals.sdbg_writer.Finalize();
     if (cx1_t::kCX1Verbose >= 2) {
         xlog("Number of $ A C G T A- C- G- T-:\n");
     }
-
     xlog("");
-
     for (int i = 0; i < 9; ++i) {
-        xlog_ext("%lld ", (long long)globals.sdbg_writer.num_w(i));
+        xlog_ext("%lld ", (long long)globals.sdbg_writer.final_meta().w_count(i));
     }
 
     xlog_ext("\n");
 
     if (cx1_t::kCX1Verbose >= 2) {
-        xlog("Total number of edges: %lld\n", (long long)globals.sdbg_writer.num_edges());
-        xlog("Total number of ONEs: %lld\n", (long long)globals.sdbg_writer.num_last1());
-        xlog("Total number of $v edges: %lld\n", (long long)globals.sdbg_writer.num_tips());
+        xlog("Total number of edges: %lld\n", (long long) globals.sdbg_writer.final_meta().item_count());
+        xlog("Total number of ONEs: %lld\n", (long long)globals.sdbg_writer.final_meta().ones_in_last());
+        xlog("Total number of $v edges: %lld\n", (long long)globals.sdbg_writer.final_meta().tip_count());
     }
 
     // --- cleaning ---
     pthread_mutex_destroy(&globals.lv1_items_scanning_lock);
     free(globals.lv1_items);
-    globals.sdbg_writer.Finalize();
 }
 
 void lv2_sort(cx1_seq2sdbg::seq2sdbg_global_t&) {}

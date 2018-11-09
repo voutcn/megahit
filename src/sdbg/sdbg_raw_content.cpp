@@ -6,31 +6,37 @@
 #include "sdbg_meta.h"
 
 #include <fstream>
+#include "kmlib/kmbit.h"
 #include "utils/buffered_reader.h"
 #include "sdbg_item.h"
 
-void ReadSdbgFromFile(const std::string &file_prefix, SdbgRawContent *raw_content) {
+/**
+ * load SDBG raw content from disk
+ * @param raw_content the pointer the raw_content to be stored to
+ * @param file_prefix the prefix of the SDBG files
+ */
+void LoadSdbgRawContent(SdbgRawContent *raw_content, const std::string &file_prefix) {
   std::ifstream is((file_prefix + ".sdbg_info").c_str());
   raw_content->meta.Deserialize(is);
   const auto &metadata = raw_content->meta;
-  raw_content->w.resize(metadata.size());
-  raw_content->last.resize(metadata.size());
-  raw_content->tip.resize(metadata.size());
-  raw_content->tip_lables.resize(metadata.words_per_tip_label() * metadata.num_tips());
-  bool use_full_mul = metadata.num_large_mul() >= metadata.size() * 0.08;
+  raw_content->w.resize(metadata.item_count());
+  raw_content->last.resize(metadata.item_count());
+  raw_content->tip.resize(metadata.item_count());
+  raw_content->tip_lables.resize(metadata.words_per_tip_label() * metadata.tip_count());
+  bool use_full_mul = metadata.large_mul_count() >= metadata.item_count() * 0.08;
   if (use_full_mul) {
-    raw_content->full_mul.resize(metadata.size());
+    raw_content->full_mul.resize(metadata.item_count());
   } else {
-    raw_content->small_mul.resize(metadata.size());
-    raw_content->large_mul.reserve(metadata.num_large_mul());
+    raw_content->small_mul.resize(metadata.item_count());
+    raw_content->large_mul.reserve(metadata.large_mul_count());
   }
 
   BufferedReader in;
   size_t last_file_id = SdbgBucketRecord::kUninitializedFileID;
   size_t file_offset = 0;
 
-  for (auto bucket_it = metadata.sorted_begin();
-       bucket_it != metadata.sorted_end() && bucket_it->file_id != SdbgBucketRecord::kUninitializedFileID;
+  for (auto bucket_it = metadata.begin_bucket();
+       bucket_it != metadata.end_bucket() && bucket_it->file_id != SdbgBucketRecord::kUninitializedFileID;
        ++bucket_it) {
     if (bucket_it->file_id != last_file_id) {
       if (is.is_open()) {
@@ -68,6 +74,9 @@ void ReadSdbgFromFile(const std::string &file_prefix, SdbgRawContent *raw_conten
       }
       if (item.tip) {
         file_offset += in.read(tip_label_ptr, metadata.words_per_tip_label());
+        for (unsigned j = 0; j < metadata.words_per_tip_label(); ++j) {
+          tip_label_ptr[j] = kmlib::bit::Reverse<kBitsPerChar>(tip_label_ptr[j]);
+        }
         tip_label_ptr += metadata.words_per_tip_label();
       }
     }

@@ -24,10 +24,10 @@ void SdbgWriter::InitFiles() {
 }
 
 void SdbgWriter::Write(unsigned tid,
-                       int32_t bucket_id,
-                       int w,
-                       int last,
-                       int tip,
+                       uint32_t bucket_id,
+                       uint8_t w,
+                       uint8_t last,
+                       uint8_t tip,
                        mul_t multiplicity,
                        label_word_t *packed_tip_label) {
   assert(tid < num_threads_);
@@ -44,7 +44,7 @@ void SdbgWriter::Write(unsigned tid,
                      sizeof(item));
   ++bucket_rec_[bucket_id].num_items;
   ++bucket_rec_[bucket_id].num_w[w];
-  bucket_rec_[bucket_id].num_last1 += last;
+  bucket_rec_[bucket_id].ones_in_last += last;
   cur_thread_offset_[tid] += sizeof(uint16_t);
 
   if (multiplicity > kMaxSmallMul) {
@@ -58,7 +58,7 @@ void SdbgWriter::Write(unsigned tid,
     files_[tid]->write(reinterpret_cast<const char *>(packed_tip_label),
                        sizeof(label_word_t) * words_per_tip_label_);
     ++bucket_rec_[bucket_id].num_tips;
-    cur_thread_offset_[tid] += sizeof(uint32_t) * words_per_tip_label_;
+    cur_thread_offset_[tid] += sizeof(label_word_t) * words_per_tip_label_;
   }
 }
 
@@ -69,13 +69,8 @@ void SdbgWriter::Finalize() {
     }
 
     std::ofstream os((file_prefix_ + ".sdbg_info").c_str());
-    SdbgMetadata meta;
-    meta.FromBucketRecord(bucket_rec_, k_, words_per_tip_label_).Serialize(os);
+    final_meta_.FromBucketRecord(bucket_rec_, k_, words_per_tip_label_).Serialize(os);
     os.close();
-    files_.clear();
-    cur_bucket_.clear();
-    cur_thread_offset_.clear();
-    bucket_rec_.clear();
     is_opened_ = false;
   }
 }

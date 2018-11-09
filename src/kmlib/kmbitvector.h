@@ -5,11 +5,8 @@
 #ifndef KMLIB_ATOMIC_BIT_VECTOR_H
 #define KMLIB_ATOMIC_BIT_VECTOR_H
 
-#include <cstdlib>
 #include <memory>
-#include <cstdint>
 #include <algorithm>
-#include <exception>
 #include <vector>
 #include <atomic>
 
@@ -19,20 +16,21 @@ namespace kmlib {
  * @details Update of each bit is threads safe via set and get.
  * It can also be used as a vector of bit locks via try_lock, lock and unlock
  */
-template<typename WordType = uint64_t>
+template<typename WordType = unsigned long>
 class AtomicBitVector {
  public:
   /*!
    * @brief Constructor
    * @param size the size (number of bits) of the bit vector
    */
-  explicit AtomicBitVector(size_t size = 0, WordType const *src = nullptr)
+  explicit AtomicBitVector(size_t size = 0)
       : size_(size),
-        data_array_((size + kBitsPerWord - 1) / kBitsPerWord, 0) {
-    if (src != nullptr) {
-      std::copy(src, src + data_array_.size(), data_array_.begin());
-    }
+        data_array_((size + kBitsPerWord - 1) / kBitsPerWord) {
   }
+
+  template<typename WordIterator>
+  explicit AtomicBitVector(WordIterator first, WordIterator last)
+      : size_((last - first) * kBitsPerWord), data_array_(first, last) {}
 
   AtomicBitVector(AtomicBitVector &&rhs)
       : size_(rhs.size_), data_array_(std::move(rhs.data_array_)) {}
@@ -43,17 +41,12 @@ class AtomicBitVector {
     return *this;
   }
 
-  AtomicBitVector& FromPtr(size_t size, WordType const *src) {
-    size_ = size;
-    data_array_.resize((size + kBitsPerWord - 1) / kBitsPerWord);
-    std::copy(src, src + data_array_.size(), data_array_.begin());
-  }
   ~AtomicBitVector() = default;
 
   /*!
    * @return the size of the bit vector
    */
-  size_t size() {
+  size_t size() const {
     return size_;
   }
 
@@ -79,9 +72,9 @@ class AtomicBitVector {
    * @param i the index of the bit
    * @return value of the i-th bit
    */
-  bool get(size_t i) const {
-    return (data_array_[i / kBitsPerWord].v.load(std::memory_order_acquire)
-        >> i % kBitsPerWord) & 1;
+  bool at(size_t i) const {
+    return !!(data_array_[i / kBitsPerWord].v.load(std::memory_order_acquire)
+        & (WordType(1) << i % kBitsPerWord));
   }
 
   /*!
@@ -108,7 +101,6 @@ class AtomicBitVector {
    */
   void lock(size_t i) {
     while (!try_lock(i)) {
-      continue;
     }
   }
 

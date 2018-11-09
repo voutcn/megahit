@@ -5,17 +5,20 @@
 #ifndef KMLIB_BIT_MAGIC_H
 #define KMLIB_BIT_MAGIC_H
 
+#include <iostream>
+#include <bitset>
+
 namespace kmlib {
-namespace bit_magic {
+namespace bit {
 
 namespace internal {
 
 template<typename T, unsigned MaskSize, unsigned MaskIndex>
 struct SubSwapMask {
+ private:
+  static const T prev = SubSwapMask<T, MaskSize, MaskIndex - MaskSize * 2>::value;
  public:
-  static const T value =
-      (SubSwapMask<T, MaskSize, MaskIndex - MaskSize * 2>::value
-          << MaskSize * 2) | ((T(1) << MaskSize) - 1);
+  static const T value = prev ? (prev << MaskSize * 2) | ((T(1) << MaskSize) - 1) : ((T(1) << MaskSize) - 1);
 };
 
 template<typename T, unsigned MaskSize>
@@ -28,7 +31,7 @@ struct SwapMask {
   static const T value = SubSwapMask<T, MaskSize, sizeof(T) * 8>::value;
 };
 
-template<typename T, T BaseSize, T MaskSize>
+template<typename T, unsigned BaseSize, unsigned MaskSize>
 struct SwapMaskedBitsHelper {
   T operator()(T value) {
     value = ((value & SwapMask<T, MaskSize>::value) << MaskSize) |
@@ -37,14 +40,15 @@ struct SwapMaskedBitsHelper {
   }
 };
 
-template<typename T, T BaseSize>
+template<typename T, unsigned BaseSize>
 struct SwapMaskedBitsHelper<T, BaseSize, BaseSize> {
   T operator()(T value) {
-    return value;
+    return ((value & SwapMask<T, BaseSize>::value) << BaseSize) |
+        ((value & ~SwapMask<T, BaseSize>::value) >> BaseSize);
   }
 };
 
-template<typename T, T BaseSize, T MaskSize>
+template<typename T, unsigned BaseSize, unsigned MaskSize>
 inline T SwapMaskedBits(T value) {
   return SwapMaskedBitsHelper<T, BaseSize, MaskSize>()(value);
 };

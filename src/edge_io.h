@@ -130,7 +130,7 @@ class EdgeWriter {
             fprintf(info, "words_per_edge %d\n", (int)words_per_edge_);
             fprintf(info, "num_threads %d\n", (int)num_threads_);
             fprintf(info, "num_bucket %d\n", (int)num_buckets_);
-            fprintf(info, "num_edges %lld\n", (long long)num_edges);
+            fprintf(info, "item_count %lld\n", (long long)num_edges);
 
             for (unsigned i = 0; i < p_rec_.size(); ++i) {
                 fprintf(info, "%u %d %lld %lld\n", i, p_rec_[i].thread_id, (long long)p_rec_[i].starting_offset, (long long)p_rec_[i].total_number);
@@ -195,7 +195,7 @@ class EdgeReader {
         assert(fscanf(info, "words_per_edge %d\n", &words_per_edge_) == 1);
         assert(fscanf(info, "num_threads %d\n", &num_files_) == 1);
         assert(fscanf(info, "num_bucket %d\n", &num_buckets_) == 1);
-        assert(fscanf(info, "num_edges %lld\n", &num_edges_) == 1);
+        assert(fscanf(info, "item_count %lld\n", &num_edges_) == 1);
         p_rec_.resize(num_buckets_);
         file_sizes_.resize(num_files_, 0);
 

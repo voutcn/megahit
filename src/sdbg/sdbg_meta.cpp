@@ -22,28 +22,34 @@ static void ScanField(std::ifstream &in, const std::string &field, T &out) {
   assert(s == field);
 }
 
-SdbgMetadata &SdbgMetadata::FromBucketRecord(
-    const std::vector<SdbgBucketRecord> &bucket_rec, size_t k,
-    size_t words_per_tip_label) {
+SdbgMeta &SdbgMeta::FromBucketRecord(
+    const std::vector<SdbgBucketRecord> &bucket_rec, uint32_t k,
+    uint32_t words_per_tip_label) {
   bucket_rec_ = bucket_rec;
   k_ = k;
   words_per_tip_label_ = words_per_tip_label;
-  size_ = 0;
-  num_tips_ = 0;
+  item_count_ = 0;
+  tip_count_ = 0;
+  ones_in_last_ = 0;
   num_files_ = 0;
-  num_large_mul_ = 0;
+  large_mul_count_ = 0;
+  std::fill(w_count_, w_count_ + kWAlphabetSize, 0);
   std::sort(bucket_rec_.begin(), bucket_rec_.end(),
             [](const SdbgBucketRecord &a, const SdbgBucketRecord &b) {
               return a.bucket_id < b.bucket_id;
             }
   );
   for (auto &b : bucket_rec_) {
-    b.accumulate_item_count = size_;
-    b.accumulate_tip_count = num_tips_;
-    size_ += b.num_items;
-    num_tips_ += b.num_tips;
-    num_large_mul_ += b.num_large_mul;
+    b.accumulate_item_count = item_count_;
+    b.accumulate_tip_count = tip_count_;
+    item_count_ += b.num_items;
+    tip_count_ += b.num_tips;
+    large_mul_count_ += b.num_large_mul;
     num_files_ = std::max(num_files_, b.file_id);
+    ones_in_last_ += b.ones_in_last;
+    for (unsigned w = 0; w < kWAlphabetSize; ++w) {
+      w_count_[w] += b.num_w[w];
+    }
   }
   std::sort(bucket_rec_.begin(), bucket_rec_.end(),
             [](const SdbgBucketRecord &a, const SdbgBucketRecord &b) {
@@ -53,7 +59,7 @@ SdbgMetadata &SdbgMetadata::FromBucketRecord(
   );
   return *this;
 }
-void SdbgMetadata::Serialize(std::ofstream &os) {
+void SdbgMeta::Serialize(std::ofstream &os) {
   os << "k " << k_ << "\n"
      << "words_per_tip_label " << words_per_tip_label_ << "\n"
      << "num_buckets " << bucket_rec_.size() << "\n"
@@ -69,7 +75,7 @@ void SdbgMetadata::Serialize(std::ofstream &os) {
   os.close();
 }
 
-SdbgMetadata &SdbgMetadata::Deserialize(std::ifstream &is) {
+SdbgMeta &SdbgMeta::Deserialize(std::ifstream &is) {
   size_t num_buckets;
   ScanField(is, "k", k_);
   ScanField(is, "words_per_tip_label", words_per_tip_label_);
@@ -84,6 +90,5 @@ SdbgMetadata &SdbgMetadata::Deserialize(std::ifstream &is) {
        >> bucket_rec_[i].num_tips
        >> bucket_rec_[i].num_large_mul;
   }
-  this->FromBucketRecord(bucket_rec_, k_, words_per_tip_label_);
-  return *this;
+  return FromBucketRecord(bucket_rec_, k_, words_per_tip_label_);
 }

@@ -74,7 +74,7 @@ endif
 # standalone headers
 #-------------------------------------------------------------------------------
 STANDALONE_H = kmlib/kmrns.h kmer_plus.h kmer.h lib_info.h \
-			   bit_operation.h kmlib/bitvector.h \
+			   bit_operation.h \
 			   kseq.h packed_reads.h sequence_package.h \
 			   utils.h mem_file_checker-inl.h read_lib_functions-inl.h \
 			   edge_io.h histgram.h definitions.h lv2_cpu_sort.h \
@@ -82,17 +82,8 @@ STANDALONE_H = kmlib/kmrns.h kmer_plus.h kmer.h lib_info.h \
 
 DEPS = Makefile $(STANDALONE_H)
 
-#-------------------------------------------------------------------------------
-# CPU & GPU version
-#-------------------------------------------------------------------------------
-ifeq ($(use_gpu), 1)
-all:  megahit_asm_core megahit_sdbg_build_gpu megahit_sdbg_build megahit_toolkit
-	chmod +x ./megahit
-else
 all:  megahit_asm_core megahit_sdbg_build megahit_toolkit
 	chmod +x ./megahit
-endif
-
 #-------------------------------------------------------------------------------
 # IDBA library
 #-------------------------------------------------------------------------------

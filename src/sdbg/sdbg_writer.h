@@ -6,13 +6,12 @@
 #define MEGAHIT_SDBG_WRITER_H
 
 #include "sdbg_def.h"
+#include "sdbg_meta.h"
 
 #include <string>
 #include <vector>
 #include <fstream>
 #include <memory>
-
-#include "sdbg_meta.h"
 
 /**
  * A SDBG writer is used to write partitioned SDBG to files
@@ -24,13 +23,14 @@ class SdbgWriter {
   size_t num_buckets_;
 
   std::vector<std::shared_ptr<std::ofstream>> files_;
-  std::vector<int> cur_bucket_;
-  std::vector<int64_t> cur_thread_offset_;    // offset in BYTE
+  std::vector<size_t> cur_bucket_;
+  std::vector<uint64_t> cur_thread_offset_;    // offset in BYTE
   std::vector<SdbgBucketRecord> bucket_rec_;
 
   bool is_opened_;
   unsigned k_;
   size_t words_per_tip_label_;
+  SdbgMeta final_meta_;
 
  public:
 
@@ -54,43 +54,12 @@ class SdbgWriter {
   }
 
   void InitFiles();
-  void Write(unsigned tid, int32_t bucket_id, int w, int last, int tip, mul_t multiplicity,
-             label_word_t *packed_tip_label);
+  void Write(unsigned tid, uint32_t bucket_id, uint8_t w, uint8_t last,
+             uint8_t tip, mul_t multiplicity, label_word_t *packed_tip_label);
   void Finalize();
-  int64_t num_edges() {
-    int64_t total_edges = 0;
-
-    for (size_t i = 0; i < num_buckets_; ++i) {
-      total_edges += bucket_rec_[i].num_items;
-    }
-
-    return total_edges;
+  const SdbgMeta& final_meta() const {
+    return final_meta_;
   }
-
-  int64_t num_w(int w) {
-    int64_t ret = 0;
-    for (size_t i = 0; i < num_buckets_; ++i) {
-      ret += bucket_rec_[i].num_w[w];
-    }
-    return ret;
-  }
-
-  int64_t num_last1() {
-    int64_t ret = 0;
-    for (size_t i = 0; i < num_buckets_; ++i) {
-      ret += bucket_rec_[i].num_last1;
-    }
-    return ret;
-  }
-
-  int64_t num_tips() {
-    int64_t ret = 0;
-    for (size_t i = 0; i < num_buckets_; ++i) {
-      ret += bucket_rec_[i].num_tips;
-    }
-    return ret;
-  }
-
 };
 
 #endif //MEGAHIT_SDBG_WRITER_H

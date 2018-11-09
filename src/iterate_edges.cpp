@@ -35,7 +35,7 @@
 
 #include "definitions.h"
 #include "options_description.h"
-#include "kmlib/bitvector.h"
+#include "kmlib/kmbitvector.h"
 #include "utils.h"
 #include "kmer_plus.h"
 #include "sparsepp/sparsepp/spp.h"

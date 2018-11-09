@@ -9,7 +9,7 @@
 #include <cstdint>
 
 /**
- * Packed W, last, tip and multiplicity (small) into one struct of 16 bits
+ * Pack w, last, tip and multiplicity (small) into one struct of 16 bits
  */
 struct SdbgItem {
   SdbgItem() = default;

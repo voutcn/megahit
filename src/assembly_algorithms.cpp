@@ -30,7 +30,7 @@
 #include <unordered_set>
 #include <queue>
 
-#include "kmlib/bitvector.h"
+#include "kmlib/kmbitvector.h"
 #include "utils.h"
 #include "histgram.h"
 
@@ -72,7 +72,7 @@ int64_t Trim(SuccinctDBG &dbg, int len, AtomicBitVector &ignored) {
 
 #pragma omp parallel for reduction(+:number_tips)
   for (uint64_t id = 0; id < dbg.size(); ++id) {
-    if (!ignored.get(id) && dbg.EdgeOutdegreeZero(id)) {
+    if (!ignored.at(id) && dbg.EdgeOutdegreeZero(id)) {
       vector<uint64_t> path = {id};
       int64_t prev = -1;
       int64_t cur = id;
@@ -107,7 +107,7 @@ int64_t Trim(SuccinctDBG &dbg, int len, AtomicBitVector &ignored) {
 
 #pragma omp parallel for reduction(+:number_tips)
   for (uint64_t id = 0; id < dbg.size(); ++id) {
-    if (!ignored.get(id) && dbg.EdgeIndegreeZero(id)) {
+    if (!ignored.at(id) && dbg.EdgeIndegreeZero(id)) {
       vector<uint64_t> path = {id};
       int64_t next = -1;
       int64_t cur = id;
@@ -142,7 +142,7 @@ int64_t Trim(SuccinctDBG &dbg, int len, AtomicBitVector &ignored) {
 
 #pragma omp parallel for
   for (uint64_t id = 0; id < dbg.size(); ++id) {
-    if (to_remove.get(id)) {
+    if (to_remove.at(id)) {
       dbg.SetInvalidEdge(id);
     }
   }

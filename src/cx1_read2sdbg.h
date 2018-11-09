@@ -27,7 +27,7 @@
 #include <string>
 #include "cx1.h"
 #include "sdbg/sdbg_writer.h"
-#include "kmlib/bitvector.h"
+#include "kmlib/kmbitvector.h"
 #include "sequence_package.h"
 #include "lib_info.h"
 #include "definitions.h"

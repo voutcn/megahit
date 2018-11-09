@@ -12,9 +12,7 @@
 #include <vector>
 #include <iostream>
 #include "kmlib/kmrns.h"
-#include "kmlib/bitvector.h"
-
-using std::vector;
+#include "kmlib/kmbitvector.h"
 
 /**
  * Succicent De Bruijn graph
@@ -25,18 +23,18 @@ class SDBG {
   ~SDBG() = default;
 
   void LoadFromFile(const char *dbg_name) {
-    ReadSdbgFromFile(dbg_name, &content_);
-    rs_is_tip_.Build(content_.tip.data(), content_.meta.size());
-    rs_w_.Build(content_.w.data(), content_.meta.size());
-    rs_last_.Build(content_.last.data(), content_.meta.size());
-    invalid_.FromPtr(content_.meta.size(), content_.tip.data());
-
-    // build f and prefix_look_up_
-    prefix_look_up_.resize(content_.meta.bucket_size());
+    LoadSdbgRawContent(&content_, dbg_name);
+    k_ = content_.meta.k();
+    rs_is_tip_.build(content_.tip.data(), content_.meta.item_count());
+    rs_w_.build(content_.w.data(), content_.meta.item_count());
+    rs_last_.build(content_.last.data(), content_.meta.item_count());
+    invalid_ = std::move(kmlib::AtomicBitVector<uint64_t>(content_.tip.data(),
+                                                          content_.tip.data() + content_.tip.word_count()));
+    prefix_look_up_.resize(content_.meta.bucket_count());
     std::fill(f_, f_ + kAlphabetSize + 2, 0);
     f_[0] = -1;
-    for (auto it = content_.meta.sorted_begin(); it != content_.meta.sorted_end(); ++it) {
-      f_[it->bucket_id / (content_.meta.bucket_size() / kAlphabetSize) + 2] += it->num_items;
+    for (auto it = content_.meta.begin_bucket(); it != content_.meta.end_bucket(); ++it) {
+      f_[it->bucket_id / (content_.meta.bucket_count() / kAlphabetSize) + 2] += it->num_items;
       prefix_look_up_[it->bucket_id].first = it->accumulate_item_count;
       prefix_look_up_[it->bucket_id].second = it->accumulate_item_count + it->num_items - 1;
     }
@@ -45,10 +43,10 @@ class SDBG {
     }
 
     for (unsigned i = 1; i < kAlphabetSize + 2; ++i) {
-      rank_f_[i] = rs_last_.Rank(f_[i] - 1);
+      rank_f_[i] = rs_last_.rank(f_[i] - 1);
     }
 
-    for (uint64_t i = 0; i < content_.meta.size(); ++i) {
+    for (uint64_t i = 0; i < content_.meta.item_count(); ++i) {
       if (GetW(i) == 0) {
         SetInvalidEdge(i);
       }
@@ -56,11 +54,11 @@ class SDBG {
   }
 
   uint64_t size() const {
-    return content_.meta.size();
+    return content_.meta.item_count();
   }
 
-  size_t k() const {
-    return content_.meta.k();
+  uint32_t k() const {
+    return k_;
   }
 
   uint8_t GetW(uint64_t x) const {
@@ -76,10 +74,10 @@ class SDBG {
   }
 
   int64_t GetLastIndex(uint64_t x) const {
-    return rs_last_.Succ(x);
+    return rs_last_.succ(x);
   }
 
-  uint8_t GetNodeLastChar(uint64_t x) const {
+  uint8_t LastCharOf(uint64_t x) const {
     for (uint8_t i = 1; i < kAlphabetSize + 2; ++i) {
       if (f_[i] > int64_t(x)) {
         return i - 1;
@@ -89,7 +87,7 @@ class SDBG {
   }
 
   bool IsValidEdge(uint64_t edge_id) const {
-    return !invalid_.get(edge_id);
+    return !invalid_.at(edge_id);
   }
 
   bool IsTip(uint64_t edge_id) const {
@@ -118,19 +116,28 @@ class SDBG {
 
   uint64_t Forward(uint64_t edge_id) const { // the last edge edge_id points to
     uint8_t a = GetW(edge_id);
-    if (a > 4) {
-      a -= 4;
+    if (a > kAlphabetSize) {
+      a -= kAlphabetSize;
     }
-    int64_t count_a = rs_w_.Rank(a, edge_id);
-    return rs_last_.Select(rank_f_[a] + count_a - 1);
+    int64_t count_a = rs_w_.rank(a, edge_id);
+    return rs_last_.select(rank_f_[a] + count_a - 1);
   }
 
   uint64_t Backward(uint64_t edge_id) const { // the first edge points to edge_id
-    uint8_t a = GetNodeLastChar(edge_id);
-    int64_t count_a = rs_last_.Rank(edge_id - 1) - rank_f_[a];
-    return rs_w_.Select(a, count_a);
+    uint8_t a = LastCharOf(edge_id);
+    int64_t count_a = rs_last_.rank(edge_id - 1) - rank_f_[a];
+    return rs_w_.select(a, count_a);
   }
 
+ private:
+  const label_word_t *TipLabelStartPtr(uint64_t edge_id) const {
+    return content_.tip_lables.data() +
+        content_.meta.words_per_tip_label() * (rs_is_tip_.rank(edge_id) - 1);
+  }
+  static uint8_t CharAtTipLabel(const label_word_t *label_start_ptr, unsigned offset) {
+    return kmlib::CompactVector<kBitsPerChar, label_word_t>::at(label_start_ptr, offset) + 1;
+  }
+ public:
   /**
    * Find the index given a sequence
    * @param seq the sequence encoded in [0-3]
@@ -138,8 +145,8 @@ class SDBG {
    */
   int64_t IndexBinarySearch(const uint8_t *seq) const {
     uint64_t prefix = 0;
-    for (uint64_t i = 0; (1U << (i * 2)) < prefix_look_up_.size(); ++i) {
-      prefix = prefix * kAlphabetSize + seq[k() - 1 - i] - 1;
+    for (uint64_t i = 0; (1u << (i * kBitsPerChar)) < prefix_look_up_.size(); ++i) {
+      prefix = prefix * kAlphabetSize + seq[k_ - 1 - i] - 1;
     }
     auto l = prefix_look_up_[prefix].first;
     auto r = prefix_look_up_[prefix].second;
@@ -149,14 +156,11 @@ class SDBG {
       uint64_t mid = (l + r) / 2;
       uint64_t y = mid;
 
-      for (int i = k() - 1; i >= 0; --i) {
+      for (int i = k_ - 1; i >= 0; --i) {
         if (IsTip(y)) {
-          uint32_t const *tip_node_seq = content_.tip_lables.data() +
-              content_.meta.words_per_tip_label() * (rs_is_tip_.Rank(y) - 1);
-          for (unsigned j = 0; j < static_cast<unsigned>(i); ++j) {
-            auto c = ((tip_node_seq[j / kCharsPerLabelWord] >>
-                                                            (kCharsPerLabelWord - 1 - j % kCharsPerLabelWord)
-                                                                * kBitsPerChar) & 3) + 1;
+          const label_word_t *tip_node_seq = TipLabelStartPtr(y);
+          for (int j = 0; j < i; ++j) {
+            auto c = CharAtTipLabel(tip_node_seq, j);
             if (c < seq[i - j]) {
               cmp = -1;
               break;
@@ -170,8 +174,7 @@ class SDBG {
             if (IsTip(mid)) {
               cmp = -1;
             } else {
-              auto c = ((tip_node_seq[i / kCharsPerLabelWord] >>
-                  (kCharsPerLabelWord - 1 - i % kCharsPerLabelWord) * kBitsPerChar) & 3) + 1;
+              auto c = CharAtTipLabel(tip_node_seq, i);
               if (c < seq[0]) {
                 cmp = -1;
                 break;
@@ -214,27 +217,21 @@ class SDBG {
    */
   uint32_t Label(uint64_t id, uint8_t *seq) const {
     int64_t x = id;
-    for (int i = k() - 1; i >= 0; --i) {
+    for (int i = k_ - 1; i >= 0; --i) {
       if (IsTip(x)) {
-        uint32_t const *tip_node_seq = content_.tip_lables.data() +
-            content_.meta.words_per_tip_label() * (rs_is_tip_.Rank(x) - 1);
+        const label_word_t *tip_node_seq = TipLabelStartPtr(x);
         for (int j = 0; j <= i; ++j) {
-          seq[i - j] = static_cast<uint8_t>(
-              ((tip_node_seq[j / kCharsPerLabelWord] >>
-              (kCharsPerLabelWord - 1 - j % kCharsPerLabelWord) * kBitsPerChar) & 3) + 1);
+          seq[i - j] = CharAtTipLabel(tip_node_seq, j);
         }
         break;
       }
-
       x = Backward(x);
       seq[i] = GetW(x);
-      assert(seq[i] > 0);
-
-      if (seq[i] > 4) {
-        seq[i] -= 4;
+      if (seq[i] > kAlphabetSize) {
+        seq[i] -= kAlphabetSize;
       }
     }
-    return k();
+    return k_;
   }
 
  private:
@@ -256,7 +253,7 @@ class SDBG {
 
     uint64_t first_income = Backward(edge_id);
     uint8_t c = GetW(first_income);
-    int count_ones = IsLastOrTip(first_income);
+    unsigned count_ones = IsLastOrTip(first_income);
     int indegree = IsValidEdge(first_income);
 
     if (flag & kFlagMustEq0) {
@@ -269,13 +266,13 @@ class SDBG {
       }
     }
 
-    for (uint64_t y = first_income + 1; count_ones < 5 && y < size(); ++y) {
+    for (uint64_t y = first_income + 1; count_ones < kAlphabetSize + 1 && y < size(); ++y) {
       count_ones += IsLastOrTip(y);
       uint8_t cur_char = GetW(y);
 
       if (cur_char == c) {
         break;
-      } else if (cur_char == c + 4 && IsValidEdge(y)) {
+      } else if (cur_char == c + kAlphabetSize && IsValidEdge(y)) {
         if (flag & kFlagMustEq0) {
           return -1;
         } else if (flag & kFlagMustEq1) {
@@ -430,28 +427,25 @@ class SDBG {
     }
 
     uint8_t seq[kMaxK + 1];
-    assert(k() == Label(edge_id, seq));
-    seq[k()] = GetW(edge_id);
+    assert(k_ == Label(edge_id, seq));
+    seq[k_] = GetW(edge_id);
 
-    if (seq[k()] > 4) {
-      seq[k()] -= 4;
+    if (seq[k_] > kAlphabetSize) {
+      seq[k_] -= kAlphabetSize;
     }
 
-    int i, j;
-    for (i = 0, j = k(); i < j; ++i, --j) {
+    for (int i = 0, j = k_; i < j; ++i, --j) {
       std::swap(seq[i], seq[j]);
-      seq[i] = 5 - seq[i];
-      seq[j] = 5 - seq[j];
     }
-    if (i == j) {
-      seq[i] = 5 - seq[i];
+    for (unsigned i = 0; i < k_ + 1; ++i) {
+      seq[i] = kAlphabetSize + 1 - seq[i];
     }
 
     int64_t rev_node = IndexBinarySearch(seq);
     if (rev_node == -1) return -1;
     do {
       uint8_t edge_label = GetW(rev_node);
-      if (edge_label == seq[k()] || edge_label - 4 == seq[k()]) {
+      if (edge_label == seq[k_] || edge_label - kAlphabetSize == seq[k_]) {
         return rev_node;
       }
       --rev_node;
@@ -472,6 +466,7 @@ class SDBG {
   }
 
  private:
+  uint32_t k_{};
   SdbgRawContent content_;
   kmlib::AtomicBitVector<uint64_t> invalid_;
   std::vector<std::pair<int64_t, int64_t>> prefix_look_up_;

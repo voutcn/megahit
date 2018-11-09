@@ -33,7 +33,7 @@
 #include "definitions.h"
 #include "sdbg/sdbg.h"
 #include "assembly_algorithms.h"
-#include "kmlib/bitvector.h"
+#include "kmlib/kmbitvector.h"
 
 // -- helper functions --
 static inline char Complement(char c) {
@@ -306,18 +306,18 @@ void UnitigGraph::InitFromSdBG() {
 #pragma omp parallel for
 
   for (int64_t edge_idx = 0; edge_idx < sdbg_->size(); ++edge_idx) {
-    if (!marked.get(edge_idx) && sdbg_->IsValidEdge(edge_idx)) {
+    if (!marked.at(edge_idx) && sdbg_->IsValidEdge(edge_idx)) {
       omp_set_lock(&path_lock);
 
-      if (!marked.get(edge_idx)) {
+      if (!marked.at(edge_idx)) {
         int64_t cur_edge = edge_idx;
         int64_t depth = sdbg_->EdgeMultiplicity(edge_idx);
         uint32_t length = 0;
 
         bool rc_marked =
-            marked.get(sdbg_->EdgeReverseComplement(edge_idx)); // whether it is marked before entering the loop
+            marked.at(sdbg_->EdgeReverseComplement(edge_idx)); // whether it is marked before entering the loop
 
-        while (!marked.get(cur_edge)) {
+        while (!marked.at(cur_edge)) {
           marked.set(cur_edge);
           depth += sdbg_->EdgeMultiplicity(cur_edge);
           ++length;
@@ -341,7 +341,7 @@ void UnitigGraph::InitFromSdBG() {
           vertices_.back().is_deleted =
               true; // loop path will not process to further steps, but still should be there for output
 
-          if (marked.get(sdbg_->EdgeReverseComplement(edge_idx))) {
+          if (marked.at(sdbg_->EdgeReverseComplement(edge_idx))) {
             // this loop is palindrome
             vertices_.back().is_palindrome = true;
           }

@@ -130,7 +130,7 @@ class Kmer {
   const Kmer &ReverseComplement(int k) {
     uint32_t used_words = (k + kCharsPerWord - 1) / kCharsPerWord;
     for (unsigned i = 0; i < used_words; ++i)
-      kmlib::bit_magic::ReverseComplement<2>(data_[i]);
+      kmlib::bit::ReverseComplement<2>(data_[i]);
 
     for (unsigned i = 0; i < (used_words >> 1); ++i)
       std::swap(data_[i], data_[used_words - 1 - i]);

@@ -83,9 +83,9 @@ add_executable(megahit
         tools/read_stat.cpp
         tools/toolkit.cpp
         tools/trim_low_qual_tail.cpp
-        src/kmlib/bitvector.h
+        src/kmlib/kmbitvector.h
         src/kmlib/kmrns.h
         src/kmlib/kmbit.h
         src/kmlib/kmsort.h
         src/kmlib/kmthread.h
-        src/sequence/kmer.h src/sequence/kmer_plus.h src/khash.h src/sdbg/sdbg_meta.h src/kmlib/kmcompactvector.h src/kmlib/test_compactvector.cpp src/sdbg/sdbg_def.h src/sdbg/sdbg_meta.cpp src/sdbg/sdbg_raw_content.h src/sdbg/sdbg_raw_content.cpp src/sdbg/sdbg.h src/sdbg/sdbg_writer.h src/sdbg/sdbg_writer.cpp src/utils/buffered_reader.h src/sdbg/sdbg_item.h)
+        src/sequence/kmer.h src/sequence/kmer_plus.h src/khash.h src/sdbg/sdbg_meta.h src/kmlib/kmcompactvector.h src/kmlib/test_compactvector.cpp src/sdbg/sdbg_def.h src/sdbg/sdbg_meta.cpp src/sdbg/sdbg_raw_content.h src/sdbg/sdbg_raw_content.cpp src/sdbg/sdbg.h src/sdbg/sdbg_writer.h src/sdbg/sdbg_writer.cpp src/utils/buffered_reader.h src/sdbg/sdbg_item.h src/kmlib/test_kmbit.cpp)
