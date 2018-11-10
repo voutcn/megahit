@@ -19,34 +19,45 @@ namespace kmlib {
 template<typename WordType = unsigned long>
 class AtomicBitVector {
  public:
+  using word_type = WordType;
+  using size_type = typename std::vector<word_type>::size_type;
+ public:
   /*!
    * @brief Constructor
    * @param size the size (number of bits) of the bit vector
    */
-  explicit AtomicBitVector(size_t size = 0)
+  explicit AtomicBitVector(size_type size = 0)
       : size_(size),
         data_array_((size + kBitsPerWord - 1) / kBitsPerWord) {
   }
-
+  /*!
+   * @brief Construct a bit vector from iterators of words
+   * @tparam WordIterator iterator to access words
+   * @param first the iterator pointing to the first word
+   * @param last the iterator pointing to the last word
+   */
   template<typename WordIterator>
   explicit AtomicBitVector(WordIterator first, WordIterator last)
       : size_((last - first) * kBitsPerWord), data_array_(first, last) {}
-
+  /*!
+   * @brief the move constructor
+   */
   AtomicBitVector(AtomicBitVector &&rhs)
       : size_(rhs.size_), data_array_(std::move(rhs.data_array_)) {}
-
+  /*!
+   * @brief the move operator
+   */
   AtomicBitVector &operator=(AtomicBitVector &&rhs) {
     size_ = rhs.size_;
     data_array_ = std::move(rhs.data_array_);
     return *this;
   }
-
   ~AtomicBitVector() = default;
 
   /*!
    * @return the size of the bit vector
    */
-  size_t size() const {
+  size_type size() const {
     return size_;
   }
 
@@ -54,8 +65,8 @@ class AtomicBitVector {
    * @brief set the i-th bit to 1
    * @param i the index of the bit to be set to 1
    */
-  void set(size_t i) {
-    WordType mask = WordType(1) << (i % kBitsPerWord);
+  void set(size_type i) {
+    word_type mask = word_type(1) << (i % kBitsPerWord);
     data_array_[i / kBitsPerWord].v.fetch_or(mask, std::memory_order_release);
   }
 
@@ -63,8 +74,8 @@ class AtomicBitVector {
    * @brief set the i-th bit to 0
    * @param i the index of the bit to be set to 0
    */
-  void unset(size_t i) {
-    WordType mask = ~(WordType(1) << (i % kBitsPerWord));
+  void unset(size_type i) {
+    word_type mask = ~(word_type(1) << (i % kBitsPerWord));
     data_array_[i / kBitsPerWord].v.fetch_and(mask, std::memory_order_release);
   }
 
@@ -72,20 +83,20 @@ class AtomicBitVector {
    * @param i the index of the bit
    * @return value of the i-th bit
    */
-  bool at(size_t i) const {
+  bool at(size_type i) const {
     return !!(data_array_[i / kBitsPerWord].v.load(std::memory_order_acquire)
-        & (WordType(1) << i % kBitsPerWord));
+        & (word_type(1) << i % kBitsPerWord));
   }
 
   /*!
    * @param i the index of the bit
    * @return whether the i-th bit has been locked successfully
    */
-  bool try_lock(size_t i) {
+  bool try_lock(size_type i) {
     auto p = data_array_.begin() + i / kBitsPerWord;
-    WordType old_value = p->v.load(std::memory_order_acquire);
+    word_type old_value = p->v.load(std::memory_order_acquire);
     while (!((old_value >> i % kBitsPerWord) & 1)) {
-      WordType new_value = old_value | (WordType(1) << (i % kBitsPerWord));
+      word_type new_value = old_value | (word_type(1) << (i % kBitsPerWord));
       if (p->v.compare_exchange_weak(old_value,
                                      new_value,
                                      std::memory_order_release)) {
@@ -99,8 +110,9 @@ class AtomicBitVector {
    * @brief lock the i-th bit
    * @param i the bit to lock
    */
-  void lock(size_t i) {
+  void lock(size_type i) {
     while (!try_lock(i)) {
+      continue;
     }
   }
 
@@ -108,7 +120,7 @@ class AtomicBitVector {
    * @brief unlock the i-th bit
    * @param i the index of the bits
    */
-  void unlock(size_t i) {
+  void unlock(size_type i) {
     unset(i);
   }
 
@@ -116,10 +128,10 @@ class AtomicBitVector {
    * @brief reset the size of the bit vector and clear all bits
    * @param size the new size of the bit vector
    */
-  void reset(size_t size) {
-    data_array_ = std::move(ArrayType(0)); // clear memory
+  void reset(size_type size) {
+    data_array_ = std::move(array_type(0)); // clear memory
     size_ = size;
-    data_array_ = ArrayType((size + kBitsPerWord - 1) / kBitsPerWord, 0);
+    data_array_ = std::move(array_type((size + kBitsPerWord - 1) / kBitsPerWord, 0));
   }
 
   /*!
@@ -148,13 +160,12 @@ class AtomicBitVector {
     }
   };
 
-  using ArrayType = std::vector<AtomicWrapper<WordType>>;
+  using array_type = std::vector<AtomicWrapper<word_type>>;
   static const unsigned kBitsPerByte = 8;
-  static const unsigned kBitsPerWord = sizeof(WordType) * kBitsPerByte;
-  size_t size_;
-  ArrayType data_array_;
-
-  static_assert(sizeof(AtomicWrapper<WordType>) == sizeof(WordType), "");
+  static const unsigned kBitsPerWord = sizeof(word_type) * kBitsPerByte;
+  size_type size_;
+  array_type data_array_;
+  static_assert(sizeof(AtomicWrapper<word_type>) == sizeof(word_type), "");
 };
 
 } // namespace kmlib

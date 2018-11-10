@@ -106,7 +106,6 @@ class SDBG {
     if (content_.full_mul.size()) {
       return content_.full_mul[edge_id];
     }
-
     if (content_.small_mul[edge_id] != kSmallMulSentinel) {
       return content_.small_mul[edge_id];
     } else {
@@ -158,9 +157,9 @@ class SDBG {
 
       for (int i = k_ - 1; i >= 0; --i) {
         if (IsTip(y)) {
-          const label_word_t *tip_node_seq = TipLabelStartPtr(y);
+          const label_word_t *tip_label = TipLabelStartPtr(y);
           for (int j = 0; j < i; ++j) {
-            auto c = CharAtTipLabel(tip_node_seq, j);
+            auto c = CharAtTipLabel(tip_label, j);
             if (c < seq[i - j]) {
               cmp = -1;
               break;
@@ -174,7 +173,7 @@ class SDBG {
             if (IsTip(mid)) {
               cmp = -1;
             } else {
-              auto c = CharAtTipLabel(tip_node_seq, i);
+              auto c = CharAtTipLabel(tip_label, i);
               if (c < seq[0]) {
                 cmp = -1;
                 break;
@@ -219,9 +218,9 @@ class SDBG {
     int64_t x = id;
     for (int i = k_ - 1; i >= 0; --i) {
       if (IsTip(x)) {
-        const label_word_t *tip_node_seq = TipLabelStartPtr(x);
+        const label_word_t *tip_label = TipLabelStartPtr(x);
         for (int j = 0; j <= i; ++j) {
-          seq[i - j] = CharAtTipLabel(tip_node_seq, j);
+          seq[i - j] = CharAtTipLabel(tip_label, j);
         }
         break;
       }
