@@ -379,31 +379,28 @@ uint32_t UnitigGraph::RemoveTips(int max_tip_len) {
       if (vertices_[i].is_deleted || vertices_[i].length >= thre) {
         continue;
       }
+      VertexAdapter adapter(&vertices_[i], i, false);
+      VertexAdapter nexts[4], prevs[4];
+      int outd = GetNextAdapters(adapter);
+      int ind = GetNextAdapters(adapter);
 
-      uint64_t outs[4], rev_outs[4];
-      int outdegree = sdbg_->OutgoingEdges(vertices_[i].end_node, outs);
-      int indegree = sdbg_->OutgoingEdges(vertices_[i].rev_end_node, rev_outs);
-
-      if (indegree + outdegree == 0) {
+      if (ind + outd == 0) {
         vertices_[i].is_dead = true;
-      } else if (outdegree == 1 && indegree == 0) {
-        if (sdbg_->PrevSimplePathEdge(outs[0]) == vertices_[i].end_node) {
+      } else if (outd == 1 && ind == 0) {
+        if (!UniquePrevAdapter(nexts[0]).valid()) {
           vertices_[i].is_dead = true;
         }
-      } else if (indegree == 1 && outdegree == 0) {
-        if (sdbg_->PrevSimplePathEdge(rev_outs[0]) == vertices_[i].rev_end_node) {
+      } else if (outd == 0 && ind == 1) {
+        if (!UniqueNextAdapter(prevs[0]).valid()) {
           vertices_[i].is_dead = true;
         }
       }
-
       num_removed += vertices_[i].is_dead;
     }
 
     Refresh(false);
-
     if (thre >= max_tip_len) { break; }
   }
-
   return num_removed;
 }
 
@@ -508,10 +505,8 @@ bool UnitigGraph::RemoveLocalLowDepth(double min_depth,
 
 uint32_t UnitigGraph::DisconnectWeakLinks(double local_ratio = 0.1) {
   // see metaspades paper
-  vector<uint64_t> to_remove;
-  omp_lock_t lock;
-  omp_init_lock(&lock);
-
+  vector<VertexAdapter> to_remove;
+  std::mutex mutex;
 #pragma omp parallel for schedule(dynamic, 1)
   for (size_type i = 0; i < vertices_.size(); ++i) {
     if (vertices_[i].is_deleted) {
@@ -519,98 +514,101 @@ uint32_t UnitigGraph::DisconnectWeakLinks(double local_ratio = 0.1) {
     }
 
     for (int strand = 0; strand < 2; ++strand) {
-      uint64_t outgoings[4];
-      double next_depths[4];
+      VertexAdapter adapter(&vertices_[i], i, strand != 0);
+      VertexAdapter next[4];
+      double depths[4];
       double total_depth = 0;
-      int outdegree = sdbg_->OutgoingEdges(strand == 0 ? vertices_[i].end_node : vertices_[i].rev_end_node, outgoings);
+      int degree = GetNextAdapters(adapter, next);
 
-      if (outdegree <= 1) {
+      if (degree <= 1) {
         continue;
       }
 
-      for (int j = 0; j < outdegree; ++j) {
-        auto next_vertex_iter = start_node_map_.find(outgoings[j]);
-        assert(next_vertex_iter != start_node_map_.end());
-        UnitigVertex &next_vertex = vertices_[next_vertex_iter->second];
-        assert(!next_vertex.is_deleted);
-
-        next_depths[j] = next_vertex.depth * 1.0 / next_vertex.length;
-        total_depth += next_depths[j];
+      for (int j = 0; j < degree; ++j) {
+        depths[j] = next[j].vertex->avg_depth();
+        total_depth += depths[j];
       }
 
-      for (int j = 0; j < outdegree; ++j) {
-        if (next_depths[j] <= total_depth * local_ratio) {
-          omp_set_lock(&lock);
-          to_remove.push_back(outgoings[j]);
-          omp_unset_lock(&lock);
+      for (int j = 0; j < degree; ++j) {
+        if (depths[j] <= total_depth * local_ratio) {
+          std::lock_guard<std::mutex> lk(mutex);
+          to_remove.push_back(next[j]);
         }
       }
     }
   }
+  std::sort(to_remove.begin(), to_remove.end(),
+            [](const VertexAdapter &a, const VertexAdapter &b) {
+              return a.id < b.id;
+            }
+  );
 
-  omp_destroy_lock(&lock);
-
-  uint32_t num_removed = to_remove.size();
-
+  size_type num_disconnected = 0;
+#pragma omp parallel for reduction(+: num_disconnected)
   for (size_type i = 0; i < to_remove.size(); ++i) {
-    int64_t id = to_remove[i];
+    if ((i > 0 && to_remove[i].id == to_remove[i - 1].id) || to_remove[i].vertex->is_palindrome) {
+      continue; // already handled by i - 1
+    }
 
-    auto iter = start_node_map_.find(id);
-    if (iter == start_node_map_.end()) { continue; }
-    size_type vid = iter->second;
-
-    if (!locks_.try_lock(vid)) {
+    bool dual_disconnected = i + 1 < to_remove.size() && to_remove[i + 1].id == to_remove[i].id;
+    if (to_remove[i].vertex->length <= 1 + dual_disconnected) {
+      to_remove[i].vertex->is_dead = true;
       continue;
     }
 
-    if (vertices_[vid].length == 1 || vertices_[vid].start_node == vertices_[vid].rev_start_node) {
-      vertices_[vid].is_dead = true;
+    auto &adapter = to_remove[i];
+    auto old_start = adapter.start();
+    auto old_end = adapter.end();
+    auto old_rc_start = adapter.rc_start();
+    auto old_rc_end = adapter.rc_end();
+    size_type id = adapter.id;
+    UnitigVertex &vertex = *adapter.vertex;
+    int64_t new_start, new_end, new_rc_start, new_rc_end;
+
+    if (dual_disconnected) {
+      new_start = sdbg_->NextSimplePathEdge(old_start);
+      new_rc_end = sdbg_->PrevSimplePathEdge(old_rc_end);
+      new_rc_start = sdbg_->NextSimplePathEdge(old_rc_start);
+      new_end = sdbg_->PrevSimplePathEdge(old_end);
     } else {
-      int64_t rm1, rm2;
-      start_node_map_.erase(id);
+      new_start = sdbg_->NextSimplePathEdge(old_start);
+      new_rc_end = sdbg_->PrevSimplePathEdge(old_rc_end);
+      new_rc_start = old_rc_start;
+      new_end = old_end;
+    }
 
-      if (vertices_[vid].start_node == id) {
-        rm1 = vertices_[vid].start_node;
-        rm2 = vertices_[vid].rev_end_node;
+    assert(new_start != -1);
+    assert(new_end != -1);
+    assert(new_rc_start != -1);
+    assert(new_rc_end != -1);
 
-        vertices_[vid].start_node = sdbg_->NextSimplePathEdge(id);
-        assert(vertices_[vid].start_node != -1);
-        start_node_map_[vertices_[vid].start_node] = vid;
-        vertices_[vid].rev_end_node = sdbg_->PrevSimplePathEdge(vertices_[vid].rev_end_node);
+    sdbg_->SetInvalidEdge(old_start);
+    sdbg_->SetInvalidEdge(old_rc_end);
+    if (dual_disconnected) {
+      sdbg_->SetInvalidEdge(old_rc_start);
+      sdbg_->SetInvalidEdge(old_end);
+    }
 
-        assert(vertices_[vid].rev_end_node != -1);
-        assert(rm1 != vertices_[vid].start_node);
-        assert(rm2 != vertices_[vid].rev_end_node);
+    vertex.start_node = new_start;
+    vertex.end_node = new_end;
+    vertex.rev_start_node = new_rc_start;
+    vertex.rev_end_node = new_rc_end;
+    vertex.depth *= (vertex.length - 1. - dual_disconnected) / vertex.length;
+    vertex.length -= 1 + dual_disconnected;
+    num_disconnected++;
 
-      } else {
-        assert(vertices_[vid].rev_start_node == id);
-
-        rm1 = vertices_[vid].rev_start_node;
-        rm2 = vertices_[vid].end_node;
-
-        vertices_[vid].rev_start_node = sdbg_->NextSimplePathEdge(id);
-        assert(vertices_[vid].rev_start_node != -1);
-
-        start_node_map_[vertices_[vid].rev_start_node] = vid;
-
-        vertices_[vid].end_node = sdbg_->PrevSimplePathEdge(vertices_[vid].end_node);
-
-        assert(vertices_[vid].end_node != -1);
-        assert(rm1 != vertices_[vid].rev_start_node);
-        assert(rm2 != vertices_[vid].end_node);
+    {
+      std::lock_guard<std::mutex> lk(mutex);
+      start_node_map_.erase(old_start);
+      start_node_map_[new_start] = id;
+      if (dual_disconnected) {
+        start_node_map_.erase(old_rc_start);
+        start_node_map_[new_rc_start] = id;
       }
-
-      vertices_[vid].depth = (double) vertices_[vid].depth / vertices_[vid].length * (vertices_[vid].length - 1);
-      vertices_[vid].length--;
-
-      sdbg_->SetInvalidEdge(rm1);
-      sdbg_->SetInvalidEdge(rm2);
     }
   }
-  locks_.reset();
 
-  Refresh(false);
-  return num_removed;
+  Refresh(true);
 }
 
 double UnitigGraph::LocalDepth(size_type id, int local_width) {
