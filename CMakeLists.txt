@@ -88,4 +88,4 @@ add_executable(megahit
         src/kmlib/kmbit.h
         src/kmlib/kmsort.h
         src/kmlib/kmthread.h
-        src/sequence/kmer.h src/sequence/kmer_plus.h src/khash.h src/sdbg/sdbg_meta.h src/kmlib/kmcompactvector.h src/kmlib/test_compactvector.cpp src/sdbg/sdbg_def.h src/sdbg/sdbg_meta.cpp src/sdbg/sdbg_raw_content.h src/sdbg/sdbg_raw_content.cpp src/sdbg/sdbg.h src/sdbg/sdbg_writer.h src/sdbg/sdbg_writer.cpp src/utils/buffered_reader.h src/sdbg/sdbg_item.h src/kmlib/test_kmbit.cpp)
+        src/sequence/kmer.h src/sequence/kmer_plus.h src/sdbg/sdbg_meta.h src/kmlib/kmcompactvector.h src/kmlib/test_compactvector.cpp src/sdbg/sdbg_def.h src/sdbg/sdbg_meta.cpp src/sdbg/sdbg_raw_content.h src/sdbg/sdbg_raw_content.cpp src/sdbg/sdbg.h src/sdbg/sdbg_writer.h src/sdbg/sdbg_writer.cpp src/utils/buffered_reader.h src/sdbg/sdbg_item.h src/kmlib/test_kmbit.cpp src/assembly/unitig_graph.h)

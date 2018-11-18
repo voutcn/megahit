@@ -98,7 +98,7 @@ void ContigGraph::RefreshEdges()
         if (vertices_[i].contig().size() == kmer_size_ 
                 && vertices_[i].contig().IsPalindrome())
         {
-            vertices_[i].in_edges() = vertices_[i].out_edges() | vertices_[i].out_edges(); 
+            vertices_[i].in_edges() = vertices_[i].out_edges() | vertices_[i].out_edges();
             vertices_[i].out_edges() = vertices_[i].in_edges();
         }
     }

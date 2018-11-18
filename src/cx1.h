@@ -144,7 +144,7 @@ struct CX1 {
         }
 
         if (max_lv2_items_ < min_lv2_items) {
-            xerr_and_exit("No enough memory to process CX1.\n");
+            xfatal("No enough memory to process CX1.\n");
         }
 
         // --- adjust max_lv2_items to fit more lv1 item ---
@@ -185,7 +185,7 @@ struct CX1 {
         }
 
         if (num_sorting_items < min_sorting_items) {
-            xerr_and_exit("No enough memory to process CX1.\n");
+            xfatal("No enough memory to process CX1.\n");
         }
 
         // --- adjust num_sorting_items to fit more lv1 item ---

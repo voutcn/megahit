@@ -389,9 +389,9 @@ def check_opt():
     if opt.k_list[0] < 15 or opt.k_list[-1] > max_k_allowed:
         raise Usage("All k's should be in range [15, %d]" % max_k_allowed)
 
-    for k in opt.k_list:
-        if k % 2 == 0:
-            raise Usage("All k must be odd number!")
+    # for k in opt.k_list:
+    #     if k % 2 == 0:
+    #         raise Usage("All k must be odd number!")
 
     for i in range(1, len(opt.k_list)):
         if opt.k_list[i] - opt.k_list[i-1] > 28:

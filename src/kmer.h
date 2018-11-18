@@ -16,6 +16,7 @@
 #include <algorithm>
 #include <cstring>
 #include "city.h"
+#include "xxHash/xxhash.h"
 #include "bit_operation.h"
 
 /**
@@ -179,7 +180,7 @@ struct Kmer {
     }
 
     uint64_t hash() const {
-        return CityHash64((const char *)data_, sizeof(data_[0]) * kNumWords);
+        return XXH64(static_cast<const void*>(data_), sizeof(data_), 0);
     }
 
     Kmer unique_format(int k) const {

@@ -1,3 +1,6 @@
 [submodule "src/sparsepp"]
 	path = src/sparsepp
 	url = git@github.com:greg7mdp/sparsepp.git
+[submodule "src/xxHash"]
+	path = src/xxHash
+	url = git@github.com:Cyan4973/xxHash.git

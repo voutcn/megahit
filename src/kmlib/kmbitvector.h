@@ -134,6 +134,10 @@ class AtomicBitVector {
     data_array_ = std::move(array_type((size + kBitsPerWord - 1) / kBitsPerWord, 0));
   }
 
+  void reset() {
+    std::fill(data_array_.begin(), data_array_.end(), 0);
+  }
+
   /*!
    * @brief swap with another bit vector
    * @param rhs the target to swap

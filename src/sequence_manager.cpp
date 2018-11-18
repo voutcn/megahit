@@ -120,7 +120,7 @@ int64_t SequenceManager::ReadShortReads(int64_t max_num, int64_t max_num_bases, 
             for (int64_t i = 0; i < max_num; i += 2) {
                 if (kseq_read(kseq_readers_[0]) >= 0) {
                     if (kseq_read(kseq_readers_[1]) < 0) {
-                        xerr_and_exit("File(s) %s: Number of sequences not the same in paired files. Abort.\n", file_name.c_str());
+                        xfatal("File(s) %s: Number of sequences not the same in paired files. Abort.\n", file_name.c_str());
                     }
 
                     int b0 = 0, e0 = kseq_readers_[0]->seq.l;
@@ -148,7 +148,7 @@ int64_t SequenceManager::ReadShortReads(int64_t max_num, int64_t max_num_bases, 
                 }
                 else {
                     if (kseq_read(kseq_readers_[1]) >= 0) {
-                        xerr_and_exit("File(s) %s: Number of sequences not the same in paired files. Abort.\n", file_name.c_str());
+                        xfatal("File(s) %s: Number of sequences not the same in paired files. Abort.\n", file_name.c_str());
                     }
                     return i;
                 }

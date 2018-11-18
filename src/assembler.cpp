@@ -193,7 +193,7 @@ int main_assemble(int argc, char **argv) {
   timer.reset();
   timer.start();
   UnitigGraph unitig_graph(&dbg);
-  unitig_graph.InitFromSdBG();
+  unitig_graph.BuildFromSDBG();
   timer.stop();
   xlog("unitig graph size: %u, time for building: %lf\n", unitig_graph.size(), timer.elapsed());
 
@@ -239,21 +239,6 @@ int main_assemble(int argc, char **argv) {
       xlog("Number of complex bubbles removed: %u, Time elapsed(sec): %lf\n",
            num_complex_bubbles, timer.elapsed());
       changed |= num_complex_bubbles > 0;
-    }
-
-    if (opt.bubble_level >= 3) {
-      timer.reset();
-      timer.start();
-      uint32_t num_super_bubbles =
-          unitig_graph.MergeSuperBubbles(std::min(0.618, 0.1 * round) * opt.merge_len * dbg.k(),
-                                         true,
-                                         opt.careful_bubble,
-                                         bubble_file,
-                                         bubble_hist);
-      timer.stop();
-      xlog("Super bubbles removed: %u, time: %lf\n",
-           num_super_bubbles, timer.elapsed());
-      changed |= num_super_bubbles > 0;
     }
 
     timer.reset();
@@ -355,19 +340,6 @@ int main_assemble(int argc, char **argv) {
       timer.stop();
       xlog("Number of local low depth unitigs removed: %lld, complex bubbles removed: %u, time: %lf\n",
            (long long) num_removed, num_complex_bubbles, timer.elapsed());
-    }
-
-    if (opt.bubble_level >= 3) {
-      timer.reset();
-      timer.start();
-      uint32_t num_super_bubbles = unitig_graph.MergeSuperBubbles(opt.merge_len * dbg.k() * 0.618,
-                                                                  opt.is_final_round,
-                                                                  false,
-                                                                  bubble_file,
-                                                                  bubble_hist);
-      timer.stop();
-      xlog("Super bubbles removed: %u, time: %lf\n",
-           (long long) num_super_bubbles, num_super_bubbles, timer.elapsed());
     }
 
     hist.clear();

@@ -58,7 +58,8 @@ inline unsigned popcount(T val) {
   CHECK_TYPE(T);
   return sizeof(T) <= sizeof(U) ? __builtin_popcount(val) :
          sizeof(T) <= sizeof(UL) ? __builtin_popcountl(val) :
-         __builtin_popcountll(val);
+         sizeof(T) <= sizeof(ULL) ? __builtin_popcountll(val) :
+         0;
 }
 
 template<typename T>
@@ -66,14 +67,16 @@ inline unsigned ctz(T val) {
   CHECK_TYPE(T);
   return sizeof(T) <= sizeof(U) ? __builtin_ctz(val) :
          sizeof(T) <= sizeof(UL) ? __builtin_ctzl(val) :
-         __builtin_ctzll(val);
+         sizeof(T) <= sizeof(ULL)? __builtin_ctzll(val) :
+         0;
 }
 
 template<typename Tx, typename Ty>
 inline Tx pdep(Tx x, Ty y) {
   CHECK_TYPE(Tx);
   return sizeof(Tx) <= sizeof(U) ? _pdep_u32(x, y) :
-         _pdep_u64(x, y);
+         sizeof(Tx) <= sizeof(ULL) ? _pdep_u64(x, y) :
+         0;
 }
 
 #undef CHECK_TYPE

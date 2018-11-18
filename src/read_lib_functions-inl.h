@@ -42,7 +42,7 @@ inline void ReadMultipleLibs(const std::string &lib_file, SequencePackage &packa
     std::ifstream lib_config(lib_file);
 
     if (!lib_config.is_open()) {
-        xerr_and_exit("File to open read_lib file: %s\n", lib_file.c_str());
+        xfatal("File to open read_lib file: %s\n", lib_file.c_str());
     }
 
     std::string metadata;
@@ -85,7 +85,7 @@ inline void ReadMultipleLibs(const std::string &lib_file, SequencePackage &packa
         }
         else {
             xerr("Cannot identify read library type %s\n", type.c_str());
-            xerr_and_exit("Valid types: pe, se, interleaved\n");
+            xfatal("Valid types: pe, se, interleaved\n");
         }
 
         int64_t start = package.size();
@@ -103,12 +103,12 @@ inline void ReadMultipleLibs(const std::string &lib_file, SequencePackage &packa
 
         if (type == "pe" && (end - start + 1) % 2 != 0) {
             xerr("PE library number of reads is odd: %lld!\n", end - start + 1);
-            xerr_and_exit("File(s): %s\n", metadata.c_str())
+            xfatal("File(s): %s\n", metadata.c_str())
         }
 
         if (type == "interleaved" && (end - start + 1) % 2 != 0) {
             xerr("PE library number of reads is odd: %lld!\n", end - start + 1);
-            xerr_and_exit("File(s): %s\n", metadata.c_str())
+            xfatal("File(s): %s\n", metadata.c_str())
         }
 
         lib_info.push_back(lib_info_t(&package, start, end, max_read_len, type != "se", metadata));
@@ -121,7 +121,7 @@ inline void ReadAndWriteMultipleLibs(const std::string &lib_file, bool is_revers
     std::ifstream lib_config(lib_file);
 
     if (!lib_config.is_open()) {
-        xerr_and_exit("File to open read_lib file: %s\n", lib_file.c_str());
+        xfatal("File to open read_lib file: %s\n", lib_file.c_str());
     }
 
     FILE *bin_file = OpenFileAndCheck(FormatString("%s.bin", out_prefix.c_str()), "wb");
@@ -170,7 +170,7 @@ inline void ReadAndWriteMultipleLibs(const std::string &lib_file, bool is_revers
         }
         else {
             xerr("Cannot identify read library type %s\n", type.c_str());
-            xerr_and_exit("Valid types: pe, se, interleaved\n");
+            xfatal("Valid types: pe, se, interleaved\n");
         }
 
         int64_t start = total_reads;
@@ -196,12 +196,12 @@ inline void ReadAndWriteMultipleLibs(const std::string &lib_file, bool is_revers
 
         if (type == "pe" && (total_reads - start) % 2 != 0) {
             xerr("PE library number of reads is odd: %lld!\n", total_reads - start);
-            xerr_and_exit("File(s): %s\n", metadata.c_str())
+            xfatal("File(s): %s\n", metadata.c_str())
         }
 
         if (type == "interleaved" && (total_reads - start) % 2 != 0) {
             xerr("PE library number of reads is odd: %lld!\n", total_reads - start);
-            xerr_and_exit("File(s): %s\n", metadata.c_str())
+            xfatal("File(s): %s\n", metadata.c_str())
         }
 
         if (verbose) {

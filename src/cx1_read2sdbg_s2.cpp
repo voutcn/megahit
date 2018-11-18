@@ -392,7 +392,7 @@ void s2_init_global_and_set_cx1(read2sdbg_global_t &globals) {
     }
 
     if (globals.cx1.max_lv1_items_ < min_lv1_items) {
-        xerr_and_exit("No enough memory to process.");
+        xfatal("No enough memory to process.");
     }
 
     globals.cx1.max_mem_remain_ = globals.cx1.max_lv1_items_ * sizeof(int) + globals.max_sorting_items * lv2_bytes_per_item;
