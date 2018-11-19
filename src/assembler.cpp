@@ -193,7 +193,6 @@ int main_assemble(int argc, char **argv) {
   timer.reset();
   timer.start();
   UnitigGraph unitig_graph(&dbg);
-  unitig_graph.BuildFromSDBG();
   timer.stop();
   xlog("unitig graph size: %u, time for building: %lf\n", unitig_graph.size(), timer.elapsed());
 

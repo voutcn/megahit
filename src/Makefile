@@ -118,7 +118,8 @@ TOOLKIT += $(TOOLS_DIR)/extract_pe_reads.cpp
 #-------------------------------------------------------------------------------
 LIB_ASM = sdbg/sdbg_writer.o sdbg/sdbg_raw_content.o \
           sdbg/sdbg_meta.o assembly_algorithms.o options_description.o \
-	      unitig_graph.o sequence_manager.o local_assembler.o city.o
+	      unitig_graph.o sequence_manager.o local_assembler.o city.o \
+	      assembly/unitig_graph.o
 
 #-------------------------------------------------------------------------------
 # CPU Applications

@@ -129,6 +129,7 @@ class AtomicBitVector {
    * @param size the new size of the bit vector
    */
   void reset(size_type size) {
+    if (size == size_)
     data_array_ = std::move(array_type(0)); // clear memory
     size_ = size;
     data_array_ = std::move(array_type((size + kBitsPerWord - 1) / kBitsPerWord, 0));

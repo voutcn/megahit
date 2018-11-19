@@ -19,6 +19,7 @@
  */
 class SDBG {
  public:
+  static const uint64_t kNullID = -1;
   SDBG() = default;
   ~SDBG() = default;
 
@@ -102,7 +103,7 @@ class SDBG {
     invalid_.set(edge_id);
   }
 
-  int EdgeMultiplicity(uint64_t edge_id) const {
+  mul_t EdgeMultiplicity(uint64_t edge_id) const {
     if (content_.full_mul.size()) {
       return content_.full_mul[edge_id];
     }
@@ -140,7 +141,7 @@ class SDBG {
   /**
    * Find the index given a sequence
    * @param seq the sequence encoded in [0-3]
-   * @return the index of the sequence in the graph, -1 if not exists
+   * @return the index of the sequence in the graph, kNullID if not exists
    */
   int64_t IndexBinarySearch(const uint8_t *seq) const {
     uint64_t prefix = 0;
@@ -206,7 +207,7 @@ class SDBG {
         l = mid + 1;
       }
     }
-    return -1;
+    return kNullID;
   }
   /**
    * Fetch the label of an edge from the graph
@@ -372,57 +373,57 @@ class SDBG {
    * @param edge_id
    * @return if the edge has only one outgoing edge, return that one; otherwise -1
    */
-  int64_t UniqueNextEdge(uint64_t edge_id) const {
+  uint64_t UniqueNextEdge(uint64_t edge_id) const {
     uint64_t ret = 0;
     if (ComputeOutgoings<kFlagWriteOut | kFlagMustEq1>(edge_id, &ret) == 1) {
       return ret;
     } else {
-      return -1;
+      return kNullID;
     }
   }
   /**
    * @param edge_id
    * @return if the edge has only one incoming edge, return that one; otherwise -1
    */
-  int64_t UniquePrevEdge(uint64_t edge_id) const {
+  uint64_t UniquePrevEdge(uint64_t edge_id) const {
     uint64_t ret = 0;
     if (ComputeIncomings<kFlagWriteOut | kFlagMustEq1>(edge_id, &ret) == 1) {
       return ret;
     } else {
-      return -1;
+      return kNullID;
     }
   }
   /**
    * @param edge_id
    * @return if the edge has only one incoming edge which is on a simple path, return that one; otherwise -1
    */
-  int64_t PrevSimplePathEdge(uint64_t edge_id) const {
-    int64_t prev_edge = UniquePrevEdge(edge_id);
-    if (prev_edge != -1 && UniqueNextEdge(prev_edge) != -1) {
+  uint64_t PrevSimplePathEdge(uint64_t edge_id) const {
+    uint64_t prev_edge = UniquePrevEdge(edge_id);
+    if (prev_edge != kNullID && UniqueNextEdge(prev_edge) != kNullID) {
       return prev_edge;
     } else {
-      return -1;
+      return kNullID;
     }
   }
   /**
    * @param edge_id
    * @return if the edge has only one outgoing edge which is on a simple path, return that one; otherwise -1
    */
-  int64_t NextSimplePathEdge(uint64_t edge_id) const {
-    int64_t next_edge = UniqueNextEdge(edge_id);
-    if (next_edge != -1 && UniquePrevEdge(next_edge) != -1) {
+  uint64_t NextSimplePathEdge(uint64_t edge_id) const {
+    uint64_t next_edge = UniqueNextEdge(edge_id);
+    if (next_edge != kNullID && UniquePrevEdge(next_edge) != kNullID) {
       return next_edge;
     } else {
-      return -1;
+      return kNullID;
     }
   }
   /**
    * @param edge_id
    * @return the index of the reverse-complement edge of the input edge
    */
-  int64_t EdgeReverseComplement(uint64_t edge_id) const {
+  uint64_t EdgeReverseComplement(uint64_t edge_id) const {
     if (!IsValidEdge(edge_id)) {
-      return -1;
+      return kNullID;
     }
 
     uint8_t seq[kMaxK + 1];
@@ -450,7 +451,7 @@ class SDBG {
       --rev_node;
     } while (rev_node >= 0 && !IsLastOrTip(rev_node));
 
-    return -1;
+    return kNullID;
   }
 
   /**
