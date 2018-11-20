@@ -332,7 +332,7 @@ double UnitigGraph::LocalDepth(size_type id, uint32_t local_width) {
 void UnitigGraph::OutputContigs(FILE *contig_file, FILE *final_file, Histgram<int64_t> &histo,
                                 bool change_only, uint32_t min_final_standalone) {
   histo.clear();
-  assert(!(change_only && final_file != NULL)); // if output changed contigs, must not output final contigs
+  assert(!(change_only && final_file != nullptr)); // if output changed contigs, must not output final contigs
 
 #pragma omp parallel for
   for (size_type i = 0; i < size(); ++i) {
@@ -401,10 +401,10 @@ uint32_t UnitigGraph::MergeSimpleBubbles(
 #pragma omp parallel for reduction(+: num_removed)
   for (size_type i = 0; i < size(); ++i) {
     VertexAdapter left = MakeVertexAdapter(i);
+    VertexAdapter right;
+    VertexAdapter middle[4];
+    VertexAdapter possible_right[4];
     for (int strand = 0; strand < 2; ++strand, left.ReverseComplement()) {
-      VertexAdapter right;
-      VertexAdapter middle[4];
-      VertexAdapter possible_right[4];
       int degree = GetNextAdapters(left, middle);
       if (degree <= 1) {
         continue;
@@ -423,7 +423,7 @@ uint32_t UnitigGraph::MergeSimpleBubbles(
         }
         if (j == 0) {
           right = possible_right[0];
-          if (right.id() < left.id() || InDegree(right) != degree) {
+          if (right.rep_id() < left.rep_id() || InDegree(right) != degree) {
             bubble_valid = false;
             break;
           }
@@ -481,7 +481,6 @@ uint32_t UnitigGraph::MergeSimpleBubbles(
       }
     }
   }
-  xinfo("refresh!\n");
   Refresh(!permanent_rm);
   return num_removed;
 }

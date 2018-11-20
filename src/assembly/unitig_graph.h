@@ -8,7 +8,6 @@
 #include <limits>
 #include <deque>
 #include <kmlib/kmbitvector.h>
-#include <utils.h>
 #include "unitig_graph_vertex.h"
 #include "sdbg/sdbg.h"
 #include "sparsepp/sparsepp/spp.h"
@@ -86,6 +85,10 @@ class UnitigGraph {
   SudoVertexAdapter PrevSimplePathAdapter(SudoVertexAdapter &adapter) {
     return sudo_adapter_impl_.PrevSimplePathAdapter(adapter);
   }
+  size_type GetVertexID(const VertexAdapter &adapter) {
+    if (adapter.id() != VertexAdapter::kNullID) return adapter.id();
+    return id_map_.at(adapter.begin());
+  }
 
  private:
   /**
@@ -101,11 +104,8 @@ class UnitigGraph {
       return {graph_->vertices_[id], strand, id};
     }
     int GetNextAdapters(AdapterType &adapter, AdapterType *out) {
-      if (adapter.is_loop()) return 0;
-      assert(graph_->sdbg_->IsValidEdge(adapter.end()));
       uint64_t next_starts[4];
       int degree = graph_->sdbg_->OutgoingEdges(adapter.end(), next_starts);
-      xinfo("%lu, %d-> %lu, %lu, %lu, %lu\n", adapter.end(), degree, next_starts[0], next_starts[1], next_starts[2], next_starts[3]);
       if (out) {
         for (int i = 0; i < degree; ++i) {
           out[i] = MakeVertexAdapterWithSdbgId(next_starts[i]);
@@ -140,7 +140,6 @@ class UnitigGraph {
       return degree;
     }
     AdapterType NextSimplePathAdapter(AdapterType &adapter) {
-      if (adapter.is_loop()) return AdapterType{};
       uint64_t next_sdbg_id = graph_->sdbg_->NextSimplePathEdge(adapter.end());
       if (next_sdbg_id != SDBG::kNullID) {
         return MakeVertexAdapterWithSdbgId(next_sdbg_id);
@@ -157,10 +156,8 @@ class UnitigGraph {
     }
    private:
     AdapterType MakeVertexAdapterWithSdbgId(uint64_t sdbg_id) {
-      if (!graph_->id_map_.count(sdbg_id)) {
-        xfatal("not exist: %lu\n", sdbg_id);
-      }
-      AdapterType adapter(graph_->vertices_[graph_->id_map_.at(sdbg_id)]);
+      uint32_t id = graph_->id_map_.at(sdbg_id);
+      AdapterType adapter(graph_->vertices_[id], 0, id);
       if (adapter.begin() != sdbg_id) { adapter.ReverseComplement(); }
       return adapter;
     }

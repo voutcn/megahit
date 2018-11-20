@@ -24,8 +24,8 @@ class UnitigGraphVertex {
   struct StrandInfo {
     StrandInfo(uint64_t begin = 0, uint64_t end = 0) :
         begin(begin), end(end), cached_out_degree(kUnknownDegree), to_disconnect(false) {}
-    uint64_t begin, end: 59;
-    uint8_t cached_out_degree: 4;
+    uint64_t begin, end: 60;
+    uint8_t cached_out_degree: 3;
     bool to_disconnect: 1;
   };
   StrandInfo strand_info[2];
@@ -46,11 +46,11 @@ class UnitigGraphVertex {
    */
   class Adapter {
    public:
-    static const uint32_t kNullID = 1U << 31;
+    static const uint32_t kNullID = (1U << 31) - 1;
 
     Adapter() = default;
     Adapter(UnitigGraphVertex &vertex, int strand = 0, uint32_t id = kNullID)
-        : vertex_(&vertex), strand_(strand), id_(std::max(id, kNullID)) {}
+        : vertex_(&vertex), strand_(strand), id_(std::min(id, kNullID)) {}
     void ReverseComplement() { strand_ ^= 1; }
     uint32_t id() const { return id_; }
     int strand() const { return strand_; }
@@ -84,7 +84,7 @@ class UnitigGraphVertex {
 
    protected:
     UnitigGraphVertex *vertex_{nullptr};
-    int strand_: 1;
+    uint8_t strand_: 1;
     uint32_t id_: 31;  // record the id for quick access
   };
 

@@ -73,16 +73,6 @@ UnitigGraph::UnitigGraph(SuccinctDBG *sdbg)
         std::lock_guard<std::mutex> lk(path_lock);
         vertices_.emplace_back(cur_edge, edge_idx, rc_start, rc_end, depth, length);
         count_palindrome += cur_edge == rc_start;
-        assert(sdbg_->IsValidEdge(cur_edge));
-        assert(sdbg_->IsValidEdge(edge_idx));
-        assert(sdbg_->IsValidEdge(rc_start));
-        assert(sdbg_->IsValidEdge(rc_end));
-        assert(VertexAdapter(vertices_.back()).begin() == cur_edge);
-        assert(VertexAdapter(vertices_.back()).end() == edge_idx);
-        assert(VertexAdapter(vertices_.back()).rbegin() == rc_start);
-        assert(VertexAdapter(vertices_.back()).rend() == rc_end);
-        assert(sdbg_->EdgeOutdegree(edge_idx) != 1);
-        assert(sdbg_->EdgeOutdegree(rc_end) != 1);
       }
     }
   }
@@ -240,7 +230,7 @@ void UnitigGraph::Refresh(bool set_changed) {
 #pragma omp parallel for
   for (size_type i = 0; i < vertices_.size(); ++i) {
     auto adapter = MakeSudoAdapter(i);
-    if (adapter.flag() & kDeleted) {
+    if (adapter.is_loop() || (adapter.flag() & kDeleted)) {
       continue;
     }
     for (int strand = 0; strand < 2; ++strand, adapter.ReverseComplement()) {
@@ -260,12 +250,13 @@ void UnitigGraph::Refresh(bool set_changed) {
         break;
       }
 
-      if (linear_path.back().id() != i && !locks_.try_lock(linear_path.back().id())) {
-        if (linear_path.back().id() > i) {
+      size_type back_id = GetVertexID(linear_path.back());
+      if (back_id != i && !locks_.try_lock(back_id)) {
+        if (back_id > i) {
           locks_.unlock(i);
           break;
         } else {
-          locks_.lock(linear_path.back().id());
+          locks_.lock(back_id);
         }
       }
 
@@ -297,7 +288,7 @@ void UnitigGraph::Refresh(bool set_changed) {
 #pragma omp parallel for
   for (size_type i = 0; i < vertices_.size(); ++i) {
     auto adapter = MakeSudoAdapter(i);
-    if (adapter.flag()) {
+    if (!adapter.flag()) {
       std::lock_guard<std::mutex> lk(mutex);
       if (adapter.flag()) {
         continue;
@@ -336,8 +327,6 @@ void UnitigGraph::Refresh(bool set_changed) {
   for (size_type i = 0; i < vertices_.size(); ++i) {
     auto adapter = MakeSudoAdapter(i);
     adapter.set_flag(0);
-    assert(id_map_.count(adapter.begin()));
-    assert(id_map_.count(adapter.rbegin()));
     id_map_.at(adapter.begin()) = i;
     id_map_.at(adapter.rbegin()) = i;
   }
