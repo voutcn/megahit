@@ -123,10 +123,8 @@ UnitigGraph::UnitigGraph(SuccinctDBG *sdbg) : sdbg_(sdbg) {
 
   start_node_map_.reserve(vertices_.size() * 2);
   for (size_type i = 0; i < vertices_.size(); ++i) {
-    if (!vertices_[i].is_deleted) {
-      start_node_map_[vertices_[i].strand_info[0].start] = i;
-      start_node_map_[vertices_[i].strand_info[1].start] = i;
-    }
+    start_node_map_[vertices_[i].strand_info[0].start] = i;
+    start_node_map_[vertices_[i].strand_info[1].start] = i;
   }
   locks_.reset(vertices_.size());
 }
@@ -136,7 +134,7 @@ void UnitigGraph::RefreshDisconnected() {
 #pragma omp parallel for
   for (size_type i = 0; i < vertices_.size(); ++i) {
     auto adapter = MakeSudoAdapter(i);
-    if (adapter.is_palindrome() || adapter.is_loop()) {
+    if (adapter.is_to_delete() || adapter.is_palindrome() || adapter.is_loop()) {
       continue;
     }
 
@@ -264,11 +262,11 @@ void UnitigGraph::Refresh(bool set_changed) {
         }
       }
 
-      auto length = adapter.length();
-      auto total_depth = adapter.total_depth();
+      auto new_length = adapter.length();
+      auto new_total_depth = adapter.total_depth();
       for (auto &v: linear_path) {
-        length += v.length();
-        total_depth += v.total_depth();
+        new_length += v.length();
+        new_total_depth += v.total_depth();
         v.MarkDeleted();
       }
 
@@ -277,7 +275,7 @@ void UnitigGraph::Refresh(bool set_changed) {
       auto new_rc_start = linear_path.back().rc_start();
       auto new_end = linear_path.back().end();
 
-      vertices_[i] = Vertex(new_start, new_end, new_rc_start, new_rc_end, total_depth, length);
+      vertices_[i] = Vertex(new_start, new_end, new_rc_start, new_rc_end, new_total_depth, new_length);
       vertices_[i].is_changed |= set_changed;
       vertices_[i].flag = 1;
       break;
@@ -308,7 +306,6 @@ void UnitigGraph::Refresh(bool set_changed) {
         is_palindrome |= next.is_deleted();
         next.MarkDeleted();
       }
-      mutex.unlock();
 
       auto new_start = adapter.start();
       auto new_end = sdbg_->PrevSimplePathEdge(new_start);
@@ -329,6 +326,7 @@ void UnitigGraph::Refresh(bool set_changed) {
 
 #pragma omp parallel for
   for (size_type i = 0; i < vertices_.size(); ++i) {
+    assert(vertices_[i].is_loop || vertices_[i].flag);
     vertices_[i].flag = 0;
     start_node_map_.at(vertices_[i].strand_info[0].start) = i;
     start_node_map_.at(vertices_[i].strand_info[1].start) = i;

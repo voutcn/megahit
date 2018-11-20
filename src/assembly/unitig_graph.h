@@ -55,7 +55,7 @@ class UnitigGraph {
    * An adapter on unitig vertex to handle graph traversal, modification
    * and reverse complement issues
    */
-  template <class AdapterType>
+  template<class AdapterType>
   class VertexAdapterBase {
    public:
     VertexAdapterBase() = default;
@@ -73,6 +73,9 @@ class UnitigGraph {
     bool is_to_delete() const { return vertex_->to_delete; }
     bool is_deleted() const { return vertex_->is_deleted; }
     bool is_to_disconnected() const { return strand_info().to_disconnect; }
+    uint64_t rep_id() const {
+      return std::min(vertex_->strand_info[0].start, vertex_->strand_info[1].start);
+    };
 
     void MarkToDelete() { vertex_->to_delete = true; }
     void MarkToDisconnect() { strand_info().to_disconnect = true; }

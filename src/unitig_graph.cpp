@@ -260,7 +260,7 @@ int64_t UnitigGraph::RemoveLowDepth(double min_depth) {
 #pragma omp parallel for reduction(+: num_removed)
   for (size_type i = 0; i < vertices_.size(); ++i) {
     auto adapter = MakeVertexAdapter(i);
-    if (adapter.depth() < min_depth) {
+    if (adapter.total_depth() < min_depth) {
       adapter.MarkToDelete();
       ++num_removed;
     }
@@ -277,12 +277,11 @@ bool UnitigGraph::RemoveLocalLowDepth(double min_depth,
                                       bool permanent_rm) {
   bool is_changed = false;
   bool need_refresh = false;
-  int64_t num_removed_ = 0;
 
-#pragma omp parallel for schedule(dynamic, 1) reduction(+: num_removed_)
+#pragma omp parallel for reduction(+: num_removed)
   for (size_type i = 0; i < vertices_.size(); ++i) {
     auto adapter = MakeVertexAdapter(i);
-    if (adapter.is_deleted() || adapter.length() >= min_len) {
+    if (adapter.length() >= min_len) {
       continue;
     }
     int indegree = adapter.InDegree();
@@ -307,7 +306,7 @@ bool UnitigGraph::RemoveLocalLowDepth(double min_depth,
         is_changed = true;
         need_refresh = true;
         adapter.MarkToDelete();
-        ++num_removed_;
+        ++num_removed;
       }
     }
   }
@@ -316,7 +315,7 @@ bool UnitigGraph::RemoveLocalLowDepth(double min_depth,
     bool set_changed = !permanent_rm;
     Refresh(set_changed);
   }
-  num_removed += num_removed_;
+  num_removed += num_removed;
   return is_changed;
 }
 
@@ -342,7 +341,7 @@ uint32_t UnitigGraph::DisconnectWeakLinks(double local_ratio = 0.1) {
         total_depth += depths[j];
       }
       for (int j = 0; j < degree; ++j) {
-        if (depths[j] < local_ratio * total_depth) {
+        if (depths[j] <= local_ratio * total_depth) {
           nexts[j].MarkToDisconnect();
           ++num_disconnected;
         }
@@ -356,7 +355,7 @@ uint32_t UnitigGraph::DisconnectWeakLinks(double local_ratio = 0.1) {
 
 double UnitigGraph::LocalDepth(size_type id, uint32_t local_width) {
   double total_depth = 0;
-  double num_added_edges = 0;
+  uint64_t num_added_edges = 0;
 
   for (int strand = 0; strand < 2; ++strand) {
     auto adapter = MakeVertexAdapter(id, strand);
@@ -466,8 +465,7 @@ uint32_t UnitigGraph::MergeSimpleBubbles(
     if (vertices_[i].is_deleted) {
       continue;
     }
-    bool handled_by_reverse = false;
-    for (int strand = 0; !handled_by_reverse && strand < 2; ++strand) {
+    for (int strand = 0; strand < 2; ++strand) {
       VertexAdapter left = MakeVertexAdapter(i, strand);
       VertexAdapter right;
       VertexAdapter middle[4];
@@ -490,12 +488,7 @@ uint32_t UnitigGraph::MergeSimpleBubbles(
         }
         if (j == 0) {
           right = possible_right[0];
-          if (right.start() < left.start()) {
-            handled_by_reverse = true;
-            bubble_valid = false;
-            break;
-          }
-          if (right.InDegree() != degree) {
+          if (right.id() < left.id() || right.InDegree() != degree) {
             bubble_valid = false;
             break;
           }
@@ -513,7 +506,8 @@ uint32_t UnitigGraph::MergeSimpleBubbles(
 
       std::sort(middle, middle + degree,
                 [](const VertexAdapter &a, const VertexAdapter &b) {
-                  return a.depth() > b.depth();
+                  if (a.depth() != b.depth()) return a.depth() > b.depth();
+                  return a.rep_id() < b.rep_id();
                 });
 
       for (int j = 1; j < degree; ++j) {
