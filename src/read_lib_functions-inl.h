@@ -205,7 +205,7 @@ inline void ReadAndWriteMultipleLibs(const std::string &lib_file, bool is_revers
         }
 
         if (verbose) {
-            xlog("Lib %d (%s): %s, %lld reads, %d max length\n",
+            xinfo("Lib %d (%s): %s, %lld reads, %d max length\n",
                  lib_info.size(), metadata.c_str(), type.c_str(), total_reads - start, max_read_len);
         }
 
@@ -253,11 +253,11 @@ inline void ReadBinaryLibs(const std::string &file_prefix, SequencePackage &pack
     seq_manager.set_file_type(SequenceManager::kBinaryReads);
     seq_manager.set_file(FormatString("%s.bin", file_prefix.c_str()));
 
-    xlog("Before reading, sizeof seq_package: %lld\n", package.size_in_byte());
+    xinfo("Before reading, sizeof seq_package: %lld\n", package.size_in_byte());
 
     seq_manager.ReadShortReads(1LL << 60, 1LL << 60, append_to_package, is_reverse);
 
-    xlog("After reading, sizeof seq_package: %lld\n", package.size_in_byte());
+    xinfo("After reading, sizeof seq_package: %lld\n", package.size_in_byte());
 }
 
 inline void WriteMultipleLibs(SequencePackage &package, std::vector<lib_info_t> &lib_info, const std::string &file_prefix, bool is_reverse) {

@@ -369,7 +369,7 @@ void GenMercyEdges(seq2sdbg_global_t &globals) {
     globals.multiplicity.insert(globals.multiplicity.end(), num_mercy_edges, 1);
 
     if (cx1_t::kCX1Verbose >= 2) {
-        xlog("Number of reads: %ld, Number of mercy edges: %ld\n", num_mercy_reads, num_mercy_edges);
+        xinfo("Number of reads: %ld, Number of mercy edges: %ld\n", num_mercy_reads, num_mercy_edges);
     }
 }
 
@@ -390,7 +390,7 @@ void read_seq_and_prepare(seq2sdbg_global_t &globals) {
             edge_reader.set_file_prefix(globals.input_prefix);
             edge_reader.read_info();
             int64_t num_edges = edge_reader.num_edges();
-            xlog("Number edges: %lld\n", (long long)num_edges);
+            xinfo("Number edges: %lld\n", (long long)num_edges);
 
             if (globals.need_mercy) {
                 num_edges *= 1.25;    // it is rare that # mercy > 25%
@@ -430,13 +430,13 @@ void read_seq_and_prepare(seq2sdbg_global_t &globals) {
             fclose(contig_info);
         }
 
-        xlog("Bases to reserve: %lld, number contigs: %lld, number multiplicity: %lld\n", bases_to_reserve, num_contigs_to_reserve, num_multiplicities_to_reserve);
+        xinfo("Bases to reserve: %lld, number contigs: %lld, number multiplicity: %lld\n", bases_to_reserve, num_contigs_to_reserve, num_multiplicities_to_reserve);
         globals.package.reserve_num_seq(num_contigs_to_reserve);
         globals.package.reserve_bases(bases_to_reserve);
         globals.multiplicity.reserve(num_multiplicities_to_reserve);
     }
 
-    xlog("Before reading, sizeof seq_package: %lld, multiplicity vector: %lld\n", globals.package.size_in_byte(), globals.multiplicity.capacity());
+    xinfo("Before reading, sizeof seq_package: %lld, multiplicity vector: %lld\n", globals.package.size_in_byte(), globals.multiplicity.capacity());
 
     if (globals.input_prefix != "") {
         seq_manager.set_file_type(globals.need_mercy ? SequenceManager::kSortedEdges : SequenceManager::kMegahitEdges);
@@ -451,14 +451,14 @@ void read_seq_and_prepare(seq2sdbg_global_t &globals) {
         if (cx1_t::kCX1Verbose >= 3) {
             timer.reset();
             timer.start();
-            xlog("Adding mercy edges...\n");
+            xinfo("Adding mercy edges...\n");
         }
 
         GenMercyEdges(globals);
 
         if (cx1_t::kCX1Verbose >= 3) {
             timer.stop();
-            xlog("Done. Time elapsed: %.4lf\n", timer.elapsed());
+            xinfo("Done. Time elapsed: %.4lf\n", timer.elapsed());
         }
     }
 
@@ -525,7 +525,7 @@ void read_seq_and_prepare(seq2sdbg_global_t &globals) {
         seq_manager.clear();
     }
 
-    xlog("After reading, sizeof seq_package: %lld, multiplicity vector: %lld\n", globals.package.size_in_byte(), globals.multiplicity.capacity());
+    xinfo("After reading, sizeof seq_package: %lld, multiplicity vector: %lld\n", globals.package.size_in_byte(), globals.multiplicity.capacity());
 
     globals.package.BuildLookup();
     globals.num_seq = globals.package.size();
@@ -610,7 +610,7 @@ void init_global_and_set_cx1(seq2sdbg_global_t &globals) {
 
     for (int i = 0; i < kNumBuckets; ++i) {
         if (globals.cx1.bucket_sizes_[i] > 2 * globals.tot_bucket_size / num_non_empty) {
-            // xlog("Bucket %d size = %lld > %lld = 2 * avg\n", i, (long long)globals.cx1.bucket_sizes_[i], (long long)2 * globals.tot_bucket_size / num_non_empty);
+            // xinfo("Bucket %d size = %lld > %lld = 2 * avg\n", i, (long long)globals.cx1.bucket_sizes_[i], (long long)2 * globals.tot_bucket_size / num_non_empty);
         }
     }
 
@@ -673,8 +673,8 @@ void init_global_and_set_cx1(seq2sdbg_global_t &globals) {
 
 
     if (cx1_t::kCX1Verbose >= 2) {
-        xlog("Memory for sequence: %lld\n", globals.mem_packed_seq);
-        xlog("max # lv.1 items = %lld\n", globals.cx1.max_lv1_items_);
+        xinfo("Memory for sequence: %lld\n", globals.mem_packed_seq);
+        xinfo("max # lv.1 items = %lld\n", globals.cx1.max_lv1_items_);
     }
 
     // --- init output ---
@@ -1055,19 +1055,19 @@ void lv1_direct_sort_and_proc(seq2sdbg_global_t &globals) {
 void post_proc(seq2sdbg_global_t &globals) {
     globals.sdbg_writer.Finalize();
     if (cx1_t::kCX1Verbose >= 2) {
-        xlog("Number of $ A C G T A- C- G- T-:\n");
+        xinfo("Number of $ A C G T A- C- G- T-:\n");
     }
-    xlog("");
+    xinfo("");
     for (int i = 0; i < 9; ++i) {
-        xlog_ext("%lld ", (long long)globals.sdbg_writer.final_meta().w_count(i));
+        xinfoc("%lld ", (long long)globals.sdbg_writer.final_meta().w_count(i));
     }
 
-    xlog_ext("\n");
+    xinfoc("\n");
 
     if (cx1_t::kCX1Verbose >= 2) {
-        xlog("Total number of edges: %lld\n", (long long) globals.sdbg_writer.final_meta().item_count());
-        xlog("Total number of ONEs: %lld\n", (long long)globals.sdbg_writer.final_meta().ones_in_last());
-        xlog("Total number of $v edges: %lld\n", (long long)globals.sdbg_writer.final_meta().tip_count());
+        xinfo("Total number of edges: %lld\n", (long long) globals.sdbg_writer.final_meta().item_count());
+        xinfo("Total number of ONEs: %lld\n", (long long)globals.sdbg_writer.final_meta().ones_in_last());
+        xinfo("Total number of $v edges: %lld\n", (long long)globals.sdbg_writer.final_meta().tip_count());
     }
 
     // --- cleaning ---

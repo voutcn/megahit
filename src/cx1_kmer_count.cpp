@@ -132,7 +132,7 @@ void read_input_prepare(count_global_t &globals) { // num_items_, num_cpu_thread
     globals.max_read_length = globals.package.max_read_len();
     globals.num_reads = globals.package.size();
 
-    xlog("%ld reads, %d max read length\n", globals.num_reads, globals.max_read_length);
+    xinfo("%ld reads, %d max read length\n", globals.num_reads, globals.max_read_length);
 
     // calc words_per_xxx
     int bits_read_length = 1; // bit needed to store read_length
@@ -223,7 +223,7 @@ void init_global_and_set_cx1(count_global_t &globals) {
     globals.words_per_edge = DivCeiling((globals.kmer_k + 1) * kBitsPerEdgeChar + kBitsPerMul, kBitsPerEdgeWord);
 
     if (cx1_t::kCX1Verbose >= 2) {
-        xlog("%d words per substring, %d words per edge\n", globals.words_per_substring, globals.words_per_edge);
+        xinfo("%d words per substring, %d words per edge\n", globals.words_per_substring, globals.words_per_edge);
     }
 
     globals.cx1.lv1_just_go_ = true;
@@ -233,7 +233,7 @@ void init_global_and_set_cx1(count_global_t &globals) {
 
     for (int i = 0; i < kNumBuckets; ++i) {
         if (globals.cx1.bucket_sizes_[i] > 2 * globals.tot_bucket_size / num_non_empty) {
-            // xlog("Bucket %d size = %lld > %lld = 2 * avg\n", i, (long long)globals.cx1.bucket_sizes_[i], (long long)2 * globals.tot_bucket_size / num_non_empty);
+            // xinfo("Bucket %d size = %lld > %lld = 2 * avg\n", i, (long long)globals.cx1.bucket_sizes_[i], (long long)2 * globals.tot_bucket_size / num_non_empty);
         }
     }
 
@@ -257,7 +257,7 @@ void init_global_and_set_cx1(count_global_t &globals) {
         globals.cx1.max_lv1_items_ = int64_t(globals.tot_bucket_size / (kDefaultLv1ScanTime - 0.5));
         globals.cx1.max_lv1_items_ = std::max(globals.cx1.max_lv1_items_, globals.max_bucket_size);
         int64_t mem_needed = globals.cx1.max_lv1_items_ * cx1_t::kLv1BytePerItem + globals.max_sorting_items * lv2_bytes_per_item;
-        xlog("Set: %lld, %lld\n", mem_needed, mem_remained);
+        xinfo("Set: %lld, %lld\n", mem_needed, mem_remained);
         if (mem_needed > mem_remained) {
             globals.cx1.adjust_mem_just_go(mem_remained, lv2_bytes_per_item, min_lv1_items, globals.max_bucket_size,
                                            globals.max_sorting_items, globals.cx1.max_lv1_items_, globals.max_sorting_items);
@@ -291,13 +291,13 @@ void init_global_and_set_cx1(count_global_t &globals) {
     }
 
     globals.cx1.max_mem_remain_ = globals.cx1.max_lv1_items_ * cx1_t::kLv1BytePerItem + globals.max_sorting_items * lv2_bytes_per_item;
-    xlog("%lld, %lld %lld %lld\n", globals.cx1.max_lv1_items_, globals.max_sorting_items, globals.cx1.max_mem_remain_, mem_remained);
+    xinfo("%lld, %lld %lld %lld\n", globals.cx1.max_lv1_items_, globals.max_sorting_items, globals.cx1.max_mem_remain_, mem_remained);
     globals.cx1.bytes_per_sorting_item_ = lv2_bytes_per_item;
     globals.lv1_items = (int32_t *)MallocAndCheck(globals.cx1.max_mem_remain_ + globals.num_cpu_threads * sizeof(uint64_t) * 65536, __FILE__, __LINE__);
 
     if (cx1_t::kCX1Verbose >= 2) {
-        xlog("Memory for reads: %lld\n", globals.mem_packed_reads);
-        xlog("max # lv.1 items = %lld\n", globals.cx1.max_lv1_items_);
+        xinfo("Memory for reads: %lld\n", globals.mem_packed_reads);
+        xinfo("max # lv.1 items = %lld\n", globals.cx1.max_lv1_items_);
     }
 
     // --- malloc read first_in / last_out ---
@@ -492,7 +492,7 @@ void lv2_sort(count_global_t &globals) {
     local_timer.stop();
 
     if (cx1_t::kCX1Verbose >= 4) {
-        xlog("Sorting substrings with CPU...done. Time elapsed: %.4lf\n", local_timer.elapsed());
+        xinfo("Sorting substrings with CPU...done. Time elapsed: %.4lf\n", local_timer.elapsed());
     }
 }
 
@@ -687,7 +687,7 @@ void *lv2_output(void *_op) {
 
     if (cx1_t::kCX1Verbose >= 4) {
         local_timer.stop();
-        xlog("Counting time elapsed: %.4lfs\n", local_timer.elapsed());
+        xinfo("Counting time elapsed: %.4lfs\n", local_timer.elapsed());
     }
 
     return NULL;
@@ -772,7 +772,7 @@ void post_proc(count_global_t &globals) {
     fclose(candidate_file);
 
     if (cx1_t::kCX1Verbose >= 2) {
-        xlog("Total number of candidate reads: %lld(%lld)\n", num_candidate_reads, num_has_tips);
+        xinfo("Total number of candidate reads: %lld(%lld)\n", num_candidate_reads, num_has_tips);
     }
 
     // --- stat ---
@@ -783,7 +783,7 @@ void post_proc(count_global_t &globals) {
     }
 
     if (cx1_t::kCX1Verbose >= 2) {
-        xlog("Total number of solid edges: %llu\n", num_solid_edges);
+        xinfo("Total number of solid edges: %llu\n", num_solid_edges);
     }
 
     FILE *counting_file = OpenFileAndCheck((globals.output_prefix + ".counting").c_str(), "w");

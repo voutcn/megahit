@@ -166,7 +166,7 @@ struct CX1 {
 
         while (num_sorting_items >= min_sorting_items) {
             int64_t mem_sorting_items = bytes_per_sorting_item * num_sorting_items;
-            xlog("Adjusting memory layout: max_lv1_items=%lld, num_sorting_items=%lld, "
+            xinfo("Adjusting memory layout: max_lv1_items=%lld, num_sorting_items=%lld, "
                  "mem_sorting_items=%lld, mem_avail=%lld\n",
                  max_lv1_items, num_sorting_items, mem_sorting_items, mem_avail);
 
@@ -447,21 +447,21 @@ struct CX1 {
         if (kCX1Verbose >= 2) {
             lv0_timer.reset();
             lv0_timer.start();
-            xlog("Preparing data...\n");
+            xinfo("Preparing data...\n");
         }
 
         prepare_func_(*g_);
 
         if (kCX1Verbose >= 2) {
             lv0_timer.stop();
-            xlog("Preparing data... Done. Time elapsed: %.4f\n", lv0_timer.elapsed());
+            xinfo("Preparing data... Done. Time elapsed: %.4f\n", lv0_timer.elapsed());
         }
 
 
         if (kCX1Verbose >= 2) {
             lv0_timer.reset();
             lv0_timer.start();
-            xlog("Preparing partitions and initialing global data...\n");
+            xinfo("Preparing partitions and initialing global data...\n");
         }
 
         // prepare rp bp and op
@@ -477,13 +477,13 @@ struct CX1 {
 
         if (kCX1Verbose >= 2) {
             lv0_timer.stop();
-            xlog("Preparing partitions and initialing global data... Done. Time elapsed: %.4f\n", lv0_timer.elapsed());
+            xinfo("Preparing partitions and initialing global data... Done. Time elapsed: %.4f\n", lv0_timer.elapsed());
         }
 
         if (kCX1Verbose >= 2) {
             lv0_timer.reset();
             lv0_timer.start();
-            xlog("Start main loop...\n");
+            xinfo("Start main loop...\n");
         }
 
         // === start main loop ===
@@ -512,7 +512,7 @@ struct CX1 {
             if (kCX1Verbose >= 3) {
                 lv1_timer.reset();
                 lv1_timer.start();
-                xlog("Lv1 scanning from bucket %d to %d\n", lv1_start_bucket_, lv1_end_bucket_);
+                xinfo("Lv1 scanning from bucket %d to %d\n", lv1_start_bucket_, lv1_end_bucket_);
             }
 
             // --- scan to fill offset ---
@@ -525,7 +525,7 @@ struct CX1 {
 
             if (kCX1Verbose >= 3) {
                 lv1_timer.stop();
-                xlog("Lv1 scanning done. Large diff: %lu. Time elapsed: %.4f\n", lv1_items_special_.size(), lv1_timer.elapsed());
+                xinfo("Lv1 scanning done. Large diff: %lu. Time elapsed: %.4f\n", lv1_items_special_.size(), lv1_timer.elapsed());
                 lv1_timer.reset();
                 lv1_timer.start();
             }
@@ -552,7 +552,7 @@ struct CX1 {
                     if (kCX1Verbose >= 4) {
                         lv2_timer.reset();
                         lv2_timer.start();
-                        xlog("Lv2 fetching substrings from bucket %d to %d\n", lv2_start_bucket_, lv2_end_bucket_);
+                        xinfo("Lv2 fetching substrings from bucket %d to %d\n", lv2_start_bucket_, lv2_end_bucket_);
                     }
 
                     // --- extract lv2 substr and sort ---
@@ -560,7 +560,7 @@ struct CX1 {
 
                     if (kCX1Verbose >= 4) {
                         lv2_timer.stop();
-                        xlog("Lv2 fetching substrings done. Time elapsed: %.4f\n", lv2_timer.elapsed());
+                        xinfo("Lv2 fetching substrings done. Time elapsed: %.4f\n", lv2_timer.elapsed());
                         lv2_timer.reset();
                         lv2_timer.start();
                     }
@@ -569,7 +569,7 @@ struct CX1 {
 
                     if (kCX1Verbose >= 4) {
                         lv2_timer.stop();
-                        xlog("Lv2 sorting done. Time elapsed: %.4f\n", lv2_timer.elapsed());
+                        xinfo("Lv2 sorting done. Time elapsed: %.4f\n", lv2_timer.elapsed());
                         lv2_timer.reset();
                         lv2_timer.start();
                     }
@@ -591,7 +591,7 @@ struct CX1 {
 
             if (kCX1Verbose >= 3) {
                 lv1_timer.stop();
-                xlog("Lv1 fetching & sorting done. Time elapsed: %.4f\n", lv1_timer.elapsed());
+                xinfo("Lv1 fetching & sorting done. Time elapsed: %.4f\n", lv1_timer.elapsed());
             }
 
             lv1_start_bucket_ = lv1_end_bucket_;
@@ -604,13 +604,13 @@ struct CX1 {
 
         if (kCX1Verbose >= 2) {
             lv0_timer.stop();
-            xlog("Main loop done. Time elapsed: %.4f\n", lv0_timer.elapsed());
+            xinfo("Main loop done. Time elapsed: %.4f\n", lv0_timer.elapsed());
         }
 
         if (kCX1Verbose >= 2) {
             lv0_timer.reset();
             lv0_timer.start();
-            xlog("Postprocessing...\n");
+            xinfo("Postprocessing...\n");
         }
 
         post_proc_func_(*g_);
@@ -618,7 +618,7 @@ struct CX1 {
 
         if (kCX1Verbose >= 2) {
             lv0_timer.stop();
-            xlog("Postprocess done. Time elapsed: %.4f\n", lv0_timer.elapsed());
+            xinfo("Postprocess done. Time elapsed: %.4f\n", lv0_timer.elapsed());
         }
     }
 };

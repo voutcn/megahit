@@ -136,7 +136,7 @@ void s1_read_input_prepare(read2sdbg_global_t &globals) {
     globals.package.BuildLookup();
     globals.num_reads = globals.package.size();
 
-    xlog("%ld reads, %d max read length, %lld total bases\n", globals.num_reads, globals.max_read_length, globals.package.base_size());
+    xinfo("%ld reads, %d max read length, %lld total bases\n", globals.num_reads, globals.max_read_length, globals.package.base_size());
 
     int bits_read_length = 1; // bit needed to store read_length
 
@@ -246,7 +246,7 @@ void s1_init_global_and_set_cx1(read2sdbg_global_t &globals) {
     globals.words_per_substring = DivCeiling((globals.kmer_k - 1) * kBitsPerEdgeChar + 2 * kBWTCharNumBits, kBitsPerEdgeWord);
 
     if (cx1_t::kCX1Verbose >= 2) {
-        xlog("%d words per substring\n", globals.words_per_substring);
+        xinfo("%d words per substring\n", globals.words_per_substring);
     }
 
     // lv2 bytes: substring, permutation, readinfo
@@ -258,7 +258,7 @@ void s1_init_global_and_set_cx1(read2sdbg_global_t &globals) {
 
     for (int i = 0; i < kNumBuckets; ++i) {
         if (globals.cx1.bucket_sizes_[i] > 2 * globals.tot_bucket_size / num_non_empty) {
-            // xlog("Bucket %d size = %lld > %lld = 2 * avg\n", i, (long long)globals.cx1.bucket_sizes_[i], (long long)2 * globals.tot_bucket_size / num_non_empty);
+            // xinfo("Bucket %d size = %lld > %lld = 2 * avg\n", i, (long long)globals.cx1.bucket_sizes_[i], (long long)2 * globals.tot_bucket_size / num_non_empty);
         }
     }
 
@@ -317,8 +317,8 @@ void s1_init_global_and_set_cx1(read2sdbg_global_t &globals) {
     globals.lv1_items = (int *) MallocAndCheck(globals.cx1.max_mem_remain_ + globals.num_cpu_threads * sizeof(uint64_t) * 65536, __FILE__, __LINE__);
 
     if (cx1_t::kCX1Verbose >= 2) {
-        xlog("Memory for reads: %lld\n", globals.mem_packed_reads);
-        xlog("max # lv.1 items = %lld\n", globals.cx1.max_lv1_items_);
+        xinfo("Memory for reads: %lld\n", globals.mem_packed_reads);
+        xinfo("max # lv.1 items = %lld\n", globals.cx1.max_lv1_items_);
     }
 
     // --- initialize output mercy files ---
@@ -329,7 +329,7 @@ void s1_init_global_and_set_cx1(read2sdbg_global_t &globals) {
     }
 
     if (cx1_t::kCX1Verbose >= 3) {
-        xlog("Number of files for mercy candidate reads: %d\n", globals.num_mercy_files);
+        xinfo("Number of files for mercy candidate reads: %d\n", globals.num_mercy_files);
     }
 
     for (int i = 0; i < globals.num_mercy_files; ++i) {
@@ -763,7 +763,7 @@ void *s1_lv2_output(void *_op) {
 
     if (cx1_t::kCX1Verbose >= 4) {
         local_timer.stop();
-        xlog("Counting time elapsed: %.4lfs\n", local_timer.elapsed());
+        xinfo("Counting time elapsed: %.4lfs\n", local_timer.elapsed());
     }
 
     return NULL;
@@ -833,7 +833,7 @@ void s1_post_proc(read2sdbg_global_t &globals) {
     }
 
     if (cx1_t::kCX1Verbose >= 2) {
-        xlog("Total number of solid edges: %llu\n", num_solid_edges);
+        xinfo("Total number of solid edges: %llu\n", num_solid_edges);
     }
 
     FILE *counting_file = OpenFileAndCheck((std::string(globals.output_prefix) + ".counting").c_str(), "w");

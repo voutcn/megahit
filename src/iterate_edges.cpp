@@ -446,17 +446,17 @@ static bool ReadReadsAndProcessKernel(
         num_total_reads += rp.size();
 
         if (num_total_reads % (16 << 22) == 0) {
-            xlog("Processed: %lld, aligned: %lld. Iterative edges: %llu\n", (long long)num_total_reads, (long long)num_aligned_reads, (unsigned long long)iterative_edges.size());
+            xinfo("Processed: %lld, aligned: %lld. Iterative edges: %llu\n", (long long)num_total_reads, (long long)num_aligned_reads, (unsigned long long)iterative_edges.size());
         }
     }
 
     omp_destroy_lock(&lock);
 
-    xlog("Total: %lld, aligned: %lld. Iterative edges: %llu\n", (long long)num_total_reads, (long long)num_aligned_reads, (unsigned long long)iterative_edges.size());
+    xinfo("Total: %lld, aligned: %lld. Iterative edges: %llu\n", (long long)num_total_reads, (long long)num_aligned_reads, (unsigned long long)iterative_edges.size());
 
     // write iterative edges
     if (iterative_edges.size() > 0) {
-        xlog("Writing iterative edges...\n");
+        xinfo("Writing iterative edges...\n");
         EdgeWriter edge_writer;
 
         uint32_t next_k = globals.kmer_k + globals.step;
@@ -585,7 +585,7 @@ static void ReadContigsAndBuildHash(
         }
     }
     omp_destroy_lock(&lock);
-    xlog("Number of crusial kmers: %lu\n", crusial_kmers.size());
+    xinfo("Number of crusial kmers: %lu\n", crusial_kmers.size());
 }
 
 template <uint32_t kNumKmerWord_p, typename kmer_word_p_t>

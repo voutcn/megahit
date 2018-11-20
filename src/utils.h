@@ -36,20 +36,17 @@ inline T1 DivCeiling(T1 a, T2 b) {
 }
 
 inline void megahit_log__(const char *format, ...) {
-  static volatile int lock_ = 0;
-  while (__sync_lock_test_and_set(&lock_, 1)) while (lock_);
   va_list args;
   va_start(args, format);
   vfprintf(stderr, format, args);
   va_end(args);
-  __sync_lock_release(&lock_);
 }
 
-#define xlog_ext(str, args...) megahit_log__(str, ##args);
-#define xlog(str, args...) megahit_log__("    [%-26s:%4d]     ", __FILE__, __LINE__); megahit_log__(str, ##args);
-#define xerr(str, args...) megahit_log__("    [ERROR] [%-25s:%4d]: ", __FILE__, __LINE__); megahit_log__(str, ##args);
-#define xwarning(str, args...) megahit_log__("    [WARNING] [%-25s:%4d] ", __FILE__, __LINE__); megahit_log__(str, ##args);
-#define xfatal(str, args...) megahit_log__("    [ERROR] [%-25s:%4d]: ", __FILE__, __LINE__); megahit_log__(str, ##args); exit(1);
+#define xinfoc(str, args...) megahit_log__(str, ##args);
+#define xinfo(str, args...)  megahit_log__("    [INFO  %-25s%4d]   " str, __FILE__, __LINE__, ##args);
+#define xerr(str, args...)   megahit_log__("    [ERROR %-25s%4d]   " str, __FILE__, __LINE__, ##args);
+#define xwarn(str, args...)  megahit_log__("    [WARN  %-25s%4d]   " str, __FILE__, __LINE__, ##args);
+#define xfatal(str, args...) megahit_log__("    [FATAL %-25s%4d]   " str, __FILE__, __LINE__, ##args); exit(1);
 
 #ifdef __GNUC__
 #define LIKELY(x) __builtin_expect((x),1)
@@ -108,15 +105,15 @@ struct AutoMaxRssRecorder {
     struct rusage usage;
 
     if (getrusage(RUSAGE_SELF, &usage)) {
-      xwarning("Fail to getrusage()\n");
+      xwarn("Fail to getrusage()\n");
     }
 
     double utime = 1e-6 * usage.ru_utime.tv_usec + usage.ru_utime.tv_sec;
     double stime = 1e-6 * usage.ru_stime.tv_usec + usage.ru_stime.tv_sec;
 
     long long real_time = (long long) (tv2.tv_sec - tv1.tv_sec) * 1000000 + tv2.tv_usec - tv1.tv_usec;
-    xlog("Real: %.4lf", real_time / 1000000.0);
-    xlog_ext("\tuser: %.4lf\tsys: %.4lf\tmaxrss: %ld\n", utime, stime, usage.ru_maxrss);
+    xinfo("Real: %.4lf", real_time / 1000000.0);
+    xinfoc("\tuser: %.4lf\tsys: %.4lf\tmaxrss: %ld\n", utime, stime, usage.ru_maxrss);
 #endif
   }
 };

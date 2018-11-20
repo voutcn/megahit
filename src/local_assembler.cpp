@@ -86,7 +86,7 @@ void LocalAssembler::BuildHashMapper(bool show_stat) {
     }
 
     if (show_stat) {
-        xlog("Number of contigs: %lu, Mapper size: %lu\n", contigs_->size(), mapper_.size());
+        xinfo("Number of contigs: %lu, Mapper size: %lu\n", contigs_->size(), mapper_.size());
     }
 }
 
@@ -326,7 +326,7 @@ void LocalAssembler::EstimateInsertSize(bool show_stat) {
         insert_sizes_[lib_id] = tlen_t(insert_hist.mean(), insert_hist.sd());
 
         if (show_stat) {
-            xlog("Lib %d, insert size: %.2lf sd: %.2lf\n", lib_id, insert_hist.mean(), insert_hist.sd());
+            xinfo("Lib %d, insert size: %.2lf sd: %.2lf\n", lib_id, insert_hist.mean(), insert_hist.sd());
         }
     }
 }
@@ -354,7 +354,7 @@ inline uint64_t PackMappingResult(uint64_t contig_offset, uint64_t is_mate, uint
 }
 
 int LocalAssembler::AddToMappingDeque_(size_t read_id, const MappingRecord &rec, int local_range) {
-    // xlog("%lu %Lu\n", read_id, rec.contig_id);
+    // xinfo("%lu %Lu\n", read_id, rec.contig_id);
     assert(read_id < reads_->size());
     assert(rec.contig_id < contigs_->size());
 
@@ -457,7 +457,7 @@ void LocalAssembler::MapToContigs() {
             }
         }
 
-        xlog("Lib %d: total %ld reads, aligned %lu, added %lu reads for local assembly\n",
+        xinfo("Lib %d: total %ld reads, aligned %lu, added %lu reads for local assembly\n",
              lib_id, lib_info_[lib_id].to - lib_info_[lib_id].from + 1, num_mapped, num_added);
     }
 

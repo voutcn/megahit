@@ -111,7 +111,7 @@ void s2_read_mercy_prepare(read2sdbg_global_t &globals) {
     if (cx1_t::kCX1Verbose >= 3) {
         timer.reset();
         timer.start();
-        xlog("Adding mercy edges...\n");
+        xinfo("Adding mercy edges...\n");
     }
 
     std::vector<uint64_t> mercy_cand;
@@ -131,7 +131,7 @@ void s2_read_mercy_prepare(read2sdbg_global_t &globals) {
         }
 
         if (cx1_t::kCX1Verbose >= 4) {
-            xlog("Mercy file: %s, %lu\n", FormatString("%s.mercy_cand.%d", globals.output_prefix.c_str(), fid), mercy_cand.size());
+            xinfo("Mercy file: %s, %lu\n", FormatString("%s.mercy_cand.%d", globals.output_prefix.c_str(), fid), mercy_cand.size());
         }
 
         omp_set_num_threads(globals.num_cpu_threads);
@@ -239,8 +239,8 @@ void s2_read_mercy_prepare(read2sdbg_global_t &globals) {
 
     if (cx1_t::kCX1Verbose >= 3) {
         timer.stop();
-        xlog("Adding mercy Done. Time elapsed: %.4lf\n", timer.elapsed());
-        xlog("Number mercy: %llu\n", (unsigned long long)num_mercy);
+        xinfo("Adding mercy Done. Time elapsed: %.4lf\n", timer.elapsed());
+        xinfo("Number mercy: %llu\n", (unsigned long long)num_mercy);
     }
 
     // set cx1 param
@@ -332,7 +332,7 @@ void s2_init_global_and_set_cx1(read2sdbg_global_t &globals) {
     globals.words_per_dummy_node = DivCeiling(globals.kmer_k * kBitsPerEdgeChar, kBitsPerEdgeWord);
 
     if (cx1_t::kCX1Verbose >= 2) {
-        xlog("%d words per substring, words per dummy node ($v): %d\n", globals.words_per_substring, globals.words_per_dummy_node);
+        xinfo("%d words per substring, words per dummy node ($v): %d\n", globals.words_per_substring, globals.words_per_dummy_node);
     }
 
     // --- calculate lv2 memory ---
@@ -341,7 +341,7 @@ void s2_init_global_and_set_cx1(read2sdbg_global_t &globals) {
 
     for (int i = 0; i < kNumBuckets; ++i) {
         if (globals.cx1.bucket_sizes_[i] > 2 * globals.tot_bucket_size / num_non_empty) {
-            // xlog("Bucket %d size = %lld > %lld = 2 * avg\n", i, (long long)globals.cx1.bucket_sizes_[i], (long long)2 * globals.tot_bucket_size / num_non_empty);
+            // xinfo("Bucket %d size = %lld > %lld = 2 * avg\n", i, (long long)globals.cx1.bucket_sizes_[i], (long long)2 * globals.tot_bucket_size / num_non_empty);
         }
     }
 
@@ -402,8 +402,8 @@ void s2_init_global_and_set_cx1(read2sdbg_global_t &globals) {
 
 
     if (cx1_t::kCX1Verbose >= 2) {
-        xlog("Memory for sequence: %lld\n", globals.mem_packed_reads);
-        xlog("max # lv.1 items = %lld\n", globals.cx1.max_lv1_items_);
+        xinfo("Memory for sequence: %lld\n", globals.mem_packed_reads);
+        xinfo("max # lv.1 items = %lld\n", globals.cx1.max_lv1_items_);
     }
 
     pthread_mutex_init(&globals.lv1_items_scanning_lock, NULL); // init lock
@@ -828,17 +828,17 @@ void s2_lv1_direct_sort_and_proc(read2sdbg_global_t &globals) {
 void s2_post_proc(read2sdbg_global_t &globals) {
     globals.sdbg_writer.Finalize();
     if (cx1_t::kCX1Verbose >= 2) {
-        xlog("Number of $ A C G T A- C- G- T-:\n");
+        xinfo("Number of $ A C G T A- C- G- T-:\n");
     }
-    xlog("");
+    xinfo("");
     for (int i = 0; i < 9; ++i) {
-        xlog_ext("%lld ", (long long)globals.sdbg_writer.final_meta().w_count(i));
+        xinfoc("%lld ", (long long)globals.sdbg_writer.final_meta().w_count(i));
     }
-    xlog_ext("\n");
+    xinfoc("\n");
     if (cx1_t::kCX1Verbose >= 2) {
-        xlog("Total number of edges: %lld\n", (long long) globals.sdbg_writer.final_meta().item_count());
-        xlog("Total number of ONEs: %lld\n", (long long)globals.sdbg_writer.final_meta().ones_in_last());
-        xlog("Total number of $v edges: %lld\n", (long long)globals.sdbg_writer.final_meta().tip_count());
+        xinfo("Total number of edges: %lld\n", (long long) globals.sdbg_writer.final_meta().item_count());
+        xinfo("Total number of ONEs: %lld\n", (long long)globals.sdbg_writer.final_meta().ones_in_last());
+        xinfo("Total number of $v edges: %lld\n", (long long)globals.sdbg_writer.final_meta().tip_count());
     }
     // --- clean ---
     pthread_mutex_destroy(&globals.lv1_items_scanning_lock);

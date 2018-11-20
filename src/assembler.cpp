@@ -135,12 +135,12 @@ void PrintStat(Histgram<int64_t> &h) {
   // total length
   int64_t sum = h.sum();
 
-  xlog("Total length: %lld, N50: %lld, Mean: %lld, number of contigs: %lld\n",
+  xinfo("Total length: %lld, N50: %lld, Mean: %lld, number of contigs: %lld\n",
        (long long) sum,
        (long long) h.Nx(sum * 0.5),
        (long long) h.mean(),
        (long long) h.size());
-  xlog("Maximum length: %llu\n", h.maximum());
+  xinfo("Maximum length: %llu\n", h.maximum());
 }
 
 int main_assemble(int argc, char **argv) {
@@ -155,11 +155,11 @@ int main_assemble(int argc, char **argv) {
     // graph loading
     timer.reset();
     timer.start();
-    xlog("Loading succinct de Bruijn graph: %s ", opt.sdbg_name.c_str());
+    xinfo("Loading succinct de Bruijn graph: %s ", opt.sdbg_name.c_str());
     dbg.LoadFromFile(opt.sdbg_name.c_str());
     timer.stop();
-    xlog_ext("Done. Time elapsed: %lf\n", timer.elapsed());
-    xlog("Number of Edges: %lld; K value: %d\n", (long long) dbg.size(), dbg.k());
+    xinfoc("Done. Time elapsed: %lf\n", timer.elapsed());
+    xinfo("Number of Edges: %lld; K value: %d\n", (long long) dbg.size(), dbg.k());
   }
 
   {
@@ -169,7 +169,7 @@ int main_assemble(int argc, char **argv) {
     }
 
     omp_set_num_threads(opt.num_cpu_threads);
-    xlog("Number of CPU threads: %d\n", opt.num_cpu_threads);
+    xinfo("Number of CPU threads: %d\n", opt.num_cpu_threads);
 
     if (opt.max_tip_len == -1) {
       opt.max_tip_len = dbg.k() * 2;
@@ -177,7 +177,7 @@ int main_assemble(int argc, char **argv) {
 
     if (opt.min_depth <= 0) {
       opt.min_depth = assembly_algorithms::SetMinDepth(dbg);
-      xlog("min depth set to %.3lf\n", opt.min_depth);
+      xinfo("min depth set to %.3lf\n", opt.min_depth);
     }
   }
 
@@ -186,7 +186,7 @@ int main_assemble(int argc, char **argv) {
     timer.start();
     assembly_algorithms::RemoveTips(dbg, opt.max_tip_len, opt.min_standalone);
     timer.stop();
-    xlog("Tips removal done! Time elapsed(sec): %lf\n", timer.elapsed());
+    xinfo("Tips removal done! Time elapsed(sec): %lf\n", timer.elapsed());
   }
 
   // construct unitig graph
@@ -194,7 +194,7 @@ int main_assemble(int argc, char **argv) {
   timer.start();
   UnitigGraph unitig_graph(&dbg);
   timer.stop();
-  xlog("unitig graph size: %u, time for building: %lf\n", unitig_graph.size(), timer.elapsed());
+  xinfo("unitig graph size: %u, time for building: %lf\n", unitig_graph.size(), timer.elapsed());
 
   FILE *bubble_file = OpenFileAndCheck(opt.bubble_file().c_str(), "w");
   Histgram<int64_t> bubble_hist;
@@ -206,7 +206,7 @@ int main_assemble(int argc, char **argv) {
       timer.start();
       uint32_t num_tips = unitig_graph.RemoveTips(opt.max_tip_len);
       timer.stop();
-      xlog("Tips removed: %u, time: %lf\n", num_tips, timer.elapsed());
+      xinfo("Tips removed: %u, time: %lf\n", num_tips, timer.elapsed());
     }
 
     bool changed = false;
@@ -216,7 +216,7 @@ int main_assemble(int argc, char **argv) {
       timer.start();
       uint32_t num_bubbles = unitig_graph.MergeBubbles(true, opt.careful_bubble, bubble_file, bubble_hist);
       timer.stop();
-      xlog("Number of bubbles removed: %u, Time elapsed(sec): %lf\n",
+      xinfo("Number of bubbles removed: %u, Time elapsed(sec): %lf\n",
            num_bubbles, timer.elapsed());
       changed |= num_bubbles > 0;
     }
@@ -235,7 +235,7 @@ int main_assemble(int argc, char **argv) {
                                                                 bubble_hist);
       }
       timer.stop();
-      xlog("Number of complex bubbles removed: %u, Time elapsed(sec): %lf\n",
+      xinfo("Number of complex bubbles removed: %u, Time elapsed(sec): %lf\n",
            num_complex_bubbles, timer.elapsed());
       changed |= num_complex_bubbles > 0;
     }
@@ -244,7 +244,7 @@ int main_assemble(int argc, char **argv) {
     timer.start();
     uint32_t num_disconnected = unitig_graph.DisconnectWeakLinks(0.1);
     timer.stop();
-    xlog("Number unitigs disconnected: %u, time: %lf\n", num_disconnected, timer.elapsed());
+    xinfo("Number unitigs disconnected: %u, time: %lf\n", num_disconnected, timer.elapsed());
     changed |= num_disconnected > 0;
 
     // excessive pruning
@@ -265,7 +265,7 @@ int main_assemble(int argc, char **argv) {
       }
 
       timer.stop();
-      xlog("Unitigs removed in (more-)excessive pruning: %lld, time: %lf\n", (long long) num_removed, timer.elapsed());
+      xinfo("Unitigs removed in (more-)excessive pruning: %lld, time: %lf\n", (long long) num_removed, timer.elapsed());
     } else if (opt.prune_level >= 2) {
       timer.reset();
       timer.start();
@@ -276,7 +276,7 @@ int main_assemble(int argc, char **argv) {
                                        num_removed,
                                        true);
       timer.stop();
-      xlog("Unitigs removed in excessive pruning: %lld, time: %lf\n", (long long) num_removed, timer.elapsed());
+      xinfo("Unitigs removed in excessive pruning: %lld, time: %lf\n", (long long) num_removed, timer.elapsed());
     }
 
     if (num_removed > 0) changed = true;
@@ -301,7 +301,7 @@ int main_assemble(int argc, char **argv) {
     PrintStat(hist);
 
     timer.stop();
-    xlog("Time to output: %lf\n", timer.elapsed());
+    xinfo("Time to output: %lf\n", timer.elapsed());
   }
 
   // remove local low depth & output additional contigs
@@ -337,7 +337,7 @@ int main_assemble(int argc, char **argv) {
                                                              bubble_file,
                                                              bubble_hist);
       timer.stop();
-      xlog("Number of local low depth unitigs removed: %lld, complex bubbles removed: %u, time: %lf\n",
+      xinfo("Number of local low depth unitigs removed: %lld, complex bubbles removed: %u, time: %lf\n",
            (long long) num_removed, num_complex_bubbles, timer.elapsed());
     }
 

@@ -89,8 +89,8 @@ int main_kmer_count(int argc, char **argv) {
     globals.output_prefix = opt.output_prefix.c_str();
     globals.mem_flag = opt.mem_flag;
 
-    xlog("Host memory to be used: %lld\n", (long long)globals.host_mem);
-    xlog("Number CPU threads: %d\n", globals.num_cpu_threads);
+    xinfo("Host memory to be used: %lld\n", (long long)globals.host_mem);
+    xinfo("Number CPU threads: %d\n", globals.num_cpu_threads);
 
     // set & run cx1
     globals.cx1.g_ = &globals;
@@ -284,8 +284,8 @@ int main_seq2sdbg(int argc, char **argv) {
     globals.kmer_from = opt.kmer_from;
     globals.need_mercy = opt.need_mercy;
 
-    xlog("Host memory to be used: %lld\n", (long long)globals.host_mem);
-    xlog("Number CPU threads: %d\n", globals.num_cpu_threads);
+    xinfo("Host memory to be used: %lld\n", (long long)globals.host_mem);
+    xinfo("Number CPU threads: %d\n", globals.num_cpu_threads);
 
     // set & run cx1
     globals.cx1.g_ = &globals;

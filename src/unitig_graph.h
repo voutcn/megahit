@@ -39,9 +39,6 @@ class UnitigGraph : public assembly::UnitigGraph {
   typedef assembly::UnitigGraph::VertexAdapter VertexAdapter;
  public:
   UnitigGraph(SuccinctDBG *sdbg): assembly::UnitigGraph(sdbg) {}
-  uint32_t size() {
-    return vertices_.size();
-  }
   int64_t RemoveLowDepth(double min_depth);
   bool RemoveLocalLowDepth(double min_depth,
                            uint32_t min_len,

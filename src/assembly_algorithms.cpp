@@ -62,7 +62,7 @@ double SetMinDepth(SuccinctDBG &dbg) {
     cov = cov1;
   }
 
-  xwarning("Cannot detect min depth: unconverged");
+  xwarn("Cannot detect min depth: unconverged");
   return 1;
 }
 
@@ -162,20 +162,20 @@ int64_t RemoveTips(SuccinctDBG &dbg, int max_tip_len, int min_final_standalone) 
   }
 
   for (int len = 2; len < max_tip_len; len *= 2) {
-    xlog("Removing tips with length less than %d; ", len);
+    xinfo("Removing tips with length less than %d; ", len);
     timer.reset();
     timer.start();
     number_tips += Trim(dbg, len, ignored);
     timer.stop();
-    xlog_ext("Accumulated tips removed: %lld; time elapsed: %.4f\n", (long long) number_tips, timer.elapsed());
+    xinfoc("Accumulated tips removed: %lld; time elapsed: %.4f\n", (long long) number_tips, timer.elapsed());
   }
 
-  xlog("Removing tips with length less than %d; ", max_tip_len);
+  xinfo("Removing tips with length less than %d; ", max_tip_len);
   timer.reset();
   timer.start();
   number_tips += Trim(dbg, max_tip_len, ignored);
   timer.stop();
-  xlog_ext("Accumulated tips removed: %lld; time elapsed: %.4f\n", (long long) number_tips, timer.elapsed());
+  xinfoc("Accumulated tips removed: %lld; time elapsed: %.4f\n", (long long) number_tips, timer.elapsed());
 
   return number_tips;
 }

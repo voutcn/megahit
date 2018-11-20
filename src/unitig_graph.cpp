@@ -62,61 +62,11 @@ static inline void ReverseComplement(std::string &s) {
   }
 }
 
-std::string VertexToDNAString(const SuccinctDBG *sdbg, const UnitigGraph::VertexAdapter &v) {
-  std::string label;
-  uint64_t cur_edge = v.end();
-
-  for (unsigned i = 1; i < v.length(); ++i) {
-    int8_t cur_char = sdbg->GetW(cur_edge);
-    assert(1 <= cur_char && cur_char <= 8);
-    label.append(1, "ACGT"[cur_char > 4 ? (cur_char - 5) : (cur_char - 1)]);
-
-    cur_edge = sdbg->PrevSimplePathEdge(cur_edge);
-    if (cur_edge == SDBG::kNullID) {
-      xfatal("%lld, %lld, %lld, %lld, (%lld, %lld), %d, %d\n",
-             v.start(),
-             v.end(),
-             v.rc_start(),
-             v.rc_end(),
-             sdbg->EdgeReverseComplement(v.end()),
-             sdbg->EdgeReverseComplement(v.start()),
-             v.length(),
-             i);
-    }
-  }
-
-  int8_t cur_char = sdbg->GetW(cur_edge);
-  label.append(1, "ACGT"[cur_char > 4 ? (cur_char - 5) : (cur_char - 1)]);
-
-  if (cur_edge != v.start()) {
-    xfatal("fwd: %lld, %lld, rev: %lld, %lld, (%lld, %lld) length: %d\n",
-           v.start(),
-           v.end(),
-           v.rc_start(),
-           v.rc_end(),
-           sdbg->EdgeReverseComplement(v.end()),
-           sdbg->EdgeReverseComplement(v.start()),
-           v.length());
-  }
-
-  uint8_t seq[kMaxK];
-  sdbg->Label(v.start(), seq);
-
-  for (int i = sdbg->k() - 1; i >= 0; --i) {
-    assert(seq[i] >= 1 && seq[i] <= 4);
-    label.append(1, "ACGT"[seq[i] - 1]);
-  }
-
-  std::reverse(label.begin(), label.end());
-  return label;
-}
-
-void FoldPalindrome(std::string &s, int kmer_k, bool is_loop) {
+void FoldPalindrome(std::string &s, unsigned kmer_k, bool is_loop) {
   if (is_loop) {
     for (unsigned i = 1; i + kmer_k <= s.length(); ++i) {
       std::string rc = s.substr(i, kmer_k);
       ReverseComplement(rc);
-
       if (rc == s.substr(i - 1, kmer_k)) {
         assert(i <= s.length() / 2);
         s = s.substr(i, s.length() / 2);
@@ -131,7 +81,7 @@ void FoldPalindrome(std::string &s, int kmer_k, bool is_loop) {
 }
 
 void WriteContig(const std::string &label,
-                 int k_size,
+                 unsigned k_size,
                  long long id,
                  int flag,
                  double multiplicity,
@@ -195,23 +145,23 @@ uint32_t UnitigGraph::RemoveTips(uint32_t max_tip_len) {
   uint32_t num_removed = 0;
   for (uint32_t thre = 2; thre < max_tip_len; thre = std::min(thre * 2, max_tip_len)) {
 #pragma omp parallel for schedule(static) reduction(+: num_removed)
-    for (size_type i = 0; i < vertices_.size(); ++i) {
+    for (size_type i = 0; i < size(); ++i) {
       auto adapter = MakeVertexAdapter(i);
       if (adapter.length() >= thre) {
         continue;
       }
       VertexAdapter nexts[4], prevs[4];
-      int outd = adapter.GetNextAdapters(nexts);
-      int ind = adapter.GetPrevAdapters(prevs);
+      int outd = GetNextAdapters(adapter, nexts);
+      int ind = GetPrevAdapters(adapter, prevs);
 
       if (ind + outd == 0) {
         adapter.MarkToDelete();
       } else if (outd == 1 && ind == 0) {
-        if (nexts[0].depth() > 8 * adapter.depth()) {
+        if (nexts[0].avg_depth() > 8 * adapter.avg_depth()) {
           adapter.MarkToDelete();
         }
       } else if (outd == 0 && ind == 1) {
-        if (prevs[0].depth() > 8 * adapter.depth()) {
+        if (prevs[0].avg_depth() > 8 * adapter.avg_depth()) {
           adapter.MarkToDelete();
         }
       }
@@ -225,7 +175,7 @@ uint32_t UnitigGraph::RemoveTips(uint32_t max_tip_len) {
 }
 
 uint32_t UnitigGraph::MergeBubbles(bool permanent_rm, bool careful, FILE *bubble_file, Histgram<int64_t> &hist) {
-  int max_bubble_len = sdbg_->k() + 2; // allow 1 indel
+  int max_bubble_len = k() + 2; // allow 1 indel
   return MergeSimpleBubbles(
       permanent_rm, careful, bubble_file, hist, max_bubble_len, 0.2,
       [=](const VertexAdapter &a, const VertexAdapter &b) {
@@ -240,7 +190,7 @@ uint32_t UnitigGraph::MergeComplexBubbles(double similarity,
                                           bool careful,
                                           FILE *bubble_file,
                                           Histgram<int64_t> &hist) {
-  int max_bubble_len = sdbg_->k() * merge_level / similarity + 0.5;
+  int max_bubble_len = k() * merge_level / similarity + 0.5;
   if (max_bubble_len * (1 - similarity) < 1) {
     return 0;
   }
@@ -248,9 +198,9 @@ uint32_t UnitigGraph::MergeComplexBubbles(double similarity,
       permanent_rm, careful, bubble_file, hist, max_bubble_len, 0,
       [&, this](const VertexAdapter &a, const VertexAdapter &b) -> bool {
         return
-            (b.length() + sdbg_->k() - 1) * similarity <= (a.length() + sdbg_->k() - 1) &&
-            (a.length() + sdbg_->k() - 1) * similarity <= (b.length() + sdbg_->k() - 1) &&
-            GetSimilarity(VertexToDNAString(sdbg_, a), VertexToDNAString(sdbg_, b), similarity) >= similarity;
+            (b.length() + k() - 1) * similarity <= (a.length() + k() - 1) &&
+            (a.length() + k() - 1) * similarity <= (b.length() + k() - 1) &&
+            GetSimilarity(VertexToDNAString(a), VertexToDNAString(b), similarity) >= similarity;
       }
   );
 }
@@ -258,9 +208,9 @@ uint32_t UnitigGraph::MergeComplexBubbles(double similarity,
 int64_t UnitigGraph::RemoveLowDepth(double min_depth) {
   int64_t num_removed = 0;
 #pragma omp parallel for reduction(+: num_removed)
-  for (size_type i = 0; i < vertices_.size(); ++i) {
+  for (size_type i = 0; i < size(); ++i) {
     auto adapter = MakeVertexAdapter(i);
-    if (adapter.total_depth() < min_depth) {
+    if (adapter.avg_depth() < min_depth) {
       adapter.MarkToDelete();
       ++num_removed;
     }
@@ -279,19 +229,19 @@ bool UnitigGraph::RemoveLocalLowDepth(double min_depth,
   bool need_refresh = false;
 
 #pragma omp parallel for reduction(+: num_removed)
-  for (size_type i = 0; i < vertices_.size(); ++i) {
+  for (size_type i = 0; i < size(); ++i) {
     auto adapter = MakeVertexAdapter(i);
     if (adapter.length() >= min_len) {
       continue;
     }
-    int indegree = adapter.InDegree();
-    int outdegree = adapter.OutDegree();
+    int indegree = InDegree(adapter);
+    int outdegree = OutDegree(adapter);
     if (indegree + outdegree == 0) {
       continue;
     }
 
     if ((indegree <= 1 && outdegree <= 1) || indegree == 0 || outdegree == 0) {
-      double depth = adapter.depth();
+      double depth = adapter.avg_depth();
       if (is_changed && depth > min_depth)
         continue;
       double mean = LocalDepth(i, local_width);
@@ -323,30 +273,29 @@ uint32_t UnitigGraph::DisconnectWeakLinks(double local_ratio = 0.1) {
   // see metaspades paper
   uint32_t num_disconnected = 0;
 #pragma omp parallel for reduction(+: num_disconnected)
-  for (size_type i = 0; i < vertices_.size(); ++i) {
+  for (size_type i = 0; i < size(); ++i) {
     auto adapter = MakeVertexAdapter(i);
     if (adapter.is_loop() || adapter.is_palindrome()) {
       continue;
     }
-    for (int strand = 0; strand < 2; ++strand) {
+    for (int strand = 0; strand < 2; ++strand, adapter.ReverseComplement()) {
       VertexAdapter nexts[4];
       double depths[4];
       double total_depth = 0;
-      int degree = adapter.GetNextAdapters(nexts);
+      int degree = GetNextAdapters(adapter, nexts);
       if (degree <= 1) {
         continue;
       }
       for (int j = 0; j < degree; ++j) {
-        depths[j] = nexts[j].depth();
+        depths[j] = nexts[j].avg_depth();
         total_depth += depths[j];
       }
       for (int j = 0; j < degree; ++j) {
         if (depths[j] <= local_ratio * total_depth) {
+          num_disconnected += !nexts[j].is_to_disconnect();
           nexts[j].MarkToDisconnect();
-          ++num_disconnected;
         }
       }
-      adapter.ReverseComplement();
     }
   }
   Refresh(false);
@@ -360,7 +309,7 @@ double UnitigGraph::LocalDepth(size_type id, uint32_t local_width) {
   for (int strand = 0; strand < 2; ++strand) {
     auto adapter = MakeVertexAdapter(id, strand);
     VertexAdapter outs[4];
-    int degree = adapter.GetNextAdapters(outs);
+    int degree = GetNextAdapters(adapter, outs);
 
     for (int i = 0; i < degree; ++i) {
       if (outs[i].length() <= local_width) {
@@ -368,7 +317,7 @@ double UnitigGraph::LocalDepth(size_type id, uint32_t local_width) {
         total_depth += outs[i].total_depth();
       } else {
         num_added_edges += local_width;
-        total_depth += outs[i].depth() * local_width;
+        total_depth += outs[i].avg_depth() * local_width;
       }
     }
   }
@@ -386,66 +335,56 @@ void UnitigGraph::OutputContigs(FILE *contig_file, FILE *final_file, Histgram<in
   assert(!(change_only && final_file != NULL)); // if output changed contigs, must not output final contigs
 
 #pragma omp parallel for
-  for (size_type i = 0; i < vertices_.size(); ++i) {
-    if (vertices_[i].is_deleted && !vertices_[i].is_loop) {
-      continue;
-    }
+  for (size_type i = 0; i < size(); ++i) {
     auto adapter = MakeVertexAdapter(i);
-    double multi = std::min((double) kMaxMul, adapter.depth());
+    double multi = std::min((double) kMaxMul, adapter.avg_depth());
     if (change_only) {
       multi = 1;
     }
-    std::string label = VertexToDNAString(sdbg_, adapter);
-    if (vertices_[i].is_palindrome && vertices_[i].is_loop) {
-      FoldPalindrome(label, sdbg_->k(), vertices_[i].is_loop);
+    std::string label = VertexToDNAString(adapter);
+    if (adapter.is_palindrome() && adapter.is_loop()) {
+      FoldPalindrome(label, k(), adapter.is_loop());
     }
     histo.insert(label.length());
 
-    if (change_only && !vertices_[i].is_changed) {
+    if (change_only && !adapter.is_changed()) {
       continue;
     }
 
-    if (vertices_[i].is_loop) {
+    if (adapter.is_loop()) {
       int flag = contig_flag::kLoop | contig_flag::kIsolated;
       FILE *out_file = contig_file;
 
-      if (vertices_[i].is_palindrome) {
+      if (adapter.is_palindrome()) {
         flag = contig_flag::kIsolated;
       }
 
-      if (final_file != NULL) {
+      if (final_file != nullptr) {
         if (label.length() < min_final_standalone) {
           continue;
         } else {
           out_file = final_file;
         }
       }
-      WriteContig(label, sdbg_->k(), i, flag, multi, out_file);
+      WriteContig(label, k(), i, flag, multi, out_file);
     } else {
       FILE *out_file = contig_file;
       int flag = 0;
 
-      int indegree = adapter.InDegree();
-      int outdegree = adapter.OutDegree();
-
-      if (indegree == 0 && outdegree == 0) {
-        vertices_[i].is_deleted = true;
-
-        if (vertices_[i].is_palindrome) {
-          FoldPalindrome(label, sdbg_->k(), vertices_[i].is_loop);
+      if (InDegree(adapter) == 0 && OutDegree(adapter) == 0) {
+        if (adapter.is_palindrome()) {
+          FoldPalindrome(label, k(), adapter.is_loop());
         }
-
         flag = contig_flag::kIsolated;
-
-        if (final_file != NULL) {
-          if (label.length() < (unsigned) min_final_standalone) {
+        if (final_file != nullptr) {
+          if (label.length() < min_final_standalone) {
             continue;
           } else {
             out_file = final_file;
           }
         }
       }
-      WriteContig(label, sdbg_->k(), i, flag, multi, out_file);
+      WriteContig(label, k(), i, flag, multi, out_file);
     }
   }
 }
@@ -459,18 +398,14 @@ uint32_t UnitigGraph::MergeSimpleBubbles(
     double careful_threshold,
     const std::function<bool(const VertexAdapter &, const VertexAdapter &)> &check_mergable) {
   uint32_t num_removed = 0;
-
 #pragma omp parallel for reduction(+: num_removed)
-  for (size_type i = 0; i < vertices_.size(); ++i) {
-    if (vertices_[i].is_deleted) {
-      continue;
-    }
-    for (int strand = 0; strand < 2; ++strand) {
-      VertexAdapter left = MakeVertexAdapter(i, strand);
+  for (size_type i = 0; i < size(); ++i) {
+    VertexAdapter left = MakeVertexAdapter(i);
+    for (int strand = 0; strand < 2; ++strand, left.ReverseComplement()) {
       VertexAdapter right;
       VertexAdapter middle[4];
       VertexAdapter possible_right[4];
-      int degree = left.GetNextAdapters(middle);
+      int degree = GetNextAdapters(left, middle);
       if (degree <= 1) {
         continue;
       }
@@ -482,18 +417,18 @@ uint32_t UnitigGraph::MergeSimpleBubbles(
         }
       }
       for (int j = 0; bubble_valid && j < degree; ++j) {
-        if (middle[j].InDegree() != 1 || middle[j].GetNextAdapters(possible_right) != 1) {
+        if (InDegree(middle[j]) != 1 || GetNextAdapters(middle[j], possible_right) != 1) {
           bubble_valid = false;
           break;
         }
         if (j == 0) {
           right = possible_right[0];
-          if (right.id() < left.id() || right.InDegree() != degree) {
+          if (right.id() < left.id() || InDegree(right) != degree) {
             bubble_valid = false;
             break;
           }
         } else {
-          if (right.start() != possible_right[0].start()) {
+          if (right.begin() != possible_right[0].begin()) {
             bubble_valid = false;
             break;
           }
@@ -506,7 +441,7 @@ uint32_t UnitigGraph::MergeSimpleBubbles(
 
       std::sort(middle, middle + degree,
                 [](const VertexAdapter &a, const VertexAdapter &b) {
-                  if (a.depth() != b.depth()) return a.depth() > b.depth();
+                  if (a.avg_depth() != b.avg_depth()) return a.avg_depth() > b.avg_depth();
                   return a.rep_id() < b.rep_id();
                 });
 
@@ -524,19 +459,19 @@ uint32_t UnitigGraph::MergeSimpleBubbles(
       for (int j = 1; j < degree; ++j) {
         middle[j].MarkToDelete();
         num_removed += 1;
-        if (careful && middle[j].depth() >= middle[0].depth() * careful_threshold) {
-          string label = VertexToDNAString(sdbg_, middle[j]);
-          WriteContig(label, sdbg_->k(), 0, 0, middle[j].depth(), bubble_file);
+        if (careful && middle[j].avg_depth() >= middle[0].avg_depth() * careful_threshold) {
+          string label = VertexToDNAString(middle[j]);
+          WriteContig(label, k(), 0, 0, middle[j].avg_depth(), bubble_file);
           hist.insert(label.length());
           careful_merged = true;
         }
       }
 
       if (careful_merged) {
-        string left_label = VertexToDNAString(sdbg_, left);
-        string right_label = VertexToDNAString(sdbg_, right);
-        WriteContig(left_label, sdbg_->k(), 0, 0, left.depth(), bubble_file);
-        WriteContig(right_label, sdbg_->k(), 0, 0, right.depth(), bubble_file);
+        string left_label = VertexToDNAString(left);
+        string right_label = VertexToDNAString(right);
+        WriteContig(left_label, k(), 0, 0, left.avg_depth(), bubble_file);
+        WriteContig(right_label, k(), 0, 0, right.avg_depth(), bubble_file);
         hist.insert(left_label.length());
         hist.insert(right_label.length());
       }
@@ -546,6 +481,7 @@ uint32_t UnitigGraph::MergeSimpleBubbles(
       }
     }
   }
+  xinfo("refresh!\n");
   Refresh(!permanent_rm);
   return num_removed;
 }
