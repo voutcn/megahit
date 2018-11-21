@@ -35,9 +35,6 @@ add_executable(megahit
         src/assembly_algorithms.h
         src/bit_operation.h
         src/build_read_lib.cpp
-        src/city.cpp
-        src/city.h
-        src/citycrc.h
         src/cx1.h
         src/cx1_kmer_count.cpp
         src/cx1_kmer_count.h
@@ -70,8 +67,8 @@ add_executable(megahit
         src/sequence_manager.cpp
         src/sequence_manager.h
         src/sequence_package.h
-        src/unitig_graph.cpp
-        src/unitig_graph.h
+        src/ug.cpp
+        src/ug.h
         src/utils.h
         tools/binary-edge-2-ascii.cpp
         tools/compare-kmer-fasta.cpp
@@ -88,4 +85,4 @@ add_executable(megahit
         src/kmlib/kmbit.h
         src/kmlib/kmsort.h
         src/kmlib/kmthread.h
-        src/sequence/kmer.h src/sequence/kmer_plus.h src/sdbg/sdbg_meta.h src/kmlib/kmcompactvector.h src/kmlib/test_compactvector.cpp src/sdbg/sdbg_def.h src/sdbg/sdbg_meta.cpp src/sdbg/sdbg_raw_content.h src/sdbg/sdbg_raw_content.cpp src/sdbg/sdbg.h src/sdbg/sdbg_writer.h src/sdbg/sdbg_writer.cpp src/utils/buffered_reader.h src/sdbg/sdbg_item.h src/kmlib/test_kmbit.cpp src/assembly/unitig_graph.h src/assembly/unitig_graph.cpp src/assembly/unitig_graph_vertex.h)
+        src/sequence/kmer.h src/sequence/kmer_plus.h src/sdbg/sdbg_meta.h src/kmlib/kmcompactvector.h src/kmlib/test_compactvector.cpp src/sdbg/sdbg_def.h src/sdbg/sdbg_meta.cpp src/sdbg/sdbg_raw_content.h src/sdbg/sdbg_raw_content.cpp src/sdbg/sdbg.h src/sdbg/sdbg_writer.h src/sdbg/sdbg_writer.cpp src/utils/buffered_reader.h src/sdbg/sdbg_item.h src/kmlib/test_kmbit.cpp src/assembly/unitig_graph.h src/assembly/unitig_graph.cpp src/assembly/unitig_graph_vertex.h src/assembly/bubble_remover.cpp src/assembly/bubble_remover.h src/assembly/contig_writer.h src/assembly/all_algo.h)

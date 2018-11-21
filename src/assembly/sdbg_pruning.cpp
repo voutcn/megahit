@@ -18,7 +18,7 @@
 
 /* contact: Dinghua Li <dhli@cs.hku.hk> */
 
-#include "assembly_algorithms.h"
+#include "sdbg_pruning.h"
 #include <assert.h>
 #include <stdio.h>
 #include <math.h>
@@ -39,9 +39,9 @@ using std::string;
 using std::unordered_set;
 using std::queue;
 
-namespace assembly_algorithms {
+namespace sdbg_pruning {
 
-double SetMinDepth(SuccinctDBG &dbg) {
+double InferMinDepth(SuccinctDBG &dbg) {
   Histgram<mul_t> hist;
 
 #pragma omp parallel for
@@ -180,4 +180,4 @@ int64_t RemoveTips(SuccinctDBG &dbg, int max_tip_len, int min_final_standalone) 
   return number_tips;
 }
 
-} // namespace assembly_algorithms
+} // namespace sdbg_pruning

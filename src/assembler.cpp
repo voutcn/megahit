@@ -25,12 +25,11 @@
 #include <iostream>
 #include <stdexcept>
 
-#include "sdbg/sdbg.h"
-#include "assembly_algorithms.h"
 #include "utils.h"
 #include "options_description.h"
 #include "mem_file_checker-inl.h"
-#include "unitig_graph.h"
+#include "ug.h"
+#include "assembly/all_algo.h"
 #include "histgram.h"
 
 using std::string;
@@ -51,8 +50,6 @@ struct asm_opt_t {
   double low_local_ratio;
   bool output_standalone;
   bool careful_bubble;
-  bool regular_asm;
-  bool auto_depth;
 
   asm_opt_t() {
     output_prefix = "out";
@@ -68,7 +65,6 @@ struct asm_opt_t {
     is_final_round = false;
     output_standalone = false;
     careful_bubble = false;
-    auto_depth = false;
   }
 
   string contig_file() {
@@ -136,10 +132,10 @@ void PrintStat(Histgram<int64_t> &h) {
   int64_t sum = h.sum();
 
   xinfo("Total length: %lld, N50: %lld, Mean: %lld, number of contigs: %lld\n",
-       (long long) sum,
-       (long long) h.Nx(sum * 0.5),
-       (long long) h.mean(),
-       (long long) h.size());
+        (long long) sum,
+        (long long) h.Nx(sum * 0.5),
+        (long long) h.mean(),
+        (long long) h.size());
   xinfo("Maximum length: %llu\n", h.maximum());
 }
 
@@ -176,7 +172,7 @@ int main_assemble(int argc, char **argv) {
     }
 
     if (opt.min_depth <= 0) {
-      opt.min_depth = assembly_algorithms::SetMinDepth(dbg);
+      opt.min_depth = sdbg_pruning::InferMinDepth(dbg);
       xinfo("min depth set to %.3lf\n", opt.min_depth);
     }
   }
@@ -184,7 +180,7 @@ int main_assemble(int argc, char **argv) {
   if (opt.max_tip_len > 0) { // tips removal
     timer.reset();
     timer.start();
-    assembly_algorithms::RemoveTips(dbg, opt.max_tip_len, opt.min_standalone);
+    sdbg_pruning::RemoveTips(dbg, opt.max_tip_len, opt.min_standalone);
     timer.stop();
     xinfo("Tips removal done! Time elapsed(sec): %lf\n", timer.elapsed());
   }
@@ -192,12 +188,20 @@ int main_assemble(int argc, char **argv) {
   // construct unitig graph
   timer.reset();
   timer.start();
-  UnitigGraph unitig_graph(&dbg);
+  UG unitig_graph(&dbg);
   timer.stop();
   xinfo("unitig graph size: %u, time for building: %lf\n", unitig_graph.size(), timer.elapsed());
 
   FILE *bubble_file = OpenFileAndCheck(opt.bubble_file().c_str(), "w");
+  NaiveBubbleRemover naiver_bubbler_remover;
+  ComplexBubbleRemover complex_bubbler_remover;
   Histgram<int64_t> bubble_hist;
+  if (opt.careful_bubble) {
+    naiver_bubbler_remover.set_careful_threshold(0.2).set_bubble_file(bubble_file).set_hist(bubble_hist);
+    complex_bubbler_remover.set_merge_similarity(opt.merge_similar).set_merge_level(opt.merge_len)
+        .set_careful_threshold(0.2).set_bubble_file(bubble_file).set_hist(bubble_hist);
+  }
+
   static const int kLocalWidth = 1000;
 
   for (int round = 1; round <= 5; ++round) {
@@ -214,10 +218,10 @@ int main_assemble(int argc, char **argv) {
     if (opt.bubble_level >= 1) {
       timer.reset();
       timer.start();
-      uint32_t num_bubbles = unitig_graph.MergeBubbles(true, opt.careful_bubble, bubble_file, bubble_hist);
+      uint32_t num_bubbles = naiver_bubbler_remover.PopBubbles(unitig_graph, true);
       timer.stop();
       xinfo("Number of bubbles removed: %u, Time elapsed(sec): %lf\n",
-           num_bubbles, timer.elapsed());
+            num_bubbles, timer.elapsed());
       changed |= num_bubbles > 0;
     }
 
@@ -225,18 +229,10 @@ int main_assemble(int argc, char **argv) {
 
       timer.reset();
       timer.start();
-      uint32_t num_complex_bubbles = 0;
-      if (opt.merge_len > 0) {
-        num_complex_bubbles += unitig_graph.MergeComplexBubbles(opt.merge_similar,
-                                                                opt.merge_len,
-                                                                true,
-                                                                opt.careful_bubble,
-                                                                bubble_file,
-                                                                bubble_hist);
-      }
+      uint32_t num_complex_bubbles = complex_bubbler_remover.PopBubbles(unitig_graph, true);
       timer.stop();
       xinfo("Number of complex bubbles removed: %u, Time elapsed(sec): %lf\n",
-           num_complex_bubbles, timer.elapsed());
+            num_complex_bubbles, timer.elapsed());
       changed |= num_complex_bubbles > 0;
     }
 
@@ -253,15 +249,9 @@ int main_assemble(int argc, char **argv) {
       timer.reset();
       timer.start();
       num_removed = unitig_graph.RemoveLowDepth(opt.min_depth);
-
-      unitig_graph.MergeBubbles(true, opt.careful_bubble, bubble_file, bubble_hist);
+      num_removed += naiver_bubbler_remover.PopBubbles(unitig_graph, true);
       if (opt.bubble_level >= 2 && opt.merge_len > 0) {
-        unitig_graph.MergeComplexBubbles(opt.merge_similar,
-                                         opt.merge_len,
-                                         true,
-                                         opt.careful_bubble,
-                                         bubble_file,
-                                         bubble_hist);
+        num_removed += complex_bubbler_remover.PopBubbles(unitig_graph, true);
       }
 
       timer.stop();
@@ -278,8 +268,6 @@ int main_assemble(int argc, char **argv) {
       timer.stop();
       xinfo("Unitigs removed in excessive pruning: %lld, time: %lf\n", (long long) num_removed, timer.elapsed());
     }
-
-    if (num_removed > 0) changed = true;
     if (!changed) break;
   }
 
@@ -294,7 +282,6 @@ int main_assemble(int argc, char **argv) {
     timer.start();
     hist.clear();
 
-    // unitig_graph.OutputContigs(out_contig_file, out_final_contig_file, hist, false, opt.min_standalone);
     unitig_graph.OutputContigs(out_contig_file, opt.output_standalone ? out_final_contig_file : NULL,
                                hist, false, opt.min_standalone);
 
@@ -323,30 +310,22 @@ int main_assemble(int argc, char **argv) {
                                             opt.is_final_round)) {
         break;
       }
-
       min_depth *= 1.1;
     }
 
     uint32_t num_complex_bubbles = 0;
-
     if (opt.bubble_level >= 2 && opt.merge_len > 0) {
-      num_complex_bubbles = unitig_graph.MergeComplexBubbles(opt.merge_similar,
-                                                             opt.merge_len,
-                                                             opt.is_final_round,
-                                                             false,
-                                                             bubble_file,
-                                                             bubble_hist);
+      num_complex_bubbles = complex_bubbler_remover.PopBubbles(unitig_graph, false);
       timer.stop();
-      xinfo("Number of local low depth unitigs removed: %lld, complex bubbles removed: %u, time: %lf\n",
-           (long long) num_removed, num_complex_bubbles, timer.elapsed());
     }
+    xinfo("Number of local low depth unitigs removed: %lld, complex bubbles removed: %u, time: %lf\n",
+          (long long) num_removed, num_complex_bubbles, timer.elapsed());
 
     hist.clear();
 
     if (!opt.is_final_round) {
       unitig_graph.OutputContigs(out_addi_contig_file, NULL, hist, true, 0);
     } else {
-      // unitig_graph.OutputContigs(out_contig_file, out_final_contig_file, hist, false, opt.min_standalone);
       unitig_graph.OutputContigs(out_contig_file,
                                  opt.output_standalone ? out_final_contig_file : NULL,
                                  hist,

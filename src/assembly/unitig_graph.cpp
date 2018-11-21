@@ -7,10 +7,20 @@
 #include <mutex>
 #include "utils.h"
 
-namespace assembly {
+#ifdef DEBUG
 
 std::atomic<uint64_t> UnitigGraph::count_cache_used(0);
 std::atomic<uint64_t> UnitigGraph::count_cache_missed(0);
+
+UnitigGraph::~UnitigGraph() {
+  xinfo("Cache called/missed: %lu/%lu\n", count_cache_used.load(), count_cache_missed.load());
+}
+
+#else
+
+UnitigGraph::~UnitigGraph() {}
+
+#endif
 
 UnitigGraph::UnitigGraph(SuccinctDBG *sdbg)
     : sdbg_(sdbg), adapter_impl_(this), sudo_adapter_impl_(this) {
@@ -388,6 +398,4 @@ std::string UnitigGraph::VertexToDNAString(const VertexAdapter &v) {
 
   std::reverse(label.begin(), label.end());
   return label;
-}
-
 }

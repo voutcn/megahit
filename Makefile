@@ -234,7 +234,7 @@ TOOLKIT += $(TOOLS_DIR)/extract_pe_reads.cpp
 #-------------------------------------------------------------------------------
 # asm_core objectives
 #-------------------------------------------------------------------------------
-LIB_ASM = succinct_dbg.o assembly_algorithms.o options_description.o \
+LIB_ASM = succinct_dbg.o sdbg_pruning.o options_description.o \
 				  unitig_graph.o sequence_manager.o local_assembler.o city.o
 
 #-------------------------------------------------------------------------------

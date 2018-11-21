@@ -8,12 +8,10 @@
 #include <limits>
 #include <deque>
 #include <kmlib/kmbitvector.h>
-#include "utils.h"
 #include "unitig_graph_vertex.h"
 #include "sdbg/sdbg.h"
 #include "sparsepp/sparsepp/spp.h"
 
-namespace assembly {
 
 class UnitigGraph {
  public:
@@ -27,9 +25,7 @@ class UnitigGraph {
   explicit UnitigGraph(SuccinctDBG *sdbg);
   UnitigGraph(const UnitigGraph &) = delete;
   UnitigGraph(const UnitigGraph &&) = delete;
-  ~UnitigGraph() {
-    xinfo("Cache called/missed: %lu/%lu\n", count_cache_used.load(), count_cache_missed.load());
-  }
+  ~UnitigGraph();
   size_type size() const { return vertices_.size(); }
   size_t k() const { return sdbg_->k(); }
 
@@ -120,10 +116,14 @@ class UnitigGraph {
     }
     int OutDegree(AdapterType &adapter) {
       if (adapter.cached_out_degree() != Vertex::kUnknownDegree) {
+#ifdef DEBUG
         count_cache_used++;
+#endif
         return adapter.cached_out_degree();
       }
+#ifdef DEBUG
       count_cache_missed++;
+#endif
       return GetNextAdapters(adapter, nullptr);
     }
     int InDegree(AdapterType &adapter) {
@@ -167,10 +167,11 @@ class UnitigGraph {
   AdapterImpl<VertexAdapter> adapter_impl_;
   AdapterImpl<SudoVertexAdapter> sudo_adapter_impl_;
 
+#ifdef DEBUG
  private:
   static std::atomic<uint64_t> count_cache_used;
   static std::atomic<uint64_t> count_cache_missed;
+#endif
 };
-}
 
 #endif //MEGAHIT_UNITIG_GRAPH_H

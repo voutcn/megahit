@@ -15,7 +15,6 @@
 
 #include <algorithm>
 #include <cstring>
-#include "city.h"
 #include "xxHash/xxhash.h"
 #include "bit_operation.h"
 

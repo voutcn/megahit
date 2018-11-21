@@ -32,13 +32,13 @@
 #include "sdbg/sdbg.h"
 #include "assembly/unitig_graph.h"
 
-class UnitigGraph : public assembly::UnitigGraph {
+class UG : public UnitigGraph {
  public:
   typedef uint32_t size_type;
-  typedef assembly::UnitigGraph::Vertex Vertex;
-  typedef assembly::UnitigGraph::VertexAdapter VertexAdapter;
+  typedef UnitigGraph::Vertex Vertex;
+  typedef UnitigGraph::VertexAdapter VertexAdapter;
  public:
-  UnitigGraph(SuccinctDBG *sdbg): assembly::UnitigGraph(sdbg) {}
+  UG(SuccinctDBG *sdbg): UnitigGraph(sdbg) {}
   int64_t RemoveLowDepth(double min_depth);
   bool RemoveLocalLowDepth(double min_depth,
                            uint32_t min_len,
@@ -46,13 +46,6 @@ class UnitigGraph : public assembly::UnitigGraph {
                            double local_ratio,
                            int64_t &num_removed,
                            bool permanent_rm = false);
-  uint32_t MergeBubbles(bool permanent_rm, bool careful, FILE *bubble_file, Histgram<int64_t> &hist);
-  uint32_t MergeComplexBubbles(double similarity,
-                               int merge_level,
-                               bool permanent_rm,
-                               bool careful,
-                               FILE *bubble_file,
-                               Histgram<int64_t> &hist);
   uint32_t DisconnectWeakLinks(double local_ratio);
   uint32_t RemoveTips(uint32_t max_tip_len);
   // output
@@ -63,14 +56,6 @@ class UnitigGraph : public assembly::UnitigGraph {
                      uint32_t min_final_standalone);
 
  private:
-  uint32_t MergeSimpleBubbles(
-      bool permanent_rm,
-      bool careful,
-      FILE *bubble_file,
-      Histgram<int64_t> &hist,
-      uint32_t max_bubble_len,
-      double careful_threshold,
-      const std::function<bool(const VertexAdapter &, const VertexAdapter &)> &check_mergable);
   double LocalDepth(VertexAdapter &adapter, uint32_t local_width);
 };
 

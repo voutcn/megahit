@@ -117,9 +117,11 @@ TOOLKIT += $(TOOLS_DIR)/extract_pe_reads.cpp
 # asm_core objectives
 #-------------------------------------------------------------------------------
 LIB_ASM = sdbg/sdbg_writer.o sdbg/sdbg_raw_content.o \
-          sdbg/sdbg_meta.o assembly_algorithms.o options_description.o \
-	      unitig_graph.o sequence_manager.o local_assembler.o city.o \
-	      assembly/unitig_graph.o
+          sdbg/sdbg_meta.o options_description.o \
+	      ug.o sequence_manager.o local_assembler.o \
+	      assembly/unitig_graph.o assembly/sdbg_pruning.o \
+	      assembly/bubble_remover.o \
+	      asm_core.o assembler.o local_assemble.o iterate_edges.o build_read_lib.o
 
 #-------------------------------------------------------------------------------
 # CPU Applications
@@ -127,8 +129,8 @@ LIB_ASM = sdbg/sdbg_writer.o sdbg/sdbg_raw_content.o \
 megahit_sdbg_build: sdbg_builder.cpp cx1_kmer_count.o cx1_read2sdbg_s1.o cx1_read2sdbg_s2.o cx1_seq2sdbg.o options_description.o sequence_manager.o  sdbg/sdbg_writer.o sdbg/sdbg_meta.o $(DEPS)
 	$(CXX) $(CXXFLAGS) kthread.cpp sdbg_builder.cpp cx1_kmer_count.o options_description.o cx1_read2sdbg_s1.o cx1_read2sdbg_s2.o cx1_seq2sdbg.o sequence_manager.o  sdbg/sdbg_writer.o sdbg/sdbg_meta.o $(LIB) -o megahit_sdbg_build
 
-megahit_asm_core: $(LIB_ASM) $(LIB_IDBA) asm_core.o assembler.o local_assemble.o iterate_edges.o build_read_lib.o $(DEPS)
-	$(CXX) $(CXXFLAGS) asm_core.o assembler.o local_assemble.o iterate_edges.o build_read_lib.o $(LIB_IDBA) $(LIB_ASM) $(LIB) -o megahit_asm_core
+megahit_asm_core: $(LIB_ASM) $(LIB_IDBA) $(DEPS)
+	$(CXX) $(CXXFLAGS) $(LIB_IDBA) $(LIB_ASM) $(LIB) -o megahit_asm_core
 
 megahit_toolkit: $(TOOLKIT) $(DEPS)
 	$(CXX) $(CXXFLAGS) $(TOOLKIT) $(LIB) -o megahit_toolkit
