@@ -4,6 +4,51 @@
 
 #include "bubble_remover.h"
 
+namespace { // helper function
+
+double GetSimilarity(const std::string &a, const std::string &b, double min_similarity) {
+  int n = a.length();
+  int m = b.length();
+  int max_indel = std::max(n, m) * (1 - min_similarity);
+
+  if (abs(n - m) > max_indel) {
+    return 0;
+  }
+  if (max_indel < 1) {
+    return 0;
+  }
+  std::vector<int> dp[2];
+  for (int i = 0; i < 2; ++i) {
+    dp[i].resize(max_indel * 2 + 1, 0);
+  }
+
+#define IDX(j, i) ((j) - (i) + max_indel)
+
+  for (int j = 0; j <= max_indel; ++j) {
+    dp[0][IDX(j, 0)] = j;
+  }
+  for (int i = 1; i <= n; ++i) {
+    std::fill(dp[i & 1].begin(), dp[i & 1].end(), 0x3f3f3f3f);
+    if (i - max_indel <= 0) {
+      dp[i & 1][IDX(0, i)] = i;
+    }
+    for (int j = std::max(i - max_indel, 1); j <= m && j <= i + max_indel; ++j) {
+      dp[i & 1][IDX(j, i)] =
+          std::min(dp[i & 1][IDX(j, i)], dp[(i ^ 1) & 1][IDX(j - 1, i - 1)] + (a[i - 1] != b[j - 1]));
+      if (j > i - max_indel) {
+        dp[i & 1][IDX(j, i)] = std::min(dp[i & 1][IDX(j, i)], dp[i & 1][IDX(j - 1, i)] + 1);
+      }
+      if (j < i + max_indel) {
+        dp[i & 1][IDX(j, i)] = std::min(dp[i & 1][IDX(j, i)], dp[(i ^ 1) & 1][IDX(j, i - 1)] + 1);
+      }
+    }
+  }
+  return 1 - dp[n & 1][IDX(m, n)] * 1.0 / std::max(n, m);
+#undef IDX
+}
+
+}
+
 int BaseBubbleRemover::SearchAndPopBubble(UnitigGraph &graph, UnitigGraph::VertexAdapter &adapter,
                                              uint32_t max_len, const checker_type &checker) {
   UnitigGraph::VertexAdapter right;
@@ -98,45 +143,4 @@ size_t ComplexBubbleRemover::PopBubbles(UnitigGraph &graph, bool permanent_rm) {
         GetSimilarity(graph.VertexToDNAString(a), graph.VertexToDNAString(b), sim) >= sim;
   };
   return BaseBubbleRemover::PopBubbles(graph, permanent_rm, max_len, checker);
-}
-
-double ComplexBubbleRemover::GetSimilarity(const std::string &a, const std::string &b, double min_similarity) {
-  int n = a.length();
-  int m = b.length();
-  int max_indel = std::max(n, m) * (1 - min_similarity);
-
-  if (abs(n - m) > max_indel) {
-    return 0;
-  }
-  if (max_indel < 1) {
-    return 0;
-  }
-  std::vector<int> dp[2];
-  for (int i = 0; i < 2; ++i) {
-    dp[i].resize(max_indel * 2 + 1, 0);
-  }
-
-#define IDX(j, i) ((j) - (i) + max_indel)
-
-  for (int j = 0; j <= max_indel; ++j) {
-    dp[0][IDX(j, 0)] = j;
-  }
-  for (int i = 1; i <= n; ++i) {
-    std::fill(dp[i & 1].begin(), dp[i & 1].end(), 0x3f3f3f3f);
-    if (i - max_indel <= 0) {
-      dp[i & 1][IDX(0, i)] = i;
-    }
-    for (int j = std::max(i - max_indel, 1); j <= m && j <= i + max_indel; ++j) {
-      dp[i & 1][IDX(j, i)] =
-          std::min(dp[i & 1][IDX(j, i)], dp[(i ^ 1) & 1][IDX(j - 1, i - 1)] + (a[i - 1] != b[j - 1]));
-      if (j > i - max_indel) {
-        dp[i & 1][IDX(j, i)] = std::min(dp[i & 1][IDX(j, i)], dp[i & 1][IDX(j - 1, i)] + 1);
-      }
-      if (j < i + max_indel) {
-        dp[i & 1][IDX(j, i)] = std::min(dp[i & 1][IDX(j, i)], dp[(i ^ 1) & 1][IDX(j, i - 1)] + 1);
-      }
-    }
-  }
-  return 1 - dp[n & 1][IDX(m, n)] * 1.0 / std::max(n, m);
-#undef IDX
 }

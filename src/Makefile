@@ -116,12 +116,15 @@ TOOLKIT += $(TOOLS_DIR)/extract_pe_reads.cpp
 #-------------------------------------------------------------------------------
 # asm_core objectives
 #-------------------------------------------------------------------------------
+LIB_ASM_ALGO = assembly/unitig_graph.o assembly/sdbg_pruning.o \
+	           assembly/bubble_remover.o assembly/tip_remover.o \
+	           assembly/weak_link_remover.o assembly/low_depth_remover.o \
+	           assembly/contig_writer.o
 LIB_ASM = sdbg/sdbg_writer.o sdbg/sdbg_raw_content.o \
           sdbg/sdbg_meta.o options_description.o \
-	      ug.o sequence_manager.o local_assembler.o \
-	      assembly/unitig_graph.o assembly/sdbg_pruning.o \
-	      assembly/bubble_remover.o \
-	      asm_core.o assembler.o local_assemble.o iterate_edges.o build_read_lib.o
+	      sequence_manager.o local_assembler.o \
+	      asm_core.o assembler.o local_assemble.o iterate_edges.o build_read_lib.o \
+	      $(LIB_ASM_ALGO)
 
 #-------------------------------------------------------------------------------
 # CPU Applications

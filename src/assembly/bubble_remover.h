@@ -64,8 +64,6 @@ class ComplexBubbleRemover : public BaseBubbleRemover {
     return *this;
   }
   size_t PopBubbles(UnitigGraph &graph, bool permanent_rm);
- private:
-  static double GetSimilarity(const std::string &a, const std::string &b, double min_similarity);
 };
 
 #endif //MEGAHIT_BUBBLE_REMOVER_H

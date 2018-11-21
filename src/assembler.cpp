@@ -28,8 +28,8 @@
 #include "utils.h"
 #include "options_description.h"
 #include "mem_file_checker-inl.h"
-#include "ug.h"
 #include "assembly/all_algo.h"
+#include "assembly/contig_writer.h"
 #include "histgram.h"
 
 using std::string;
@@ -188,7 +188,7 @@ int main_assemble(int argc, char **argv) {
   // construct unitig graph
   timer.reset();
   timer.start();
-  UG unitig_graph(&dbg);
+  UnitigGraph unitig_graph(&dbg);
   timer.stop();
   xinfo("unitig graph size: %u, time for building: %lf\n", unitig_graph.size(), timer.elapsed());
 
@@ -208,7 +208,7 @@ int main_assemble(int argc, char **argv) {
     if (round > 1) {
       timer.reset();
       timer.start();
-      uint32_t num_tips = unitig_graph.RemoveTips(opt.max_tip_len);
+      uint32_t num_tips = RemoveTips(unitig_graph, opt.max_tip_len);
       timer.stop();
       xinfo("Tips removed: %u, time: %lf\n", num_tips, timer.elapsed());
     }
@@ -238,17 +238,17 @@ int main_assemble(int argc, char **argv) {
 
     timer.reset();
     timer.start();
-    uint32_t num_disconnected = unitig_graph.DisconnectWeakLinks(0.1);
+    uint32_t num_disconnected = DisconnectWeakLinks(unitig_graph, 0.1);
     timer.stop();
     xinfo("Number unitigs disconnected: %u, time: %lf\n", num_disconnected, timer.elapsed());
     changed |= num_disconnected > 0;
 
     // excessive pruning
-    int64_t num_removed = 0;
+    uint32_t num_removed = 0;
     if (opt.prune_level >= 3) {
       timer.reset();
       timer.start();
-      num_removed = unitig_graph.RemoveLowDepth(opt.min_depth);
+      num_removed = RemoveLowDepth(unitig_graph, opt.min_depth);
       num_removed += naiver_bubbler_remover.PopBubbles(unitig_graph, true);
       if (opt.bubble_level >= 2 && opt.merge_len > 0) {
         num_removed += complex_bubbler_remover.PopBubbles(unitig_graph, true);
@@ -259,12 +259,12 @@ int main_assemble(int argc, char **argv) {
     } else if (opt.prune_level >= 2) {
       timer.reset();
       timer.start();
-      unitig_graph.RemoveLocalLowDepth(opt.min_depth,
-                                       opt.max_tip_len,
-                                       kLocalWidth,
-                                       std::min(opt.low_local_ratio, 0.1),
-                                       num_removed,
-                                       true);
+      RemoveLocalLowDepth(unitig_graph, opt.min_depth,
+                          opt.max_tip_len,
+                          kLocalWidth,
+                          std::min(opt.low_local_ratio, 0.1),
+                          true,
+                          &num_removed);
       timer.stop();
       xinfo("Unitigs removed in excessive pruning: %lld, time: %lf\n", (long long) num_removed, timer.elapsed());
     }
@@ -282,8 +282,8 @@ int main_assemble(int argc, char **argv) {
     timer.start();
     hist.clear();
 
-    unitig_graph.OutputContigs(out_contig_file, opt.output_standalone ? out_final_contig_file : NULL,
-                               hist, false, opt.min_standalone);
+    OutputContigs(unitig_graph, out_contig_file, opt.output_standalone ? out_final_contig_file : nullptr,
+                  &hist, false, opt.min_standalone);
 
     PrintStat(hist);
 
@@ -298,20 +298,8 @@ int main_assemble(int argc, char **argv) {
 
     timer.reset();
     timer.start();
-    int64_t num_removed = 0;
-    double min_depth = opt.min_depth;
-
-    while (min_depth < kMaxMul) {
-      if (!unitig_graph.RemoveLocalLowDepth(min_depth,
-                                            opt.max_tip_len,
-                                            kLocalWidth,
-                                            opt.low_local_ratio,
-                                            num_removed,
-                                            opt.is_final_round)) {
-        break;
-      }
-      min_depth *= 1.1;
-    }
+    uint32_t num_removed = IterateLocalLowDepth(
+        unitig_graph, opt.min_depth, opt.max_tip_len, kLocalWidth, opt.low_local_ratio, opt.is_final_round);
 
     uint32_t num_complex_bubbles = 0;
     if (opt.bubble_level >= 2 && opt.merge_len > 0) {
@@ -322,20 +310,18 @@ int main_assemble(int argc, char **argv) {
           (long long) num_removed, num_complex_bubbles, timer.elapsed());
 
     hist.clear();
-
     if (!opt.is_final_round) {
-      unitig_graph.OutputContigs(out_addi_contig_file, NULL, hist, true, 0);
+      OutputContigs(unitig_graph, out_addi_contig_file, nullptr, &hist, true, 0);
     } else {
-      unitig_graph.OutputContigs(out_contig_file,
-                                 opt.output_standalone ? out_final_contig_file : NULL,
-                                 hist,
-                                 false,
-                                 opt.min_standalone);
+      OutputContigs(unitig_graph, out_contig_file,
+                    opt.output_standalone ? out_final_contig_file : nullptr,
+                    &hist,
+                    false,
+                    opt.min_standalone);
     }
 
     PrintStat(hist);
     fprintf(out_addi_contig_info, "%lld %lld\n", (long long) hist.size(), (long long) hist.sum());
-
     fclose(out_addi_contig_file);
     fclose(out_addi_contig_info);
   }
