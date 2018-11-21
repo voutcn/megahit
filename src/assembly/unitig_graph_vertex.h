@@ -47,11 +47,9 @@ class UnitigGraphVertex {
    */
   class Adapter {
    public:
-    static const uint32_t kNullID = (1U << 31) - 1;
-
     Adapter() = default;
-    Adapter(UnitigGraphVertex &vertex, int strand = 0, uint32_t id = kNullID)
-        : vertex_(&vertex), strand_(strand), id_(std::min(id, kNullID)) {}
+    Adapter(UnitigGraphVertex &vertex, int strand = 0, uint32_t id = static_cast<uint32_t>(-1))
+        : vertex_(&vertex), strand_(strand), id_(id) {}
     void ReverseComplement() { strand_ ^= 1; }
     uint32_t id() const { return id_; }
     int strand() const { return strand_; }
@@ -95,7 +93,7 @@ class UnitigGraphVertex {
   class SudoAdapter : public Adapter {
    public:
     SudoAdapter() = default;
-    SudoAdapter(UnitigGraphVertex &vertex, int strand = 0, uint32_t id = kNullID)
+    SudoAdapter(UnitigGraphVertex &vertex, int strand = 0, uint32_t id = static_cast<uint32_t>(-1))
         : Adapter(vertex, strand, id) {}
    public:
     void set_start_end(uint64_t start, uint64_t end, uint64_t rc_start, uint64_t rc_end) {

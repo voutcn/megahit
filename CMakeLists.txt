@@ -1,86 +1,39 @@
-cmake_minimum_required(VERSION 3.12)
+cmake_minimum_required(VERSION 3.10)
 project(megahit)
 
-set(CMAKE_CXX_STANDARD 14)
+set(CMAKE_CXX_STANDARD 11)
 
 include_directories(src)
-include_directories(src/lib_idba)
-include_directories(sparsepp)
-
-add_executable(megahit
-        src/lib_idba/bit_edges.h
-        src/lib_idba/contig_builder.h
-        src/lib_idba/contig_graph.cpp
-        src/lib_idba/contig_graph.h
-        src/lib_idba/contig_graph_branch_group.cpp
-        src/lib_idba/contig_graph_branch_group.h
-        src/lib_idba/contig_graph_path.h
-        src/lib_idba/contig_graph_vertex.h
-        src/lib_idba/contig_info.cpp
-        src/lib_idba/contig_info.h
-        src/lib_idba/hash_graph.cpp
-        src/lib_idba/hash_graph.h
-        src/lib_idba/hash_graph_path.h
-        src/lib_idba/hash_graph_vertex.h
-        src/lib_idba/hash_map.h
-        src/lib_idba/hash_table.h
-        src/lib_idba/kmer.h
-        src/lib_idba/pool.h
-        src/lib_idba/sequence.cpp
-        src/lib_idba/sequence.h
-        src/lib_idba/vertex_status.h
+include_directories(src/sparsepp)
+FILE(GLOB_RECURSE ASSEMBLY_SOURCE "src/assembly/*.cpp")
+FILE(GLOB_RECURSE IDBA_SOURCE "src/lib_idba/*.cpp")
+FILE(GLOB_RECURSE SDBG_SOURCE "src/sdbg/*.cpp")
+LIST(APPEND OTHER_SOURCE
         src/asm_core.cpp
         src/assembler.cpp
-        src/assembly_algorithms.cpp
-        src/assembly_algorithms.h
-        src/bit_operation.h
         src/build_read_lib.cpp
-        src/cx1.h
-        src/cx1_kmer_count.cpp
-        src/cx1_kmer_count.h
-        src/cx1_read2sdbg.h
-        src/cx1_read2sdbg_s1.cpp
-        src/cx1_read2sdbg_s2.cpp
-        src/cx1_seq2sdbg.cpp
-        src/cx1_seq2sdbg.h
-        src/definitions.h
-        src/edge_io.h
-        src/functional.h
-        src/hash.h
-        src/histgram.h
         src/iterate_edges.cpp
-        src/kmer.h
-        src/kmer_plus.h
-        src/kseq.h
-        src/kthread.cpp
-        src/lib_info.h
         src/local_assemble.cpp
         src/local_assembler.cpp
-        src/local_assembler.h
-        src/lv2_cpu_sort.h
-        src/safe_alloc_open-inl.h
         src/options_description.cpp
-        src/options_description.h
-        src/packed_reads.h
-        src/read_lib_functions-inl.h
-        src/sdbg_builder.cpp
         src/sequence_manager.cpp
-        src/sequence_manager.h
-        src/sequence_package.h
-        src/utils.h
-        tools/binary-edge-2-ascii.cpp
-        tools/compare-kmer-fasta.cpp
-        tools/contigs_to_fastg.cpp
-        tools/count-uniq-kmer.cpp
-        tools/count_kmer_coverage.cpp
-        tools/extract_pe_reads.cpp
-        tools/filter_by_len.cpp
-        tools/read_stat.cpp
-        tools/toolkit.cpp
-        tools/trim_low_qual_tail.cpp
-        src/kmlib/kmbitvector.h
-        src/kmlib/kmrns.h
-        src/kmlib/kmbit.h
-        src/kmlib/kmsort.h
-        src/kmlib/kmthread.h
-        src/sequence/kmer.h src/sequence/kmer_plus.h src/sdbg/sdbg_meta.h src/kmlib/kmcompactvector.h src/kmlib/test_compactvector.cpp src/sdbg/sdbg_def.h src/sdbg/sdbg_meta.cpp src/sdbg/sdbg_raw_content.h src/sdbg/sdbg_raw_content.cpp src/sdbg/sdbg.h src/sdbg/sdbg_writer.h src/sdbg/sdbg_writer.cpp src/utils/buffered_reader.h src/sdbg/sdbg_item.h src/kmlib/test_kmbit.cpp src/assembly/unitig_graph.h src/assembly/unitig_graph.cpp src/assembly/unitig_graph_vertex.h src/assembly/bubble_remover.cpp src/assembly/bubble_remover.h src/assembly/contig_writer.h src/assembly/all_algo.h src/assembly/tip_remover.h src/assembly/tip_remover.cpp src/assembly/weak_link_remover.cpp src/assembly/weak_link_remover.h src/assembly/low_depth_remover.cpp src/assembly/low_depth_remover.h src/assembly/contig_writer.cpp src/assembly/contig_stat.h)
+        )
+
+find_package(ZLIB REQUIRED)
+find_package(Threads REQUIRED)
+find_package(OpenMP REQUIRED)
+
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${OpenMP_CXX_FLAGS}")
+set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} ${OpenMP_EXE_LINKER_FLAGS}")
+
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -DXXH_INLINE_ALL -D__STDC_FORMAT_MACROS")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Wno-unused-function -funroll-loops -fprefetch-loop-arrays")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -mpopcnt -mbmi2")
+
+set(CMAKE_CXX_FLAGS_DEBUG "-g -O1")
+
+message(STATUS "Build type: ${CMAKE_BUILD_TYPE}: ${CMAKE_CXX_FLAGS}")
+set(CMAKE_VERBOSE_MAKEFILE ON)
+
+add_executable(megahit_asm_core ${OTHER_SOURCE} ${ASSEMBLY_SOURCE} ${IDBA_SOURCE} ${SDBG_SOURCE})
+target_link_libraries(megahit_asm_core ${ZLIB_LIBRARIES} ${CMAKE_THREAD_LIBS_INIT})

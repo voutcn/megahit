@@ -23,7 +23,6 @@
 
 #include <stdlib.h>
 #include <stdio.h>
-#include <assert.h>
 #include <stdint.h>
 #include <inttypes.h>
 #include <iostream>
@@ -57,27 +56,23 @@ inline void ReadMultipleLibs(const std::string &lib_file, SequencePackage &packa
     lib_info.clear();
 
     while (std::getline(lib_config, metadata)) {
-        assert(lib_config >> type);
-
+        lib_config >> type;
         if (type == "pe") {
-            assert(lib_config >> file_name1 >> file_name2);
-
+            lib_config >> file_name1 >> file_name2;
             seq_manager.set_readlib_type(SequenceManager::kPaired);
             seq_manager.set_file_type(SequenceManager::kFastxReads);
             seq_manager.set_pe_files(file_name1, file_name2);
 
         }
         else if (type == "se") {
-            assert(lib_config >> file_name1);
-
+            lib_config >> file_name1;
             seq_manager.set_readlib_type(SequenceManager::kSingle);
             seq_manager.set_file_type(SequenceManager::kFastxReads);
             seq_manager.set_file(file_name1);
 
         }
         else if (type == "interleaved") {
-            assert(lib_config >> file_name1);
-
+            lib_config >> file_name1;
             seq_manager.set_readlib_type(SequenceManager::kInterleaved);
             seq_manager.set_file_type(SequenceManager::kFastxReads);
             seq_manager.set_file(file_name1);
@@ -142,31 +137,24 @@ inline void ReadAndWriteMultipleLibs(const std::string &lib_file, bool is_revers
     lib_info.clear();
 
     while (std::getline(lib_config, metadata)) {
-        assert(lib_config >> type);
-
+        lib_config >> type;
         if (type == "pe") {
-            assert(lib_config >> file_name1 >> file_name2);
-
+            lib_config >> file_name1 >> file_name2;
             seq_manager.set_readlib_type(SequenceManager::kPaired);
             seq_manager.set_file_type(SequenceManager::kFastxReads);
             seq_manager.set_pe_files(file_name1, file_name2);
-
         }
         else if (type == "se") {
-            assert(lib_config >> file_name1);
-
+            lib_config >> file_name1;
             seq_manager.set_readlib_type(SequenceManager::kSingle);
             seq_manager.set_file_type(SequenceManager::kFastxReads);
             seq_manager.set_file(file_name1);
-
         }
         else if (type == "interleaved") {
-            assert(lib_config >> file_name1);
-
+            lib_config >> file_name1;
             seq_manager.set_readlib_type(SequenceManager::kInterleaved);
             seq_manager.set_file_type(SequenceManager::kFastxReads);
             seq_manager.set_file(file_name1);
-
         }
         else {
             xerr("Cannot identify read library type %s\n", type.c_str());
@@ -227,7 +215,7 @@ inline void ReadAndWriteMultipleLibs(const std::string &lib_file, bool is_revers
 
 inline void GetBinaryLibSize(const std::string &file_prefix, int64_t &total_bases, int64_t &num_reads) {
     std::ifstream lib_info_file(file_prefix + ".lib_info");
-    assert(lib_info_file >> total_bases >> num_reads);
+    lib_info_file >> total_bases >> num_reads;
 }
 
 inline void ReadBinaryLibs(const std::string &file_prefix, SequencePackage &package, std::vector<lib_info_t> &lib_info,
@@ -238,11 +226,11 @@ inline void ReadBinaryLibs(const std::string &file_prefix, SequencePackage &pack
     int64_t total_bases, num_reads;
     std::string metadata, pe_or_se;
 
-    assert(lib_info_file >> total_bases >> num_reads);
+    lib_info_file >> total_bases >> num_reads;
     std::getline(lib_info_file, metadata); // eliminate the "\n"
 
     while (std::getline(lib_info_file, metadata)) {
-        assert(lib_info_file >> start >> end >> max_read_len >> pe_or_se);
+        lib_info_file >> start >> end >> max_read_len >> pe_or_se;
         lib_info.push_back(lib_info_t(&package, start, end, max_read_len, pe_or_se == "pe", metadata));
         std::getline(lib_info_file, metadata); // eliminate the "\n"
     }

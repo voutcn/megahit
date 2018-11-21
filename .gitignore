@@ -36,3 +36,5 @@ src/megahit_toolkit
 src/example/megahit_out
 cmake-build-debug
 .idea
+
+build

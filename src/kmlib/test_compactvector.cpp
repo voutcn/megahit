@@ -6,7 +6,7 @@
 
 #include <iostream>
 
-template <uint8_t BaseSize>
+template <unsigned BaseSize>
 void print_v(const kmlib::CompactVector<BaseSize> &v) {
   std::cout << v.size() << ", " << v.capacity() << ": ";
   for (size_t i = 0; i < v.size(); ++i) {

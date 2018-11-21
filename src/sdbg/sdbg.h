@@ -143,7 +143,7 @@ class SDBG {
    * @param seq the sequence encoded in [0-3]
    * @return the index of the sequence in the graph, kNullID if not exists
    */
-  int64_t IndexBinarySearch(const uint8_t *seq) const {
+  uint64_t IndexBinarySearch(const uint8_t *seq) const {
     uint64_t prefix = 0;
     for (uint64_t i = 0; (1u << (i * kBitsPerChar)) < prefix_look_up_.size(); ++i) {
       prefix = prefix * kAlphabetSize + seq[k_ - 1 - i] - 1;
@@ -427,7 +427,7 @@ class SDBG {
     }
 
     uint8_t seq[kMaxK + 1];
-    assert(k_ == Label(edge_id, seq));
+    Label(edge_id, seq);
     seq[k_] = GetW(edge_id);
 
     if (seq[k_] > kAlphabetSize) {
@@ -441,8 +441,8 @@ class SDBG {
       seq[i] = kAlphabetSize + 1 - seq[i];
     }
 
-    int64_t rev_node = IndexBinarySearch(seq);
-    if (rev_node == -1) return -1;
+    uint64_t rev_node = IndexBinarySearch(seq);
+    if (rev_node == kNullID) return kNullID;
     do {
       uint8_t edge_label = GetW(rev_node);
       if (edge_label == seq[k_] || edge_label - kAlphabetSize == seq[k_]) {

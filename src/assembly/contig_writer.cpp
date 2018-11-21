@@ -20,6 +20,7 @@ static inline char Complement(char c) {
     case 'T': return 'A';
     default: assert(false);
   }
+  return 0;
 }
 
 static inline void ReverseComplement(std::string &s) {

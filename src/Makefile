@@ -76,7 +76,7 @@ endif
 STANDALONE_H = kmlib/kmrns.h kmer_plus.h kmer.h lib_info.h \
 			   bit_operation.h \
 			   kseq.h packed_reads.h sequence_package.h \
-			   utils.h mem_file_checker-inl.h read_lib_functions-inl.h \
+			   utils.h safe_alloc_open-inl.h read_lib_functions-inl.h \
 			   edge_io.h histgram.h definitions.h lv2_cpu_sort.h \
 			   cx1.h
 
