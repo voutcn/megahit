@@ -165,8 +165,6 @@ int main_assemble(int argc, char **argv) {
     complex_bubble_remover.set_careful_threshold(0.2).set_bubble_file(bubble_file).set_hist(bubble_hist);
   }
 
-  ContigStat stat;
-
   // graph cleaning for 5 rounds
   for (int round = 1; round <= 5; ++round) {
     bool changed = false;
@@ -186,7 +184,6 @@ int main_assemble(int argc, char **argv) {
       timer.stop();
       xinfo("Number of bubbles removed: %u, Time elapsed(sec): %lf\n",
             num_bubbles, timer.elapsed());
-      stat = CalcAndPrintStat(graph);
       changed |= num_bubbles > 0;
     }
     // remove complex bubbles
@@ -236,9 +233,10 @@ int main_assemble(int argc, char **argv) {
             num_excessive_pruned,
             timer.elapsed());
     }
-    stat = CalcAndPrintStat(graph);
     if (!changed) break;
   }
+
+  ContigStat stat = CalcAndPrintStat(graph);
 
   // output contigs
   FILE *contig_file = xfopen(opt.contig_file().c_str(), "w");

@@ -7,19 +7,15 @@
 #include <mutex>
 #include "utils.h"
 
-#ifdef DEBUG
-
-std::atomic<uint64_t> UnitigGraph::count_cache_used(0);
-std::atomic<uint64_t> UnitigGraph::count_cache_missed(0);
+#ifndef NDEBUG
+std::atomic<uint64_t> UnitigGraph::count_cache_hitted_(0);
+std::atomic<uint64_t> UnitigGraph::count_cache_missed_(0);
 
 UnitigGraph::~UnitigGraph() {
-  xinfo("Cache called/missed: %lu/%lu\n", count_cache_used.load(), count_cache_missed.load());
+  xinfo("Cache called/missed: %lu/%lu\n", count_cache_hitted_.load(), count_cache_missed_.load());
 }
-
 #else
-
 UnitigGraph::~UnitigGraph() {}
-
 #endif
 
 UnitigGraph::UnitigGraph(SDBG *sdbg)
@@ -29,8 +25,6 @@ UnitigGraph::UnitigGraph(SDBG *sdbg)
   std::mutex path_lock;
   locks_.reset(sdbg_->size());
   size_t count_palindrome = 0;
-  xinfo("aha: %lu, valid: %d\n", sdbg_->EdgeReverseComplement(37650525), sdbg_->IsValidEdge(37650525));
-  xinfo("aha: %lu, valid: %d\n", sdbg_->EdgeReverseComplement(75301057), sdbg_->IsValidEdge(75301057));
   // assemble simple paths
 #pragma omp parallel for reduction(+: count_palindrome)
   for (size_t edge_idx = 0; edge_idx < sdbg_->size(); ++edge_idx) {
@@ -59,13 +53,6 @@ UnitigGraph::UnitigGraph(SDBG *sdbg)
       uint64_t rc_start = sdbg_->EdgeReverseComplement(edge_idx);
       uint64_t rc_end;
       assert(rc_start != SDBG::kNullID);
-
-      if (edge_idx >= locks_.size()) {
-        xfatal("%lu %lu\n", edge_idx, locks_.size());
-      }
-      if (rc_start > sdbg_->size()) {
-        xfatal("%lu %lu\n", rc_start, edge_idx);
-      }
 
       if (!locks_.try_lock(rc_start)) {
         rc_end = sdbg_->EdgeReverseComplement(cur_edge);

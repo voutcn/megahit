@@ -116,13 +116,13 @@ class UnitigGraph {
     }
     int OutDegree(AdapterType &adapter) {
       if (adapter.cached_out_degree() != Vertex::kUnknownDegree) {
-#ifdef DEBUG
-        count_cache_used++;
+#ifndef NDEBUG
+        count_cache_hitted_++;
 #endif
         return adapter.cached_out_degree();
       }
-#ifdef DEBUG
-      count_cache_missed++;
+#ifndef NDEBUG
+      count_cache_missed_++;
 #endif
       return GetNextAdapters(adapter, nullptr);
     }
@@ -167,10 +167,10 @@ class UnitigGraph {
   AdapterImpl<VertexAdapter> adapter_impl_;
   AdapterImpl<SudoVertexAdapter> sudo_adapter_impl_;
 
-#ifdef DEBUG
+#ifndef NDEBUG
  private:
-  static std::atomic<uint64_t> count_cache_used;
-  static std::atomic<uint64_t> count_cache_missed;
+  static std::atomic<uint64_t> count_cache_hitted_;
+  static std::atomic<uint64_t> count_cache_missed_;
 #endif
 };
 
