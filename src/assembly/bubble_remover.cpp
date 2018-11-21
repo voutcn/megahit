@@ -120,6 +120,9 @@ size_t BaseBubbleRemover::PopBubbles(UnitigGraph &graph, bool permanent_rm,
 #pragma omp parallel for reduction(+: num_removed)
   for (UnitigGraph::size_type i = 0; i < graph.size(); ++i) {
     UnitigGraph::VertexAdapter adapter = graph.MakeVertexAdapter(i);
+    if (adapter.forsure_standalone()) {
+      continue;
+    }
     for (int strand = 0; strand < 2; ++strand, adapter.ReverseComplement()) {
       num_removed += SearchAndPopBubble(graph, adapter, max_len, checker);
     }

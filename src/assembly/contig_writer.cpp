@@ -69,12 +69,12 @@ void OutputContigs(UnitigGraph &graph, FILE *contig_file, FILE *final_file,
     }
 
     if (adapter.is_loop()) {
-      int flag = contig_flag::kLoop | contig_flag::kIsolated;
+      int flag = contig_flag::kLoop | contig_flag::kStandalone;
       FILE *out_file = contig_file;
 
       if (adapter.is_palindrome()) {
         FoldPalindrome(label, graph.k(), adapter.is_loop());
-        flag = contig_flag::kIsolated;
+        flag = contig_flag::kStandalone;
       }
 
       if (final_file != nullptr) {
@@ -89,11 +89,11 @@ void OutputContigs(UnitigGraph &graph, FILE *contig_file, FILE *final_file,
       FILE *out_file = contig_file;
       int flag = 0;
 
-      if (graph.InDegree(adapter) == 0 && graph.OutDegree(adapter) == 0) {
+      if (adapter.forsure_standalone() || (graph.InDegree(adapter) == 0 && graph.OutDegree(adapter) == 0)) {
         if (adapter.is_palindrome()) {
           FoldPalindrome(label, graph.k(), adapter.is_loop());
         }
-        flag = contig_flag::kIsolated;
+        flag = contig_flag::kStandalone;
         if (final_file != nullptr) {
           if (label.length() < min_standalone) {
             continue;

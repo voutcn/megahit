@@ -45,7 +45,7 @@ bool RemoveLocalLowDepth(UnitigGraph &graph, double min_depth, uint32_t max_len,
 #pragma omp parallel for reduction(+: removed)
   for (UnitigGraph::size_type i = 0; i < graph.size(); ++i) {
     auto adapter = graph.MakeVertexAdapter(i);
-    if (adapter.length() > max_len) {
+    if (adapter.forsure_standalone() || adapter.length() > max_len) {
       continue;
     }
     int indegree = graph.InDegree(adapter);

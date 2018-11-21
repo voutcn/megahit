@@ -38,7 +38,7 @@ static const int kEdgeCharMask = 0x3;
 
 namespace contig_flag {
 
-static const int kIsolated = 0x1;
+static const int kStandalone = 0x1;
 static const int kLoop = 0x2;
 
 }

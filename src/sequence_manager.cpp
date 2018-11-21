@@ -302,7 +302,7 @@ int64_t SequenceManager::ReadMegahitContigs(int64_t max_num, int64_t max_num_bas
         int discard_flag, bool extend_loop, bool calc_depth) {
     assert(f_type == kMegahitContigs);
     assert(!(calc_depth && multi_ == NULL));
-    assert(!((discard_flag & (contig_flag::kLoop | contig_flag::kIsolated)) && extend_loop)); // loop must be isolated
+    assert(!((discard_flag & (contig_flag::kLoop | contig_flag::kStandalone)) && extend_loop)); // loop must be isolated
 
     if (!append) {
         if (multi_ != NULL) {

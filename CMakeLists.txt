@@ -5,7 +5,7 @@ set(CMAKE_CXX_STANDARD 11)
 
 include_directories(src)
 include_directories(src/sparsepp)
-FILE(GLOB_RECURSE ASSEMBLY_SOURCE "src/assembly/*.cpp")
+FILE(GLOB_RECURSE ASMBL_SOURCE "src/assembly/*.cpp")
 FILE(GLOB_RECURSE IDBA_SOURCE "src/lib_idba/*.cpp")
 FILE(GLOB_RECURSE SDBG_SOURCE "src/sdbg/*.cpp")
 LIST(APPEND OTHER_SOURCE
@@ -35,5 +35,5 @@ set(CMAKE_CXX_FLAGS_DEBUG "-g -O1")
 message(STATUS "Build type: ${CMAKE_BUILD_TYPE}: ${CMAKE_CXX_FLAGS}")
 set(CMAKE_VERBOSE_MAKEFILE ON)
 
-add_executable(megahit_asm_core ${OTHER_SOURCE} ${ASSEMBLY_SOURCE} ${IDBA_SOURCE} ${SDBG_SOURCE})
+add_executable(megahit_asm_core ${OTHER_SOURCE} ${ASMBL_SOURCE} ${IDBA_SOURCE} ${SDBG_SOURCE})
 target_link_libraries(megahit_asm_core ${ZLIB_LIBRARIES} ${CMAKE_THREAD_LIBS_INIT})

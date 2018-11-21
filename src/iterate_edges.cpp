@@ -177,7 +177,7 @@ static void *ReadContigsThread(void *seq_manager) {
     int64_t kMaxNumBases = 1 << 28;
     bool append = false;
     bool reverse = false;
-    int discard_flag = contig_flag::kLoop | contig_flag::kIsolated;
+    int discard_flag = contig_flag::kLoop | contig_flag::kStandalone;
     bool extend_loop = false;
     bool calc_depth = false;
     sm->ReadMegahitContigs(kMaxNumContigs, kMaxNumBases, append, reverse, discard_flag, extend_loop, calc_depth);

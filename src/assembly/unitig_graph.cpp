@@ -171,6 +171,9 @@ void UnitigGraph::RefreshDisconnected() {
       assert(new_start != SDBG::kNullID && new_rc_end != SDBG::kNullID);
       sdbg_->SetInvalidEdge(old_start);
       sdbg_->SetInvalidEdge(old_rc_end);
+      adapter.ReverseComplement();
+      adapter.set_cached_outdegree(0);
+      adapter.ReverseComplement();
     } else {
       new_start = old_start;
       new_rc_end = old_rc_end;
@@ -182,6 +185,7 @@ void UnitigGraph::RefreshDisconnected() {
       assert(new_rc_start != SDBG::kNullID && new_end != SDBG::kNullID);
       sdbg_->SetInvalidEdge(old_rc_start);
       sdbg_->SetInvalidEdge(old_end);
+      adapter.set_cached_outdegree(0);
     } else {
       new_rc_start = old_rc_start;
       new_end = old_end;
@@ -232,7 +236,9 @@ void UnitigGraph::Refresh(bool set_changed) {
   }
 #pragma omp parallel for
   for (size_type i = 0; i < vertices_.size(); ++i) {
-    MakeSudoAdapter(i).clear_cache();
+    auto adapter = MakeSudoAdapter(i);
+    if (!adapter.forsure_standalone())
+      MakeSudoAdapter(i).clear_cache();
   }
 
   locks_.reset();

@@ -23,7 +23,7 @@ inline ContigStat CalcAndPrintStat(UnitigGraph &graph, bool print = true, bool c
     }
     hist.insert(adapter.length() + graph.k());
     n_looped += adapter.is_loop();
-    n_isolated += graph.InDegree(adapter) == 0 && graph.OutDegree(adapter) == 0;
+    n_isolated += adapter.forsure_standalone() || (graph.InDegree(adapter) == 0 && graph.OutDegree(adapter) == 0);
   }
   uint64_t total_size = hist.sum();
   ContigStat stat = {
@@ -45,6 +45,5 @@ inline ContigStat CalcAndPrintStat(UnitigGraph &graph, bool print = true, bool c
   }
   return stat;
 }
-
 
 #endif //MEGAHIT_CONTIG_STAT_H

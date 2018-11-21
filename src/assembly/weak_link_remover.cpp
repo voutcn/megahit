@@ -10,7 +10,7 @@ uint32_t DisconnectWeakLinks(UnitigGraph &graph, double local_ratio = 0.1) {
 #pragma omp parallel for reduction(+: num_disconnected)
   for (UnitigGraph::size_type i = 0; i < graph.size(); ++i) {
     auto adapter = graph.MakeVertexAdapter(i);
-    if (adapter.is_loop() || adapter.is_palindrome()) {
+    if (adapter.forsure_standalone() || adapter.is_palindrome()) {
       continue;
     }
     for (int strand = 0; strand < 2; ++strand, adapter.ReverseComplement()) {

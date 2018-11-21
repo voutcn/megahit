@@ -14,19 +14,23 @@ uint32_t RemoveTips(UnitigGraph &graph, uint32_t max_tip_len) {
       if (adapter.length() >= thre) {
         continue;
       }
-      UnitigGraph::VertexAdapter nexts[4], prevs[4];
-      int outd = graph.GetNextAdapters(adapter, nexts);
-      int ind = graph.GetPrevAdapters(adapter, prevs);
-
-      if (ind + outd == 0) {
+      if (adapter.forsure_standalone()) {
         adapter.MarkToDelete();
-      } else if (outd == 1 && ind == 0) {
-        if (nexts[0].avg_depth() > 8 * adapter.avg_depth()) {
+      } else {
+        UnitigGraph::VertexAdapter nexts[4], prevs[4];
+        int outd = graph.GetNextAdapters(adapter, nexts);
+        int ind = graph.GetPrevAdapters(adapter, prevs);
+
+        if (ind + outd == 0) {
           adapter.MarkToDelete();
-        }
-      } else if (outd == 0 && ind == 1) {
-        if (prevs[0].avg_depth() > 8 * adapter.avg_depth()) {
-          adapter.MarkToDelete();
+        } else if (outd == 1 && ind == 0) {
+          if (nexts[0].avg_depth() > 8 * adapter.avg_depth()) {
+            adapter.MarkToDelete();
+          }
+        } else if (outd == 0 && ind == 1) {
+          if (prevs[0].avg_depth() > 8 * adapter.avg_depth()) {
+            adapter.MarkToDelete();
+          }
         }
       }
       num_removed += adapter.is_to_delete();
