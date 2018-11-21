@@ -9,6 +9,9 @@
 
 namespace assembly {
 
+std::atomic<uint64_t> UnitigGraph::count_cache_used(0);
+std::atomic<uint64_t> UnitigGraph::count_cache_missed(0);
+
 UnitigGraph::UnitigGraph(SuccinctDBG *sdbg)
     : sdbg_(sdbg), adapter_impl_(this), sudo_adapter_impl_(this) {
   id_map_.clear();
@@ -181,8 +184,9 @@ void UnitigGraph::RefreshDisconnected() {
 
     uint32_t new_length = adapter.length() - to_disconnect - rc_to_disconnect;
     uint64_t new_total_depth = adapter.avg_depth() * new_length + 0.5;
-    vertices_[i] = UnitigGraphVertex(new_start, new_end, new_rc_start, new_rc_end,
-                                     new_total_depth, new_length);
+    adapter.set_start_end(new_start, new_end, new_rc_start, new_rc_end);
+    adapter.set_length(new_length);
+    adapter.set_total_depth(new_total_depth);
 
     std::lock_guard<std::mutex> lk(mutex);
     if (to_disconnect) {
@@ -250,7 +254,7 @@ void UnitigGraph::Refresh(bool set_changed) {
         break;
       }
 
-      size_type back_id = GetVertexID(linear_path.back());
+      size_type back_id = linear_path.back().id();
       if (back_id != i && !locks_.try_lock(back_id)) {
         if (back_id > i) {
           locks_.unlock(i);
@@ -267,7 +271,8 @@ void UnitigGraph::Refresh(bool set_changed) {
       for (auto &v: linear_path) {
         new_length += v.length();
         new_total_depth += v.total_depth();
-        v.set_flag(kDeleted);
+        if (v.rep_id() != adapter.rep_id())
+          v.set_flag(kDeleted);
       }
 
       auto new_start = adapter.begin();
@@ -294,25 +299,26 @@ void UnitigGraph::Refresh(bool set_changed) {
         continue;
       }
 
-      SudoVertexAdapter next_adapter = adapter;
       uint32_t length = adapter.length();
       uint64_t total_depth = adapter.total_depth();
+      SudoVertexAdapter next_adapter = adapter;
       while ((next_adapter = NextSimplePathAdapter(next_adapter)).begin() != adapter.begin()) {
         next_adapter.set_flag(kDeleted);
         length += next_adapter.length();
         total_depth += next_adapter.total_depth();
       }
 
-      auto prev_adapter = PrevSimplePathAdapter(adapter);
       auto new_start = adapter.begin();
-      auto new_end = prev_adapter.end();
-      auto new_rc_start = prev_adapter.rbegin();
+      auto new_end = sdbg_->PrevSimplePathEdge(new_start);
       auto new_rc_end = adapter.rend();
+      auto new_rc_start = sdbg_->NextSimplePathEdge(new_rc_end);
+      assert(new_start == sdbg_->EdgeReverseComplement(new_rc_end));
+      assert(new_end == sdbg_->EdgeReverseComplement(new_rc_start));
 
       adapter.set_start_end(new_start, new_end, new_rc_start, new_rc_end);
       adapter.set_length(length);
       adapter.set_total_depth(total_depth);
-      adapter.set_loop();
+      adapter.set_looped();
       if (set_changed) adapter.set_changed();
     }
   }
@@ -323,12 +329,15 @@ void UnitigGraph::Refresh(bool set_changed) {
           [](UnitigGraphVertex &a) { return SudoVertexAdapter(a).flag() & kDeleted; }
       ) - vertices_.begin());
 
-#pragma omp parallel for
+  size_type num_changed = 0;
+#pragma omp parallel for reduction(+: num_changed)
   for (size_type i = 0; i < vertices_.size(); ++i) {
     auto adapter = MakeSudoAdapter(i);
+    assert(adapter.is_loop() || adapter.flag());
     adapter.set_flag(0);
     id_map_.at(adapter.begin()) = i;
     id_map_.at(adapter.rbegin()) = i;
+    num_changed += adapter.is_changed();
   }
 }
 

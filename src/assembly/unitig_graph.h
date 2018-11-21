@@ -8,6 +8,7 @@
 #include <limits>
 #include <deque>
 #include <kmlib/kmbitvector.h>
+#include "utils.h"
 #include "unitig_graph_vertex.h"
 #include "sdbg/sdbg.h"
 #include "sparsepp/sparsepp/spp.h"
@@ -26,7 +27,9 @@ class UnitigGraph {
   explicit UnitigGraph(SuccinctDBG *sdbg);
   UnitigGraph(const UnitigGraph &) = delete;
   UnitigGraph(const UnitigGraph &&) = delete;
-  ~UnitigGraph() = default;
+  ~UnitigGraph() {
+    xinfo("Cache called/missed: %lu/%lu\n", count_cache_used.load(), count_cache_missed.load());
+  }
   size_type size() const { return vertices_.size(); }
   size_t k() const { return sdbg_->k(); }
 
@@ -51,12 +54,6 @@ class UnitigGraph {
   }
   int InDegree(VertexAdapter &adapter) {
     return adapter_impl_.InDegree(adapter);
-  }
-  VertexAdapter NextSimplePathAdapter(VertexAdapter &adapter) {
-    return adapter_impl_.NextSimplePathAdapter(adapter);
-  }
-  VertexAdapter PrevSimplePathAdapter(VertexAdapter &adapter) {
-    return adapter_impl_.PrevSimplePathAdapter(adapter);
   }
 
  private:
@@ -85,10 +82,6 @@ class UnitigGraph {
   SudoVertexAdapter PrevSimplePathAdapter(SudoVertexAdapter &adapter) {
     return sudo_adapter_impl_.PrevSimplePathAdapter(adapter);
   }
-  size_type GetVertexID(const VertexAdapter &adapter) {
-    if (adapter.id() != VertexAdapter::kNullID) return adapter.id();
-    return id_map_.at(adapter.begin());
-  }
 
  private:
   /**
@@ -96,9 +89,9 @@ class UnitigGraph {
    * @tparam AdapterType type of the vertex adapter
    */
   template<class AdapterType>
-  class Impl {
+  class AdapterImpl {
    public:
-    Impl(UnitigGraph *graph) : graph_(graph) {}
+    AdapterImpl(UnitigGraph *graph) : graph_(graph) {}
    public:
     AdapterType MakeVertexAdapter(size_type id, int strand = 0) {
       return {graph_->vertices_[id], strand, id};
@@ -111,10 +104,8 @@ class UnitigGraph {
           out[i] = MakeVertexAdapterWithSdbgId(next_starts[i]);
         }
       }
-      if (adapter.cached_out_degree() == Vertex::kUnknownDegree &&
-          adapter.id() != VertexAdapter::kNullID) {
-        auto sudo_adapter = graph_->MakeSudoAdapter(adapter.id(), adapter.strand());
-        sudo_adapter.set_cached_outdegree(degree);
+      if (adapter.cached_out_degree() == Vertex::kUnknownDegree) {
+        graph_->MakeSudoAdapter(adapter.id(), adapter.strand()).set_cached_outdegree(degree);
       }
       return degree;
     }
@@ -129,8 +120,10 @@ class UnitigGraph {
     }
     int OutDegree(AdapterType &adapter) {
       if (adapter.cached_out_degree() != Vertex::kUnknownDegree) {
+        count_cache_used++;
         return adapter.cached_out_degree();
       }
+      count_cache_missed++;
       return GetNextAdapters(adapter, nullptr);
     }
     int InDegree(AdapterType &adapter) {
@@ -171,8 +164,12 @@ class UnitigGraph {
   std::deque<UnitigGraphVertex> vertices_;
   spp::sparse_hash_map<uint64_t, size_type> id_map_;
   kmlib::AtomicBitVector<> locks_;
-  Impl<VertexAdapter> adapter_impl_;
-  Impl<SudoVertexAdapter> sudo_adapter_impl_;
+  AdapterImpl<VertexAdapter> adapter_impl_;
+  AdapterImpl<SudoVertexAdapter> sudo_adapter_impl_;
+
+ private:
+  static std::atomic<uint64_t> count_cache_used;
+  static std::atomic<uint64_t> count_cache_missed;
 };
 }
 

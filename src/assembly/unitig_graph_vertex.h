@@ -6,6 +6,7 @@
 #define MEGAHIT_UNITIG_GRAPH_VERTEX_H
 
 #include <cstdint>
+#include <atomic>
 #include <algorithm>
 
 /**
@@ -18,7 +19,7 @@ class UnitigGraphVertex {
   UnitigGraphVertex(uint64_t begin, uint64_t end, uint64_t rbegin, uint64_t rend,
                     uint64_t total_depth, uint32_t length, bool is_loop = false)
       : strand_info{{begin, end}, {rbegin, rend}},
-        length(length), total_depth(total_depth), is_loop(is_loop), is_palindrome(begin == rbegin),
+        length(length), total_depth(total_depth), is_looped(is_loop), is_palindrome(begin == rbegin),
         is_changed(false), is_deleted(false), to_delete(false), flag(0) {}
  private:
   struct StrandInfo {
@@ -31,7 +32,7 @@ class UnitigGraphVertex {
   StrandInfo strand_info[2];
   uint32_t length{};
   uint64_t total_depth : 51;
-  bool is_loop: 1;
+  bool is_looped: 1;
   bool is_palindrome: 1;
   // status
   bool is_changed: 1;
@@ -58,7 +59,7 @@ class UnitigGraphVertex {
     uint32_t length() const { return vertex_->length; }
     uint64_t total_depth() const { return vertex_->total_depth; }
     double avg_depth() const { return static_cast<double>(vertex_->total_depth) / vertex_->length; }
-    bool is_loop() const { return vertex_->is_loop; }
+    bool is_loop() const { return vertex_->is_looped; }
     bool is_palindrome() const { return vertex_->is_palindrome; }
     bool is_to_delete() const { return vertex_->to_delete; }
     bool is_changed() const { return vertex_->is_changed; }
@@ -111,16 +112,19 @@ class UnitigGraphVertex {
     void set_cached_outdegree(uint8_t degree) {
       strand_info().cached_out_degree = degree;
     }
-    void set_loop() {
-      vertex_->is_loop = true;
+    void set_looped() {
+      vertex_->is_looped = true;
     }
     void clear_cache() {
-      strand_info(0).cached_out_degree = strand_info(1).cached_out_degree = 0;
+      strand_info(0).cached_out_degree = strand_info(1).cached_out_degree = kUnknownDegree;
     }
     uint8_t flag() const { return vertex_->flag; }
     void set_flag(uint8_t flag) { vertex_->flag = flag; }
     void set_changed() { vertex_->is_changed = true; }
   };
 };
+
+//static_assert(sizeof(UnitigGraphVertex) <= 44, "");
+//static_assert(sizeof(UnitigGraphVertex::Adapter) <= sizeof(UnitigGraphVertex*) + sizeof(uint32_t), "");
 
 #endif //MEGAHIT_UNITIG_GRAPH_VERTEX_H

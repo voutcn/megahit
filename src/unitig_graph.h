@@ -71,7 +71,7 @@ class UnitigGraph : public assembly::UnitigGraph {
       uint32_t max_bubble_len,
       double careful_threshold,
       const std::function<bool(const VertexAdapter &, const VertexAdapter &)> &check_mergable);
-  double LocalDepth(size_type id, uint32_t local_width);
+  double LocalDepth(VertexAdapter &adapter, uint32_t local_width);
 };
 
 #endif // UNITIG_GRAPH_H_

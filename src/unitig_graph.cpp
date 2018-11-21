@@ -244,7 +244,7 @@ bool UnitigGraph::RemoveLocalLowDepth(double min_depth,
       double depth = adapter.avg_depth();
       if (is_changed && depth > min_depth)
         continue;
-      double mean = LocalDepth(i, local_width);
+      double mean = LocalDepth(adapter, local_width);
       double threshold = min_depth;
 
       if (min_depth < mean * local_ratio)
@@ -265,12 +265,10 @@ bool UnitigGraph::RemoveLocalLowDepth(double min_depth,
     bool set_changed = !permanent_rm;
     Refresh(set_changed);
   }
-  num_removed += num_removed;
   return is_changed;
 }
 
 uint32_t UnitigGraph::DisconnectWeakLinks(double local_ratio = 0.1) {
-  // see metaspades paper
   uint32_t num_disconnected = 0;
 #pragma omp parallel for reduction(+: num_disconnected)
   for (size_type i = 0; i < size(); ++i) {
@@ -302,12 +300,11 @@ uint32_t UnitigGraph::DisconnectWeakLinks(double local_ratio = 0.1) {
   return num_disconnected;
 }
 
-double UnitigGraph::LocalDepth(size_type id, uint32_t local_width) {
+double UnitigGraph::LocalDepth(VertexAdapter &adapter, uint32_t local_width) {
   double total_depth = 0;
   uint64_t num_added_edges = 0;
 
-  for (int strand = 0; strand < 2; ++strand) {
-    auto adapter = MakeVertexAdapter(id, strand);
+  for (int strand = 0; strand < 2; ++strand, adapter.ReverseComplement()) {
     VertexAdapter outs[4];
     int degree = GetNextAdapters(adapter, outs);
 
@@ -352,6 +349,7 @@ void UnitigGraph::OutputContigs(FILE *contig_file, FILE *final_file, Histgram<in
     }
 
     if (adapter.is_loop()) {
+//      adapter.MarkToDelete();
       int flag = contig_flag::kLoop | contig_flag::kIsolated;
       FILE *out_file = contig_file;
 
@@ -372,6 +370,7 @@ void UnitigGraph::OutputContigs(FILE *contig_file, FILE *final_file, Histgram<in
       int flag = 0;
 
       if (InDegree(adapter) == 0 && OutDegree(adapter) == 0) {
+        adapter.MarkToDelete();
         if (adapter.is_palindrome()) {
           FoldPalindrome(label, k(), adapter.is_loop());
         }
