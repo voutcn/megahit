@@ -58,7 +58,7 @@ add_executable(megahit
         src/local_assembler.cpp
         src/local_assembler.h
         src/lv2_cpu_sort.h
-        src/mem_file_checker-inl.h
+        src/safe_alloc_open-inl.h
         src/options_description.cpp
         src/options_description.h
         src/packed_reads.h
@@ -83,4 +83,4 @@ add_executable(megahit
         src/kmlib/kmbit.h
         src/kmlib/kmsort.h
         src/kmlib/kmthread.h
-        src/sequence/kmer.h src/sequence/kmer_plus.h src/sdbg/sdbg_meta.h src/kmlib/kmcompactvector.h src/kmlib/test_compactvector.cpp src/sdbg/sdbg_def.h src/sdbg/sdbg_meta.cpp src/sdbg/sdbg_raw_content.h src/sdbg/sdbg_raw_content.cpp src/sdbg/sdbg.h src/sdbg/sdbg_writer.h src/sdbg/sdbg_writer.cpp src/utils/buffered_reader.h src/sdbg/sdbg_item.h src/kmlib/test_kmbit.cpp src/assembly/unitig_graph.h src/assembly/unitig_graph.cpp src/assembly/unitig_graph_vertex.h src/assembly/bubble_remover.cpp src/assembly/bubble_remover.h src/assembly/contig_writer.h src/assembly/all_algo.h src/assembly/tip_remover.h src/assembly/tip_remover.cpp src/assembly/weak_link_remover.cpp src/assembly/weak_link_remover.h src/assembly/low_depth_remover.cpp src/assembly/low_depth_remover.h src/assembly/contig_writer.cpp)
+        src/sequence/kmer.h src/sequence/kmer_plus.h src/sdbg/sdbg_meta.h src/kmlib/kmcompactvector.h src/kmlib/test_compactvector.cpp src/sdbg/sdbg_def.h src/sdbg/sdbg_meta.cpp src/sdbg/sdbg_raw_content.h src/sdbg/sdbg_raw_content.cpp src/sdbg/sdbg.h src/sdbg/sdbg_writer.h src/sdbg/sdbg_writer.cpp src/utils/buffered_reader.h src/sdbg/sdbg_item.h src/kmlib/test_kmbit.cpp src/assembly/unitig_graph.h src/assembly/unitig_graph.cpp src/assembly/unitig_graph_vertex.h src/assembly/bubble_remover.cpp src/assembly/bubble_remover.h src/assembly/contig_writer.h src/assembly/all_algo.h src/assembly/tip_remover.h src/assembly/tip_remover.cpp src/assembly/weak_link_remover.cpp src/assembly/weak_link_remover.h src/assembly/low_depth_remover.cpp src/assembly/low_depth_remover.h src/assembly/contig_writer.cpp src/assembly/contig_stat.h)

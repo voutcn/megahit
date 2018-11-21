@@ -11,7 +11,7 @@
 #include <vector>
 
 #include "definitions.h"
-#include "mem_file_checker-inl.h"
+#include "safe_alloc_open-inl.h"
 #include "utils.h"
 
 struct PartitionRecord {
@@ -80,7 +80,7 @@ class EdgeWriter {
         p_rec_.resize(num_buckets_, PartitionRecord());
 
         for (int i = 0; i < num_threads_; ++i) {
-            files_[i] = OpenFileAndCheck(FormatString("%s.edges.%d", file_prefix_.c_str(), i), "wb");
+            files_[i] = xfopen(FormatString("%s.edges.%d", file_prefix_.c_str(), i), "wb");
         }
 
         is_opened_ = true;
@@ -125,7 +125,7 @@ class EdgeWriter {
                 }
             }
 
-            FILE *info = OpenFileAndCheck(FormatString("%s.edges.info", file_prefix_.c_str()), "w");
+            FILE *info = xfopen(FormatString("%s.edges.info", file_prefix_.c_str()), "w");
             fprintf(info, "kmer_size %d\n", (int)kmer_size_);
             fprintf(info, "words_per_edge %d\n", (int)words_per_edge_);
             fprintf(info, "num_threads %d\n", (int)num_threads_);
@@ -190,7 +190,7 @@ class EdgeReader {
     }
 
     void read_info() {
-        FILE *info = OpenFileAndCheck(FormatString("%s.edges.info", file_prefix_.c_str()), "r");
+        FILE *info = xfopen(FormatString("%s.edges.info", file_prefix_.c_str()), "r");
         assert(fscanf(info, "kmer_size %d\n", &kmer_size_) == 1);
         assert(fscanf(info, "words_per_edge %d\n", &words_per_edge_) == 1);
         assert(fscanf(info, "num_threads %d\n", &num_files_) == 1);

@@ -22,7 +22,7 @@ UnitigGraph::~UnitigGraph() {}
 
 #endif
 
-UnitigGraph::UnitigGraph(SuccinctDBG *sdbg)
+UnitigGraph::UnitigGraph(SDBG *sdbg)
     : sdbg_(sdbg), adapter_impl_(this), sudo_adapter_impl_(this) {
   id_map_.clear();
   vertices_.clear();

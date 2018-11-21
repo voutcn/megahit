@@ -27,7 +27,7 @@
 
 #include "utils.h"
 #include "kmer.h"
-#include "mem_file_checker-inl.h"
+#include "safe_alloc_open-inl.h"
 #include "packed_reads.h"
 #include "read_lib_functions-inl.h"
 
@@ -120,7 +120,7 @@ void s2_read_mercy_prepare(read2sdbg_global_t &globals) {
     read_marker.reset(globals.num_short_reads);
 
     for (int fid = 0; fid < globals.num_mercy_files; ++fid) {
-        FILE *fp = OpenFileAndCheck(FormatString("%s.mercy_cand.%d", globals.output_prefix.c_str(), fid), "rb");
+        FILE *fp = xfopen(FormatString("%s.mercy_cand.%d", globals.output_prefix.c_str(), fid), "rb");
         mercy_cand.clear();
 
         int num_read = 0;
@@ -398,7 +398,8 @@ void s2_init_global_and_set_cx1(read2sdbg_global_t &globals) {
     globals.cx1.max_mem_remain_ = globals.cx1.max_lv1_items_ * sizeof(int) + globals.max_sorting_items * lv2_bytes_per_item;
     globals.cx1.bytes_per_sorting_item_ = lv2_bytes_per_item;
 
-    globals.lv1_items = (int *) MallocAndCheck(globals.cx1.max_mem_remain_ + globals.num_cpu_threads * sizeof(uint64_t) * 65536, __FILE__, __LINE__);
+    globals.lv1_items = (int *) xmalloc(
+        globals.cx1.max_mem_remain_ + globals.num_cpu_threads * sizeof(uint64_t) * 65536, __FILE__, __LINE__);
 
 
     if (cx1_t::kCX1Verbose >= 2) {
@@ -418,7 +419,7 @@ void s2_init_global_and_set_cx1(read2sdbg_global_t &globals) {
 void *s2_lv1_fill_offset(void *_data) {
     readpartition_data_t &rp = *((readpartition_data_t *) _data);
     read2sdbg_global_t &globals = *(rp.globals);
-    int64_t *prev_full_offsets = (int64_t *)MallocAndCheck(kNumBuckets * sizeof(int64_t), __FILE__, __LINE__); // temporary array for computing differentials
+    int64_t *prev_full_offsets = (int64_t *) xmalloc(kNumBuckets * sizeof(int64_t), __FILE__, __LINE__); // temporary array for computing differentials
     assert(prev_full_offsets != NULL);
 
     for (int b = globals.cx1.lv1_start_bucket_; b < globals.cx1.lv1_end_bucket_; ++b)

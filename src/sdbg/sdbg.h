@@ -477,6 +477,4 @@ class SDBG {
   Rank1Bit rs_is_tip_;
 };
 
-using SuccinctDBG = SDBG;
-
 #endif //MEGAHIT_SDBG_H

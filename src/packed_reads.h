@@ -29,7 +29,7 @@
 #include <algorithm>
 #include "definitions.h"
 #include "kseq.h"
-#include "mem_file_checker-inl.h"
+#include "safe_alloc_open-inl.h"
 #include "bit_operation.h"
 
 // 'spacing' is the strip length for read-word "coalescing"

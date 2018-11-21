@@ -41,7 +41,7 @@ using std::queue;
 
 namespace sdbg_pruning {
 
-double InferMinDepth(SuccinctDBG &dbg) {
+double InferMinDepth(SDBG &dbg) {
   Histgram<mul_t> hist;
 
 #pragma omp parallel for
@@ -53,7 +53,7 @@ double InferMinDepth(SuccinctDBG &dbg) {
 
   double cov = hist.FirstLocalMinimum();
   for (int repeat = 1; repeat <= 100; ++repeat) {
-    hist.TrimLow((mul_t) roundf(cov));
+    hist.TrimLow(static_cast<mul_t>(roundf(cov)));
     unsigned median = hist.median();
     double cov1 = sqrt(median);
     if (abs(cov - cov1) < 1e-2) {
@@ -66,7 +66,7 @@ double InferMinDepth(SuccinctDBG &dbg) {
   return 1;
 }
 
-int64_t Trim(SuccinctDBG &dbg, int len, AtomicBitVector &ignored) {
+int64_t Trim(SDBG &dbg, int len, AtomicBitVector &ignored) {
   int64_t number_tips = 0;
   AtomicBitVector to_remove(dbg.size());
 
@@ -74,16 +74,16 @@ int64_t Trim(SuccinctDBG &dbg, int len, AtomicBitVector &ignored) {
   for (uint64_t id = 0; id < dbg.size(); ++id) {
     if (!ignored.at(id) && dbg.EdgeOutdegreeZero(id)) {
       vector<uint64_t> path = {id};
-      int64_t prev = -1;
-      int64_t cur = id;
+      uint64_t prev = SDBG::kNullID;
+      uint64_t cur = id;
       bool is_tip = false;
 
       for (int i = 1; i < len; ++i) {
         prev = dbg.UniquePrevEdge(cur);
-        if (prev == -1) {
+        if (prev == SDBG::kNullID) {
           is_tip = dbg.EdgeIndegreeZero(cur);
           break;
-        } else if (dbg.UniqueNextEdge(prev) == -1) {
+        } else if (dbg.UniqueNextEdge(prev) == SDBG::kNullID) {
           is_tip = true;
           break;
         } else {
@@ -98,7 +98,7 @@ int64_t Trim(SuccinctDBG &dbg, int len, AtomicBitVector &ignored) {
         ++number_tips;
         ignored.set(id);
         ignored.set(path.back());
-        if (prev != -1) {
+        if (prev != SDBG::kNullID) {
           ignored.unset(prev);
         }
       }
@@ -109,16 +109,16 @@ int64_t Trim(SuccinctDBG &dbg, int len, AtomicBitVector &ignored) {
   for (uint64_t id = 0; id < dbg.size(); ++id) {
     if (!ignored.at(id) && dbg.EdgeIndegreeZero(id)) {
       vector<uint64_t> path = {id};
-      int64_t next = -1;
-      int64_t cur = id;
+      uint64_t next = SDBG::kNullID;
+      uint64_t cur = id;
       bool is_tip = false;
 
       for (int i = 1; i < len; ++i) {
         next = dbg.UniqueNextEdge(cur);
-        if (next == -1) {
+        if (next == SDBG::kNullID) {
           is_tip = dbg.EdgeOutdegreeZero(cur);
           break;
-        } else if (dbg.UniquePrevEdge(next) == -1) {
+        } else if (dbg.UniquePrevEdge(next) == SDBG::kNullID) {
           is_tip = true;
           break;
         } else {
@@ -133,7 +133,7 @@ int64_t Trim(SuccinctDBG &dbg, int len, AtomicBitVector &ignored) {
         ++number_tips;
         ignored.set(id);
         ignored.set(path.back());
-        if (next != -1) {
+        if (next != SDBG::kNullID) {
           ignored.unset(next);
         }
       }
@@ -149,8 +149,8 @@ int64_t Trim(SuccinctDBG &dbg, int len, AtomicBitVector &ignored) {
   return number_tips;
 }
 
-int64_t RemoveTips(SuccinctDBG &dbg, int max_tip_len, int min_final_standalone) {
-  int64_t number_tips = 0;
+uint64_t RemoveTips(SDBG &dbg, int max_tip_len) {
+  uint64_t number_tips = 0;
   SimpleTimer timer;
   AtomicBitVector ignored(dbg.size());
 

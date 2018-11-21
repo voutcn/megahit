@@ -19,6 +19,6 @@ inline void WriteContig(const std::string &label, unsigned k_size,
 }
 
 void OutputContigs(UnitigGraph &graph, FILE *contig_file, FILE *final_file,
-                   Histgram<int64_t> *hist, bool change_only, uint32_t min_final_standalone);
+                   bool change_only, uint32_t min_standalone);
 
 #endif //MEGAHIT_CONTIG_WRITER_H

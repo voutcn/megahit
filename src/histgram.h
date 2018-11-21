@@ -29,12 +29,12 @@ class Histgram {
   typedef T value_type;
 
   Histgram() = default;
-  Histgram(const Histgram<T> &hist)
+  Histgram(const Histgram &hist)
       : map_(hist.map_), size_(hist.size_) {
   }
   ~Histgram() = default;
 
-  const Histgram<T> &operator=(const Histgram<T> &hist) {
+  const Histgram &operator=(const Histgram &hist) {
     map_ = hist.map_;
     size_ = hist.size_;
     return *this;
@@ -79,11 +79,11 @@ class Histgram {
     return sum() / size();
   }
 
-  double sum() const {
-    double sum = 0;
+  value_type sum() const {
+    value_type sum = 0;
     for (typename std::map<value_type, size_t>::const_iterator iter = map_.begin();
          iter != map_.end(); ++iter)
-      sum += 1.0 * iter->first * iter->second;
+      sum += iter->first * iter->second;
     return sum;
   }
 
@@ -104,17 +104,7 @@ class Histgram {
   }
 
   value_type median() const {
-    size_t half = size() / 2;
-    size_t sum = 0;
-
-    for (typename std::map<value_type, size_t>::const_iterator iter = map_.begin();
-         iter != map_.end(); ++iter) {
-      sum += iter->second;
-      if (sum > half)
-        return iter->first;
-    }
-
-    return 0;
+    return percentile(0.5);
   }
 
   value_type percentile(double p) const {

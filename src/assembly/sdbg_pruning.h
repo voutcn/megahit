@@ -30,10 +30,10 @@ using std::string;
 
 namespace sdbg_pruning {
 
-double InferMinDepth(SuccinctDBG &dbg);
+double InferMinDepth(SDBG &dbg);
 
 // tips removal
-int64_t RemoveTips(SuccinctDBG &dbg, int max_tip_len, int min_final_standalone);
+uint64_t RemoveTips(SDBG &dbg, int max_tip_len);
 }
 
 #endif // define ASSEMBLY_ALGORITHMS_H_

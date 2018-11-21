@@ -55,21 +55,14 @@ void FoldPalindrome(std::string &s, unsigned kmer_k, bool is_loop) {
 }
 
 void OutputContigs(UnitigGraph &graph, FILE *contig_file, FILE *final_file,
-                   Histgram<int64_t> *hist, bool change_only, uint32_t min_final_standalone) {
-  auto &histo = *hist;
-  histo.clear();
+                   bool change_only, uint32_t min_standalone) {
   assert(!(change_only && final_file != nullptr)); // if output changed contigs, must not output final contigs
 
 #pragma omp parallel for
   for (UnitigGraph::size_type i = 0; i < graph.size(); ++i) {
     auto adapter = graph.MakeVertexAdapter(i);
-    double multi = change_only ? 1 : std::min((double) kMaxMul, adapter.avg_depth());
+    double multi = change_only ? 1 : std::min(static_cast<double>(kMaxMul), adapter.avg_depth());
     std::string label = graph.VertexToDNAString(adapter);
-    if (adapter.is_palindrome() && adapter.is_loop()) {
-      FoldPalindrome(label, graph.k(), adapter.is_loop());
-    }
-    histo.insert(label.length());
-
     if (change_only && !adapter.is_changed()) {
       continue;
     }
@@ -79,11 +72,12 @@ void OutputContigs(UnitigGraph &graph, FILE *contig_file, FILE *final_file,
       FILE *out_file = contig_file;
 
       if (adapter.is_palindrome()) {
+        FoldPalindrome(label, graph.k(), adapter.is_loop());
         flag = contig_flag::kIsolated;
       }
 
       if (final_file != nullptr) {
-        if (label.length() < min_final_standalone) {
+        if (label.length() < min_standalone) {
           continue;
         } else {
           out_file = final_file;
@@ -95,13 +89,12 @@ void OutputContigs(UnitigGraph &graph, FILE *contig_file, FILE *final_file,
       int flag = 0;
 
       if (graph.InDegree(adapter) == 0 && graph.OutDegree(adapter) == 0) {
-        adapter.MarkToDelete();
         if (adapter.is_palindrome()) {
           FoldPalindrome(label, graph.k(), adapter.is_loop());
         }
         flag = contig_flag::kIsolated;
         if (final_file != nullptr) {
-          if (label.length() < min_final_standalone) {
+          if (label.length() < min_standalone) {
             continue;
           } else {
             out_file = final_file;

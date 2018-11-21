@@ -25,7 +25,7 @@
 #include <zlib.h>
 #include <omp.h>
 
-#include "mem_file_checker-inl.h"
+#include "safe_alloc_open-inl.h"
 #include "kseq.h"
 #include "utils.h"
 #include "kmer.h"
@@ -102,7 +102,7 @@ void s1_read_input_prepare(read2sdbg_global_t &globals) {
     globals.num_short_read_bases = num_bases;
 
     if (globals.assist_seq_file != "") {
-        FILE *assist_seq_info = OpenFileAndCheck((globals.assist_seq_file + ".info").c_str(), "r");
+        FILE *assist_seq_info = xfopen((globals.assist_seq_file + ".info").c_str(), "r");
         long long num_ass_bases, num_ass_seq;
         assert(fscanf(assist_seq_info, "%lld%lld", &num_ass_seq, &num_ass_bases) == 2);
         fclose(assist_seq_info);
@@ -314,7 +314,8 @@ void s1_init_global_and_set_cx1(read2sdbg_global_t &globals) {
     globals.cx1.max_mem_remain_ = globals.cx1.max_lv1_items_ * sizeof(int) + globals.max_sorting_items * lv2_bytes_per_item;
     globals.cx1.bytes_per_sorting_item_ = lv2_bytes_per_item;
 
-    globals.lv1_items = (int *) MallocAndCheck(globals.cx1.max_mem_remain_ + globals.num_cpu_threads * sizeof(uint64_t) * 65536, __FILE__, __LINE__);
+    globals.lv1_items = (int *) xmalloc(
+        globals.cx1.max_mem_remain_ + globals.num_cpu_threads * sizeof(uint64_t) * 65536, __FILE__, __LINE__);
 
     if (cx1_t::kCX1Verbose >= 2) {
         xinfo("Memory for reads: %lld\n", globals.mem_packed_reads);
@@ -333,14 +334,16 @@ void s1_init_global_and_set_cx1(read2sdbg_global_t &globals) {
     }
 
     for (int i = 0; i < globals.num_mercy_files; ++i) {
-        globals.mercy_files.push_back(OpenFileAndCheck(FormatString("%s.mercy_cand.%d", globals.output_prefix.c_str(), i), "wb"));
+        globals.mercy_files.push_back(xfopen(FormatString("%s.mercy_cand.%d", globals.output_prefix.c_str(), i), "wb"));
     }
 
     pthread_mutex_init(&globals.lv1_items_scanning_lock, NULL); // init lock
 
     // --- initialize stat ---
-    globals.edge_counting = (int64_t *) MallocAndCheck((kMaxMul + 1) * sizeof(int64_t), __FILE__, __LINE__);
-    globals.thread_edge_counting = (int64_t *) MallocAndCheck((kMaxMul + 1) * globals.num_output_threads * sizeof(int64_t), __FILE__, __LINE__);
+    globals.edge_counting = (int64_t *) xmalloc((kMaxMul + 1) * sizeof(int64_t), __FILE__, __LINE__);
+    globals.thread_edge_counting = (int64_t *) xmalloc((kMaxMul + 1) * globals.num_output_threads * sizeof(int64_t),
+                                                       __FILE__,
+                                                       __LINE__);
     memset(globals.edge_counting, 0, (kMaxMul + 1) * sizeof(int64_t));
     memset(globals.thread_edge_counting, 0, sizeof(int64_t) * (kMaxMul + 1) * globals.num_output_threads);
 }
@@ -348,7 +351,7 @@ void s1_init_global_and_set_cx1(read2sdbg_global_t &globals) {
 void *s1_lv1_fill_offset(void *_data) {
     readpartition_data_t &rp = *((readpartition_data_t *) _data);
     read2sdbg_global_t &globals = *(rp.globals);
-    int64_t *prev_full_offsets = (int64_t *)MallocAndCheck(kNumBuckets * sizeof(int64_t), __FILE__, __LINE__); // temporary array for computing differentials
+    int64_t *prev_full_offsets = (int64_t *) xmalloc(kNumBuckets * sizeof(int64_t), __FILE__, __LINE__); // temporary array for computing differentials
     assert(prev_full_offsets != NULL);
 
     for (int b = globals.cx1.lv1_start_bucket_; b < globals.cx1.lv1_end_bucket_; ++b)
@@ -836,7 +839,7 @@ void s1_post_proc(read2sdbg_global_t &globals) {
         xinfo("Total number of solid edges: %llu\n", num_solid_edges);
     }
 
-    FILE *counting_file = OpenFileAndCheck((std::string(globals.output_prefix) + ".counting").c_str(), "w");
+    FILE *counting_file = xfopen((std::string(globals.output_prefix) + ".counting").c_str(), "w");
 
     for (int64_t i = 1, acc = 0; i <= kMaxMul; ++i) {
         acc += globals.edge_counting[i];

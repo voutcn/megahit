@@ -30,7 +30,7 @@
 #include <vector>
 #include <algorithm>
 
-#include "mem_file_checker-inl.h"
+#include "safe_alloc_open-inl.h"
 #include "utils.h"
 
 /**
@@ -202,16 +202,19 @@ struct CX1 {
     }
 
     inline void prepare_rp_and_bp_() { // call after prepare_func_
-        rp_ = (readpartition_data_t *) MallocAndCheck(sizeof(readpartition_data_t) * num_cpu_threads_, __FILE__, __LINE__);
-        bp_ = (bucketpartition_data_t *) MallocAndCheck(sizeof(bucketpartition_data_t) * (num_cpu_threads_ - num_output_threads_), __FILE__, __LINE__);
-        op_ = (outputpartition_data_t *) MallocAndCheck(sizeof(outputpartition_data_t) * num_output_threads_, __FILE__, __LINE__);
+        rp_ = (readpartition_data_t *) xmalloc(sizeof(readpartition_data_t) * num_cpu_threads_, __FILE__, __LINE__);
+        bp_ = (bucketpartition_data_t *) xmalloc(
+            sizeof(bucketpartition_data_t) * (num_cpu_threads_ - num_output_threads_), __FILE__, __LINE__);
+        op_ = (outputpartition_data_t *) xmalloc(sizeof(outputpartition_data_t) * num_output_threads_,
+                                                 __FILE__,
+                                                 __LINE__);
 
         for (int t = 0; t < num_cpu_threads_; ++t) {
             struct readpartition_data_t &rp = rp_[t];
             rp.rp_id = t;
             rp.globals = g_;
-            rp.rp_bucket_sizes = (int64_t *) MallocAndCheck(kNumBuckets * sizeof(int64_t), __FILE__, __LINE__);
-            rp.rp_bucket_offsets = (int64_t *) MallocAndCheck(kNumBuckets * sizeof(int64_t), __FILE__, __LINE__);
+            rp.rp_bucket_sizes = (int64_t *) xmalloc(kNumBuckets * sizeof(int64_t), __FILE__, __LINE__);
+            rp.rp_bucket_offsets = (int64_t *) xmalloc(kNumBuckets * sizeof(int64_t), __FILE__, __LINE__);
             // distribute reads to partitions
             int64_t average = num_items_ / num_cpu_threads_;
             rp.rp_start_id = t * average;
@@ -232,9 +235,9 @@ struct CX1 {
             op_[t].globals = g_;
         }
 
-        ori_bucket_id_ = (int *) MallocAndCheck(sizeof(int) * kNumBuckets, __FILE__, __LINE__);
-        bucket_rank_ = (int *) MallocAndCheck(sizeof(int) * kNumBuckets, __FILE__, __LINE__);
-        bucket_sizes_ = (int64_t *) MallocAndCheck(kNumBuckets * sizeof(int64_t), __FILE__, __LINE__);
+        ori_bucket_id_ = (int *) xmalloc(sizeof(int) * kNumBuckets, __FILE__, __LINE__);
+        bucket_rank_ = (int *) xmalloc(sizeof(int) * kNumBuckets, __FILE__, __LINE__);
+        bucket_sizes_ = (int64_t *) xmalloc(kNumBuckets * sizeof(int64_t), __FILE__, __LINE__);
 
         for (int i = 0; i < kNumBuckets; ++i) {
             ori_bucket_id_[i] = i;

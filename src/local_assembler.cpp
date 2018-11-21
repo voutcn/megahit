@@ -35,7 +35,7 @@
 #include "lib_idba/contig_graph.h"
 
 #include "utils.h"
-#include "mem_file_checker-inl.h"
+#include "safe_alloc_open-inl.h"
 #include "kseq.h"
 #include "histgram.h"
 #include "bit_operation.h"

@@ -35,7 +35,7 @@
 #include "lib_info.h"
 #include "sequence_manager.h"
 #include "sequence_package.h"
-#include "mem_file_checker-inl.h"
+#include "safe_alloc_open-inl.h"
 
 inline void ReadMultipleLibs(const std::string &lib_file, SequencePackage &package,
                              std::vector<lib_info_t> &lib_info, bool is_reverse) {
@@ -124,7 +124,7 @@ inline void ReadAndWriteMultipleLibs(const std::string &lib_file, bool is_revers
         xfatal("File to open read_lib file: %s\n", lib_file.c_str());
     }
 
-    FILE *bin_file = OpenFileAndCheck(FormatString("%s.bin", out_prefix.c_str()), "wb");
+    FILE *bin_file = xfopen(FormatString("%s.bin", out_prefix.c_str()), "wb");
 
     SequencePackage package;
     std::vector<lib_info_t> lib_info;
@@ -213,7 +213,7 @@ inline void ReadAndWriteMultipleLibs(const std::string &lib_file, bool is_revers
         std::getline(lib_config, metadata); // eliminate the "\n"
     }
 
-    FILE *lib_info_file = OpenFileAndCheck(FormatString("%s.lib_info", out_prefix.c_str()), "w");
+    FILE *lib_info_file = xfopen(FormatString("%s.lib_info", out_prefix.c_str()), "w");
     fprintf(lib_info_file, "%zu %zu\n", total_bases, total_reads);
 
     for (unsigned i = 0; i < lib_info.size(); ++i) {
@@ -262,11 +262,11 @@ inline void ReadBinaryLibs(const std::string &file_prefix, SequencePackage &pack
 
 inline void WriteMultipleLibs(SequencePackage &package, std::vector<lib_info_t> &lib_info, const std::string &file_prefix, bool is_reverse) {
     SequenceManager seq_manager(&package);
-    FILE *bin_file = OpenFileAndCheck(FormatString("%s.bin", file_prefix.c_str()), "wb");
+    FILE *bin_file = xfopen(FormatString("%s.bin", file_prefix.c_str()), "wb");
     seq_manager.WriteBinarySequences(bin_file, is_reverse);
     fclose(bin_file);
 
-    FILE *lib_info_file = OpenFileAndCheck(FormatString("%s.lib_info", file_prefix.c_str()), "w");
+    FILE *lib_info_file = xfopen(FormatString("%s.lib_info", file_prefix.c_str()), "w");
     fprintf(lib_info_file, "%zu %zu\n", package.base_size(), package.size());
 
     for (unsigned i = 0; i < lib_info.size(); ++i) {

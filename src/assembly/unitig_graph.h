@@ -22,7 +22,7 @@ class UnitigGraph {
   static const size_type kNullVertexID = kMaxNumVertices + 1;
 
  public:
-  explicit UnitigGraph(SuccinctDBG *sdbg);
+  explicit UnitigGraph(SDBG *sdbg);
   UnitigGraph(const UnitigGraph &) = delete;
   UnitigGraph(const UnitigGraph &&) = delete;
   ~UnitigGraph();
@@ -160,7 +160,7 @@ class UnitigGraph {
 
   void RefreshDisconnected();
  private:
-  SuccinctDBG *sdbg_{};
+  SDBG *sdbg_{};
   std::deque<UnitigGraphVertex> vertices_;
   spp::sparse_hash_map<uint64_t, size_type> id_map_;
   kmlib::AtomicBitVector<> locks_;

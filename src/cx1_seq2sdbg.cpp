@@ -178,7 +178,7 @@ static void *MercyInputThread(void *seq_manager) {
 }
 
 void GenMercyEdges(seq2sdbg_global_t &globals) {
-    int64_t *edge_lookup = (int64_t *) MallocAndCheck(kLookUpSize * 2 * sizeof(int64_t), __FILE__, __LINE__);
+    int64_t *edge_lookup = (int64_t *) xmalloc(kLookUpSize * 2 * sizeof(int64_t), __FILE__, __LINE__);
     InitLookupTable(edge_lookup, globals.package);
 
     std::vector<GenericKmer> mercy_edges;
@@ -402,7 +402,7 @@ void read_seq_and_prepare(seq2sdbg_global_t &globals) {
 
         if (globals.contig != "") {
             long long num_contigs, num_bases;
-            FILE *contig_info = OpenFileAndCheck((globals.contig + ".info").c_str(), "r");
+            FILE *contig_info = xfopen((globals.contig + ".info").c_str(), "r");
             assert(fscanf(contig_info, "%lld%lld", &num_contigs, &num_bases) == 2);
             bases_to_reserve += num_bases;
             num_contigs_to_reserve += num_contigs;
@@ -412,7 +412,7 @@ void read_seq_and_prepare(seq2sdbg_global_t &globals) {
 
         if (globals.addi_contig != "") {
             long long num_contigs, num_bases;
-            FILE *contig_info = OpenFileAndCheck((globals.addi_contig + ".info").c_str(), "r");
+            FILE *contig_info = xfopen((globals.addi_contig + ".info").c_str(), "r");
             assert(fscanf(contig_info, "%lld%lld", &num_contigs, &num_bases) == 2);
             bases_to_reserve += num_bases;
             num_contigs_to_reserve += num_contigs;
@@ -422,7 +422,7 @@ void read_seq_and_prepare(seq2sdbg_global_t &globals) {
 
         if (globals.local_contig != "") {
             long long num_contigs, num_bases;
-            FILE *contig_info = OpenFileAndCheck((globals.local_contig + ".info").c_str(), "r");
+            FILE *contig_info = xfopen((globals.local_contig + ".info").c_str(), "r");
             assert(fscanf(contig_info, "%lld%lld", &num_contigs, &num_bases) == 2);
             bases_to_reserve += num_bases;
             num_contigs_to_reserve += num_contigs;
@@ -667,7 +667,8 @@ void init_global_and_set_cx1(seq2sdbg_global_t &globals) {
     globals.cx1.max_mem_remain_ = globals.cx1.max_lv1_items_ * sizeof(int) + globals.max_sorting_items * lv2_bytes_per_item;
     globals.cx1.bytes_per_sorting_item_ = lv2_bytes_per_item;
 
-    globals.lv1_items = (int32_t *)MallocAndCheck(globals.cx1.max_mem_remain_ + globals.num_cpu_threads * sizeof(uint64_t) * 65536, __FILE__, __LINE__);
+    globals.lv1_items = (int32_t *) xmalloc(
+        globals.cx1.max_mem_remain_ + globals.num_cpu_threads * sizeof(uint64_t) * 65536, __FILE__, __LINE__);
     // --- init lock ---
     pthread_mutex_init(&globals.lv1_items_scanning_lock, NULL);
 
@@ -688,7 +689,7 @@ void init_global_and_set_cx1(seq2sdbg_global_t &globals) {
 void *lv1_fill_offset(void *_data) {
     readpartition_data_t &rp = *((readpartition_data_t *) _data);
     seq2sdbg_global_t &globals = *(rp.globals);
-    int64_t *prev_full_offsets = (int64_t *)MallocAndCheck(kNumBuckets * sizeof(int64_t), __FILE__, __LINE__); // temporary array for computing differentials
+    int64_t *prev_full_offsets = (int64_t *) xmalloc(kNumBuckets * sizeof(int64_t), __FILE__, __LINE__); // temporary array for computing differentials
 
     for (int b = globals.cx1.lv1_start_bucket_; b < globals.cx1.lv1_end_bucket_; ++b)
         prev_full_offsets[b] = rp.rp_lv1_differential_base;
