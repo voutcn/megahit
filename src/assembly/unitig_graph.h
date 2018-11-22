@@ -151,7 +151,7 @@ class UnitigGraph {
     AdapterType MakeVertexAdapterWithSdbgId(uint64_t sdbg_id) {
       uint32_t id = graph_->id_map_.at(sdbg_id);
       AdapterType adapter(graph_->vertices_[id], 0, id);
-      if (adapter.begin() != sdbg_id) { adapter.ReverseComplement(); }
+      if (adapter.start() != sdbg_id) { adapter.ReverseComplement(); }
       return adapter;
     }
    private:

@@ -130,8 +130,8 @@ UnitigGraph::UnitigGraph(SDBG *sdbg)
 
   for (size_type i = 0; i < vertices_.size(); ++i) {
     VertexAdapter adapter(vertices_[i]);
-    id_map_[adapter.begin()] = i;
-    id_map_[adapter.rbegin()] = i;
+    id_map_[adapter.start()] = i;
+    id_map_[adapter.rstart()] = i;
   }
   locks_.reset(vertices_.size());
 }
@@ -159,9 +159,9 @@ void UnitigGraph::RefreshDisconnected() {
       continue;
     }
 
-    auto old_start = adapter.begin();
+    auto old_start = adapter.start();
     auto old_end = adapter.end();
-    auto old_rc_start = adapter.rbegin();
+    auto old_rc_start = adapter.rstart();
     auto old_rc_end = adapter.rend();
     uint64_t new_start, new_end, new_rc_start, new_rc_end;
 
@@ -219,33 +219,35 @@ void UnitigGraph::Refresh(bool set_changed) {
     if (!adapter.is_to_delete()) {
       continue;
     }
+    adapter.set_flag(kDeleted);
+    if (adapter.forsure_standalone()) {
+      continue;
+    }
     for (int strand = 0; strand < 2; ++strand, adapter.ReverseComplement()) {
-      uint64_t cur_edge = adapter.end(), prev_edge;
-      while (cur_edge != adapter.begin()) {
-        prev_edge = sdbg_->UniquePrevEdge(cur_edge);
+      uint64_t cur_edge = adapter.end();
+      for (size_t j = 1; j < adapter.length(); ++j) {
+        auto prev = sdbg_->UniquePrevEdge(cur_edge);
         sdbg_->SetInvalidEdge(cur_edge);
-        cur_edge = prev_edge;
+        cur_edge = prev;
         assert(cur_edge != SDBG::kNullID);
       }
+      assert(cur_edge == adapter.start());
       sdbg_->SetInvalidEdge(cur_edge);
       if (adapter.is_palindrome()) {
         break;
       }
     }
-    adapter.set_flag(kDeleted);
   }
 #pragma omp parallel for
   for (size_type i = 0; i < vertices_.size(); ++i) {
-    auto adapter = MakeSudoAdapter(i);
-    if (!adapter.forsure_standalone())
-      MakeSudoAdapter(i).clear_cache();
+    MakeSudoAdapter(i).clear_cache();
   }
 
   locks_.reset();
 #pragma omp parallel for
   for (size_type i = 0; i < vertices_.size(); ++i) {
     auto adapter = MakeSudoAdapter(i);
-    if (adapter.is_loop() || (adapter.flag() & kDeleted)) {
+    if (adapter.forsure_standalone() || (adapter.flag() & kDeleted)) {
       continue;
     }
     for (int strand = 0; strand < 2; ++strand, adapter.ReverseComplement()) {
@@ -286,9 +288,9 @@ void UnitigGraph::Refresh(bool set_changed) {
           v.set_flag(kDeleted);
       }
 
-      auto new_start = adapter.begin();
+      auto new_start = adapter.start();
       auto new_rc_end = adapter.rend();
-      auto new_rc_start = linear_path.back().rbegin();
+      auto new_rc_start = linear_path.back().rstart();
       auto new_end = linear_path.back().end();
 
       adapter.set_start_end(new_start, new_end, new_rc_start, new_rc_end);
@@ -304,7 +306,7 @@ void UnitigGraph::Refresh(bool set_changed) {
 #pragma omp parallel for
   for (size_type i = 0; i < vertices_.size(); ++i) {
     auto adapter = MakeSudoAdapter(i);
-    if (!adapter.flag()) {
+    if (!adapter.forsure_standalone() && !adapter.flag()) {
       std::lock_guard<std::mutex> lk(mutex);
       if (adapter.flag()) {
         continue;
@@ -313,13 +315,19 @@ void UnitigGraph::Refresh(bool set_changed) {
       uint32_t length = adapter.length();
       uint64_t total_depth = adapter.total_depth();
       SudoVertexAdapter next_adapter = adapter;
-      while ((next_adapter = NextSimplePathAdapter(next_adapter)).begin() != adapter.begin()) {
+      while (true) {
+        next_adapter = NextSimplePathAdapter(next_adapter);
+        assert(next_adapter.valid());
+        assert(!(next_adapter.flag() & kDeleted));
+        if (next_adapter.start() == adapter.start()) {
+          break;
+        }
         next_adapter.set_flag(kDeleted);
         length += next_adapter.length();
         total_depth += next_adapter.total_depth();
       }
 
-      auto new_start = adapter.begin();
+      auto new_start = adapter.start();
       auto new_end = sdbg_->PrevSimplePathEdge(new_start);
       auto new_rc_end = adapter.rend();
       auto new_rc_start = sdbg_->NextSimplePathEdge(new_rc_end);
@@ -344,10 +352,10 @@ void UnitigGraph::Refresh(bool set_changed) {
 #pragma omp parallel for reduction(+: num_changed)
   for (size_type i = 0; i < vertices_.size(); ++i) {
     auto adapter = MakeSudoAdapter(i);
-    assert(adapter.is_loop() || adapter.flag());
+    assert(adapter.forsure_standalone() || adapter.flag());
     adapter.set_flag(0);
-    id_map_.at(adapter.begin()) = i;
-    id_map_.at(adapter.rbegin()) = i;
+    id_map_.at(adapter.start()) = i;
+    id_map_.at(adapter.rstart()) = i;
     num_changed += adapter.is_changed();
   }
 }
@@ -364,12 +372,12 @@ std::string UnitigGraph::VertexToDNAString(const VertexAdapter &v) {
     cur_edge = sdbg_->PrevSimplePathEdge(cur_edge);
     if (cur_edge == SDBG::kNullID) {
       xfatal("%lld, %lld, %lld, %lld, (%lld, %lld), %d, %d\n",
-             v.begin(),
+             v.start(),
              v.end(),
-             v.rbegin(),
+             v.rstart(),
              v.rend(),
              sdbg_->EdgeReverseComplement(v.end()),
-             sdbg_->EdgeReverseComplement(v.begin()),
+             sdbg_->EdgeReverseComplement(v.start()),
              v.length(),
              i);
     }
@@ -378,19 +386,19 @@ std::string UnitigGraph::VertexToDNAString(const VertexAdapter &v) {
   int8_t cur_char = sdbg_->GetW(cur_edge);
   label.push_back("ACGT"[cur_char > 4 ? (cur_char - 5) : (cur_char - 1)]);
 
-  if (cur_edge != v.begin()) {
+  if (cur_edge != v.start()) {
     xfatal("fwd: %lld, %lld, rev: %lld, %lld, (%lld, %lld) length: %d\n",
-           v.begin(),
+           v.start(),
            v.end(),
-           v.rbegin(),
+           v.rstart(),
            v.rend(),
            sdbg_->EdgeReverseComplement(v.end()),
-           sdbg_->EdgeReverseComplement(v.begin()),
+           sdbg_->EdgeReverseComplement(v.start()),
            v.length());
   }
 
   uint8_t seq[kMaxK];
-  sdbg_->Label(v.begin(), seq);
+  sdbg_->Label(v.start(), seq);
 
   for (int i = sdbg_->k() - 1; i >= 0; --i) {
     assert(seq[i] >= 1 && seq[i] <= 4);

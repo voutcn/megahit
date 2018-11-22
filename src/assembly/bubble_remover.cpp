@@ -75,7 +75,7 @@ int BaseBubbleRemover::SearchAndPopBubble(UnitigGraph &graph, UnitigGraph::Verte
         return 0;
       }
     } else {
-      if (right.begin() != possible_right[0].begin()) {
+      if (right.start() != possible_right[0].start()) {
         return 0;
       }
     }
