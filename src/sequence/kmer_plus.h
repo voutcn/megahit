@@ -32,4 +32,18 @@ struct KmerPlus {
   AuxType aux;
 };
 
+#include "xxHash/xxhash.h"
+
+struct KmerHash
+{
+  template <unsigned NumWords, class WordType>
+  size_t operator()(Kmer<NumWords, WordType> const &kmer) const {
+    return XXH64(static_cast<const void*>(kmer.data()), sizeof(WordType) * NumWords, 0);
+  }
+  template <unsigned NumWords, class WordType, class Auxiliary>
+  size_t operator()(KmerPlus<NumWords, WordType, Auxiliary> const &kmer_plus) const {
+    return operator()(kmer_plus.kmer);
+  }
+};
+
 #endif //MEGAHIT_KMER_PLUS_H

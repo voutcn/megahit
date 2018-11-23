@@ -32,7 +32,7 @@
 
 #include "sparsepp/sparsepp/spp.h"
 #include "sequence_package.h"
-#include "kmer_plus.h"
+#include "sequence/kmer_plus.h"
 #include "lib_info.h"
 
 struct LocalAssembler {

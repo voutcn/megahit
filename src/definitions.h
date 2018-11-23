@@ -23,10 +23,8 @@
 
 #include <stdint.h>
 
-#include "kmer.h"
-
 #ifndef PACKAGE_VERSION
-    #define PACKAGE_VERSION "v1.1.3"
+#define PACKAGE_VERSION "v1.1.3"
 #endif
 
 #include "sdbg/sdbg_def.h"
@@ -46,6 +44,7 @@ static const int kLoop = 0x2;
 static const int kUint32PerKmerMaxK = (kMaxK + 1 + 15) / 16;
 static const int kUint64PerIdbaKmerMaxK = (kMaxK * 2 + 16 + 63) / 64;
 
+#include "sequence/kmer.h"
 typedef Kmer<kUint32PerKmerMaxK, uint32_t> GenericKmer;
 
 #define LONG_READS

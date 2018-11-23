@@ -114,7 +114,7 @@ void LocalAssembler::AddToHashMapper_(mapper_t &mapper, unsigned contig_id, int 
 
     for (int i = 0, len = contigs_->length(contig_id); i + seed_kmer_ <= len; i += sparcity) {
         uint64_t full_offset = contigs_->get_start_index(contig_id) + i;
-        key.init(&contigs_->packed_seq[full_offset / SequencePackage::kCharsPerWord], full_offset % SequencePackage::kCharsPerWord, seed_kmer_);
+        key.InitFromPtr(&contigs_->packed_seq[full_offset / SequencePackage::kCharsPerWord], full_offset % SequencePackage::kCharsPerWord, seed_kmer_);
         auto kmer = key.unique_format(seed_kmer_);
         auto offset = EncodeContigOffset(contig_id, i, key != kmer);
 
