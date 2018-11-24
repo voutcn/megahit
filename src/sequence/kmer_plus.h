@@ -10,13 +10,13 @@
 /**
  * @brief a kmer plus any annotation
  */
-template<unsigned NumWords, class WordType, class Auxiliary>
+template<class KmerType, class Auxiliary>
 struct KmerPlus {
-  using KmerType = Kmer<NumWords, WordType>;
-  using AuxType = Auxiliary;
-  static const unsigned n_bytes = KmerType::n_bytes;
+  using kmer_type = KmerType;
+  using aux_type = Auxiliary;
+  static const unsigned n_bytes = kmer_type::n_bytes;
 
-  KmerPlus(const KmerType &kmer = KmerType(), const AuxType &ann = AuxType())
+  KmerPlus(const kmer_type &kmer = kmer_type(), const aux_type &ann = aux_type())
       : kmer(kmer), aux(ann) {}
 
   bool operator<(const KmerPlus &rhs) const {
@@ -28,20 +28,19 @@ struct KmerPlus {
   unsigned kth_byte(int k) const {
     return kmer.kth_byte(k);
   }
-  KmerType kmer;
-  AuxType aux;
+  kmer_type kmer;
+  aux_type aux;
 };
 
 #include "xxHash/xxhash.h"
 
-struct KmerHash
-{
-  template <unsigned NumWords, class WordType>
+struct KmerHash {
+  template<unsigned NumWords, class WordType>
   size_t operator()(Kmer<NumWords, WordType> const &kmer) const {
-    return XXH64(static_cast<const void*>(kmer.data()), sizeof(WordType) * NumWords, 0);
+    return XXH64(static_cast<const void *>(kmer.data()), sizeof(WordType) * NumWords, 0);
   }
-  template <unsigned NumWords, class WordType, class Auxiliary>
-  size_t operator()(KmerPlus<NumWords, WordType, Auxiliary> const &kmer_plus) const {
+  template<class KmerType, class Auxiliary>
+  size_t operator()(KmerPlus<KmerType, Auxiliary> const &kmer_plus) const {
     return operator()(kmer_plus.kmer);
   }
 };

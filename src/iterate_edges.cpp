@@ -29,45 +29,24 @@
 #include <algorithm>
 #include <stdexcept>
 
-#include "sequence/kmer_plus.h"
+#include "definitions.h"
 #include "iterate/async_sequence_reader.h"
 #include "iterate/kmer_collector.h"
 #include "iterate/juncion_index.h"
-#include "definitions.h"
 #include "options_description.h"
-#include "edge_io.h"
 
 using std::string;
 using std::vector;
 
-struct IterParam {
-  std::string contig_file;
-  std::string bubble_file;
-  std::string read_file;
-  std::string output_prefix;
-
-  unsigned kmer_k;
-  unsigned step;
-  unsigned num_cpu_threads;
-};
-
-struct iter_opt_t {
+static struct Option {
   string contig_file;
   string bubble_file;
   string read_file;
-  int num_cpu_threads;
-  int kmer_k;
-  int step;
+  int num_cpu_threads{0};
+  int kmer_k{0};
+  int step{0};
   string output_prefix;
-
-  iter_opt_t() {
-    num_cpu_threads = 0;
-    kmer_k = 0;
-    step = 0;
-  }
-};
-
-static iter_opt_t opt;
+} opt;
 
 static void ParseIterOptions(int argc, char *argv[]) {
   OptionsDescription desc;
@@ -85,9 +64,9 @@ static void ParseIterOptions(int argc, char *argv[]) {
   try {
     desc.Parse(argc, argv);
 
-    if (opt.step + opt.kmer_k >= std::max((int) Kmer<4>::max_size(), (int) GenericKmer::max_size())) {
+    if (opt.step + opt.kmer_k >= static_cast<int>(std::max(Kmer<4>::max_size(), GenericKmer::max_size()))) {
       std::ostringstream os;
-      os << "kmer_k + step must less than " << std::max((int) Kmer<4>::max_size(), (int) GenericKmer::max_size());
+      os << "kmer_k + step must less than " << std::max(Kmer<4>::max_size(), GenericKmer::max_size());
       throw std::logic_error(os.str());
     } else if (opt.contig_file == "") {
       throw std::logic_error("No contig file!");
@@ -105,8 +84,6 @@ static void ParseIterOptions(int argc, char *argv[]) {
     if (opt.num_cpu_threads == 0) {
       opt.num_cpu_threads = omp_get_max_threads();
     }
-
-    // must set the number of threads before the parallel hash table declared
     if (opt.num_cpu_threads > 1) {
       omp_set_num_threads(opt.num_cpu_threads - 1);
     } else {
@@ -123,25 +100,15 @@ static void ParseIterOptions(int argc, char *argv[]) {
   }
 }
 
-static void InitGlobalData(IterParam &globals) {
-  globals.kmer_k = opt.kmer_k;
-  globals.step = opt.step;
-  globals.num_cpu_threads = opt.num_cpu_threads;
-  globals.contig_file = opt.contig_file;
-  globals.bubble_file = opt.bubble_file;
-  globals.read_file = opt.read_file;
-  globals.output_prefix = opt.output_prefix;
-}
-
-template<unsigned NumWords, class WordType, class IndexType>
-inline bool ReadReadsAndProcessKernel(IterParam &globals, IndexType &index) {
-  using KmerType = Kmer<NumWords, WordType>;
-  if (KmerType::max_size() < globals.kmer_k + globals.step + 1) {
+template<class KmerType, class IndexType>
+static bool ReadReadsAndProcessKernel(const Option &opt, IndexType &index) {
+  if (KmerType::max_size() < static_cast<unsigned>(opt.kmer_k + opt.step + 1)) {
     return false;
   }
-  AsyncReadReader reader(globals.read_file);
-  KmerCollector<KmerType> collector(globals.kmer_k + globals.step + 1, globals.output_prefix,
-      globals.num_cpu_threads);
+  xinfo("Selected kmer type size for next k: %u\n", sizeof(KmerType));
+  AsyncReadReader reader(opt.read_file);
+  KmerCollector<KmerType> collector(opt.kmer_k + opt.step + 1, opt.output_prefix,
+                                    opt.num_cpu_threads);
   int64_t num_aligned_reads = 0;
   int64_t num_total_reads = 0;
 
@@ -150,17 +117,14 @@ inline bool ReadReadsAndProcessKernel(IterParam &globals, IndexType &index) {
     if (read_pkg.size() == 0) {
       break;
     }
-
 #pragma omp parallel for reduction(+: num_aligned_reads)
     for (unsigned i = 0; i < read_pkg.size(); ++i) {
       num_aligned_reads += index.FindNextKmersFromRead(read_pkg, i, &collector) > 0;
     }
-
     num_total_reads += read_pkg.size();
     xinfo("Processed: %lld, aligned: %lld. Iterative edges: %llu\n",
           num_total_reads, num_aligned_reads, collector.collection().size());
   }
-
   collector.FlushToFile();
   xinfo("Total: %lld, aligned: %lld. Iterative edges: %llu\n",
         num_total_reads, num_aligned_reads, collector.collection().size());
@@ -168,30 +132,25 @@ inline bool ReadReadsAndProcessKernel(IterParam &globals, IndexType &index) {
 }
 
 template<class IndexType>
-static void ReadReadsAndProcess(
-    IterParam &globals,
-    IndexType &index) {
-  if (ReadReadsAndProcessKernel<1, uint64_t>(globals, index)) return;
-  if (ReadReadsAndProcessKernel<3, uint32_t>(globals, index)) return;
-  if (ReadReadsAndProcessKernel<2, uint64_t>(globals, index)) return;
-  if (ReadReadsAndProcessKernel<5, uint32_t>(globals, index)) return;
-  if (ReadReadsAndProcessKernel<3, uint64_t>(globals, index)) return;
-  if (ReadReadsAndProcessKernel<7, uint32_t>(globals, index)) return;
-  if (ReadReadsAndProcessKernel<4, uint64_t>(globals, index)) return;
-  if (ReadReadsAndProcessKernel<kUint32PerKmerMaxK, uint32_t>(globals, index)) return;
-  assert (false);
+static void ReadReadsAndProcess(const Option &opt, const IndexType &index) {
+  if (ReadReadsAndProcessKernel<Kmer<1, uint64_t>>(opt, index)) return;
+  if (ReadReadsAndProcessKernel<Kmer<3, uint32_t>>(opt, index)) return;
+  if (ReadReadsAndProcessKernel<Kmer<2, uint64_t>>(opt, index)) return;
+  if (ReadReadsAndProcessKernel<Kmer<5, uint32_t>>(opt, index)) return;
+  if (ReadReadsAndProcessKernel<Kmer<3, uint64_t>>(opt, index)) return;
+  if (ReadReadsAndProcessKernel<Kmer<7, uint32_t>>(opt, index)) return;
+  if (ReadReadsAndProcessKernel<Kmer<4, uint64_t>>(opt, index)) return;
+  if (ReadReadsAndProcessKernel<Kmer<kUint32PerKmerMaxK, uint32_t>>(opt, index)) return;
+  xfatal("k is too large!\n");
 }
 
 template<class IndexType>
-static void ReadContigsAndBuildHash(
-    IterParam &globals, const std::string &file_name,
-    IndexType *index) {
+static void ReadContigsAndBuildIndex(const Option &opt, const std::string &file_name, IndexType *index) {
   AsyncContigReader reader(file_name);
   while (true) {
     auto &pkg = reader.Next();
     auto &contig_pkg = pkg.first;
     auto &mul = pkg.second;
-
     if (contig_pkg.size() == 0) {
       break;
     }
@@ -200,13 +159,14 @@ static void ReadContigsAndBuildHash(
   xinfo("Number of junction kmers: %lu\n", index->size());
 }
 
-template<uint32_t NumWords, typename WordType>
-bool IterateToNextK(IterParam &globals) {
-  if (Kmer<NumWords, WordType>::max_size() >= globals.kmer_k + 1) {
-    JunctionIndex<Kmer<NumWords, WordType>> index(globals.kmer_k, globals.step);
-    ReadContigsAndBuildHash(globals, globals.contig_file, &index);
-    ReadContigsAndBuildHash(globals, globals.bubble_file, &index);
-    ReadReadsAndProcess(globals, index);
+template<class KmerType>
+bool KmerTypeSelectAndRun(const Option &opt) {
+  if (KmerType::max_size() >= static_cast<unsigned>(opt.kmer_k + 1)) {
+    xinfo("Selected kmer type size for k: %u\n", sizeof(KmerType));
+    JunctionIndex<KmerType> index(opt.kmer_k, opt.step);
+    ReadContigsAndBuildIndex(opt, opt.contig_file, &index);
+    ReadContigsAndBuildIndex(opt, opt.bubble_file, &index);
+    ReadReadsAndProcess(opt, index);
     return true;
   }
   return false;
@@ -214,22 +174,15 @@ bool IterateToNextK(IterParam &globals) {
 
 int main_iterate(int argc, char *argv[]) {
   AutoMaxRssRecorder recorder;
-
-  IterParam globals;
   ParseIterOptions(argc, argv);
-  InitGlobalData(globals);
 
-  while (true) {
-    if (IterateToNextK<1, uint64_t>(globals)) break;
-    if (IterateToNextK<3, uint32_t>(globals)) break;
-    if (IterateToNextK<2, uint64_t>(globals)) break;
-    if (IterateToNextK<5, uint32_t>(globals)) break;
-    if (IterateToNextK<3, uint64_t>(globals)) break;
-    if (IterateToNextK<7, uint32_t>(globals)) break;
-    if (IterateToNextK<4, uint64_t>(globals)) break;
-    if (IterateToNextK<kUint32PerKmerMaxK, uint32_t>(globals)) break;
-    assert(false);
-  }
-
-  return 0;
+  if (KmerTypeSelectAndRun<Kmer<1, uint64_t>>(opt)) return 0;
+  if (KmerTypeSelectAndRun<Kmer<3, uint32_t>>(opt)) return 0;
+  if (KmerTypeSelectAndRun<Kmer<2, uint64_t>>(opt)) return 0;
+  if (KmerTypeSelectAndRun<Kmer<5, uint32_t>>(opt)) return 0;
+  if (KmerTypeSelectAndRun<Kmer<3, uint64_t>>(opt)) return 0;
+  if (KmerTypeSelectAndRun<Kmer<7, uint32_t>>(opt)) return 0;
+  if (KmerTypeSelectAndRun<Kmer<4, uint64_t>>(opt)) return 0;
+  if (KmerTypeSelectAndRun<Kmer<kUint32PerKmerMaxK, uint32_t>>(opt)) return 0;
+  xfatal("k is too large!\n");
 }

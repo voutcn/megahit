@@ -20,7 +20,7 @@ class JunctionIndex {
     unsigned ext_len : 6;
     float mul;
   } __attribute__((packed));
-  using Junction = KmerPlus<KmerType::kNumWords, typename KmerType::word_type, JunctionInfo>;
+  using Junction = KmerPlus<KmerType, JunctionInfo>;
   using hash_set = spp::sparse_hash_set<Junction, KmerHash>;
  public:
   JunctionIndex(unsigned k, unsigned step) : k_(k), step_(step) {}
@@ -77,9 +77,7 @@ class JunctionIndex {
   }
 
   template<class CollectorType>
-  size_t FindNextKmersFromRead(
-      SequencePackage &seq_pkg, size_t seq_id,
-      CollectorType *out) {
+  size_t FindNextKmersFromRead(SequencePackage &seq_pkg, size_t seq_id, CollectorType *out) const {
     size_t length = seq_pkg.length(seq_id);
     if (length < k_ + step_ + 1) {
       return 0;

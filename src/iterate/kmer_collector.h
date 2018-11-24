@@ -16,7 +16,7 @@ template<class KmerType>
 class KmerCollector {
  public:
   using kmer_type = KmerType;
-  using kmer_plus = KmerPlus<KmerType::kNumWords, typename KmerType::word_type, mul_t>;
+  using kmer_plus = KmerPlus<KmerType, mul_t>;
   using hash_set = spp::sparse_hash_set<kmer_plus, KmerHash>;
 
   KmerCollector(unsigned k, const std::string &out_prefix, unsigned n_threads)
