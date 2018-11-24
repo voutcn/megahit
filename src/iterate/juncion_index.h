@@ -21,7 +21,7 @@ class JunctionIndex {
     float mul;
   } __attribute__((packed));
   using Junction = KmerPlus<KmerType::kNumWords, typename KmerType::word_type, JunctionInfo>;
-  using HashSet = spp::sparse_hash_set<Junction, KmerHash>;
+  using hash_set = spp::sparse_hash_set<Junction, KmerHash>;
  public:
   JunctionIndex(unsigned k, unsigned step) : k_(k), step_(step) {}
   size_t size() const { return hash_index_.size(); }
@@ -76,9 +76,10 @@ class JunctionIndex {
     }
   }
 
-  template<unsigned NumWords, class WordType>
-  size_t FindNextKmersFromRead(SequencePackage &seq_pkg, size_t seq_id,
-                               std::vector<KmerPlus<NumWords, WordType, mul_t>> *out) {
+  template<class CollectorType>
+  size_t FindNextKmersFromRead(
+      SequencePackage &seq_pkg, size_t seq_id,
+      CollectorType *out) {
     size_t length = seq_pkg.length(seq_id);
     if (length < k_ + step_ + 1) {
       return 0;
@@ -153,8 +154,7 @@ class JunctionIndex {
       kmer_mul[j] += kmer_mul[j - 1];
     }
 
-    Kmer<NumWords, WordType> new_kmer;
-    Kmer<NumWords, WordType> new_rkmer;
+    typename CollectorType::kmer_type new_kmer, new_rkmer;
 
     for (unsigned accumulated_len = 0, j = 0, end_pos = 0; j + k_ < length; ++j) {
       accumulated_len = kmer_exist[j] ? accumulated_len + 1 : 0;
@@ -181,15 +181,15 @@ class JunctionIndex {
         }
         float mul = (kmer_mul[j] - (j >= step_ + 1 ? kmer_mul[j - (step_ + 1)] : 0)) / (step_ + 1);
         assert(mul <= kMaxMul + 1);
-        out->emplace_back(new_kmer < new_rkmer ? new_kmer : new_rkmer,
-                          static_cast<mul_t>(std::min(kMaxMul, static_cast<int>(mul + 0.5))));
+        out->insert(new_kmer < new_rkmer ? new_kmer : new_rkmer,
+                    static_cast<mul_t>(std::min(kMaxMul, static_cast<int>(mul + 0.5))));
         num_success++;
       }
     }
     return num_success;
   }
  private:
-  HashSet hash_index_;
+  hash_set hash_index_;
   unsigned k_{};
   unsigned step_{};
 };

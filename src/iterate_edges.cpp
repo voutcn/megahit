@@ -19,12 +19,8 @@
 /* contact: Dinghua Li <dhli@cs.hku.hk> */
 
 #include <stdio.h>
-#include <pthread.h>
 #include <omp.h>
-#include <stdlib.h>
-#include <stdint.h>
 #include <assert.h>
-#include <zlib.h>
 
 #include <string>
 #include <vector>
@@ -34,14 +30,11 @@
 #include <stdexcept>
 
 #include "sequence/kmer_plus.h"
+#include "iterate/async_sequence_reader.h"
+#include "iterate/kmer_collector.h"
 #include "iterate/juncion_index.h"
 #include "definitions.h"
 #include "options_description.h"
-#include "kmlib/kmbitvector.h"
-#include "utils.h"
-#include "sparsepp/sparsepp/spp.h"
-#include "sequence_manager.h"
-#include "sequence_package.h"
 #include "edge_io.h"
 
 using std::string;
@@ -51,12 +44,10 @@ struct IterateGlobalData {
   std::string contig_file;
   std::string bubble_file;
   std::string read_file;
-  std::string read_format;
   std::string output_prefix;
 
   unsigned kmer_k;
   unsigned step;
-  unsigned next_k1; // = next_k + 1
   unsigned num_cpu_threads;
 };
 
@@ -64,14 +55,12 @@ struct iter_opt_t {
   string contig_file;
   string bubble_file;
   string read_file;
-  string read_format;
   int num_cpu_threads;
   int kmer_k;
   int step;
   string output_prefix;
 
   iter_opt_t() {
-    read_format = "";
     num_cpu_threads = 0;
     kmer_k = 0;
     step = 0;
@@ -86,16 +75,11 @@ static void ParseIterOptions(int argc, char *argv[]) {
   desc.AddOption("contig_file", "c", opt.contig_file, "(*) contigs file, fasta/fastq format, output by assembler");
   desc.AddOption("bubble_file", "b", opt.bubble_file, "(*) bubble file, fasta/fastq format, output by assembler");
   desc.AddOption("read_file", "r", opt.read_file, "(*) reads to be aligned. \"-\" for stdin. Can be gzip'ed.");
-  desc.AddOption("read_format", "f", opt.read_format, "(*) reads' format. fasta, fastq or binary.");
   desc.AddOption("num_cpu_threads", "t", opt.num_cpu_threads, "number of cpu threads, at least 2. 0 for auto detect.");
   desc.AddOption("kmer_k", "k", opt.kmer_k, "(*) current kmer size.");
-  desc.AddOption("step",
-                 "s",
-                 opt.step,
+  desc.AddOption("step", "s", opt.step,
                  "(*) step for iteration (<= 29). i.e. this iteration is from kmer_k to (kmer_k + step)");
-  desc.AddOption("output_prefix",
-                 "o",
-                 opt.output_prefix,
+  desc.AddOption("output_prefix", "o", opt.output_prefix,
                  "(*) output_prefix.edges.0 and output_prefix.rr.pb will be created.");
 
   try {
@@ -117,10 +101,7 @@ static void ParseIterOptions(int argc, char *argv[]) {
       throw std::logic_error("Invalid step size!");
     } else if (opt.output_prefix == "") {
       throw std::logic_error("No output prefix!");
-    } else if (opt.read_format != "binary" && opt.read_format != "fasta" && opt.read_format != "fastq") {
-      throw std::logic_error("Invalid read format!");
     }
-
     if (opt.num_cpu_threads == 0) {
       opt.num_cpu_threads = omp_get_max_threads();
     }
@@ -145,43 +126,14 @@ static void ParseIterOptions(int argc, char *argv[]) {
 static void InitGlobalData(IterateGlobalData &globals) {
   globals.kmer_k = opt.kmer_k;
   globals.step = opt.step;
-  globals.next_k1 = globals.kmer_k + globals.step + 1;
   globals.num_cpu_threads = opt.num_cpu_threads;
-  globals.read_format = opt.read_format;
   globals.contig_file = opt.contig_file;
   globals.bubble_file = opt.bubble_file;
   globals.read_file = opt.read_file;
   globals.output_prefix = opt.output_prefix;
 }
 
-static void *ReadContigsThread(void *seq_manager) {
-  auto *sm = (SequenceManager *) seq_manager;
-
-  int64_t kMaxNumContigs = 1 << 22;
-  int64_t kMaxNumBases = 1 << 28;
-  bool append = false;
-  bool reverse = false;
-  int discard_flag = contig_flag::kLoop | contig_flag::kStandalone;
-  bool extend_loop = false;
-  bool calc_depth = false;
-  sm->ReadMegahitContigs(kMaxNumContigs, kMaxNumBases, append, reverse, discard_flag, extend_loop, calc_depth);
-
-  return nullptr;
-}
-
-static void *ReadReadsThread(void *seq_manager) {
-  auto *sm = (SequenceManager *) seq_manager;
-
-  int64_t kMaxNumReads = 1 << 22;
-  int64_t kMaxNumBases = 1 << 28;
-  bool append = false;
-  bool reverse = false;
-  sm->ReadShortReads(kMaxNumReads, kMaxNumBases, append, reverse);
-
-  return nullptr;
-}
-
-template <class KmerType>
+template<class KmerType>
 class WriteEdgeFunc {
  public:
   using kp_t = KmerPlus<KmerType::kNumWords, typename KmerType::word_type, mul_t>;
@@ -231,75 +183,44 @@ class WriteEdgeFunc {
   std::vector<uint32_t> packed_edges_;
 };
 
-template <unsigned NumWords, class WordType, class IndexType>
+template<unsigned NumWords, class WordType, class IndexType>
 inline bool ReadReadsAndProcessKernel(
     IterateGlobalData &globals,
     IndexType &index) {
   using KmerType = Kmer<NumWords, WordType>;
-  if (KmerType::max_size() < (unsigned) globals.kmer_k + globals.step + 1) {
+  if (KmerType::max_size() < globals.kmer_k + globals.step + 1) {
     return false;
   }
-
-  spp::sparse_hash_set<KmerPlus<NumWords, WordType, uint16_t>, KmerHash> iterative_edges;
-  SequencePackage packages[2];
-  SequenceManager seq_manager;
-  pthread_t input_thread;
-  int input_thread_index = 0;
+  AsyncReadReader reader(globals.read_file);
+  KmerCollector<KmerType> collector;
   int64_t num_aligned_reads = 0;
   int64_t num_total_reads = 0;
 
-  std::mutex lock;
-
-  if (globals.read_format == "binary") {
-    seq_manager.set_file_type(SequenceManager::kBinaryReads);
-  } else {
-    seq_manager.set_file_type(SequenceManager::kFastxReads);
-  }
-
-  seq_manager.set_file(globals.read_file);
-  seq_manager.set_readlib_type(SequenceManager::kSingle); // PE info not used
-  seq_manager.set_package(&packages[input_thread_index]);
-
-  pthread_create(&input_thread, nullptr, ReadReadsThread, &seq_manager);
-  iterative_edges.reserve(index.size() * 4); // tunable
-
   while (true) {
-    pthread_join(input_thread, nullptr);
-    SequencePackage &rp = packages[input_thread_index];
-
-    if (rp.size() == 0) {
+    auto read_pkg = reader.Next();
+    if (read_pkg.size() == 0) {
       break;
     }
 
-    input_thread_index ^= 1;
-    seq_manager.set_package(&packages[input_thread_index]);
-    pthread_create(&input_thread, nullptr, ReadReadsThread, &seq_manager);
-    vector<KmerPlus<NumWords, WordType, mul_t>> iter_kmers;
-
-#pragma omp parallel for reduction(+: num_aligned_reads) private(iter_kmers)
-    for (unsigned i = 0; i < rp.size(); ++i) {
-      iter_kmers.clear();
-      num_aligned_reads += index.FindNextKmersFromRead(rp, i, &iter_kmers) > 0;
-      std::lock_guard<std::mutex> lk(lock);
-      for (auto &item : iter_kmers) {
-        iterative_edges.emplace(item);
-      }
+#pragma omp parallel for reduction(+: num_aligned_reads)
+    for (unsigned i = 0; i < read_pkg.size(); ++i) {
+      num_aligned_reads += index.FindNextKmersFromRead(read_pkg, i, &collector) > 0;
     }
 
-    num_total_reads += rp.size();
+    num_total_reads += read_pkg.size();
     xinfo("Processed: %lld, aligned: %lld. Iterative edges: %llu\n",
           (long long) num_total_reads,
           (long long) num_aligned_reads,
-          (unsigned long long) iterative_edges.size());
+          (unsigned long long) collector.collection().size());
   }
 
   xinfo("Total: %lld, aligned: %lld. Iterative edges: %llu\n",
         (long long) num_total_reads,
         (long long) num_aligned_reads,
-        (unsigned long long) iterative_edges.size());
+        (unsigned long long) collector.collection().size());
 
   // write iterative edges
-  if (iterative_edges.size() > 0) {
+  if (!collector.collection().empty()) {
     xinfo("Writing iterative edges...\n");
     EdgeWriter edge_writer;
 
@@ -315,9 +236,9 @@ inline bool ReadReadsAndProcessKernel(
     WriteEdgeFunc<KmerType> write_edge_func;
     write_edge_func.set_nextk1_size(next_k + 1);
     write_edge_func.set_edge_writer(&edge_writer);
-#pragma omp parallel for
-    for (size_t bucket_i = 0; bucket_i < iterative_edges.bucket_count(); ++bucket_i) {
-      for (auto it = iterative_edges.begin(bucket_i), end = iterative_edges.end(bucket_i); it != end; ++it) {
+    for (size_t bucket_i = 0; bucket_i < collector.collection().bucket_count(); ++bucket_i) {
+      for (auto it = collector.collection().begin(bucket_i), end = collector.collection().end(bucket_i); it != end;
+           ++it) {
         write_edge_func(*it);
       }
     }
@@ -326,7 +247,7 @@ inline bool ReadReadsAndProcessKernel(
   return true;
 }
 
-template <class IndexType>
+template<class IndexType>
 static void ReadReadsAndProcess(
     IterateGlobalData &globals,
     IndexType &index) {
@@ -343,36 +264,18 @@ static void ReadReadsAndProcess(
 
 template<class IndexType>
 static void ReadContigsAndBuildHash(
-    IterateGlobalData &globals, std::string file_name,
+    IterateGlobalData &globals, const std::string &file_name,
     IndexType *index) {
-  SequencePackage packages[2];
-  std::vector<float> f_muls[2];
-  SequenceManager seq_manager;
-  int input_thread_index = 0;
-  pthread_t input_thread;
-
-  seq_manager.set_file_type(SequenceManager::kMegahitContigs);
-  seq_manager.set_package(&packages[input_thread_index]);
-  seq_manager.set_float_multiplicity_vector(&f_muls[input_thread_index]);
-  seq_manager.set_file(file_name);
-
-  pthread_create(&input_thread, nullptr, ReadContigsThread, &seq_manager);
-
+  AsyncContigReader reader(file_name);
   while (true) {
-    pthread_join(input_thread, nullptr);
-    SequencePackage &cp = packages[input_thread_index];
-    std::vector<float> &f_mul = f_muls[input_thread_index];
+    auto &pkg = reader.Next();
+    auto &contig_pkg = pkg.first;
+    auto &mul = pkg.second;
 
-    if (cp.size() == 0) {
+    if (contig_pkg.size() == 0) {
       break;
     }
-
-    input_thread_index ^= 1;
-    seq_manager.set_float_multiplicity_vector(&f_muls[input_thread_index]);
-    seq_manager.set_package(&packages[input_thread_index]);
-    pthread_create(&input_thread, nullptr, ReadContigsThread, &seq_manager);
-    
-    index->FeedBatchContigs(cp, f_mul);
+    index->FeedBatchContigs(contig_pkg, mul);
   }
   xinfo("Number of junction kmers: %lu\n", index->size());
 }
@@ -381,8 +284,8 @@ template<uint32_t NumWords, typename WordType>
 bool IterateToNextK(IterateGlobalData &globals) {
   if (Kmer<NumWords, WordType>::max_size() >= globals.kmer_k + 1) {
     JunctionIndex<Kmer<NumWords, WordType>> index(globals.kmer_k, globals.step);
-    ReadContigsAndBuildHash(globals, globals.bubble_file, &index);
     ReadContigsAndBuildHash(globals, globals.contig_file, &index);
+    ReadContigsAndBuildHash(globals, globals.bubble_file, &index);
     ReadReadsAndProcess(globals, index);
     return true;
   }

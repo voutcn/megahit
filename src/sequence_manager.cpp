@@ -33,12 +33,11 @@ void SequenceManager::set_file(const std::string &file_name) {
     assert(kseq_readers_.size() == 0);
 
     files_.resize(1);
-    kseq_readers_.resize(1);
-
     files_[0] = file_name == "-" ? gzdopen(fileno(stdin), "r") : gzopen(file_name.c_str(), "r");
     assert(files_[0] != NULL);
 
     if (f_type == kFastxReads || f_type == kMegahitContigs) {
+        kseq_readers_.resize(1);
         kseq_readers_[0] = kseq_init(files_[0]);
         assert(kseq_readers_[0] != NULL);
     }
@@ -50,7 +49,6 @@ void SequenceManager::set_pe_files(const std::string &file_name1, const std::str
     assert(kseq_readers_.size() == 0);
 
     files_.resize(2);
-    kseq_readers_.resize(2);
 
     files_[0] = file_name1 == "-" ? gzdopen(fileno(stdin), "r") : gzopen(file_name1.c_str(), "r");
     files_[1] = file_name2 == "-" ? gzdopen(fileno(stdin), "r") : gzopen(file_name2.c_str(), "r");
@@ -58,6 +56,7 @@ void SequenceManager::set_pe_files(const std::string &file_name1, const std::str
     assert(files_[0] != NULL);
 
     if (f_type == kFastxReads || f_type == kMegahitContigs) {
+        kseq_readers_.resize(2);
         for (int i = 0; i < 2; ++i) {
             kseq_readers_[i] = kseq_init(files_[i]);
             assert(kseq_readers_[i] != NULL);

@@ -36,5 +36,5 @@ set(CMAKE_CXX_FLAGS_DEBUG "-g -O1")
 message(STATUS "Build type: ${CMAKE_BUILD_TYPE}: ${CMAKE_CXX_FLAGS}")
 set(CMAKE_VERBOSE_MAKEFILE ON)
 
-add_executable(megahit_asm_core ${OTHER_SOURCE} ${ASMBL_SOURCE} ${IDBA_SOURCE} ${SDBG_SOURCE})
+add_executable(megahit_asm_core ${OTHER_SOURCE} ${ASMBL_SOURCE} ${IDBA_SOURCE} ${SDBG_SOURCE} src/iterate/kmer_collector.h src/iterate/async_sequence_reader.h)
 target_link_libraries(megahit_asm_core ${ZLIB_LIBRARIES} ${CMAKE_THREAD_LIBS_INIT})
