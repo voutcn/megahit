@@ -51,10 +51,9 @@ class KmerCollector {
     uint32_t *ptr = buffer_.data() + tid * words_per_kmer_;
     uint32_t w = 0;
 
-    for (unsigned j = 0; j < k_;) {
+    for (unsigned j = 0; j < k_; ++j) {
       w = (w << 2) | kmer.GetBase(k_ - 1 - j);
-      ++j;
-      if (j % 16 == 0) {
+      if (j % 16 == 15) {
         *ptr = w;
         w = 0;
         ++ptr;
@@ -63,7 +62,7 @@ class KmerCollector {
 
     *ptr = (w << last_shift_);
     assert((*ptr & kMaxMul) == 0);
-    ptr[words_per_kmer_ - 1] |= mul;
+    *ptr |= mul;
     writer_.write_unsorted(ptr, tid);
   }
  private:
