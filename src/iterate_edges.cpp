@@ -40,7 +40,7 @@
 using std::string;
 using std::vector;
 
-struct IterateGlobalData {
+struct IterParam {
   std::string contig_file;
   std::string bubble_file;
   std::string read_file;
@@ -123,7 +123,7 @@ static void ParseIterOptions(int argc, char *argv[]) {
   }
 }
 
-static void InitGlobalData(IterateGlobalData &globals) {
+static void InitGlobalData(IterParam &globals) {
   globals.kmer_k = opt.kmer_k;
   globals.step = opt.step;
   globals.num_cpu_threads = opt.num_cpu_threads;
@@ -133,66 +133,15 @@ static void InitGlobalData(IterateGlobalData &globals) {
   globals.output_prefix = opt.output_prefix;
 }
 
-template<class KmerType>
-class WriteEdgeFunc {
- public:
-  using kp_t = KmerPlus<KmerType::kNumWords, typename KmerType::word_type, mul_t>;
-
-  void set_edge_writer(EdgeWriter *edge_writer) {
-    edge_writer_ = edge_writer;
-  }
-  void set_nextk1_size(unsigned nextk1) {
-    next_k1_ = nextk1;
-    next_k_ = nextk1 - 1;
-    last_shift_ = nextk1 % 16;
-    last_shift_ = (last_shift_ == 0 ? 0 : 16 - last_shift_) * 2;
-    words_per_edge_ = DivCeiling(nextk1 * 2 + kBitsPerMul, 32);
-    packed_edges_.resize(omp_get_max_threads() * words_per_edge_);
-  }
-
-  void operator()(const kp_t &kp) {
-    int tid = omp_get_thread_num();
-    uint32_t *packed_edge = &packed_edges_[0] + tid * words_per_edge_;
-    memset(packed_edge, 0, sizeof(uint32_t) * words_per_edge_);
-
-    int w = 0;
-    int end_word = 0;
-
-    for (unsigned j = 0; j < next_k1_;) {
-      w = (w << 2) | kp.kmer.GetBase(next_k_ - j);
-      ++j;
-
-      if (j % 16 == 0) {
-        packed_edge[end_word] = w;
-        w = 0;
-        end_word++;
-      }
-    }
-
-    packed_edge[end_word] = (w << last_shift_);
-    assert((packed_edge[words_per_edge_ - 1] & kMaxMul) == 0);
-    packed_edge[words_per_edge_ - 1] |= kp.aux;
-    edge_writer_->write_unsorted(packed_edge, tid);
-  }
-
- private:
-  EdgeWriter *edge_writer_;
-  unsigned last_shift_;
-  unsigned words_per_edge_;
-  unsigned next_k1_, next_k_;
-  std::vector<uint32_t> packed_edges_;
-};
-
 template<unsigned NumWords, class WordType, class IndexType>
-inline bool ReadReadsAndProcessKernel(
-    IterateGlobalData &globals,
-    IndexType &index) {
+inline bool ReadReadsAndProcessKernel(IterParam &globals, IndexType &index) {
   using KmerType = Kmer<NumWords, WordType>;
   if (KmerType::max_size() < globals.kmer_k + globals.step + 1) {
     return false;
   }
   AsyncReadReader reader(globals.read_file);
-  KmerCollector<KmerType> collector;
+  KmerCollector<KmerType> collector(globals.kmer_k + globals.step + 1, globals.output_prefix,
+      globals.num_cpu_threads);
   int64_t num_aligned_reads = 0;
   int64_t num_total_reads = 0;
 
@@ -209,47 +158,18 @@ inline bool ReadReadsAndProcessKernel(
 
     num_total_reads += read_pkg.size();
     xinfo("Processed: %lld, aligned: %lld. Iterative edges: %llu\n",
-          (long long) num_total_reads,
-          (long long) num_aligned_reads,
-          (unsigned long long) collector.collection().size());
+          num_total_reads, num_aligned_reads, collector.collection().size());
   }
 
+  collector.FlushToFile();
   xinfo("Total: %lld, aligned: %lld. Iterative edges: %llu\n",
-        (long long) num_total_reads,
-        (long long) num_aligned_reads,
-        (unsigned long long) collector.collection().size());
-
-  // write iterative edges
-  if (!collector.collection().empty()) {
-    xinfo("Writing iterative edges...\n");
-    EdgeWriter edge_writer;
-
-    uint32_t next_k = globals.kmer_k + globals.step;
-    omp_set_num_threads(globals.num_cpu_threads);
-
-    edge_writer.set_num_threads(globals.num_cpu_threads);
-    edge_writer.set_file_prefix(globals.output_prefix);
-    edge_writer.set_unsorted();
-    edge_writer.set_kmer_size(next_k);
-    edge_writer.init_files();
-
-    WriteEdgeFunc<KmerType> write_edge_func;
-    write_edge_func.set_nextk1_size(next_k + 1);
-    write_edge_func.set_edge_writer(&edge_writer);
-    for (size_t bucket_i = 0; bucket_i < collector.collection().bucket_count(); ++bucket_i) {
-      for (auto it = collector.collection().begin(bucket_i), end = collector.collection().end(bucket_i); it != end;
-           ++it) {
-        write_edge_func(*it);
-      }
-    }
-  }
-
+        num_total_reads, num_aligned_reads, collector.collection().size());
   return true;
 }
 
 template<class IndexType>
 static void ReadReadsAndProcess(
-    IterateGlobalData &globals,
+    IterParam &globals,
     IndexType &index) {
   if (ReadReadsAndProcessKernel<1, uint64_t>(globals, index)) return;
   if (ReadReadsAndProcessKernel<3, uint32_t>(globals, index)) return;
@@ -264,7 +184,7 @@ static void ReadReadsAndProcess(
 
 template<class IndexType>
 static void ReadContigsAndBuildHash(
-    IterateGlobalData &globals, const std::string &file_name,
+    IterParam &globals, const std::string &file_name,
     IndexType *index) {
   AsyncContigReader reader(file_name);
   while (true) {
@@ -281,7 +201,7 @@ static void ReadContigsAndBuildHash(
 }
 
 template<uint32_t NumWords, typename WordType>
-bool IterateToNextK(IterateGlobalData &globals) {
+bool IterateToNextK(IterParam &globals) {
   if (Kmer<NumWords, WordType>::max_size() >= globals.kmer_k + 1) {
     JunctionIndex<Kmer<NumWords, WordType>> index(globals.kmer_k, globals.step);
     ReadContigsAndBuildHash(globals, globals.contig_file, &index);
@@ -295,7 +215,7 @@ bool IterateToNextK(IterateGlobalData &globals) {
 int main_iterate(int argc, char *argv[]) {
   AutoMaxRssRecorder recorder;
 
-  IterateGlobalData globals;
+  IterParam globals;
   ParseIterOptions(argc, argv);
   InitGlobalData(globals);
 

@@ -181,7 +181,7 @@ class JunctionIndex {
         }
         float mul = (kmer_mul[j] - (j >= step_ + 1 ? kmer_mul[j - (step_ + 1)] : 0)) / (step_ + 1);
         assert(mul <= kMaxMul + 1);
-        out->insert(new_kmer < new_rkmer ? new_kmer : new_rkmer,
+        out->Insert(new_kmer < new_rkmer ? new_kmer : new_rkmer,
                     static_cast<mul_t>(std::min(kMaxMul, static_cast<int>(mul + 0.5))));
         num_success++;
       }
