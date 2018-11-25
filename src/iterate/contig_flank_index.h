@@ -13,17 +13,17 @@
 #include "sequence_package.h"
 
 template<class KmerType>
-class JunctionIndex {
+class ContigFlankIndex {
  public:
-  struct JunctionInfo {
+  struct FlankInfo {
     uint64_t ext_seq : 58;
     unsigned ext_len : 6;
     float mul;
   } __attribute__((packed));
-  using Junction = KmerPlus<KmerType, JunctionInfo>;
-  using hash_set = spp::sparse_hash_set<Junction, KmerHash>;
+  using Flank = KmerPlus<KmerType, FlankInfo>;
+  using HashSet = spp::sparse_hash_set<Flank, KmerHash>;
  public:
-  JunctionIndex(unsigned k, unsigned step) : k_(k), step_(step) {}
+  ContigFlankIndex(unsigned k, unsigned step) : k_(k), step_(step) {}
   size_t size() const { return hash_index_.size(); }
 
   void FeedBatchContigs(SequencePackage &seq_pkg, const std::vector<float> &mul) {
@@ -56,13 +56,13 @@ class JunctionIndex {
 
         {
           std::lock_guard<std::mutex> lk(lock);
-          auto res = hash_index_.emplace(kmer, JunctionInfo{ext_seq, ext_len});
+          auto res = hash_index_.emplace(kmer, FlankInfo{ext_seq, ext_len});
           if (!res.second) {
             auto old_len = res.first->aux.ext_len;
             auto old_seq = res.first->aux.ext_seq;
             if (old_len < ext_len || (old_len == ext_len && old_seq < ext_seq)) {
               hash_index_.erase(res.first);
-              res = hash_index_.emplace(kmer, JunctionInfo{ext_seq, ext_len});
+              res = hash_index_.emplace(kmer, FlankInfo{ext_seq, ext_len});
               assert(res.second);
             }
           }
@@ -85,9 +85,9 @@ class JunctionIndex {
     std::vector<bool> kmer_exist(length, false);
     std::vector<float> kmer_mul(length, 0);
 
-    Junction jct, rjct;
-    auto &kmer = jct.kmer;
-    auto &rkmer = rjct.kmer;
+    Flank flank, rflank;
+    auto &kmer = flank.kmer;
+    auto &rkmer = rflank.kmer;
 
     for (unsigned j = 0; j < k_ + 1; ++j) {
       kmer.ShiftAppend(seq_pkg.get_base(seq_id, j), k_ + 1);
@@ -100,7 +100,7 @@ class JunctionIndex {
       unsigned next_pos = cur_pos + 1;
 
       if (!kmer_exist[cur_pos]) {
-        auto iter = hash_index_.find(jct);
+        auto iter = hash_index_.find(flank);
         if (iter != hash_index_.end()) {
           kmer_exist[cur_pos] = true;
           uint64_t ext_seq = iter->aux.ext_seq;
@@ -117,7 +117,7 @@ class JunctionIndex {
             }
           }
         }
-        if ((iter = hash_index_.find(rjct)) != hash_index_.end()) {
+        if ((iter = hash_index_.find(rflank)) != hash_index_.end()) {
           uint64_t ext_seq = iter->aux.ext_seq;
           unsigned ext_len = iter->aux.ext_len;
           float mul = iter->aux.mul;
@@ -186,7 +186,7 @@ class JunctionIndex {
     return num_success;
   }
  private:
-  hash_set hash_index_;
+  HashSet hash_index_;
   unsigned k_{};
   unsigned step_{};
 };

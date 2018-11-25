@@ -32,7 +32,7 @@
 #include "definitions.h"
 #include "iterate/async_sequence_reader.h"
 #include "iterate/kmer_collector.h"
-#include "iterate/juncion_index.h"
+#include "iterate/contig_flank_index.h"
 #include "options_description.h"
 
 using std::string;
@@ -160,14 +160,14 @@ static void ReadContigsAndBuildIndex(const Option &opt, const std::string &file_
     }
     index->FeedBatchContigs(contig_pkg, mul);
   }
-  xinfo("Number of junction kmers: %lu\n", index->size());
+  xinfo("Number of flank kmers: %lu\n", index->size());
 }
 
 template<class KmerType>
 bool KmerTypeSelectAndRun(const Option &opt) {
   if (KmerType::max_size() >= static_cast<unsigned>(opt.kmer_k + 1)) {
     xinfo("Selected kmer type size for k: %u\n", sizeof(KmerType));
-    JunctionIndex<KmerType> index(opt.kmer_k, opt.step);
+    ContigFlankIndex<KmerType> index(opt.kmer_k, opt.step);
     ReadContigsAndBuildIndex(opt, opt.contig_file, &index);
     ReadContigsAndBuildIndex(opt, opt.bubble_file, &index);
     ReadReadsAndProcess(opt, index);

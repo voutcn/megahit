@@ -6,10 +6,11 @@
 #define MEGAHIT_ASYNC_SEQUENCE_READER_H
 
 #include <future>
+#include <string>
 #include "sequence_package.h"
 #include "sequence_manager.h"
 
-template <class PackageType>
+template<class PackageType>
 class AsyncSequenceReader {
  public:
   using package_type = PackageType;
@@ -20,6 +21,7 @@ class AsyncSequenceReader {
     AsyncReadNextBatch();
     return ret;
   }
+
  protected:
   void AsyncReadNextBatch() {
     next_pkg_ = std::async(
@@ -50,6 +52,7 @@ class AsyncContigReader : public AsyncSequenceReader<std::pair<SequencePackage, 
   virtual ~AsyncContigReader() {
     StopReading();
   }
+
  protected:
   void ReadOneBatch(package_type *pkg) {
     seq_manager_.set_package(&pkg->first);
@@ -64,6 +67,7 @@ class AsyncContigReader : public AsyncSequenceReader<std::pair<SequencePackage, 
     seq_manager_.ReadMegahitContigs(
         kMaxNumContigs, kMaxNumBases, append, reverse, discard_flag, extend_loop, calc_depth);
   }
+  
  private:
   SequenceManager seq_manager_;
 };
