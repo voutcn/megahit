@@ -126,7 +126,7 @@ class ContigFlankIndex {
 
           for (unsigned j = 0; j < ext_len && cur_pos >= j + 1; ++j) {
             if ((3 ^ seq_pkg.get_base(seq_id, cur_pos - 1 - j)) == ((ext_seq >> j * 2) & 3)) {
-              kmer_mul[cur_pos - 1 - j] = kmer_exist[cur_pos - 1 - j] ? (kmer_mul[cur_pos - 1 - j] + mul) / 2 : mul;;
+              kmer_mul[cur_pos - 1 - j] = kmer_exist[cur_pos - 1 - j] ? (kmer_mul[cur_pos - 1 - j] + mul) / 2 : mul;
               kmer_exist[cur_pos - 1 - j] = true;
             } else {
               break;

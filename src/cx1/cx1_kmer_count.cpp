@@ -29,7 +29,7 @@
 #include "safe_alloc_open-inl.h"
 #include "kseq.h"
 #include "utils.h"
-#include "kmer.h"
+#include "sequence/kmer.h"
 #include "packed_reads.h"
 #include "read_lib_functions-inl.h"
 
@@ -103,7 +103,9 @@ void read_input_prepare(count_global_t &globals) { // num_items_, num_cpu_thread
     if (globals.assist_seq_file != "") {
         FILE *assist_seq_info = xfopen((globals.assist_seq_file + ".info").c_str(), "r");
         long long num_ass_bases, num_ass_seq;
-        assert(fscanf(assist_seq_info, "%lld%lld", &num_ass_seq, &num_ass_bases) == 2);
+        if (fscanf(assist_seq_info, "%lld%lld", &num_ass_seq, &num_ass_bases) != 2) {
+            xfatal("Invalid format\n");
+        }
         fclose(assist_seq_info);
 
         num_bases += num_ass_bases;
@@ -177,7 +179,7 @@ void *lv0_calc_bucket_size(void *_data) {
         }
 
         uint32_t *read_p = &globals.package.packed_seq[globals.package.get_start_index(read_id) / 16];
-        edge.init(read_p, globals.package.get_start_index(read_id) % 16, globals.kmer_k + 1);
+        edge.InitFromPtr(read_p, globals.package.get_start_index(read_id) % 16, globals.kmer_k + 1);
         rev_edge = edge;
         rev_edge.ReverseComplement(globals.kmer_k + 1);
 
@@ -185,10 +187,10 @@ void *lv0_calc_bucket_size(void *_data) {
 
         while (true) {
             if (rev_edge.cmp(edge, globals.kmer_k + 1) < 0) {
-                bucket_sizes[rev_edge.data_[0] >> (kCharsPerEdgeWord - kBucketPrefixLength) * kBitsPerEdgeChar]++;
+                bucket_sizes[rev_edge.data()[0] >> (kCharsPerEdgeWord - kBucketPrefixLength) * kBitsPerEdgeChar]++;
             }
             else {
-                bucket_sizes[edge.data_[0] >> (kCharsPerEdgeWord - kBucketPrefixLength) * kBitsPerEdgeChar]++;
+                bucket_sizes[edge.data()[0] >> (kCharsPerEdgeWord - kBucketPrefixLength) * kBitsPerEdgeChar]++;
             }
 
             if (++last_char_offset >= read_length) {
@@ -351,7 +353,7 @@ void *lv1_fill_offset(void *_data) {
         }
 
         uint32_t *read_p = &globals.package.packed_seq[globals.package.get_start_index(read_id) / 16];
-        edge.init(read_p, globals.package.get_start_index(read_id) % 16, globals.kmer_k + 1);
+        edge.InitFromPtr(read_p, globals.package.get_start_index(read_id) % 16, globals.kmer_k + 1);
         rev_edge = edge;
         rev_edge.ReverseComplement(globals.kmer_k + 1);
 
@@ -382,11 +384,11 @@ void *lv1_fill_offset(void *_data) {
 
         while (true) {
             if (rev_edge.cmp(edge, globals.kmer_k + 1) < 0) {
-                key = rev_edge.data_[0] >> (kCharsPerEdgeWord - kBucketPrefixLength) * kBitsPerEdgeChar;
+                key = rev_edge.data()[0] >> (kCharsPerEdgeWord - kBucketPrefixLength) * kBitsPerEdgeChar;
                 CHECK_AND_SAVE_OFFSET(last_char_offset - globals.kmer_k, 1);
             }
             else {
-                key = edge.data_[0] >> (kCharsPerEdgeWord - kBucketPrefixLength) * kBitsPerEdgeChar;
+                key = edge.data()[0] >> (kCharsPerEdgeWord - kBucketPrefixLength) * kBitsPerEdgeChar;
                 CHECK_AND_SAVE_OFFSET(last_char_offset - globals.kmer_k, 0);
             }
 

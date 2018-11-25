@@ -25,9 +25,9 @@
 #include <string>
 #include <stdexcept>
 
-#include "cx1_kmer_count.h"
-#include "cx1_read2sdbg.h"
-#include "cx1_seq2sdbg.h"
+#include "cx1/cx1_kmer_count.h"
+#include "cx1/cx1_read2sdbg.h"
+#include "cx1/cx1_seq2sdbg.h"
 #include "options_description.h"
 #include "utils.h"
 #include "definitions.h"

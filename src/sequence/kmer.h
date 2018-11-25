@@ -8,7 +8,6 @@
 #include <cstring>
 #include <cstdint>
 #include <algorithm>
-#include <bit_operation.h>
 #include "kmlib/kmbit.h"
 
 /**
@@ -133,7 +132,7 @@ class Kmer {
     for (unsigned i = 0; i < used_words; ++i)
       data_[i] = kmlib::bit::ReverseComplement<2>(data_[i]);
 
-    for (unsigned i = 0; i < (used_words >> 1); ++i)
+    for (unsigned i = 0; i + i < used_words; ++i)
       std::swap(data_[i], data_[used_words - 1 - i]);
 
     if ((k % kCharsPerWord) != 0) {

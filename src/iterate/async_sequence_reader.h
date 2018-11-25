@@ -67,7 +67,7 @@ class AsyncContigReader : public AsyncSequenceReader<std::pair<SequencePackage, 
     seq_manager_.ReadMegahitContigs(
         kMaxNumContigs, kMaxNumBases, append, reverse, discard_flag, extend_loop, calc_depth);
   }
-  
+
  private:
   SequenceManager seq_manager_;
 };

@@ -48,7 +48,8 @@ class KmerCollector {
  private:
   void WriteToFile(const KmerType &kmer, mul_t mul) {
     int tid = omp_get_thread_num();
-    uint32_t *ptr = buffer_.data() + tid * words_per_kmer_;
+    uint32_t *start_ptr = buffer_.data() + tid * words_per_kmer_;
+    auto ptr = start_ptr;
     uint32_t w = 0;
 
     for (unsigned j = 0; j < k_; ++j) {
@@ -61,8 +62,8 @@ class KmerCollector {
     }
 
     *ptr = (w << last_shift_);
-    assert((*ptr & kMaxMul) == 0);
-    *ptr |= mul;
+    assert((start_ptr[words_per_kmer_ - 1] & kMaxMul) == 0);
+    start_ptr[words_per_kmer_ - 1] |= mul;
     writer_.write_unsorted(ptr, tid);
   }
  private:

@@ -27,7 +27,7 @@
 
 #include "utils.h"
 #include "packed_reads.h"
-#include "kmer.h"
+#include "sequence/kmer.h"
 
 #include "lv2_cpu_sort.h"
 
@@ -113,21 +113,21 @@ void InitLookupTable(int64_t *lookup_table, SequencePackage &p) {
     }
 
     Kmer<1, uint32_t> kmer;
-    kmer.init(&p.packed_seq[0], 0, 16);
+    kmer.InitFromPtr(&p.packed_seq[0], 0, 16);
 
-    uint32_t cur_prefix = kmer.data_[0] >> kLookUpShift;
+    uint32_t cur_prefix = kmer.data()[0] >> kLookUpShift;
     lookup_table[cur_prefix * 2] = 0;
 
     for (int64_t i = 1, num_edges = p.size(); i < num_edges; ++i) {
-        kmer.init(&p.packed_seq[p.get_start_index(i) / 16], p.get_start_index(i) % 16, 16);
+        kmer.InitFromPtr(&p.packed_seq[p.get_start_index(i) / 16], p.get_start_index(i) % 16, 16);
 
-        if ((kmer.data_[0] >> kLookUpShift) > cur_prefix) {
+        if ((kmer.data()[0] >> kLookUpShift) > cur_prefix) {
             lookup_table[cur_prefix * 2 + 1] = i - 1;
-            cur_prefix = kmer.data_[0] >> kLookUpShift;
+            cur_prefix = kmer.data()[0] >> kLookUpShift;
             lookup_table[cur_prefix * 2] = i;
         }
         else {
-            assert(cur_prefix == (kmer.data_[0] >> kLookUpShift));
+            assert(cur_prefix == (kmer.data()[0] >> kLookUpShift));
         }
     }
 
@@ -139,18 +139,18 @@ void InitLookupTable(int64_t *lookup_table, SequencePackage &p) {
  */
 int64_t BinarySearchKmer(GenericKmer &kmer, int64_t *lookup_table, SequencePackage &p, int kmer_size) {
     // --- first look up ---
-    int64_t l = lookup_table[(kmer.data_[0] >> kLookUpShift) * 2];
+    int64_t l = lookup_table[(kmer.data()[0] >> kLookUpShift) * 2];
 
     if (l == -1) {
         return -1;
     }
 
-    int64_t r = lookup_table[(kmer.data_[0] >> kLookUpShift) * 2 + 1];
+    int64_t r = lookup_table[(kmer.data()[0] >> kLookUpShift) * 2 + 1];
     GenericKmer mid_kmer;
 
     while (l <= r) {
         int64_t mid = (l + r) / 2;
-        mid_kmer.init(&p.packed_seq[p.get_start_index(mid) / 16], p.get_start_index(mid) % 16, kmer_size);
+        mid_kmer.InitFromPtr(&p.packed_seq[p.get_start_index(mid) / 16], p.get_start_index(mid) % 16, kmer_size);
         int cmp = kmer.cmp(mid_kmer, kmer_size);
 
         if (cmp > 0) {
@@ -233,7 +233,7 @@ void GenMercyEdges(seq2sdbg_global_t &globals) {
             std::fill(has_in.begin(), has_in.end(), false);
             std::fill(has_out.begin(), has_out.end(), false);
 
-            kmer.init(&rp.packed_seq[rp.get_start_index(read_id) / 16], rp.get_start_index(read_id) % 16, globals.kmer_k);
+            kmer.InitFromPtr(&rp.packed_seq[rp.get_start_index(read_id) / 16], rp.get_start_index(read_id) % 16, globals.kmer_k);
             rev_kmer = kmer;
             rev_kmer.ReverseComplement(globals.kmer_k);
 
@@ -246,11 +246,11 @@ void GenMercyEdges(seq2sdbg_global_t &globals) {
                     }
                     else {
                         // left append ACGT to kmer, if the (k+1)-mer exist, the kmer has in
-                        rev_kmer.set_base(globals.kmer_k, 3); // rev kmer is used to compare to kmer, if it's smaller, kmer would not exist in the table
+                        rev_kmer.SetBase(globals.kmer_k, 3); // rev kmer is used to compare to kmer, if it's smaller, kmer would not exist in the table
                         kmer.ShiftPreappend(0, globals.kmer_k + 1);
 
                         for (int c = 0; c < 4; ++c) {
-                            kmer.set_base(0, c);
+                            kmer.SetBase(0, c);
 
                             if (kmer.cmp(rev_kmer, globals.kmer_k + 1) > 0) {
                                 break;
@@ -262,7 +262,7 @@ void GenMercyEdges(seq2sdbg_global_t &globals) {
                             }
                         }
 
-                        rev_kmer.set_base(globals.kmer_k, 0);
+                        rev_kmer.SetBase(globals.kmer_k, 0);
                         kmer.ShiftAppend(0, globals.kmer_k + 1); // clean the k+1-th char
                     }
                 }
@@ -281,7 +281,7 @@ void GenMercyEdges(seq2sdbg_global_t &globals) {
                 }
                 else {
                     // search the rc
-                    kmer.set_base(globals.kmer_k, 3);
+                    kmer.SetBase(globals.kmer_k, 3);
                     int next_char = i + globals.kmer_k < read_len ? 3 - rp.get_base(read_id, i + globals.kmer_k) : 0;
                     rev_kmer.ShiftPreappend(next_char, globals.kmer_k + 1);
 
@@ -295,7 +295,7 @@ void GenMercyEdges(seq2sdbg_global_t &globals) {
                                 continue;
                             }
 
-                            rev_kmer.set_base(0, c);
+                            rev_kmer.SetBase(0, c);
 
                             if (rev_kmer.cmp(kmer, globals.kmer_k + 1) > 0) {
                                 break;
@@ -308,7 +308,7 @@ void GenMercyEdges(seq2sdbg_global_t &globals) {
                         }
                     }
 
-                    kmer.set_base(globals.kmer_k, 0);
+                    kmer.SetBase(globals.kmer_k, 0);
                     rev_kmer.ShiftAppend(0, globals.kmer_k + 1);
                 }
 
@@ -359,7 +359,7 @@ void GenMercyEdges(seq2sdbg_global_t &globals) {
         }
 
         for (unsigned i = 0; i < mercy_edges.size(); ++i) {
-            globals.package.AppendFixedLenSeq(mercy_edges[i].data_, globals.kmer_k + 1);
+            globals.package.AppendFixedLenSeq(mercy_edges[i].data(), globals.kmer_k + 1);
         }
     }
 
@@ -403,7 +403,9 @@ void read_seq_and_prepare(seq2sdbg_global_t &globals) {
         if (globals.contig != "") {
             long long num_contigs, num_bases;
             FILE *contig_info = xfopen((globals.contig + ".info").c_str(), "r");
-            assert(fscanf(contig_info, "%lld%lld", &num_contigs, &num_bases) == 2);
+            if (fscanf(contig_info, "%lld%lld", &num_contigs, &num_bases) != 2) {
+              xfatal("Invalid format\n");
+            }
             bases_to_reserve += num_bases;
             num_contigs_to_reserve += num_contigs;
             num_multiplicities_to_reserve += num_contigs;
@@ -413,7 +415,9 @@ void read_seq_and_prepare(seq2sdbg_global_t &globals) {
         if (globals.addi_contig != "") {
             long long num_contigs, num_bases;
             FILE *contig_info = xfopen((globals.addi_contig + ".info").c_str(), "r");
-            assert(fscanf(contig_info, "%lld%lld", &num_contigs, &num_bases) == 2);
+            if (fscanf(contig_info, "%lld%lld", &num_contigs, &num_bases) != 2) {
+                xfatal("Invalid format\n");
+            }
             bases_to_reserve += num_bases;
             num_contigs_to_reserve += num_contigs;
             num_multiplicities_to_reserve += num_contigs;
@@ -423,7 +427,9 @@ void read_seq_and_prepare(seq2sdbg_global_t &globals) {
         if (globals.local_contig != "") {
             long long num_contigs, num_bases;
             FILE *contig_info = xfopen((globals.local_contig + ".info").c_str(), "r");
-            assert(fscanf(contig_info, "%lld%lld", &num_contigs, &num_bases) == 2);
+            if (fscanf(contig_info, "%lld%lld", &num_contigs, &num_bases) != 2) {
+                xfatal("Invalid format\n");
+            }
             bases_to_reserve += num_bases;
             num_contigs_to_reserve += num_contigs;
             num_multiplicities_to_reserve += num_contigs;

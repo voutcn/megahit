@@ -26,7 +26,7 @@
 #include <parallel/algorithm>
 
 #include "utils.h"
-#include "kmer.h"
+#include "sequence/kmer.h"
 #include "safe_alloc_open-inl.h"
 #include "packed_reads.h"
 #include "read_lib_functions-inl.h"
@@ -267,7 +267,7 @@ void *s2_lv0_calc_bucket_size(void *_data) {
         int64_t offset = globals.package.get_start_index(read_id) % 16;
         uint32_t *read_p = &globals.package.packed_seq[which_word];
 
-        edge.init(read_p, offset, globals.kmer_k + 1);
+        edge.InitFromPtr(read_p, offset, globals.kmer_k + 1);
         rev_edge = edge;
         rev_edge.ReverseComplement(globals.kmer_k + 1);
 
@@ -278,23 +278,23 @@ void *s2_lv0_calc_bucket_size(void *_data) {
         while (true) {
             if (is_solid || globals.is_solid.at(full_offset)) {
                 bool is_palindrome = rev_edge.cmp(edge, globals.kmer_k + 1) == 0;
-                bucket_sizes[(edge.data_[0] << 2) >> (kCharsPerEdgeWord - kBucketPrefixLength) * kBitsPerEdgeChar]++;
+                bucket_sizes[(edge.data()[0] << 2) >> (kCharsPerEdgeWord - kBucketPrefixLength) * kBitsPerEdgeChar]++;
 
                 if (!is_palindrome)
-                    bucket_sizes[(rev_edge.data_[0] << 2) >> (kCharsPerEdgeWord - kBucketPrefixLength) * kBitsPerEdgeChar]++;
+                    bucket_sizes[(rev_edge.data()[0] << 2) >> (kCharsPerEdgeWord - kBucketPrefixLength) * kBitsPerEdgeChar]++;
 
                 if (last_char_offset == globals.kmer_k || !(is_solid || globals.is_solid.at(full_offset - 1))) {
-                    bucket_sizes[edge.data_[0] >> (kCharsPerEdgeWord - kBucketPrefixLength) * kBitsPerEdgeChar]++;
+                    bucket_sizes[edge.data()[0] >> (kCharsPerEdgeWord - kBucketPrefixLength) * kBitsPerEdgeChar]++;
 
                     if (!is_palindrome)
-                        bucket_sizes[(rev_edge.data_[0] << 4) >> (kCharsPerEdgeWord - kBucketPrefixLength) * kBitsPerEdgeChar]++;
+                        bucket_sizes[(rev_edge.data()[0] << 4) >> (kCharsPerEdgeWord - kBucketPrefixLength) * kBitsPerEdgeChar]++;
                 }
 
                 if (last_char_offset == read_length - 1 || !(is_solid || globals.is_solid.at(full_offset + 1))) {
-                    bucket_sizes[(edge.data_[0] << 4) >> (kCharsPerEdgeWord - kBucketPrefixLength) * kBitsPerEdgeChar]++;
+                    bucket_sizes[(edge.data()[0] << 4) >> (kCharsPerEdgeWord - kBucketPrefixLength) * kBitsPerEdgeChar]++;
 
                     if (!is_palindrome)
-                        bucket_sizes[rev_edge.data_[0] >> (kCharsPerEdgeWord - kBucketPrefixLength) * kBitsPerEdgeChar]++;
+                        bucket_sizes[rev_edge.data()[0] >> (kCharsPerEdgeWord - kBucketPrefixLength) * kBitsPerEdgeChar]++;
                 }
             }
 
@@ -441,7 +441,7 @@ void *s2_lv1_fill_offset(void *_data) {
         int64_t offset = globals.package.get_start_index(read_id) % 16;
         uint32_t *read_p = &globals.package.packed_seq[which_word];
 
-        edge.init(read_p, offset, globals.kmer_k + 1);
+        edge.InitFromPtr(read_p, offset, globals.kmer_k + 1);
         rev_edge = edge;
         rev_edge.ReverseComplement(globals.kmer_k + 1);
 
@@ -478,31 +478,31 @@ void *s2_lv1_fill_offset(void *_data) {
 
                 // left $
                 if (last_char_offset == globals.kmer_k || !(is_solid || globals.is_solid.at(full_offset - 1))) {
-                    key = edge.data_[0] >> (kCharsPerEdgeWord - kBucketPrefixLength) * kBitsPerEdgeChar;
+                    key = edge.data()[0] >> (kCharsPerEdgeWord - kBucketPrefixLength) * kBitsPerEdgeChar;
                     CHECK_AND_SAVE_OFFSET(last_char_offset - globals.kmer_k, 0, 0);
 
                     if (!is_palindrome) {
-                        key = (rev_edge.data_[0] << 4) >> (kCharsPerEdgeWord - kBucketPrefixLength) * kBitsPerEdgeChar;
+                        key = (rev_edge.data()[0] << 4) >> (kCharsPerEdgeWord - kBucketPrefixLength) * kBitsPerEdgeChar;
                         CHECK_AND_SAVE_OFFSET(last_char_offset - globals.kmer_k, 1, 0);
                     }
                 }
 
                 // solid
-                key = (edge.data_[0] << 2) >> (kCharsPerEdgeWord - kBucketPrefixLength) * kBitsPerEdgeChar;
+                key = (edge.data()[0] << 2) >> (kCharsPerEdgeWord - kBucketPrefixLength) * kBitsPerEdgeChar;
                 CHECK_AND_SAVE_OFFSET(last_char_offset - globals.kmer_k, 0, 1);
 
                 if (!is_palindrome) {
-                    key = (rev_edge.data_[0] << 2) >> (kCharsPerEdgeWord - kBucketPrefixLength) * kBitsPerEdgeChar;
+                    key = (rev_edge.data()[0] << 2) >> (kCharsPerEdgeWord - kBucketPrefixLength) * kBitsPerEdgeChar;
                     CHECK_AND_SAVE_OFFSET(last_char_offset - globals.kmer_k, 1, 1);
                 }
 
                 // right $
                 if (last_char_offset == read_length - 1 || !(is_solid || globals.is_solid.at(full_offset + 1))) {
-                    key = (edge.data_[0] << 4) >> (kCharsPerEdgeWord - kBucketPrefixLength) * kBitsPerEdgeChar;
+                    key = (edge.data()[0] << 4) >> (kCharsPerEdgeWord - kBucketPrefixLength) * kBitsPerEdgeChar;
                     CHECK_AND_SAVE_OFFSET(last_char_offset - globals.kmer_k, 0, 2);
 
                     if (!is_palindrome) {
-                        key = rev_edge.data_[0] >> (kCharsPerEdgeWord - kBucketPrefixLength) * kBitsPerEdgeChar;
+                        key = rev_edge.data()[0] >> (kCharsPerEdgeWord - kBucketPrefixLength) * kBitsPerEdgeChar;
                         CHECK_AND_SAVE_OFFSET(last_char_offset - globals.kmer_k, 1, 2);
                     }
                 }

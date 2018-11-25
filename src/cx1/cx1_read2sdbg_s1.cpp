@@ -28,7 +28,7 @@
 #include "safe_alloc_open-inl.h"
 #include "kseq.h"
 #include "utils.h"
-#include "kmer.h"
+#include "sequence/kmer.h"
 #include "packed_reads.h"
 #include "sequence_package.h"
 #include "read_lib_functions-inl.h"
@@ -104,7 +104,9 @@ void s1_read_input_prepare(read2sdbg_global_t &globals) {
     if (globals.assist_seq_file != "") {
         FILE *assist_seq_info = xfopen((globals.assist_seq_file + ".info").c_str(), "r");
         long long num_ass_bases, num_ass_seq;
-        assert(fscanf(assist_seq_info, "%lld%lld", &num_ass_seq, &num_ass_bases) == 2);
+        if (fscanf(assist_seq_info, "%lld%lld", &num_ass_seq, &num_ass_bases) != 2) {
+          xfatal("Invalid format\n");
+        }
         fclose(assist_seq_info);
 
         num_bases += num_ass_bases;
@@ -192,13 +194,13 @@ void *s1_lv0_calc_bucket_size(void *_data) {
         int64_t offset = globals.package.get_start_index(read_id) % 16;
         uint32_t *read_p = &globals.package.packed_seq[which_word];
 
-        k_minus1_mer.init(read_p, offset, globals.kmer_k - 1);
+        k_minus1_mer.InitFromPtr(read_p, offset, globals.kmer_k - 1);
         rev_k_minus1_mer = k_minus1_mer;
         rev_k_minus1_mer.ReverseComplement(globals.kmer_k - 1);
 
         // the first one special handling
-        bucket_sizes[k_minus1_mer.data_[0] >> (kCharsPerEdgeWord - kBucketPrefixLength) * kBitsPerEdgeChar]++;
-        bucket_sizes[rev_k_minus1_mer.data_[0] >> (kCharsPerEdgeWord - kBucketPrefixLength) * kBitsPerEdgeChar]++;
+        bucket_sizes[k_minus1_mer.data()[0] >> (kCharsPerEdgeWord - kBucketPrefixLength) * kBitsPerEdgeChar]++;
+        bucket_sizes[rev_k_minus1_mer.data()[0] >> (kCharsPerEdgeWord - kBucketPrefixLength) * kBitsPerEdgeChar]++;
 
         int last_char_offset = globals.kmer_k - 1;
         int c = globals.package.get_base(read_id, last_char_offset);
@@ -209,10 +211,10 @@ void *s1_lv0_calc_bucket_size(void *_data) {
             int cmp = k_minus1_mer.cmp(rev_k_minus1_mer, globals.kmer_k - 1);
 
             if (cmp > 0) {
-                bucket_sizes[rev_k_minus1_mer.data_[0] >> (kCharsPerEdgeWord - kBucketPrefixLength) * kBitsPerEdgeChar]++;
+                bucket_sizes[rev_k_minus1_mer.data()[0] >> (kCharsPerEdgeWord - kBucketPrefixLength) * kBitsPerEdgeChar]++;
             }
             else {
-                bucket_sizes[k_minus1_mer.data_[0] >> (kCharsPerEdgeWord - kBucketPrefixLength) * kBitsPerEdgeChar]++;
+                bucket_sizes[k_minus1_mer.data()[0] >> (kCharsPerEdgeWord - kBucketPrefixLength) * kBitsPerEdgeChar]++;
             }
 
             int c = globals.package.get_base(read_id, ++last_char_offset);
@@ -221,8 +223,8 @@ void *s1_lv0_calc_bucket_size(void *_data) {
         }
 
         // last one special handling
-        bucket_sizes[k_minus1_mer.data_[0] >> (kCharsPerEdgeWord - kBucketPrefixLength) * kBitsPerEdgeChar]++;
-        bucket_sizes[rev_k_minus1_mer.data_[0] >> (kCharsPerEdgeWord - kBucketPrefixLength) * kBitsPerEdgeChar]++;
+        bucket_sizes[k_minus1_mer.data()[0] >> (kCharsPerEdgeWord - kBucketPrefixLength) * kBitsPerEdgeChar]++;
+        bucket_sizes[rev_k_minus1_mer.data()[0] >> (kCharsPerEdgeWord - kBucketPrefixLength) * kBitsPerEdgeChar]++;
     }
 
     return NULL;
@@ -373,7 +375,7 @@ void *s1_lv1_fill_offset(void *_data) {
         int64_t offset = globals.package.get_start_index(read_id) % 16;
         uint32_t *read_p = &globals.package.packed_seq[which_word];
 
-        k_minus1_mer.init(read_p, offset, globals.kmer_k - 1);
+        k_minus1_mer.InitFromPtr(read_p, offset, globals.kmer_k - 1);
         rev_k_minus1_mer = k_minus1_mer;
         rev_k_minus1_mer.ReverseComplement(globals.kmer_k - 1);
 
@@ -400,9 +402,9 @@ void *s1_lv1_fill_offset(void *_data) {
         // =========== end macro ==========================
 
         // the first one special handling
-        key = k_minus1_mer.data_[0] >> (kCharsPerEdgeWord - kBucketPrefixLength) * kBitsPerEdgeChar;
+        key = k_minus1_mer.data()[0] >> (kCharsPerEdgeWord - kBucketPrefixLength) * kBitsPerEdgeChar;
         CHECK_AND_SAVE_OFFSET(0, 0);
-        key = rev_k_minus1_mer.data_[0] >> (kCharsPerEdgeWord - kBucketPrefixLength) * kBitsPerEdgeChar;
+        key = rev_k_minus1_mer.data()[0] >> (kCharsPerEdgeWord - kBucketPrefixLength) * kBitsPerEdgeChar;
         CHECK_AND_SAVE_OFFSET(0, 1);
 
         int last_char_offset = globals.kmer_k - 1;
@@ -415,11 +417,11 @@ void *s1_lv1_fill_offset(void *_data) {
             int cmp = k_minus1_mer.cmp(rev_k_minus1_mer, globals.kmer_k - 1);
 
             if (cmp > 0) {
-                key = rev_k_minus1_mer.data_[0] >> (kCharsPerEdgeWord - kBucketPrefixLength) * kBitsPerEdgeChar;
+                key = rev_k_minus1_mer.data()[0] >> (kCharsPerEdgeWord - kBucketPrefixLength) * kBitsPerEdgeChar;
                 CHECK_AND_SAVE_OFFSET(last_char_offset - globals.kmer_k + 2, 1);
             }
             else if (cmp < 0) {
-                key = k_minus1_mer.data_[0] >> (kCharsPerEdgeWord - kBucketPrefixLength) * kBitsPerEdgeChar;
+                key = k_minus1_mer.data()[0] >> (kCharsPerEdgeWord - kBucketPrefixLength) * kBitsPerEdgeChar;
                 CHECK_AND_SAVE_OFFSET(last_char_offset - globals.kmer_k + 2, 0);
             }
             else {
@@ -428,11 +430,11 @@ void *s1_lv1_fill_offset(void *_data) {
                 int next = globals.package.get_base(read_id, last_char_offset + 1);
 
                 if (prev <= 3 - next) {
-                    key = rev_k_minus1_mer.data_[0] >> (kCharsPerEdgeWord - kBucketPrefixLength) * kBitsPerEdgeChar;
+                    key = rev_k_minus1_mer.data()[0] >> (kCharsPerEdgeWord - kBucketPrefixLength) * kBitsPerEdgeChar;
                     CHECK_AND_SAVE_OFFSET(last_char_offset - globals.kmer_k + 2, 0);
                 }
                 else {
-                    key = rev_k_minus1_mer.data_[0] >> (kCharsPerEdgeWord - kBucketPrefixLength) * kBitsPerEdgeChar;
+                    key = rev_k_minus1_mer.data()[0] >> (kCharsPerEdgeWord - kBucketPrefixLength) * kBitsPerEdgeChar;
                     CHECK_AND_SAVE_OFFSET(last_char_offset - globals.kmer_k + 2, 1);
                 }
             }
@@ -443,9 +445,9 @@ void *s1_lv1_fill_offset(void *_data) {
         }
 
         // the last one special handling
-        key = k_minus1_mer.data_[0] >> (kCharsPerEdgeWord - kBucketPrefixLength) * kBitsPerEdgeChar;
+        key = k_minus1_mer.data()[0] >> (kCharsPerEdgeWord - kBucketPrefixLength) * kBitsPerEdgeChar;
         CHECK_AND_SAVE_OFFSET(last_char_offset - globals.kmer_k + 2, 0);
-        key = rev_k_minus1_mer.data_[0] >> (kCharsPerEdgeWord - kBucketPrefixLength) * kBitsPerEdgeChar;
+        key = rev_k_minus1_mer.data()[0] >> (kCharsPerEdgeWord - kBucketPrefixLength) * kBitsPerEdgeChar;
         CHECK_AND_SAVE_OFFSET(last_char_offset - globals.kmer_k + 2, 1);
     }
 
