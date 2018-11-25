@@ -893,8 +893,7 @@ def iterate(cur_k, step):
                        "-k", str(cur_k),
                        "-s", str(step),
                        "-o", graph_prefix(next_k),
-                       "-r", opt.lib + ".bin",
-                       "-f", "binary"]
+                       "-r", opt.lib + ".bin"]
 
         try:
             logging.info("--- [%s] Extracting iterative edges from k = %d to %d ---" % (datetime.now().strftime("%c"), cur_k, next_k))
@@ -997,7 +996,6 @@ def local_assemble(cur_k, kmer_to):
                   "-l", opt.lib,
                   "-t", str(opt.num_cpu_threads),
                   "-o", contig_prefix(cur_k) + ".local.fa",
-                  # "--sparsity", "1",
                   "--kmax", str(kmer_to)]
         try:
             logging.info("--- [%s] Local assembling k = %d ---" % (datetime.now().strftime("%c"), cur_k))

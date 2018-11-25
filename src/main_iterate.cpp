@@ -38,7 +38,9 @@
 using std::string;
 using std::vector;
 
-static struct Option {
+namespace {
+
+struct Option {
   string contig_file;
   string bubble_file;
   string read_file;
@@ -98,6 +100,8 @@ static void ParseIterOptions(int argc, char *argv[]) {
     std::cerr << desc << std::endl;
     exit(1);
   }
+}
+
 }
 
 template<class KmerType, class IndexType>

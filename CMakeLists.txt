@@ -6,15 +6,15 @@ set(CMAKE_CXX_STANDARD 11)
 include_directories(src)
 include_directories(src/sparsepp)
 FILE(GLOB_RECURSE ASMBL_SOURCE "src/assembly/*.cpp")
+FILE(GLOB_RECURSE LCASM_SOURCE "src/local_asm/*.cpp")
 FILE(GLOB_RECURSE IDBA_SOURCE "src/lib_idba/*.cpp")
 FILE(GLOB_RECURSE SDBG_SOURCE "src/sdbg/*.cpp")
 LIST(APPEND OTHER_SOURCE
-        src/asm_core.cpp
-        src/assembler.cpp
+        src/main_asm_core_entry.cpp
+        src/main_assemble.cpp
         src/build_read_lib.cpp
-        src/iterate_edges.cpp
-        src/local_assemble.cpp
-        src/local_assembler.cpp
+        src/main_iterate.cpp
+        src/main_local_assemble.cpp
         src/options_description.cpp
         src/sequence_manager.cpp
         )
@@ -36,5 +36,5 @@ set(CMAKE_CXX_FLAGS_DEBUG "-g -O1")
 message(STATUS "Build type: ${CMAKE_BUILD_TYPE}: ${CMAKE_CXX_FLAGS}")
 set(CMAKE_VERBOSE_MAKEFILE ON)
 
-add_executable(megahit_asm_core ${OTHER_SOURCE} ${ASMBL_SOURCE} ${IDBA_SOURCE} ${SDBG_SOURCE} src/iterate/kmer_collector.h src/iterate/async_sequence_reader.h)
+add_executable(megahit_asm_core ${OTHER_SOURCE} ${ASMBL_SOURCE} ${IDBA_SOURCE} ${SDBG_SOURCE} ${LCASM_SOURCE})
 target_link_libraries(megahit_asm_core ${ZLIB_LIBRARIES} ${CMAKE_THREAD_LIBS_INIT})

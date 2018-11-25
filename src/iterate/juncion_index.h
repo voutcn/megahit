@@ -40,11 +40,11 @@ class JunctionIndex {
           return strand == 0 ? c : 3 ^ c;
         };
 
-        Junction jct;
+        KmerType kmer;
         for (unsigned j = 0; j < k_ + 1; ++j) {
-          jct.kmer.ShiftAppend(get_jth_char(j), k_ + 1);
+          kmer.ShiftAppend(get_jth_char(j), k_ + 1);
         }
-        if (jct.kmer.IsPalindrome(k_ + 1)) {
+        if (kmer.IsPalindrome(k_ + 1)) {
           continue;
         }
 
@@ -53,20 +53,18 @@ class JunctionIndex {
         for (unsigned j = 0; j < ext_len; ++j) {
           ext_seq |= uint64_t(get_jth_char(k_ + 1 + j)) << j * 2;
         }
-        jct.aux.ext_len = ext_len;
-        jct.aux.ext_seq = ext_seq;
-        jct.aux.mul = mul[i];
 
         {
           std::lock_guard<std::mutex> lk(lock);
-          auto iter = hash_index_.find(jct);
-          if (iter != hash_index_.end()) {
-            if (iter->aux.ext_len < ext_len || (iter->aux.ext_len == ext_len && iter->aux.ext_seq < ext_seq)) {
-              hash_index_.erase(iter);
-              hash_index_.insert(jct);
+          auto res = hash_index_.emplace(kmer, JunctionInfo{ext_seq, ext_len});
+          if (!res.second) {
+            auto old_len = res.first->aux.ext_len;
+            auto old_seq = res.first->aux.ext_seq;
+            if (old_len < ext_len || (old_len == ext_len && old_seq < ext_seq)) {
+              hash_index_.erase(res.first);
+              res = hash_index_.emplace(kmer, JunctionInfo{ext_seq, ext_len});
+              assert(res.second);
             }
-          } else {
-            hash_index_.insert(jct);
           }
         }
         if (seq_len == k_ + 1) {
@@ -118,17 +116,18 @@ class JunctionIndex {
               break;
             }
           }
-        } else if ((iter = hash_index_.find(rjct)) != hash_index_.end()) {
-          kmer_exist[cur_pos] = true;
+        }
+        if ((iter = hash_index_.find(rjct)) != hash_index_.end()) {
           uint64_t ext_seq = iter->aux.ext_seq;
           unsigned ext_len = iter->aux.ext_len;
           float mul = iter->aux.mul;
-          kmer_mul[cur_pos] = mul;
+          kmer_mul[cur_pos] = kmer_exist[cur_pos] ? (kmer_mul[cur_pos] + mul) / 2 : mul;
+          kmer_exist[cur_pos] = true;
 
           for (unsigned j = 0; j < ext_len && cur_pos >= j + 1; ++j) {
             if ((3 ^ seq_pkg.get_base(seq_id, cur_pos - 1 - j)) == ((ext_seq >> j * 2) & 3)) {
+              kmer_mul[cur_pos - 1 - j] = kmer_exist[cur_pos - 1 - j] ? (kmer_mul[cur_pos - 1 - j] + mul) / 2 : mul;;
               kmer_exist[cur_pos - 1 - j] = true;
-              kmer_mul[cur_pos - 1 - j] = mul;
             } else {
               break;
             }
@@ -148,7 +147,7 @@ class JunctionIndex {
       }
     }
 
-    for (int j = 1; j + k_ + 1 <= length; ++j) {
+    for (unsigned j = 1; j + k_ + 1 <= length; ++j) {
       kmer_mul[j] += kmer_mul[j - 1];
     }
 

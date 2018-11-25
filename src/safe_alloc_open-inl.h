@@ -26,7 +26,7 @@
 
 inline FILE *xfopen(const char *filename, const char *mode) {
   FILE *fp;
-  if ((fp = fopen(filename, mode)) == NULL) {
+  if ((fp = fopen(filename, mode)) == nullptr) {
     fprintf(stderr, "[ERROR] Cannot open %s. Now exit to system...\n", filename);
     exit(-1);
   }
@@ -38,7 +38,7 @@ inline void *xmalloc(size_t size_in_byte,
                      int malloc_from_which_line = __LINE__) {
   void *ptr = malloc(size_in_byte);
 
-  if (ptr == NULL && size_in_byte != 0) {
+  if (ptr == nullptr && size_in_byte != 0) {
     fprintf(stderr, "[ERROR] Ran out of memory while applying %llubytes\n", (unsigned long long) size_in_byte);
     fprintf(stderr, "In file: %s, line %d\n", malloc_from_which_file, malloc_from_which_line);
     fprintf(stderr, "There may be errors as follows:\n");
@@ -57,7 +57,7 @@ inline void *xrealloc(void *ptr,
                       int realloc_from_which_line = __LINE__) {
   void *new_ptr = realloc(ptr, size_in_byte);
 
-  if (size_in_byte != 0 && new_ptr == NULL) {
+  if (size_in_byte != 0 && new_ptr == nullptr) {
     fprintf(stderr, "[ERROR] Ran out of memory while re-applying %llubytes\n", (unsigned long long) size_in_byte);
     fprintf(stderr, "In file: %s, line %d\n", realloc_from_which_file, realloc_from_which_line);
     fprintf(stderr, "There may be errors as follows:\n");

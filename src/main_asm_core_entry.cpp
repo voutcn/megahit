@@ -50,24 +50,18 @@ int main(int argc, char **argv) {
 
     if (strcmp(argv[1], "assemble") == 0) {
         return main_assemble(argc - 1, argv + 1);
-    }
-    else if (strcmp(argv[1], "local") == 0) {
+    } else if (strcmp(argv[1], "local") == 0) {
         return main_local(argc - 1 , argv + 1);
-    }
-    else if (strcmp(argv[1], "iterate") == 0) {
+    } else if (strcmp(argv[1], "iterate") == 0) {
         return main_iterate(argc - 1, argv + 1);
-    }
-    else if (strcmp(argv[1], "buildlib") == 0) {
+    } else if (strcmp(argv[1], "buildlib") == 0) {
         return main_build_lib(argc - 1, argv + 1);
-    }
-    else if (strcmp(argv[1], "dumpversion") == 0) {
+    } else if (strcmp(argv[1], "dumpversion") == 0) {
         printf("%s\n", PACKAGE_VERSION);
         return 0;
-    }
-    else if (strcmp(argv[1], "kmax") == 0) {
+    } else if (strcmp(argv[1], "kmax") == 0) {
         printf("%d\n", kMaxK);
-    }
-    else {
+    } else {
         show_help(argv[0]);
         exit(1);
     }

@@ -35,10 +35,12 @@
 
 using std::string;
 
-struct asm_opt_t {
+namespace {
+
+struct Option {
   string sdbg_name;
   string output_prefix{"out"};
-  int num_cpu_threads{};
+  int num_cpu_threads{0};
 
   int local_width{1000};
   int max_tip_len{-1};
@@ -103,9 +105,10 @@ void ParseAsmOption(int argc, char *argv[]) {
   }
 }
 
+}
+
 int main_assemble(int argc, char **argv) {
   AutoMaxRssRecorder recorder;
-
   ParseAsmOption(argc, argv);
 
   SDBG dbg;
