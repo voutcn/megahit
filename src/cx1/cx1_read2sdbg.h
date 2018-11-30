@@ -28,7 +28,7 @@
 #include "cx1.h"
 #include "sdbg/sdbg_writer.h"
 #include "kmlib/kmbitvector.h"
-#include "sequence_package.h"
+#include "sequence/sequence_package.h"
 #include "lib_info.h"
 #include "definitions.h"
 
@@ -108,7 +108,7 @@ struct read2sdbg_global_t {
     int64_t max_sorting_items;
 
     // big arrays
-    SequencePackage package;
+    SeqPackage package;
     std::vector<lib_info_t> lib_info;
     AtomicBitVector is_solid; // mark <read_id, offset> is solid
     int32_t *lv1_items; // each item is an offset (read ID and position) in differential representation

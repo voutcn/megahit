@@ -28,7 +28,7 @@
 #include "definitions.h"
 #include "cx1.h"
 #include "edge_io.h"
-#include "sequence_package.h"
+#include "sequence/sequence_package.h"
 #include "lib_info.h"
 
 struct count_opt_t {
@@ -101,7 +101,7 @@ struct count_global_t {
     int64_t num_reads; // total number of reads
 
     // big arrays
-    SequencePackage package;
+    SeqPackage package;
     std::vector<lib_info_t> lib_info;
 
     // lv1 new sorting scheme

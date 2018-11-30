@@ -21,7 +21,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <zlib.h>
-#include "kseq.h"
+#include "sequence/kseq.h"
 
 #ifndef KSEQ_INITED
     #define KSEQ_INITED

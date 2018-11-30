@@ -27,7 +27,7 @@
 #include <omp.h>
 
 #include "safe_alloc_open-inl.h"
-#include "kseq.h"
+#include "sequence/kseq.h"
 #include "utils.h"
 #include "sequence/kmer.h"
 #include "packed_reads.h"
@@ -48,8 +48,8 @@ typedef CX1<count_global_t, kNumBuckets>::outputpartition_data_t outputpartition
 /**
  * @brief encode read_id and its offset in one int64_t
  */
-inline int64_t EncodeOffset(int64_t read_id, int offset, int strand, SequencePackage &p) {
-    return ((p.get_start_index(read_id) + offset) << 1) | strand;
+inline int64_t EncodeOffset(int64_t read_id, int offset, int strand, SeqPackage &p) {
+    return ((p.StartPosition(read_id) + offset) << 1) | strand;
 }
 
 inline bool IsDifferentEdges(uint32_t *item1, uint32_t *item2, int num_words, int64_t spacing) {
@@ -111,9 +111,9 @@ void read_input_prepare(count_global_t &globals) { // num_items_, num_cpu_thread
         num_bases += num_ass_bases;
         num_reads += num_ass_seq;
     }
-    
-    globals.package.reserve_num_seq(num_reads);
-    globals.package.reserve_bases(num_bases);
+
+  globals.package.ReserveSequences(num_reads);
+  globals.package.ReserveBases(num_bases);
 
     ReadBinaryLibs(globals.read_lib_file, globals.package, globals.lib_info, is_reverse);
 
@@ -129,9 +129,9 @@ void read_input_prepare(count_global_t &globals) { // num_items_, num_cpu_thread
         seq_manager.ReadShortReads(1LL << 60, 1LL << 60, append_to_package, reverse_read, trimN);
         seq_manager.clear();
     }
-    
-    globals.package.BuildLookup();
-    globals.max_read_length = globals.package.max_read_len();
+
+  globals.package.BuildIndex();
+    globals.max_read_length = globals.package.MaxSequenceLength();
     globals.num_reads = globals.package.size();
 
     xinfo("%ld reads, %d max read length\n", globals.num_reads, globals.max_read_length);
@@ -146,7 +146,7 @@ void read_input_prepare(count_global_t &globals) { // num_items_, num_cpu_thread
     globals.offset_num_bits = bits_read_length;
     globals.read_length_mask = (1 << bits_read_length) - 1;
 
-    globals.mem_packed_reads = globals.package.size_in_byte();
+    globals.mem_packed_reads = globals.package.SizeInByte();
 
     int64_t mem_low_bound = globals.mem_packed_reads
                             + globals.num_reads * sizeof(unsigned char) * 2 // first_in0 & last_out0
@@ -172,14 +172,14 @@ void *lv0_calc_bucket_size(void *_data) {
     GenericKmer edge, rev_edge; // (k+1)-mer and its rc
 
     for (int64_t read_id = rp.rp_start_id; read_id < rp.rp_end_id; ++read_id) {
-        int read_length = globals.package.length(read_id);
+        int read_length = globals.package.SequenceLength(read_id);
 
         if (read_length < globals.kmer_k + 1) {
             continue;
         }
 
-        uint32_t *read_p = &globals.package.packed_seq[globals.package.get_start_index(read_id) / 16];
-        edge.InitFromPtr(read_p, globals.package.get_start_index(read_id) % 16, globals.kmer_k + 1);
+        auto start_ptr_and_offset = globals.package.WordPtrAndOffset(read_id);
+        edge.InitFromPtr(start_ptr_and_offset.first, start_ptr_and_offset.second, globals.kmer_k + 1);
         rev_edge = edge;
         rev_edge.ReverseComplement(globals.kmer_k + 1);
 
@@ -197,7 +197,7 @@ void *lv0_calc_bucket_size(void *_data) {
                 break;
             }
             else {
-                int c = globals.package.get_base(read_id, last_char_offset);
+                int c = globals.package.GetBase(read_id, last_char_offset);
                 edge.ShiftAppend(c, globals.kmer_k + 1);
                 rev_edge.ShiftPreappend(3 - c, globals.kmer_k + 1);
             }
@@ -346,14 +346,14 @@ void *lv1_fill_offset(void *_data) {
     int key;
 
     for (int64_t read_id = rp.rp_start_id; read_id < rp.rp_end_id; ++read_id) {
-        int read_length = globals.package.length(read_id);
+        int read_length = globals.package.SequenceLength(read_id);
 
         if (read_length < globals.kmer_k + 1) {
             continue;
         }
 
-        uint32_t *read_p = &globals.package.packed_seq[globals.package.get_start_index(read_id) / 16];
-        edge.InitFromPtr(read_p, globals.package.get_start_index(read_id) % 16, globals.kmer_k + 1);
+        auto ptr_and_offset = globals.package.WordPtrAndOffset(read_id);
+        edge.InitFromPtr(ptr_and_offset.first, ptr_and_offset.second, globals.kmer_k + 1);
         rev_edge = edge;
         rev_edge.ReverseComplement(globals.kmer_k + 1);
 
@@ -396,7 +396,7 @@ void *lv1_fill_offset(void *_data) {
                 break;
             }
             else {
-                int c = globals.package.get_base(read_id, last_char_offset);
+                int c = globals.package.GetBase(read_id, last_char_offset);
                 edge.ShiftAppend(c, globals.kmer_k + 1);
                 rev_edge.ShiftPreappend(3 - c, globals.kmer_k + 1);
             }
@@ -425,28 +425,28 @@ inline void lv2_extract_substr_(uint32_t *substrings_p, int64_t *read_info_p, co
                     full_offset = globals.cx1.lv1_items_special_[-1 - * (lv1_p++)];
                 }
 
-                int64_t read_id = globals.package.get_id(full_offset >> 1);
+                int64_t read_id = globals.package.GetSeqID(full_offset >> 1);
                 int strand = full_offset & 1;
-                int offset = (full_offset >> 1) - globals.package.get_start_index(read_id);
+                int offset = (full_offset >> 1) - globals.package.StartPosition(read_id);
                 int num_chars_to_copy = globals.kmer_k + 1;
 
-                int read_length = globals.package.length(read_id);
-                int64_t which_word = globals.package.get_start_index(read_id) / 16;
-                int start_offset = globals.package.get_start_index(read_id) % 16;
+                int read_length = globals.package.SequenceLength(read_id);
+                auto ptr_and_offset = globals.package.WordPtrAndOffset(read_id);
+                int start_offset = ptr_and_offset.second;
                 int words_this_seq = DivCeiling(start_offset + read_length, 16);
-                uint32_t *read_p = &globals.package.packed_seq[which_word];
+                const uint32_t *read_p = ptr_and_offset.first;
 
                 unsigned char prev, next;
 
                 if (offset > 0) {
-                    prev = globals.package.get_base(read_id, offset - 1);
+                    prev = globals.package.GetBase(read_id, offset - 1);
                 }
                 else {
                     prev = kSentinelValue;
                 }
 
                 if (offset + globals.kmer_k + 1 < read_length) {
-                    next = globals.package.get_base(read_id, offset + globals.kmer_k + 1);
+                    next = globals.package.GetBase(read_id, offset + globals.kmer_k + 1);
                 }
                 else {
                     next = kSentinelValue;
@@ -588,9 +588,9 @@ void lv2_output_(int64_t start_index, int64_t end_index, int thread_id, count_gl
         if (!has_in && count >= globals.kmer_freq_threshold) {
             for (int64_t j = from_; j < to_; ++j) {
                 int64_t read_info = read_infos[permutation[j]] >> 6;
-                int64_t read_id = globals.package.get_id(read_info >> 1);
+                int64_t read_id = globals.package.GetSeqID(read_info >> 1);
                 int strand = read_info & 1;
-                uint32_t offset = (read_info >> 1) - globals.package.get_start_index(read_id);
+                uint32_t offset = (read_info >> 1) - globals.package.StartPosition(read_id);
 
                 if (strand == 0) {
                     // update last
@@ -628,9 +628,9 @@ void lv2_output_(int64_t start_index, int64_t end_index, int thread_id, count_gl
         if (!has_out && count >= globals.kmer_freq_threshold) {
             for (int64_t j = from_; j < to_; ++j) {
                 int64_t read_info = read_infos[permutation[j]] >> 6;
-                int64_t read_id = globals.package.get_id(read_info >> 1);
+                int64_t read_id = globals.package.GetSeqID(read_info >> 1);
                 int strand = read_info & 1;
-                uint32_t offset = (read_info >> 1) - globals.package.get_start_index(read_id);
+                uint32_t offset = (read_info >> 1) - globals.package.StartPosition(read_id);
 
                 if (strand == 0) {
                     // update first

@@ -21,7 +21,7 @@
 #include <cstdlib>
 #include <cassert>
 
-#include "kseq.h"
+#include "sequence/kseq.h"
 #include "utils.h"
 
 using namespace std;

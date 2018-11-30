@@ -33,10 +33,10 @@
 #include "utils.h"
 #include "lib_info.h"
 #include "sequence_manager.h"
-#include "sequence_package.h"
+#include "sequence/sequence_package.h"
 #include "safe_alloc_open-inl.h"
 
-inline void ReadMultipleLibs(const std::string &lib_file, SequencePackage &package,
+inline void ReadMultipleLibs(const std::string &lib_file, SeqPackage &package,
                              std::vector<lib_info_t> &lib_info, bool is_reverse) {
     std::ifstream lib_config(lib_file);
 
@@ -91,8 +91,8 @@ inline void ReadMultipleLibs(const std::string &lib_file, SequencePackage &packa
         int max_read_len = 0;
 
         for (int64_t i = start; i <= end; ++i) {
-            if (max_read_len < (int)package.length(i)) {
-                max_read_len = package.length(i);
+            if (max_read_len < (int) package.SequenceLength(i)) {
+                max_read_len = package.SequenceLength(i);
             }
         }
 
@@ -121,7 +121,7 @@ inline void ReadAndWriteMultipleLibs(const std::string &lib_file, bool is_revers
 
     FILE *bin_file = xfopen(FormatString("%s.bin", out_prefix.c_str()), "wb");
 
-    SequencePackage package;
+    SeqPackage package;
     std::vector<lib_info_t> lib_info;
 
     std::string metadata;
@@ -175,9 +175,9 @@ inline void ReadAndWriteMultipleLibs(const std::string &lib_file, bool is_revers
             }
 
             total_reads += reads_this_batch;
-            total_bases += package.base_size();
+            total_bases += package.BaseCount();
             seq_manager.WriteBinarySequences(bin_file, is_reverse);
-            max_read_len = std::max(max_read_len, (int)package.max_read_len());
+            max_read_len = std::max(max_read_len, (int) package.MaxSequenceLength());
         }
 
         seq_manager.clear();
@@ -218,7 +218,7 @@ inline void GetBinaryLibSize(const std::string &file_prefix, int64_t &total_base
     lib_info_file >> total_bases >> num_reads;
 }
 
-inline void ReadBinaryLibs(const std::string &file_prefix, SequencePackage &package, std::vector<lib_info_t> &lib_info,
+inline void ReadBinaryLibs(const std::string &file_prefix, SeqPackage &package, std::vector<lib_info_t> &lib_info,
                            bool is_reverse = false, bool append_to_package = false) {
     std::ifstream lib_info_file(file_prefix + ".lib_info");
     int64_t start, end;
@@ -235,27 +235,30 @@ inline void ReadBinaryLibs(const std::string &file_prefix, SequencePackage &pack
         std::getline(lib_info_file, metadata); // eliminate the "\n"
     }
 
-    package.reserve_num_seq(num_reads);
-    package.reserve_bases(total_bases);
+    xinfo("Before reserve for %lu reads, %lu bases, sizeof seq_package: %lu\n", num_reads, total_bases,
+          package.SizeInByte());
+
+    package.ReserveSequences(num_reads);
+    package.ReserveBases(total_bases);
     SequenceManager seq_manager(&package);
     seq_manager.set_file_type(SequenceManager::kBinaryReads);
     seq_manager.set_file(FormatString("%s.bin", file_prefix.c_str()));
 
-    xinfo("Before reading, sizeof seq_package: %lld\n", package.size_in_byte());
+    xinfo("Before reading, sizeof seq_package: %lld\n", package.SizeInByte());
 
     seq_manager.ReadShortReads(1LL << 60, 1LL << 60, append_to_package, is_reverse);
 
-    xinfo("After reading, sizeof seq_package: %lld\n", package.size_in_byte());
+    xinfo("After reading, sizeof seq_package: %lld\n", package.SizeInByte());
 }
 
-inline void WriteMultipleLibs(SequencePackage &package, std::vector<lib_info_t> &lib_info, const std::string &file_prefix, bool is_reverse) {
+inline void WriteMultipleLibs(SeqPackage &package, std::vector<lib_info_t> &lib_info, const std::string &file_prefix, bool is_reverse) {
     SequenceManager seq_manager(&package);
     FILE *bin_file = xfopen(FormatString("%s.bin", file_prefix.c_str()), "wb");
     seq_manager.WriteBinarySequences(bin_file, is_reverse);
     fclose(bin_file);
 
     FILE *lib_info_file = xfopen(FormatString("%s.lib_info", file_prefix.c_str()), "w");
-    fprintf(lib_info_file, "%zu %zu\n", package.base_size(), package.size());
+    fprintf(lib_info_file, "%zu %zu\n", package.BaseCount(), package.size());
 
     for (unsigned i = 0; i < lib_info.size(); ++i) {
         fprintf(lib_info_file, "%s\n", lib_info[i].metadata.c_str());

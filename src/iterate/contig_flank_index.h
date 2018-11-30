@@ -10,7 +10,7 @@
 #include <utils.h>
 #include "sequence/kmer_plus.h"
 #include "sparsepp/spp.h"
-#include "sequence_package.h"
+#include "sequence/sequence_package.h"
 
 template<class KmerType>
 class ContigFlankIndex {
@@ -26,17 +26,17 @@ class ContigFlankIndex {
   ContigFlankIndex(unsigned k, unsigned step) : k_(k), step_(step) {}
   size_t size() const { return hash_index_.size(); }
 
-  void FeedBatchContigs(SequencePackage &seq_pkg, const std::vector<float> &mul) {
+  void FeedBatchContigs(SeqPackage &seq_pkg, const std::vector<float> &mul) {
     std::mutex lock;
 #pragma omp parallel for
     for (size_t i = 0; i < seq_pkg.size(); ++i) {
-      size_t seq_len = seq_pkg.length(i);
+      size_t seq_len = seq_pkg.SequenceLength(i);
       if (seq_len < k_ + 1) {
         continue;
       }
       for (int strand = 0; strand < 2; ++strand) {
         auto get_jth_char = [&seq_pkg, i, strand, seq_len](unsigned j) -> uint8_t {
-          uint8_t c = seq_pkg.get_base(i, strand == 0 ? j : (seq_len - 1 - j));
+          uint8_t c = seq_pkg.GetBase(i, strand == 0 ? j : (seq_len - 1 - j));
           return strand == 0 ? c : 3 ^ c;
         };
 
@@ -75,8 +75,8 @@ class ContigFlankIndex {
   }
 
   template<class CollectorType>
-  size_t FindNextKmersFromRead(SequencePackage &seq_pkg, size_t seq_id, CollectorType *out) const {
-    size_t length = seq_pkg.length(seq_id);
+  size_t FindNextKmersFromRead(SeqPackage &seq_pkg, size_t seq_id, CollectorType *out) const {
+    size_t length = seq_pkg.SequenceLength(seq_id);
     if (length < k_ + step_ + 1) {
       return 0;
     }
@@ -90,7 +90,7 @@ class ContigFlankIndex {
     auto &rkmer = rflank.kmer;
 
     for (unsigned j = 0; j < k_ + 1; ++j) {
-      kmer.ShiftAppend(seq_pkg.get_base(seq_id, j), k_ + 1);
+      kmer.ShiftAppend(seq_pkg.GetBase(seq_id, j), k_ + 1);
     }
     rkmer = kmer;
     rkmer.ReverseComplement(k_ + 1);
@@ -109,7 +109,7 @@ class ContigFlankIndex {
           kmer_mul[cur_pos] = mul;
 
           for (unsigned j = 0; j < ext_len && cur_pos + k_ + 1 + j < length; ++j, ++next_pos) {
-            if (seq_pkg.get_base(seq_id, cur_pos + k_ + 1 + j) == ((ext_seq >> j * 2) & 3)) {
+            if (seq_pkg.GetBase(seq_id, cur_pos + k_ + 1 + j) == ((ext_seq >> j * 2) & 3)) {
               kmer_exist[cur_pos + j + 1] = true;
               kmer_mul[cur_pos + j + 1] = mul;
             } else {
@@ -125,7 +125,7 @@ class ContigFlankIndex {
           kmer_exist[cur_pos] = true;
 
           for (unsigned j = 0; j < ext_len && cur_pos >= j + 1; ++j) {
-            if ((3 ^ seq_pkg.get_base(seq_id, cur_pos - 1 - j)) == ((ext_seq >> j * 2) & 3)) {
+            if ((3 ^ seq_pkg.GetBase(seq_id, cur_pos - 1 - j)) == ((ext_seq >> j * 2) & 3)) {
               kmer_mul[cur_pos - 1 - j] = kmer_exist[cur_pos - 1 - j] ? (kmer_mul[cur_pos - 1 - j] + mul) / 2 : mul;
               kmer_exist[cur_pos - 1 - j] = true;
             } else {
@@ -138,7 +138,7 @@ class ContigFlankIndex {
       if (next_pos + k_ + 1 <= length) {
         while (cur_pos < next_pos) {
           ++cur_pos;
-          uint8_t c = seq_pkg.get_base(seq_id, cur_pos + k_);
+          uint8_t c = seq_pkg.GetBase(seq_id, cur_pos + k_);
           kmer.ShiftAppend(c, k_ + 1);
           rkmer.ShiftPreappend(3 ^ c, k_ + 1);
         }
@@ -159,7 +159,7 @@ class ContigFlankIndex {
         unsigned target_end = j + k_ + 1;
         if (end_pos + 8 < target_end) {
           while (end_pos < target_end) {
-            auto c = seq_pkg.get_base(seq_id, end_pos);
+            auto c = seq_pkg.GetBase(seq_id, end_pos);
             new_kmer.ShiftAppend(c, k_ + step_ + 1);
             new_rkmer.ShiftPreappend(3 ^ c, k_ + step_ + 1);
             end_pos++;
@@ -169,7 +169,7 @@ class ContigFlankIndex {
             end_pos = target_end - (k_ + step_ + 1);
           }
           while (end_pos < target_end) {
-            auto c = seq_pkg.get_base(seq_id, end_pos);
+            auto c = seq_pkg.GetBase(seq_id, end_pos);
             new_kmer.ShiftAppend(c, k_ + step_ + 1);
             end_pos++;
           }

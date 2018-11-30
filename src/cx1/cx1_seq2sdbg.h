@@ -115,7 +115,7 @@ struct seq2sdbg_global_t {
     int bits_for_offset; // the number of bits needed to store the position in a contig
 
     // big arrays
-    SequencePackage package;
+    SeqPackage package;
     std::vector<mul_t> multiplicity;
 
     int32_t *lv1_items; // each item is an offset (read ID and position) in differential representation

@@ -26,11 +26,11 @@
 #include <omp.h>
 
 #include "safe_alloc_open-inl.h"
-#include "kseq.h"
+#include "sequence/kseq.h"
 #include "utils.h"
 #include "sequence/kmer.h"
 #include "packed_reads.h"
-#include "sequence_package.h"
+#include "sequence/sequence_package.h"
 #include "read_lib_functions-inl.h"
 
 #include "lv2_cpu_sort.h"
@@ -51,8 +51,8 @@ typedef CX1<read2sdbg_global_t, kNumBuckets>::outputpartition_data_t outputparti
 /**
  * @brief encode read_id and its offset in one int64_t
  */
-inline int64_t EncodeOffset(int64_t read_id, int offset, int strand, SequencePackage &p) {
-    return ((p.get_start_index(read_id) + offset) << 1) | strand;
+inline int64_t EncodeOffset(int64_t read_id, int offset, int strand, SeqPackage &p) {
+    return ((p.StartPosition(read_id) + offset) << 1) | strand;
 }
 
 // helper: see whether two lv2 items have the same (k-1)-mer
@@ -112,13 +112,13 @@ void s1_read_input_prepare(read2sdbg_global_t &globals) {
         num_bases += num_ass_bases;
         num_reads += num_ass_seq;
     }
-    
-    globals.package.reserve_num_seq(num_reads);
-    globals.package.reserve_bases(num_bases);
+
+    globals.package.ReserveSequences(num_reads);
+    globals.package.ReserveBases(num_bases);
 
     ReadBinaryLibs(globals.read_lib_file, globals.package, globals.lib_info, is_reverse);
     // set up these figures before reading assist seq
-    globals.max_read_length = globals.package.max_read_len();
+    globals.max_read_length = globals.package.MaxSequenceLength();
 
     if (globals.assist_seq_file != "") {
         SequenceManager seq_manager;
@@ -135,10 +135,11 @@ void s1_read_input_prepare(read2sdbg_global_t &globals) {
         seq_manager.clear();
     }
 
-    globals.package.BuildLookup();
+  globals.package.BuildIndex();
     globals.num_reads = globals.package.size();
 
-    xinfo("%ld reads, %d max read length, %lld total bases\n", globals.num_reads, globals.max_read_length, globals.package.base_size());
+    xinfo("%ld reads, %d max read length, %lld total bases\n", globals.num_reads, globals.max_read_length,
+          globals.package.BaseCount());
 
     int bits_read_length = 1; // bit needed to store read_length
 
@@ -154,11 +155,11 @@ void s1_read_input_prepare(read2sdbg_global_t &globals) {
 
     if (globals.kmer_freq_threshold == 1) {
         // do not need to count solid kmers
-        globals.mem_packed_reads = globals.package.size_in_byte();
+        globals.mem_packed_reads = globals.package.SizeInByte();
     }
     else {
-        globals.is_solid.reset(globals.package.base_size());
-        globals.mem_packed_reads = DivCeiling(globals.package.base_size(), 8) + globals.package.size_in_byte();
+        globals.is_solid.reset(globals.package.BaseCount());
+        globals.mem_packed_reads = DivCeiling(globals.package.BaseCount(), 8) + globals.package.SizeInByte();
     }
 
     int64_t mem_low_bound = globals.mem_packed_reads
@@ -184,15 +185,15 @@ void *s1_lv0_calc_bucket_size(void *_data) {
     GenericKmer k_minus1_mer, rev_k_minus1_mer; // (k-1)-mer and its rc
 
     for (int64_t read_id = rp.rp_start_id; read_id < rp.rp_end_id; ++read_id) {
-        int read_length = globals.package.length(read_id);
+        int read_length = globals.package.SequenceLength(read_id);
 
         if (read_length < globals.kmer_k + 1) {
             continue;
         }
 
-        int64_t which_word = globals.package.get_start_index(read_id) / 16;
-        int64_t offset = globals.package.get_start_index(read_id) % 16;
-        uint32_t *read_p = &globals.package.packed_seq[which_word];
+        auto ptr_and_offset = globals.package.WordPtrAndOffset(read_id);
+        int64_t offset = ptr_and_offset.second;
+        const uint32_t *read_p = ptr_and_offset.first;
 
         k_minus1_mer.InitFromPtr(read_p, offset, globals.kmer_k - 1);
         rev_k_minus1_mer = k_minus1_mer;
@@ -203,7 +204,7 @@ void *s1_lv0_calc_bucket_size(void *_data) {
         bucket_sizes[rev_k_minus1_mer.data()[0] >> (kCharsPerEdgeWord - kBucketPrefixLength) * kBitsPerEdgeChar]++;
 
         int last_char_offset = globals.kmer_k - 1;
-        int c = globals.package.get_base(read_id, last_char_offset);
+        int c = globals.package.GetBase(read_id, last_char_offset);
         k_minus1_mer.ShiftAppend(c, globals.kmer_k - 1);
         rev_k_minus1_mer.ShiftPreappend(3 - c, globals.kmer_k - 1);
 
@@ -217,7 +218,7 @@ void *s1_lv0_calc_bucket_size(void *_data) {
                 bucket_sizes[k_minus1_mer.data()[0] >> (kCharsPerEdgeWord - kBucketPrefixLength) * kBitsPerEdgeChar]++;
             }
 
-            int c = globals.package.get_base(read_id, ++last_char_offset);
+            int c = globals.package.GetBase(read_id, ++last_char_offset);
             k_minus1_mer.ShiftAppend(c, globals.kmer_k - 1);
             rev_k_minus1_mer.ShiftPreappend(3 - c, globals.kmer_k - 1);
         }
@@ -365,15 +366,15 @@ void *s1_lv1_fill_offset(void *_data) {
     int key;
 
     for (int64_t read_id = rp.rp_start_id; read_id < rp.rp_end_id; ++read_id) {
-        int read_length = globals.package.length(read_id);
+        int read_length = globals.package.SequenceLength(read_id);
 
         if (read_length < globals.kmer_k + 1) {
             continue;
         }
 
-        int64_t which_word = globals.package.get_start_index(read_id) / 16;
-        int64_t offset = globals.package.get_start_index(read_id) % 16;
-        uint32_t *read_p = &globals.package.packed_seq[which_word];
+        auto ptr_and_offset = globals.package.WordPtrAndOffset(read_id);
+        int64_t offset = ptr_and_offset.second;
+        const uint32_t *read_p = ptr_and_offset.first;
 
         k_minus1_mer.InitFromPtr(read_p, offset, globals.kmer_k - 1);
         rev_k_minus1_mer = k_minus1_mer;
@@ -408,7 +409,7 @@ void *s1_lv1_fill_offset(void *_data) {
         CHECK_AND_SAVE_OFFSET(0, 1);
 
         int last_char_offset = globals.kmer_k - 1;
-        int c = globals.package.get_base(read_id, last_char_offset);
+        int c = globals.package.GetBase(read_id, last_char_offset);
         k_minus1_mer.ShiftAppend(c, globals.kmer_k - 1);
         rev_k_minus1_mer.ShiftPreappend(3 - c, globals.kmer_k - 1);
 
@@ -426,8 +427,8 @@ void *s1_lv1_fill_offset(void *_data) {
             }
             else {
                 // a not-that-math-correct solution if the edge is palindrome, but works well enough
-                int prev = globals.package.get_base(read_id, last_char_offset - (globals.kmer_k - 1));
-                int next = globals.package.get_base(read_id, last_char_offset + 1);
+                int prev = globals.package.GetBase(read_id, last_char_offset - (globals.kmer_k - 1));
+                int next = globals.package.GetBase(read_id, last_char_offset + 1);
 
                 if (prev <= 3 - next) {
                     key = rev_k_minus1_mer.data()[0] >> (kCharsPerEdgeWord - kBucketPrefixLength) * kBitsPerEdgeChar;
@@ -439,7 +440,7 @@ void *s1_lv1_fill_offset(void *_data) {
                 }
             }
 
-            int c = globals.package.get_base(read_id, ++last_char_offset);
+            int c = globals.package.GetBase(read_id, ++last_char_offset);
             k_minus1_mer.ShiftAppend(c, globals.kmer_k - 1);
             rev_k_minus1_mer.ShiftPreappend(3 - c, globals.kmer_k - 1);
         }
@@ -473,24 +474,24 @@ void s1_extract_subtstr_(int bp_from, int bp_to, read2sdbg_global_t &globals, ui
                     full_offset = globals.cx1.lv1_items_special_[-1 - * (lv1_p++)];
                 }
 
-                int64_t read_id = globals.package.get_id(full_offset >> 1);
+                int64_t read_id = globals.package.GetSeqID(full_offset >> 1);
                 int strand = full_offset & 1;
-                int offset = (full_offset >> 1) - globals.package.get_start_index(read_id);
-                int read_length = globals.package.length(read_id);
+                int offset = (full_offset >> 1) - globals.package.StartPosition(read_id);
+                int read_length = globals.package.SequenceLength(read_id);
                 int num_chars_to_copy = globals.kmer_k - 1;
                 unsigned char prev, next, head, tail; // (k+1)=abScd, prev=a, head=b, tail=c, next=d
 
                 assert(offset < read_length);
 
                 if (offset > 1) {
-                    head = globals.package.get_base(read_id, offset - 1);
-                    prev = globals.package.get_base(read_id, offset - 2);
+                    head = globals.package.GetBase(read_id, offset - 1);
+                    prev = globals.package.GetBase(read_id, offset - 2);
                 }
                 else {
                     prev = kSentinelValue;
 
                     if (offset > 0) {
-                        head = globals.package.get_base(read_id, offset - 1);
+                        head = globals.package.GetBase(read_id, offset - 1);
                     }
                     else {
                         head = kSentinelValue;
@@ -498,23 +499,23 @@ void s1_extract_subtstr_(int bp_from, int bp_to, read2sdbg_global_t &globals, ui
                 }
 
                 if (offset + globals.kmer_k < read_length) {
-                    tail = globals.package.get_base(read_id, offset + globals.kmer_k - 1);
-                    next = globals.package.get_base(read_id, offset + globals.kmer_k);
+                    tail = globals.package.GetBase(read_id, offset + globals.kmer_k - 1);
+                    next = globals.package.GetBase(read_id, offset + globals.kmer_k);
                 }
                 else {
                     next = kSentinelValue;
 
                     if (offset + globals.kmer_k - 1 < read_length) {
-                        tail = globals.package.get_base(read_id, offset + globals.kmer_k - 1);
+                        tail = globals.package.GetBase(read_id, offset + globals.kmer_k - 1);
                     }
                     else {
                         tail = kSentinelValue;
                     }
                 }
 
-                int64_t which_word = globals.package.get_start_index(read_id) / 16;
-                int start_offset = globals.package.get_start_index(read_id) % 16;
-                uint32_t *read_p = &globals.package.packed_seq[which_word];
+                auto ptr_and_offset = globals.package.WordPtrAndOffset(read_id);
+                int start_offset = ptr_and_offset.second;
+                const uint32_t *read_p = ptr_and_offset.first;
                 int words_this_read = DivCeiling(start_offset + read_length, 16);
 
                 if (strand == 0) {
@@ -674,8 +675,8 @@ void s1_lv2_output_(int64_t from, int64_t to, int tid, read2sdbg_global_t &globa
                 for (int64_t j = 0; j < count_head_tail[head_and_tail]; ++j, ++i) {
                     int64_t read_info = readinfo_ptr[permutation[i]] >> 6;
                     int strand = read_info & 1;
-                    int64_t read_id = globals.package.get_id(read_info >> 1);
-                    int offset = (read_info >> 1) - globals.package.get_start_index(read_id) - 1;
+                    int64_t read_id = globals.package.GetSeqID(read_info >> 1);
+                    int offset = (read_info >> 1) - globals.package.StartPosition(read_id) - 1;
                     int l_offset = strand == 0 ? offset : offset + 1;
                     int r_offset = strand == 0 ? offset + 1 : offset;
 
@@ -684,13 +685,13 @@ void s1_lv2_output_(int64_t from, int64_t to, int tid, read2sdbg_global_t &globa
 
                     if (!(has_in & (1 << head))) {
                         // no in
-                        int64_t packed_mercy_cand = ((globals.package.get_start_index(read_id) + l_offset) << 2) | (1 + strand);
+                        int64_t packed_mercy_cand = ((globals.package.StartPosition(read_id) + l_offset) << 2) | (1 + strand);
                         fwrite(&packed_mercy_cand, sizeof(packed_mercy_cand), 1, globals.mercy_files[read_id & (globals.num_mercy_files - 1)]);
                     }
 
                     if (!(has_out & (1 << tail))) {
                         // no out
-                        int64_t packed_mercy_cand = ((globals.package.get_start_index(read_id) + r_offset) << 2) | (2 - strand);
+                        int64_t packed_mercy_cand = ((globals.package.StartPosition(read_id) + r_offset) << 2) | (2 - strand);
                         fwrite(&packed_mercy_cand, sizeof(packed_mercy_cand), 1, globals.mercy_files[read_id & (globals.num_mercy_files - 1)]);
                     }
                 }
@@ -700,27 +701,27 @@ void s1_lv2_output_(int64_t from, int64_t to, int tid, read2sdbg_global_t &globa
                 for (int64_t j = 0; j < count_head_tail[head_and_tail]; ++j, ++i) {
                     int64_t read_info = readinfo_ptr[permutation[i]] >> 6;
                     int strand = read_info & 1;
-                    int64_t read_id = globals.package.get_id(read_info >> 1);
-                    int offset = (read_info >> 1) - globals.package.get_start_index(read_id) - 1;
+                    int64_t read_id = globals.package.GetSeqID(read_info >> 1);
+                    int offset = (read_info >> 1) - globals.package.StartPosition(read_id) - 1;
                     int l_offset = strand == 0 ? offset : offset + 1;
                     int r_offset = strand == 0 ? offset + 1 : offset;
 
                     if (l_has_out & (1 << head)) {
                         if (has_in & (1 << head)) {
                             // has both in & out
-                            int64_t packed_mercy_cand = ((globals.package.get_start_index(read_id) + l_offset) << 2) | 0;
+                            int64_t packed_mercy_cand = ((globals.package.StartPosition(read_id) + l_offset) << 2) | 0;
                             fwrite(&packed_mercy_cand, sizeof(packed_mercy_cand), 1, globals.mercy_files[read_id & (globals.num_mercy_files - 1)]);
                         }
                         else {
                             // has out but no in
-                            int64_t packed_mercy_cand = ((globals.package.get_start_index(read_id) + l_offset) << 2) | (1 + strand);
+                            int64_t packed_mercy_cand = ((globals.package.StartPosition(read_id) + l_offset) << 2) | (1 + strand);
                             fwrite(&packed_mercy_cand, sizeof(packed_mercy_cand), 1, globals.mercy_files[read_id & (globals.num_mercy_files - 1)]);
                         }
                     }
                     else {
                         if (has_in & (1 << head)) {
                             // has in but no out
-                            int64_t packed_mercy_cand = ((globals.package.get_start_index(read_id) + l_offset) << 2) | (2 - strand);
+                            int64_t packed_mercy_cand = ((globals.package.StartPosition(read_id) + l_offset) << 2) | (2 - strand);
                             fwrite(&packed_mercy_cand, sizeof(packed_mercy_cand), 1, globals.mercy_files[read_id & (globals.num_mercy_files - 1)]);
                         }
                     }
@@ -728,19 +729,19 @@ void s1_lv2_output_(int64_t from, int64_t to, int tid, read2sdbg_global_t &globa
                     if (r_has_in & (1 << tail)) {
                         if (has_out & (1 << tail)) {
                             // has both in & out
-                            int64_t packed_mercy_cand = ((globals.package.get_start_index(read_id) + r_offset) << 2) | 0;
+                            int64_t packed_mercy_cand = ((globals.package.StartPosition(read_id) + r_offset) << 2) | 0;
                             fwrite(&packed_mercy_cand, sizeof(packed_mercy_cand), 1, globals.mercy_files[read_id & (globals.num_mercy_files - 1)]);
                         }
                         else {
                             // has in but no out
-                            int64_t packed_mercy_cand = ((globals.package.get_start_index(read_id) + r_offset) << 2) | (2 - strand);
+                            int64_t packed_mercy_cand = ((globals.package.StartPosition(read_id) + r_offset) << 2) | (2 - strand);
                             fwrite(&packed_mercy_cand, sizeof(packed_mercy_cand), 1, globals.mercy_files[read_id & (globals.num_mercy_files - 1)]);
                         }
                     }
                     else {
                         if (has_out & (1 << tail)) {
                             // has out but no in
-                            int64_t packed_mercy_cand = ((globals.package.get_start_index(read_id) + r_offset) << 2) | (1 + strand);
+                            int64_t packed_mercy_cand = ((globals.package.StartPosition(read_id) + r_offset) << 2) | (1 + strand);
                             fwrite(&packed_mercy_cand, sizeof(packed_mercy_cand), 1, globals.mercy_files[read_id & (globals.num_mercy_files - 1)]);
                         }
                     }

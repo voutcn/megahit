@@ -23,17 +23,17 @@
 
 #include <stdint.h>
 #include <string>
-#include "sequence_package.h"
+#include "sequence/sequence_package.h"
 
 struct lib_info_t {
-    SequencePackage *p;
+    SeqPackage *p;
     int64_t from;
     int64_t to;
     int max_read_len;
     bool is_pe;
     std::string metadata; // raw file names
 
-    lib_info_t(SequencePackage *p = NULL, int64_t from = 0, int64_t to = 0,
+    lib_info_t(SeqPackage *p = NULL, int64_t from = 0, int64_t to = 0,
                int max_read_len = 0, bool is_pe = false, const std::string &metadata = ""):
         p(p), from(from), to(to), max_read_len(max_read_len), is_pe(is_pe), metadata(metadata) { }
     ~lib_info_t() { }

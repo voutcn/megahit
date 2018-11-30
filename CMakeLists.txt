@@ -42,7 +42,7 @@ add_executable(megahit_asm_core ${OTHER_SOURCE} ${ASMBL_SOURCE} ${IDBA_SOURCE} $
 target_link_libraries(megahit_asm_core ${ZLIB_LIBRARIES} ${CMAKE_THREAD_LIBS_INIT})
 
 add_executable(megahit_sdbg_build ${SDBG_SOURCE} ${CX1_SOURCE}
-        src/sdbg_builder.cpp src/sdbg_builder.cpp src/kthread.cpp src/options_description.cpp
+        src/main_sdbg_build.cpp src/main_sdbg_build.cpp src/kthread.cpp src/options_description.cpp
         src/sequence_manager.cpp)
 target_link_libraries(megahit_sdbg_build ${ZLIB_LIBRARIES} ${CMAKE_THREAD_LIBS_INIT})
 

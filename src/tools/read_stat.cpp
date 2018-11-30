@@ -22,7 +22,7 @@
 #include <stdlib.h>
 #include <zlib.h>
 #include <algorithm>
-#include "kseq.h"
+#include "sequence/kseq.h"
 
 
 #ifndef KSEQ_INITED

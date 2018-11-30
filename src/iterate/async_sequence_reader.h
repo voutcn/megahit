@@ -7,7 +7,7 @@
 
 #include <future>
 #include <string>
-#include "sequence_package.h"
+#include "sequence/sequence_package.h"
 #include "sequence_manager.h"
 
 template<class PackageType>
@@ -42,7 +42,7 @@ class AsyncSequenceReader {
   std::future<package_type &> next_pkg_;
 };
 
-class AsyncContigReader : public AsyncSequenceReader<std::pair<SequencePackage, std::vector<float>>> {
+class AsyncContigReader : public AsyncSequenceReader<std::pair<SeqPackage, std::vector<float>>> {
  public:
   AsyncContigReader(const std::string &file_name) {
     seq_manager_.set_file_type(SequenceManager::kMegahitContigs);
@@ -72,7 +72,7 @@ class AsyncContigReader : public AsyncSequenceReader<std::pair<SequencePackage, 
   SequenceManager seq_manager_;
 };
 
-class AsyncReadReader : public AsyncSequenceReader<SequencePackage> {
+class AsyncReadReader : public AsyncSequenceReader<SeqPackage> {
  public:
   AsyncReadReader(const std::string &file_name) {
     seq_manager_.set_file_type(SequenceManager::kBinaryReads);
@@ -84,7 +84,7 @@ class AsyncReadReader : public AsyncSequenceReader<SequencePackage> {
     StopReading();
   }
  protected:
-  void ReadOneBatch(SequencePackage *seq_pkg) {
+  void ReadOneBatch(SeqPackage *seq_pkg) {
     seq_manager_.set_package(seq_pkg);
     int64_t kMaxNumReads = 1 << 22;
     int64_t kMaxNumBases = 1 << 28;

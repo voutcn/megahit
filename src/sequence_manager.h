@@ -27,8 +27,8 @@
 #include <zlib.h>
 
 #include "definitions.h"
-#include "kseq.h"
-#include "sequence_package.h"
+#include "sequence/kseq.h"
+#include "sequence/sequence_package.h"
 #include "edge_io.h"
 
 #ifndef KSEQ_INITED
@@ -57,7 +57,7 @@ struct SequenceManager {
     kOthers,
   } r_type;
 
-  SequencePackage *package_;
+  SeqPackage *package_;
   std::vector<mul_t> *multi_; // edges or contigs' multiplicity
   std::vector<float> *float_multi_;
   std::vector<gzFile> files_; // for reading sorted edges
@@ -69,7 +69,7 @@ struct SequenceManager {
   int min_len_;
   int k_from_, k_to_;
 
-  SequenceManager(SequencePackage *package = nullptr) : package_(package) {
+  SequenceManager(SeqPackage *package = nullptr) : package_(package) {
     multi_ = nullptr;
     float_multi_ = nullptr;
     files_.clear();
@@ -111,7 +111,7 @@ struct SequenceManager {
   void set_readlib_type(ReadLibType r_type) {
     this->r_type = r_type;
   }
-  void set_package(SequencePackage *package) {
+  void set_package(SeqPackage *package) {
     package_ = package;
   }
   void set_multiplicity_vector(std::vector<mul_t> *v) {

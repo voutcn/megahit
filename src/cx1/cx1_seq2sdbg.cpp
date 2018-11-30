@@ -44,8 +44,8 @@ typedef CX1<seq2sdbg_global_t, kNumBuckets>::outputpartition_data_t outputpartit
 /**
  * @brief encode seq_id and its offset in one int64_t
  */
-inline int64_t EncodeEdgeOffset(int64_t seq_id, int offset, int strand, SequencePackage &p) {
-    return ((p.get_start_index(seq_id) + offset) << 1) | strand;
+inline int64_t EncodeEdgeOffset(int64_t seq_id, int offset, int strand, SeqPackage &p) {
+    return ((p.StartPosition(seq_id) + offset) << 1) | strand;
 }
 
 inline bool IsDiffKMinusOneMer(uint32_t *item1, uint32_t *item2, int64_t spacing, int kmer_k) {
@@ -105,7 +105,7 @@ int64_t encode_lv1_diff_base(int64_t read_id, seq2sdbg_global_t &g) {
 /**
  * @brief build lkt for faster binary search for mercy
  */
-void InitLookupTable(int64_t *lookup_table, SequencePackage &p) {
+void InitLookupTable(int64_t *lookup_table, SeqPackage &p) {
     memset(lookup_table, 0xFF, sizeof(int64_t) * kLookUpSize * 2);
 
     if (p.size() == 0) {
@@ -113,13 +113,14 @@ void InitLookupTable(int64_t *lookup_table, SequencePackage &p) {
     }
 
     Kmer<1, uint32_t> kmer;
-    kmer.InitFromPtr(&p.packed_seq[0], 0, 16);
+    kmer.InitFromPtr(p.WordPtrAndOffset(0).first, 0, 16);
 
     uint32_t cur_prefix = kmer.data()[0] >> kLookUpShift;
     lookup_table[cur_prefix * 2] = 0;
 
     for (int64_t i = 1, num_edges = p.size(); i < num_edges; ++i) {
-        kmer.InitFromPtr(&p.packed_seq[p.get_start_index(i) / 16], p.get_start_index(i) % 16, 16);
+        auto ptr_and_offset = p.WordPtrAndOffset(i);
+        kmer.InitFromPtr(ptr_and_offset.first, ptr_and_offset.second, 16);
 
         if ((kmer.data()[0] >> kLookUpShift) > cur_prefix) {
             lookup_table[cur_prefix * 2 + 1] = i - 1;
@@ -137,7 +138,7 @@ void InitLookupTable(int64_t *lookup_table, SequencePackage &p) {
 /**
  * @brief search mercy kmer
  */
-int64_t BinarySearchKmer(GenericKmer &kmer, int64_t *lookup_table, SequencePackage &p, int kmer_size) {
+int64_t BinarySearchKmer(GenericKmer &kmer, int64_t *lookup_table, SeqPackage &p, int kmer_size) {
     // --- first look up ---
     int64_t l = lookup_table[(kmer.data()[0] >> kLookUpShift) * 2];
 
@@ -150,7 +151,8 @@ int64_t BinarySearchKmer(GenericKmer &kmer, int64_t *lookup_table, SequencePacka
 
     while (l <= r) {
         int64_t mid = (l + r) / 2;
-        mid_kmer.InitFromPtr(&p.packed_seq[p.get_start_index(mid) / 16], p.get_start_index(mid) % 16, kmer_size);
+        auto ptr_and_offset = p.WordPtrAndOffset(mid);
+        mid_kmer.InitFromPtr(ptr_and_offset.first, ptr_and_offset.second, kmer_size);
         int cmp = kmer.cmp(mid_kmer, kmer_size);
 
         if (cmp > 0) {
@@ -183,7 +185,7 @@ void GenMercyEdges(seq2sdbg_global_t &globals) {
 
     std::vector<GenericKmer> mercy_edges;
 
-    SequencePackage read_package[2];
+    SeqPackage read_package[2];
     SequenceManager seq_manager;
     seq_manager.set_file_type(SequenceManager::kBinaryReads);
     seq_manager.set_file(globals.input_prefix + ".cand");
@@ -202,7 +204,7 @@ void GenMercyEdges(seq2sdbg_global_t &globals) {
 
     while (true) {
         pthread_join(input_thread, NULL);
-        SequencePackage &rp = read_package[thread_index];
+        SeqPackage &rp = read_package[thread_index];
 
         if (rp.size() == 0) {
             break;
@@ -219,7 +221,7 @@ void GenMercyEdges(seq2sdbg_global_t &globals) {
 
         for (unsigned read_id = 0; read_id < rp.size(); ++read_id) {
 
-            int read_len = rp.length(read_id);
+            int read_len = rp.SequenceLength(read_id);
 
             if (read_len < globals.kmer_k + 2) {
                 continue;
@@ -233,7 +235,8 @@ void GenMercyEdges(seq2sdbg_global_t &globals) {
             std::fill(has_in.begin(), has_in.end(), false);
             std::fill(has_out.begin(), has_out.end(), false);
 
-            kmer.InitFromPtr(&rp.packed_seq[rp.get_start_index(read_id) / 16], rp.get_start_index(read_id) % 16, globals.kmer_k);
+            auto ptr_and_offset = rp.WordPtrAndOffset(read_id);
+            kmer.InitFromPtr(ptr_and_offset.first, ptr_and_offset.second, globals.kmer_k);
             rev_kmer = kmer;
             rev_kmer.ReverseComplement(globals.kmer_k);
 
@@ -275,14 +278,14 @@ void GenMercyEdges(seq2sdbg_global_t &globals) {
 
                     // BWT see whether the next has in too
                     if (i + globals.kmer_k < read_len &&
-                            globals.package.get_base(edge_id, globals.kmer_k) == rp.get_base(read_id, i + globals.kmer_k)) {
+                        globals.package.GetBase(edge_id, globals.kmer_k) == rp.GetBase(read_id, i + globals.kmer_k)) {
                         has_in[i + 1] = true;
                     }
                 }
                 else {
                     // search the rc
                     kmer.SetBase(globals.kmer_k, 3);
-                    int next_char = i + globals.kmer_k < read_len ? 3 - rp.get_base(read_id, i + globals.kmer_k) : 0;
+                    int next_char = i + globals.kmer_k < read_len ? 3 - rp.GetBase(read_id, i + globals.kmer_k) : 0;
                     rev_kmer.ShiftPreappend(next_char, globals.kmer_k + 1);
 
                     if (rev_kmer.cmp(kmer, globals.kmer_k + 1) <= 0 && BinarySearchKmer(rev_kmer, edge_lookup, globals.package, globals.kmer_k + 1) != -1) {
@@ -314,7 +317,7 @@ void GenMercyEdges(seq2sdbg_global_t &globals) {
 
                 // shift kmer and rev_kmer
                 if (i + globals.kmer_k < read_len) {
-                    int next_char = rp.get_base(read_id, i + globals.kmer_k);
+                    int next_char = rp.GetBase(read_id, i + globals.kmer_k);
                     kmer.ShiftAppend(next_char, globals.kmer_k);
                     rev_kmer.ShiftPreappend(3 - next_char, globals.kmer_k);
                 }
@@ -334,7 +337,8 @@ void GenMercyEdges(seq2sdbg_global_t &globals) {
                     if (last_no_out >= 0) {
                         for (int j = last_no_out; j < i; ++j) {
                             omp_set_lock(&mercy_lock);
-                            mercy_edges.push_back(GenericKmer(&rp.packed_seq[rp.get_start_index(read_id) / 16], rp.get_start_index(read_id) % 16 + j, globals.kmer_k + 1));
+                            auto ptr_and_offset = rp.WordPtrAndOffset(read_id);
+                            mercy_edges.push_back(GenericKmer(ptr_and_offset.first, ptr_and_offset.second + j, globals.kmer_k + 1));
                             omp_unset_lock(&mercy_lock);
                         }
 
@@ -359,7 +363,7 @@ void GenMercyEdges(seq2sdbg_global_t &globals) {
         }
 
         for (unsigned i = 0; i < mercy_edges.size(); ++i) {
-            globals.package.AppendFixedLenSeq(mercy_edges[i].data(), globals.kmer_k + 1);
+            globals.package.AppendCompactSequence(mercy_edges[i].data(), globals.kmer_k + 1);
         }
     }
 
@@ -375,7 +379,6 @@ void GenMercyEdges(seq2sdbg_global_t &globals) {
 
 void read_seq_and_prepare(seq2sdbg_global_t &globals) {
     // --- init reader ---
-    globals.package.set_fixed_len(globals.kmer_k + 1);
     SequenceManager seq_manager(&globals.package);
     seq_manager.set_multiplicity_vector(&globals.multiplicity);
 
@@ -437,12 +440,13 @@ void read_seq_and_prepare(seq2sdbg_global_t &globals) {
         }
 
         xinfo("Bases to reserve: %lld, number contigs: %lld, number multiplicity: %lld\n", bases_to_reserve, num_contigs_to_reserve, num_multiplicities_to_reserve);
-        globals.package.reserve_num_seq(num_contigs_to_reserve);
-        globals.package.reserve_bases(bases_to_reserve);
+        globals.package.ReserveSequences(num_contigs_to_reserve);
+        globals.package.ReserveBases(bases_to_reserve);
         globals.multiplicity.reserve(num_multiplicities_to_reserve);
     }
 
-    xinfo("Before reading, sizeof seq_package: %lld, multiplicity vector: %lld\n", globals.package.size_in_byte(), globals.multiplicity.capacity());
+    xinfo("Before reading, sizeof seq_package: %lld, multiplicity vector: %lld\n",
+          globals.package.SizeInByte(), globals.multiplicity.capacity());
 
     if (globals.input_prefix != "") {
         seq_manager.set_file_type(globals.need_mercy ? SequenceManager::kSortedEdges : SequenceManager::kMegahitEdges);
@@ -531,12 +535,13 @@ void read_seq_and_prepare(seq2sdbg_global_t &globals) {
         seq_manager.clear();
     }
 
-    xinfo("After reading, sizeof seq_package: %lld, multiplicity vector: %lld\n", globals.package.size_in_byte(), globals.multiplicity.capacity());
+    xinfo("After reading, sizeof seq_package: %lld, multiplicity vector: %lld\n",
+          globals.package.SizeInByte(), globals.multiplicity.capacity());
 
-    globals.package.BuildLookup();
+    globals.package.BuildIndex();
     globals.num_seq = globals.package.size();
 
-    globals.mem_packed_seq = globals.package.size_in_byte() + globals.multiplicity.size() * sizeof(mul_t);
+    globals.mem_packed_seq = globals.package.SizeInByte() + globals.multiplicity.size() * sizeof(mul_t);
     int64_t mem_low_bound = globals.mem_packed_seq
                             + kNumBuckets * sizeof(int64_t) * (globals.num_cpu_threads * 3 + 1);
     mem_low_bound *= 1.05;
@@ -558,7 +563,7 @@ void *lv0_calc_bucket_size(void *_data) {
     memset(bucket_sizes, 0, kNumBuckets * sizeof(int64_t));
 
     for (int64_t seq_id = rp.rp_start_id; seq_id < rp.rp_end_id; ++seq_id) {
-        int seq_len = globals.package.length(seq_id);
+        int seq_len = globals.package.SequenceLength(seq_id);
 
         if (seq_len < globals.kmer_k + 1) {
             continue;
@@ -568,13 +573,13 @@ void *lv0_calc_bucket_size(void *_data) {
 
         // build initial partial key
         for (int i = 0; i < kBucketPrefixLength - 1; ++i) {
-            key = key * kBucketBase + globals.package.get_base(seq_id, i);
+            key = key * kBucketBase + globals.package.GetBase(seq_id, i);
         }
 
         // sequence = xxxxxxxxx
         // edges = $xxxx, xxxxx, ..., xxxx$
         for (int i = kBucketPrefixLength - 1; i - (kBucketPrefixLength - 1) + globals.kmer_k - 1 <= seq_len; ++i) {
-            key = (key * kBucketBase + globals.package.get_base(seq_id, i)) % kNumBuckets;
+            key = (key * kBucketBase + globals.package.GetBase(seq_id, i)) % kNumBuckets;
             bucket_sizes[key]++;
         }
 
@@ -582,11 +587,11 @@ void *lv0_calc_bucket_size(void *_data) {
         key = 0;
 
         for (int i = 0; i < kBucketPrefixLength - 1; ++i) {
-            key = key * kBucketBase + (3 - globals.package.get_base(seq_id, seq_len - 1 - i)); // complement
+            key = key * kBucketBase + (3 - globals.package.GetBase(seq_id, seq_len - 1 - i)); // complement
         }
 
         for (int i = kBucketPrefixLength - 1; i - (kBucketPrefixLength - 1) + globals.kmer_k - 1 <= seq_len; ++i) {
-            key = key * kBucketBase + (3 - globals.package.get_base(seq_id, seq_len - 1 - i));
+            key = key * kBucketBase + (3 - globals.package.GetBase(seq_id, seq_len - 1 - i));
             key %= kNumBuckets;
             bucket_sizes[key]++;
         }
@@ -726,7 +731,7 @@ void *lv1_fill_offset(void *_data) {
     // =========== end macro ==========================
 
     for (int64_t seq_id = rp.rp_start_id; seq_id < rp.rp_end_id; ++seq_id) {
-        int seq_len = globals.package.length(seq_id);
+        int seq_len = globals.package.SequenceLength(seq_id);
 
         if (seq_len < globals.kmer_k + 1) {
             continue;
@@ -737,15 +742,15 @@ void *lv1_fill_offset(void *_data) {
 
         // build initial partial key
         for (int i = 0; i < kBucketPrefixLength - 1; ++i) {
-            key = key * kBucketBase + globals.package.get_base(seq_id, i);
-            rev_key = rev_key * kBucketBase + (3 - globals.package.get_base(seq_id, seq_len - 1 - i)); // complement
+            key = key * kBucketBase + globals.package.GetBase(seq_id, i);
+            rev_key = rev_key * kBucketBase + (3 - globals.package.GetBase(seq_id, seq_len - 1 - i)); // complement
         }
 
         // sequence = xxxxxxxxx
         // edges = $xxxx, xxxxx, ..., xxxx$
         for (int i = kBucketPrefixLength - 1; i - (kBucketPrefixLength - 1) + globals.kmer_k - 1 <= seq_len; ++i) {
-            key = (key * kBucketBase + globals.package.get_base(seq_id, i)) % kNumBuckets;
-            rev_key = rev_key * kBucketBase + (3 - globals.package.get_base(seq_id, seq_len - 1 - i));
+            key = (key * kBucketBase + globals.package.GetBase(seq_id, i)) % kNumBuckets;
+            rev_key = rev_key * kBucketBase + (3 - globals.package.GetBase(seq_id, seq_len - 1 - i));
             rev_key %= kNumBuckets;
             CHECK_AND_SAVE_OFFSET(key, i - kBucketPrefixLength + 1, 0);
             CHECK_AND_SAVE_OFFSET(rev_key, i - kBucketPrefixLength + 1, 1);
@@ -785,11 +790,11 @@ void lv2_extract_substr_(int from_bucket, int to_bucket, seq2sdbg_global_t &glob
                     full_offset = globals.cx1.lv1_items_special_[-1 - * (lv1_p++)];
                 }
 
-                int64_t seq_id = globals.package.get_id(full_offset >> 1);
-                int offset = (full_offset >> 1) - globals.package.get_start_index(seq_id);
+                int64_t seq_id = globals.package.GetSeqID(full_offset >> 1);
+                int offset = (full_offset >> 1) - globals.package.StartPosition(seq_id);
                 int strand = full_offset & 1;
 
-                int seq_len = globals.package.length(seq_id);
+                int seq_len = globals.package.SequenceLength(seq_id);
                 int num_chars_to_copy = globals.kmer_k - (offset + globals.kmer_k > seq_len);
                 int counting = 0;
 
@@ -797,10 +802,10 @@ void lv2_extract_substr_(int from_bucket, int to_bucket, seq2sdbg_global_t &glob
                     counting = globals.multiplicity[seq_id];
                 }
 
-                int64_t which_word = globals.package.get_start_index(seq_id) / 16;
-                int start_offset = globals.package.get_start_index(seq_id) % 16;
+                auto ptr_and_offset = globals.package.WordPtrAndOffset(seq_id);
+                int start_offset = ptr_and_offset.second;
                 int words_this_seq = DivCeiling(start_offset + seq_len, 16);
-                uint32_t *edge_p = &globals.package.packed_seq[which_word];
+                const uint32_t *edge_p = ptr_and_offset.first;
 
                 if (strand == 0) {
                     // copy counting and W char
@@ -811,7 +816,7 @@ void lv2_extract_substr_(int from_bucket, int to_bucket, seq2sdbg_global_t &glob
                         prev_char = kSentinelValue;
                     }
                     else {
-                        prev_char = globals.package.get_base(seq_id, offset - 1);
+                        prev_char = globals.package.GetBase(seq_id, offset - 1);
                     }
 
                     CopySubstring(substr, edge_p, offset + start_offset, num_chars_to_copy,
@@ -830,7 +835,7 @@ void lv2_extract_substr_(int from_bucket, int to_bucket, seq2sdbg_global_t &glob
                         prev_char = kSentinelValue;
                     }
                     else {
-                        prev_char = 3 - globals.package.get_base(seq_id, seq_len - 1 - offset + 1);
+                        prev_char = 3 - globals.package.GetBase(seq_id, seq_len - 1 - offset + 1);
                     }
 
                     offset = seq_len - 1 - offset - (globals.kmer_k - 1); // switch to normal strand

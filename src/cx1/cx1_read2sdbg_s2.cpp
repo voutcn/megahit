@@ -45,9 +45,9 @@ typedef CX1<read2sdbg_global_t, kNumBuckets>::bucketpartition_data_t bucketparti
 typedef CX1<read2sdbg_global_t, kNumBuckets>::outputpartition_data_t outputpartition_data_t;
 
 // helper functions
-inline int64_t EncodeOffset(int64_t read_id, int offset, int strand, SequencePackage &p, int edge_type) {
+inline int64_t EncodeOffset(int64_t read_id, int offset, int strand, SeqPackage &p, int edge_type) {
     // edge_type: 0 left $; 1 solid; 2 right $
-    return ((p.get_start_index(read_id) + offset) << 3) | (edge_type << 1) | strand;
+    return ((p.StartPosition(read_id) + offset) << 3) | (edge_type << 1) | strand;
 }
 
 // helper: see whether two lv2 items have the same (k-1)-mer
@@ -154,10 +154,10 @@ void s2_read_mercy_prepare(read2sdbg_global_t &globals) {
             uint64_t this_end = std::min(start_idx[tid] + avg, (uint64_t)mercy_cand.size());
             uint64_t read_id = 0;
             if (this_end < mercy_cand.size()) {
-                read_id = globals.package.get_id(mercy_cand[this_end] >> 2);
+                read_id = globals.package.GetSeqID(mercy_cand[this_end] >> 2);
             }
 
-            while (this_end < mercy_cand.size() && globals.package.get_id(mercy_cand[this_end] >> 2) == read_id) {
+            while (this_end < mercy_cand.size() && globals.package.GetSeqID(mercy_cand[this_end] >> 2) == read_id) {
                 ++this_end;
             }
 
@@ -175,7 +175,7 @@ void s2_read_mercy_prepare(read2sdbg_global_t &globals) {
 
             // go read by read
             while (i != end_idx[tid]) {
-                uint64_t read_id = globals.package.get_id(mercy_cand[i] >> 2);
+                uint64_t read_id = globals.package.GetSeqID(mercy_cand[i] >> 2);
                 assert(!read_marker.at(read_id));
                 read_marker.set(read_id);
                 int first_0_out = globals.max_read_length + 1;
@@ -185,8 +185,8 @@ void s2_read_mercy_prepare(read2sdbg_global_t &globals) {
                 std::fill(no_out.begin(), no_out.end(), false);
                 std::fill(has_solid_kmer.begin(), has_solid_kmer.end(), false);
 
-                while (i != end_idx[tid] && globals.package.get_id(mercy_cand[i] >> 2) == read_id) {
-                    int offset = (mercy_cand[i] >> 2) - globals.package.get_start_index(read_id);
+                while (i != end_idx[tid] && globals.package.GetSeqID(mercy_cand[i] >> 2) == read_id) {
+                    int offset = (mercy_cand[i] >> 2) - globals.package.StartPosition(read_id);
                     if ((mercy_cand[i] & 3) == 2) {
                         no_out[offset] = true;
                         first_0_out = std::min(first_0_out, offset);
@@ -204,11 +204,11 @@ void s2_read_mercy_prepare(read2sdbg_global_t &globals) {
                     continue;
                 }
 
-                int read_length = globals.package.length(read_id);
+                int read_length = globals.package.SequenceLength(read_id);
                 int last_no_out = -1;
 
                 for (int i = 0; i + globals.kmer_k < read_length; ++i) {
-                    if (globals.is_solid.at(globals.package.get_start_index(read_id) + i)) {
+                    if (globals.is_solid.at(globals.package.StartPosition(read_id) + i)) {
                         has_solid_kmer[i] = has_solid_kmer[i + 1] = true;
                     }
                 }
@@ -216,7 +216,7 @@ void s2_read_mercy_prepare(read2sdbg_global_t &globals) {
                 for (int i = 0; i + globals.kmer_k <= read_length; ++i) {
                     if (no_in[i] && last_no_out != -1) {
                         for (int j = last_no_out; j < i; ++j) {
-                            globals.is_solid.set(globals.package.get_start_index(read_id) + j);
+                            globals.is_solid.set(globals.package.StartPosition(read_id) + j);
                         }
 
                         num_mercy += i - last_no_out;
@@ -257,22 +257,22 @@ void *s2_lv0_calc_bucket_size(void *_data) {
     GenericKmer edge, rev_edge; // (k+1)-mer and its rc
 
     for (int64_t read_id = rp.rp_start_id; read_id < rp.rp_end_id; ++read_id) {
-        int read_length = globals.package.length(read_id);
+        int read_length = globals.package.SequenceLength(read_id);
 
         if (read_length < globals.kmer_k + 1) {
             continue;
         }
 
-        int64_t which_word = globals.package.get_start_index(read_id) / 16;
-        int64_t offset = globals.package.get_start_index(read_id) % 16;
-        uint32_t *read_p = &globals.package.packed_seq[which_word];
+        auto ptr_and_offset = globals.package.WordPtrAndOffset(read_id);
+        int64_t offset = ptr_and_offset.second;
+        const uint32_t *read_p = ptr_and_offset.first;
 
         edge.InitFromPtr(read_p, offset, globals.kmer_k + 1);
         rev_edge = edge;
         rev_edge.ReverseComplement(globals.kmer_k + 1);
 
         int last_char_offset = globals.kmer_k;
-        int64_t full_offset = globals.package.get_start_index(read_id);
+        int64_t full_offset = globals.package.StartPosition(read_id);
         bool is_solid = globals.kmer_freq_threshold == 1 || read_id >= globals.num_short_reads;
 
         while (true) {
@@ -304,7 +304,7 @@ void *s2_lv0_calc_bucket_size(void *_data) {
                 break;
             }
             else {
-                int c = globals.package.get_base(read_id, last_char_offset);
+                int c = globals.package.GetBase(read_id, last_char_offset);
                 edge.ShiftAppend(c, globals.kmer_k + 1);
                 rev_edge.ShiftPreappend(3 - c, globals.kmer_k + 1);
             }
@@ -431,15 +431,15 @@ void *s2_lv1_fill_offset(void *_data) {
     int key;
 
     for (int64_t read_id = rp.rp_start_id; read_id < rp.rp_end_id; ++read_id) {
-        int read_length = globals.package.length(read_id);
+        int read_length = globals.package.SequenceLength(read_id);
 
         if (read_length < globals.kmer_k + 1) {
             continue;
         }
 
-        int64_t which_word = globals.package.get_start_index(read_id) / 16;
-        int64_t offset = globals.package.get_start_index(read_id) % 16;
-        uint32_t *read_p = &globals.package.packed_seq[which_word];
+        auto ptr_and_offset = globals.package.WordPtrAndOffset(read_id);
+        int64_t offset = ptr_and_offset.second;
+        const uint32_t *read_p = ptr_and_offset.first;
 
         edge.InitFromPtr(read_p, offset, globals.kmer_k + 1);
         rev_edge = edge;
@@ -469,7 +469,7 @@ void *s2_lv1_fill_offset(void *_data) {
 
         // shift the key char by char
         int last_char_offset = globals.kmer_k;
-        int64_t full_offset = globals.package.get_start_index(read_id);
+        int64_t full_offset = globals.package.StartPosition(read_id);
         bool is_solid = globals.kmer_freq_threshold == 1 || read_id >= globals.num_short_reads;
 
         while (true) {
@@ -514,7 +514,7 @@ void *s2_lv1_fill_offset(void *_data) {
                 break;
             }
             else {
-                int c = globals.package.get_base(read_id, last_char_offset);
+                int c = globals.package.GetBase(read_id, last_char_offset);
                 edge.ShiftAppend(c, globals.kmer_k + 1);
                 rev_edge.ShiftPreappend(3 - c, globals.kmer_k + 1);
             }
@@ -543,15 +543,15 @@ void s2_lv2_extract_substr_(int bp_from, int bp_to, read2sdbg_global_t &globals,
                     full_offset = globals.cx1.lv1_items_special_[-1 - * (lv1_p++)];
                 }
 
-                int64_t read_id = globals.package.get_id(full_offset >> 3);
-                int offset = (full_offset >> 3) - globals.package.get_start_index(read_id);
+                int64_t read_id = globals.package.GetSeqID(full_offset >> 3);
+                int offset = (full_offset >> 3) - globals.package.StartPosition(read_id);
                 int strand = full_offset & 1;
                 int edge_type = (full_offset >> 1) & 3;
-                int read_length = globals.package.length(read_id);
+                int read_length = globals.package.SequenceLength(read_id);
 
-                int64_t which_word = globals.package.get_start_index(read_id) / 16;
-                int start_offset = globals.package.get_start_index(read_id) % 16;
-                uint32_t *read_p = &globals.package.packed_seq[which_word];
+                auto ptr_and_offset = globals.package.WordPtrAndOffset(read_id);
+                int64_t start_offset = ptr_and_offset.second;
+                const uint32_t *read_p = ptr_and_offset.first;
                 int words_this_read = DivCeiling(start_offset + read_length, 16);
 
                 if (strand == 0) {
@@ -563,12 +563,12 @@ void s2_lv2_extract_substr_(int bp_from, int bp_to, read2sdbg_global_t &globals,
                         break;
 
                     case 1:
-                        prev = globals.package.get_base(read_id, offset);
+                        prev = globals.package.GetBase(read_id, offset);
                         offset++;
                         break;
 
                     case 2:
-                        prev = globals.package.get_base(read_id, offset + 1);
+                        prev = globals.package.GetBase(read_id, offset + 1);
                         offset += 2;
                         num_chars_to_copy--;
                         break;
@@ -591,11 +591,11 @@ void s2_lv2_extract_substr_(int bp_from, int bp_to, read2sdbg_global_t &globals,
                     switch (edge_type) {
                     case 0:
                         num_chars_to_copy--;
-                        prev = 3 - globals.package.get_base(read_id, offset + globals.kmer_k - 1);
+                        prev = 3 - globals.package.GetBase(read_id, offset + globals.kmer_k - 1);
                         break;
 
                     case 1:
-                        prev = 3 - globals.package.get_base(read_id, offset + globals.kmer_k);
+                        prev = 3 - globals.package.GetBase(read_id, offset + globals.kmer_k);
                         break;
 
                     case 2:

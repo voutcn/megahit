@@ -29,7 +29,7 @@
 #include <mutex>
 #include "kmlib/kmbitvector.h"
 #include "sparsepp/sparsepp/spp.h"
-#include "sequence_package.h"
+#include "sequence/sequence_package.h"
 #include "sequence/kmer_plus.h"
 #include "lib_info.h"
 
@@ -83,8 +83,8 @@ struct LocalAssembler {
   int local_range_;
   int max_read_len_;
 
-  SequencePackage contigs_;
-  SequencePackage reads_;
+  SeqPackage contigs_;
+  SeqPackage reads_;
   mapper_t mapper_;
   std::vector<lib_info_t> lib_info_;
   std::vector<tlen_t> insert_sizes_;

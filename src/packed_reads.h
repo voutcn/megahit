@@ -28,7 +28,7 @@
 
 #include <algorithm>
 #include "definitions.h"
-#include "kseq.h"
+#include "sequence/kseq.h"
 #include "safe_alloc_open-inl.h"
 #include "kmlib/kmbit.h"
 
@@ -41,12 +41,12 @@
  * @param offset
  * @param num_chars_to_copy
  */
-inline void CopySubstring(uint32_t *dest, uint32_t *src_read, int offset, int num_chars_to_copy,
+inline void CopySubstring(uint32_t *dest, const uint32_t *src_read, int offset, int num_chars_to_copy,
                           int64_t spacing, int words_per_read, int words_per_substring) {
   // copy words of the suffix to the suffix pool
   int which_word = offset / kCharsPerEdgeWord;
   int word_offset = offset % kCharsPerEdgeWord;
-  uint32_t *src_p = src_read + which_word;
+  const uint32_t *src_p = src_read + which_word;
   uint32_t *dest_p = dest;
   int num_words_copied = 0;
 
@@ -111,7 +111,7 @@ inline void CopySubstring(uint32_t *dest, uint32_t *src_read, int offset, int nu
  * @param offset [description]
  * @param num_chars_to_copy [description]
  */
-inline void CopySubstringRC(uint32_t *dest, uint32_t *src_read, int offset, int num_chars_to_copy,
+inline void CopySubstringRC(uint32_t *dest, const uint32_t *src_read, int offset, int num_chars_to_copy,
                             int64_t spacing, int words_per_read, int words_per_substring) {
   int which_word = (offset + num_chars_to_copy - 1) / kCharsPerEdgeWord;
   int word_offset = (offset + num_chars_to_copy - 1) % kCharsPerEdgeWord;
