@@ -9,7 +9,12 @@
 
 namespace kmlib {
 
-template<unsigned BaseSize, typename WordType = unsigned long, bool BigEndian = false>
+enum {
+  kBigEndian,
+  kLittleEndian
+};
+
+template<unsigned BaseSize, typename WordType = unsigned long, int Endian = kLittleEndian>
 class CompactVector {
   static_assert(sizeof(WordType) * 8 % BaseSize == 0,
                 "BaseSize must of power of 2 and no larger than WordType");
@@ -17,7 +22,7 @@ class CompactVector {
   using word_type = WordType;
   using size_type = typename std::vector<word_type>::size_type;
   static const unsigned kBaseSize = BaseSize;
-  static const bool kBigEndian = BigEndian;
+  static const int kEndian = Endian;
   static const word_type kBaseMask = (word_type{1} << kBaseSize) - 1;
   static const unsigned kBasesPerWord = sizeof(word_type) * 8 / kBaseSize;
  public:
@@ -45,61 +50,86 @@ class CompactVector {
   static size_type size_to_word_count(size_type size) {
     return (size + kBasesPerWord - 1) / kBasesPerWord;
   }
-  static unsigned bit_offset(unsigned base_offset) {
-    return kBigEndian ?
-           sizeof(word_type) * 8 - (base_offset + 1) * kBaseSize :
+  static unsigned bit_offset(unsigned base_offset, unsigned len = 1) {
+    return Endian == kBigEndian ?
+           sizeof(word_type) * 8 - (base_offset + len) * kBaseSize :
            base_offset * kBaseSize;
   }
  public:
   static word_type at(const word_type *v, size_type i) {
     return v[i / kBasesPerWord] >> bit_offset(i % kBasesPerWord) & kBaseMask;
   }
+  static word_type fetch_sub_word(word_type val, unsigned base_offset, unsigned len = 1) {
+    return val >> bit_offset(base_offset, len) & ((word_type{1} << len * kBaseSize) - 1);
+  }
  public:
   explicit CompactVector(size_type size = 0) :
-      size_(size), data_(size_to_word_count(size)) {}
+      size_(size), underlying_vec_(size_to_word_count(size)), vec_ptr_(&underlying_vec_) {}
+  explicit CompactVector(std::vector<word_type> *v, size_type size = 0) :
+      size_(size), underlying_vec_(0), vec_ptr_(v) {
+    resize(size);
+  }
   ~CompactVector() = default;
   size_type size() const {
     return size_;
   }
   size_type word_count() const {
-    return data_.size();
+    return vec_ptr_->size();
   }
   void clear() {
     size_ = 0;
-    data_.clear();
+    vec_ptr_->clear();
   }
   size_type capacity() const {
-    return data_.capacity() * kBasesPerWord;
+    return vec_ptr_->capacity() * kBasesPerWord;
   }
   size_type word_capacity() const {
-    return data_.capacity();
+    return vec_ptr_->capacity();
   }
   const word_type *data() const {
-    return data_.data();
+    return vec_ptr_->data();
   }
   word_type *data() {
-    return data_.data();
+    return vec_ptr_->data();
   }
   word_type operator[](size_type i) const {
-    return at(data_.data(), i);
+    return at(vec_ptr_->data(), i);
   }
   Adapter operator[](size_type i) {
-    return Adapter(&data_[i / kBasesPerWord], i % kBasesPerWord);
+    return Adapter(vec_ptr_->data() + i / kBasesPerWord, i % kBasesPerWord);
   }
   void reserve(size_type size) {
-    data_.reserve(size_to_word_count(size));
+    vec_ptr_->reserve(size_to_word_count(size));
   }
   void resize(size_type size) {
-    size_ = size;  // WARNING bug if size < item_count_
-    data_.resize(size_to_word_count(size), 0);
+    size_type old_size = size_;
+    size_ = size;
+    vec_ptr_->resize(size_to_word_count(size), 0);
+    if (size_ < old_size && size_ > 0 && size_ % kBasesPerWord != 0) {
+      vec_ptr_->back() =
+          fetch_sub_word(vec_ptr_->back(), 0, size_ % kBasesPerWord) << bit_offset(0, size_ % kBasesPerWord);
+    }
   }
   void push_back(word_type val) {
-    if (size_ == data_.size() * kBasesPerWord) {
-      data_.emplace_back(val << bit_offset(0));
+    if (size_ % kBasesPerWord == 0) {
+      vec_ptr_->emplace_back(val << bit_offset(0));
     } else {
-      data_.back() |= val << bit_offset(size_ % kBasesPerWord);
+      vec_ptr_->back() |= val << bit_offset(size_ % kBasesPerWord);
     }
     ++size_;
+  }
+  void push_word(word_type val, unsigned len) {
+    unsigned base_offset = size_ % kBasesPerWord;
+    unsigned remaining = kBasesPerWord - base_offset;
+    if (base_offset == 0) {
+      vec_ptr_->emplace_back(fetch_sub_word(val, 0, len) << bit_offset(base_offset, len));
+    } else if (remaining < len) {
+      vec_ptr_->back() |= fetch_sub_word(val, 0, remaining) << bit_offset(base_offset, remaining);
+      vec_ptr_->emplace_back(fetch_sub_word(val, remaining, len - remaining) << bit_offset(0, len - remaining));
+    } else {
+      vec_ptr_->back() |= fetch_sub_word(val, 0, len) << bit_offset(base_offset, len);
+    }
+    size_ += len;
   }
   void pop_back() {
     (*this)[size_ - 1] = 0;
@@ -107,11 +137,9 @@ class CompactVector {
   }
  private:
   size_type size_;
-  std::vector<word_type> data_;
+  std::vector<word_type> underlying_vec_;
+  std::vector<word_type> *vec_ptr_;
 };
-
-template<unsigned BaseSize, typename WordType = unsigned long>
-class CompactVectorBigEndian : public CompactVector<BaseSize, WordType, true> {};
 
 } // namespace kmlib
 

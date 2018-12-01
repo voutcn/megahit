@@ -24,6 +24,7 @@
 #include <cstdint>
 #include <cassert>
 #include <vector>
+#include <sdbg/sdbg_def.h>
 #include "kmlib/kmbit.h"
 #include "kmlib/kmcompactvector.h"
 #include "utils.h"
@@ -36,7 +37,7 @@ template<class WordType = unsigned long>
 class SequencePackage {
  public:
   using word_type = WordType;
-  using vector_type = kmlib::CompactVectorBigEndian<2, word_type>;
+  using vector_type = kmlib::CompactVector<2, word_type, kmlib::kBigEndian>;
   const static unsigned kCharsPerWord = vector_type::kBasesPerWord;
 
  public:
@@ -166,12 +167,26 @@ class SequencePackage {
   }
 
   void FetchSequence(size_t seq_id, std::vector<word_type> *s) {
-    kmlib::CompactVectorBigEndian<2, word_type> cvec;
-    for (unsigned i = 0, len = SequenceLength(seq_id); i <= len; ++i) {
-      cvec.push_back(GetBase(seq_id, i));
+    vector_type cvec(s);
+    auto ptr_and_offset = WordPtrAndOffset(seq_id);
+    auto ptr = ptr_and_offset.first;
+    auto offset = ptr_and_offset.second;
+    auto len = SequenceLength(seq_id);
+    if (offset != 0) {
+      unsigned remaining_len = std::min(len, kCharsPerWord - offset);
+      auto val = vector_type::fetch_sub_word(*ptr, offset, remaining_len) << (kCharsPerWord - remaining_len) * 2;
+      cvec.push_word(val, remaining_len);
+      len -= remaining_len;
+      ++ptr;
     }
-    s->resize(cvec.word_count());
-    std::copy(cvec.data(), cvec.data() + cvec.word_count(), s->begin());
+    while (len >= kCharsPerWord) {
+      cvec.push_word(*ptr, kCharsPerWord);
+      len -= kCharsPerWord;
+      ++ptr;
+    }
+    if (len > 0) {
+      cvec.push_word(*ptr, len);
+    }
   }
 
  private:
@@ -204,10 +219,28 @@ class SequencePackage {
 
   void AppendCompactSequence(const word_type *ptr, unsigned len, bool rev) {
     UpdateLength(len);
-    for (unsigned i = 0; i < len; ++i) {
-      auto c = !rev ? kmlib::CompactVectorBigEndian<2, word_type>::at(ptr, i) :
-               kmlib::CompactVectorBigEndian<2, word_type>::at(ptr, len - 1 - i);
-      sequences_.push_back(c);
+    if (rev) {
+      auto rptr = ptr + DivCeiling(len, kCharsPerWord) - 1;
+      unsigned bases_in_last_word = len % kCharsPerWord;
+      if (bases_in_last_word > 0) {
+        auto val = *rptr;
+        val = kmlib::bit::Reverse<2>(val);
+        val <<= (kCharsPerWord - bases_in_last_word) * 2;
+        sequences_.push_word(val, bases_in_last_word);
+        --rptr;
+      }
+      for (auto p = rptr; p >= ptr; --p) {
+        sequences_.push_word(kmlib::bit::Reverse<2>(*p), kCharsPerWord);
+      }
+    } else {
+      while (len >= kCharsPerWord) {
+        sequences_.push_word(*ptr, kCharsPerWord);
+        len -= kCharsPerWord;
+        ++ptr;
+      }
+      if (len > 0) {
+        sequences_.push_word(*ptr, len);
+      }
     }
   }
 
