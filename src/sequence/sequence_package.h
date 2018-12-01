@@ -18,13 +18,12 @@
 
 /* contact: Dinghua Li <dhli@cs.hku.hk> */
 
-#ifndef SEQUENCE_PACKAGE_H__
-#define SEQUENCE_PACKAGE_H__
+#ifndef MEGAHIT_SEQUENCE_PACKAGE_H
+#define MEGAHIT_SEQUENCE_PACKAGE_H
 
 #include <cstdint>
 #include <cassert>
 #include <vector>
-#include <sdbg/sdbg_def.h>
 #include "kmlib/kmbit.h"
 #include "kmlib/kmcompactvector.h"
 #include "utils.h"
@@ -32,7 +31,6 @@
 /**
  * @brief hold a set of sequences
  */
-
 template<class WordType = unsigned long>
 class SequencePackage {
  public:
@@ -174,18 +172,17 @@ class SequencePackage {
     auto len = SequenceLength(seq_id);
     if (offset != 0) {
       unsigned remaining_len = std::min(len, kCharsPerWord - offset);
-      auto val = vector_type::fetch_sub_word(*ptr, offset, remaining_len) << (kCharsPerWord - remaining_len) * 2;
-      cvec.push_word(val, remaining_len);
+      cvec.push_word(*ptr, offset, remaining_len);
       len -= remaining_len;
       ++ptr;
     }
     while (len >= kCharsPerWord) {
-      cvec.push_word(*ptr, kCharsPerWord);
+      cvec.push_word(*ptr);
       len -= kCharsPerWord;
       ++ptr;
     }
     if (len > 0) {
-      cvec.push_word(*ptr, len);
+      cvec.push_word(*ptr, 0, len);
     }
   }
 
@@ -223,23 +220,21 @@ class SequencePackage {
       auto rptr = ptr + DivCeiling(len, kCharsPerWord) - 1;
       unsigned bases_in_last_word = len % kCharsPerWord;
       if (bases_in_last_word > 0) {
-        auto val = *rptr;
-        val = kmlib::bit::Reverse<2>(val);
-        val <<= (kCharsPerWord - bases_in_last_word) * 2;
-        sequences_.push_word(val, bases_in_last_word);
+        auto val = kmlib::bit::Reverse<2>(*rptr);
+        sequences_.push_word(val, kCharsPerWord - bases_in_last_word, bases_in_last_word);
         --rptr;
       }
       for (auto p = rptr; p >= ptr; --p) {
-        sequences_.push_word(kmlib::bit::Reverse<2>(*p), kCharsPerWord);
+        sequences_.push_word(kmlib::bit::Reverse<2>(*p));
       }
     } else {
       while (len >= kCharsPerWord) {
-        sequences_.push_word(*ptr, kCharsPerWord);
+        sequences_.push_word(*ptr);
         len -= kCharsPerWord;
         ++ptr;
       }
       if (len > 0) {
-        sequences_.push_word(*ptr, len);
+        sequences_.push_word(*ptr, 0, len);
       }
     }
   }

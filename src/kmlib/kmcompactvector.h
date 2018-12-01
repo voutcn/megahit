@@ -32,7 +32,7 @@ class CompactVector {
     unsigned bit_offset_;
    public:
     Adapter(word_type *word, unsigned base_offset)
-        : word_(word), bit_offset_(bit_offset(base_offset)) {}
+        : word_(word), bit_offset_(bit_shift(base_offset)) {}
     Adapter &operator=(const word_type &val) {
       *word_ &= ~(kBaseMask << bit_offset_);
       *word_ |= val << bit_offset_;
@@ -46,21 +46,20 @@ class CompactVector {
       return *word_ >> bit_offset_ & kBaseMask;
     }
   };
- private:
+ public:
   static size_type size_to_word_count(size_type size) {
     return (size + kBasesPerWord - 1) / kBasesPerWord;
   }
-  static unsigned bit_offset(unsigned base_offset, unsigned len = 1) {
+  static unsigned bit_shift(unsigned pos, unsigned len = 1) {
     return Endian == kBigEndian ?
-           sizeof(word_type) * 8 - (base_offset + len) * kBaseSize :
-           base_offset * kBaseSize;
+           sizeof(word_type) * 8 - (pos + len) * kBaseSize :
+           pos * kBaseSize;
   }
- public:
   static word_type at(const word_type *v, size_type i) {
-    return v[i / kBasesPerWord] >> bit_offset(i % kBasesPerWord) & kBaseMask;
+    return v[i / kBasesPerWord] >> bit_shift(i % kBasesPerWord) & kBaseMask;
   }
-  static word_type fetch_sub_word(word_type val, unsigned base_offset, unsigned len = 1) {
-    return val >> bit_offset(base_offset, len) & ((word_type{1} << len * kBaseSize) - 1);
+  static word_type sub_word(word_type val, unsigned pos, unsigned len = 1) {
+    return val >> bit_shift(pos, len) & ((word_type{1} << len * kBaseSize) - 1);
   }
  public:
   explicit CompactVector(size_type size = 0) :
@@ -107,29 +106,32 @@ class CompactVector {
     vec_ptr_->resize(size_to_word_count(size), 0);
     if (size_ < old_size && size_ > 0 && size_ % kBasesPerWord != 0) {
       vec_ptr_->back() =
-          fetch_sub_word(vec_ptr_->back(), 0, size_ % kBasesPerWord) << bit_offset(0, size_ % kBasesPerWord);
+          sub_word(vec_ptr_->back(), 0, size_ % kBasesPerWord) << bit_shift(0, size_ % kBasesPerWord);
     }
   }
   void push_back(word_type val) {
     if (size_ % kBasesPerWord == 0) {
-      vec_ptr_->emplace_back(val << bit_offset(0));
+      vec_ptr_->emplace_back(val << bit_shift(0));
     } else {
-      vec_ptr_->back() |= val << bit_offset(size_ % kBasesPerWord);
+      vec_ptr_->back() |= val << bit_shift(size_ % kBasesPerWord);
     }
     ++size_;
   }
-  void push_word(word_type val, unsigned len) {
-    unsigned base_offset = size_ % kBasesPerWord;
-    unsigned remaining = kBasesPerWord - base_offset;
-    if (base_offset == 0) {
-      vec_ptr_->emplace_back(fetch_sub_word(val, 0, len) << bit_offset(base_offset, len));
+  void push_word(word_type val, unsigned pos, unsigned len) {
+    unsigned pos_in_back = size_ % kBasesPerWord;
+    unsigned remaining = kBasesPerWord - pos_in_back;
+    if (pos_in_back == 0) {
+      vec_ptr_->emplace_back(sub_word(val, pos, len) << bit_shift(0, len));
     } else if (remaining < len) {
-      vec_ptr_->back() |= fetch_sub_word(val, 0, remaining) << bit_offset(base_offset, remaining);
-      vec_ptr_->emplace_back(fetch_sub_word(val, remaining, len - remaining) << bit_offset(0, len - remaining));
+      vec_ptr_->back() |= sub_word(val, pos, remaining) << bit_shift(pos_in_back, remaining);
+      vec_ptr_->emplace_back(sub_word(val, pos + remaining, len - remaining) << bit_shift(0, len - remaining));
     } else {
-      vec_ptr_->back() |= fetch_sub_word(val, 0, len) << bit_offset(base_offset, len);
+      vec_ptr_->back() |= sub_word(val, pos, len) << bit_shift(pos_in_back, len);
     }
     size_ += len;
+  }
+  void push_word(word_type val, unsigned pos = 0) {
+    push_word(val, pos, kBasesPerWord - pos);
   }
   void pop_back() {
     (*this)[size_ - 1] = 0;
