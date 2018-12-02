@@ -29,9 +29,9 @@ find_package(OpenMP REQUIRED)
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${OpenMP_CXX_FLAGS}")
 set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} ${OpenMP_EXE_LINKER_FLAGS}")
 
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -DXXH_INLINE_ALL -D__STDC_FORMAT_MACROS -mavx2")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -DXXH_INLINE_ALL -D__STDC_FORMAT_MACROS")
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Wno-unused-function -funroll-loops -fprefetch-loop-arrays")
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -mpopcnt -mbmi2")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -mpopcnt -mbmi2 -mavx2")
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -D__XFILE__='\"$(subst ${CMAKE_SOURCE_DIR}/,,$(abspath $<))\"'")
 
 set(CMAKE_CXX_FLAGS_DEBUG "-g -O1")
@@ -42,7 +42,7 @@ add_executable(megahit_asm_core ${OTHER_SOURCE} ${ASMBL_SOURCE} ${IDBA_SOURCE} $
 target_link_libraries(megahit_asm_core ${ZLIB_LIBRARIES} ${CMAKE_THREAD_LIBS_INIT})
 
 add_executable(megahit_sdbg_build ${SDBG_SOURCE} ${CX1_SOURCE}
-        src/main_sdbg_build.cpp src/main_sdbg_build.cpp src/kthread.cpp src/options_description.cpp
+        src/main_sdbg_build.cpp src/main_sdbg_build.cpp src/options_description.cpp
         src/sequence_manager.cpp)
 target_link_libraries(megahit_sdbg_build ${ZLIB_LIBRARIES} ${CMAKE_THREAD_LIBS_INIT})
 
@@ -55,5 +55,7 @@ add_custom_target(
         COMMAND cp -r ${CMAKE_SOURCE_DIR}/test_data .
         COMMAND rm -fr test_data/megahit_out
         COMMAND ./megahit --12 test_data/readsInterleaved1.fa.gz,test_data/readsInterleaved2.fa.bz2,test_data/readsInterleaved3.fa -o test_data/megahit_out -t 2
+        COMMAND rm -fr test_data/megahit_out
+        COMMAND ./megahit --12 test_data/readsInterleaved1.fa.gz,test_data/readsInterleaved2.fa.bz2,test_data/readsInterleaved3.fa -o test_data/megahit_out -t 2 --kmin-1pass
 )
 add_dependencies(simple_test megahit_asm_core megahit_toolkit megahit_sdbg_build)

@@ -30,18 +30,18 @@ struct KmforAtomic {
 };
 }
 
-template<class SizeType, class Function, int Mode = 1>
-void kmfor(size_t n_threads, const Function &func, SizeType begin, SizeType end) {
+template<class SizeType, class Function>
+inline void kmfor(size_t n_threads, const Function &func, SizeType begin, SizeType end, int mode = 1) {
   if (n_threads > 1) {
     std::vector<std::thread> thread_pool(n_threads);
     std::vector<internal::KmforAtomic<SizeType>> next_task(n_threads);
     std::vector<std::pair<SizeType, SizeType>> task_range(n_threads);
 
-    auto tasks_per_thread = Mode == 0 ? (end - begin) / n_threads : 0;
+    SizeType tasks_per_thread = mode == 0 ? (end - begin) / n_threads : 1;
     auto task_begin = begin;
     for (size_t tid = 0; tid < n_threads; ++tid) {
       auto task_end = task_begin + tasks_per_thread;
-      if (tid == n_threads - 1) {
+      if (task_end > end || tid == n_threads - 1) {
         task_end = end;
       }
       next_task[tid] = task_begin;
@@ -50,9 +50,9 @@ void kmfor(size_t n_threads, const Function &func, SizeType begin, SizeType end)
     }
 
     for (size_t tid = 0; tid < n_threads; ++tid) {
-      auto worker = [tid, &n_threads, &end, &func, &next_task, &task_range]() {
+      auto worker = [tid, mode, &n_threads, &end, &func, &next_task, &task_range]() {
         // pre-assigned tasks
-        while (Mode == 0) {
+        while (true) {
           auto task = next_task[tid].v.fetch_add(1);
           if (task >= task_range[tid].second) {
             break;
@@ -62,7 +62,7 @@ void kmfor(size_t n_threads, const Function &func, SizeType begin, SizeType end)
         // stolen tasks
         while (true) {
           size_t thread_to_steal = tid;
-          if (Mode == 0) {
+          if (mode == 0) {
             SizeType min_processed = std::numeric_limits<SizeType>::max();
 
             for (size_t t = 0; t < n_threads; ++t) {
@@ -79,6 +79,7 @@ void kmfor(size_t n_threads, const Function &func, SizeType begin, SizeType end)
           if (stolen_task >= task_range[thread_to_steal].second) {
             break;
           }
+          fprintf(stderr, "%d steals %d from %d\n", tid, stolen_task, thread_to_steal);
           func(stolen_task, tid);
         }
       };
@@ -96,3 +97,5 @@ void kmfor(size_t n_threads, const Function &func, SizeType begin, SizeType end)
 };
 
 } // namespace kmlib
+
+#endif

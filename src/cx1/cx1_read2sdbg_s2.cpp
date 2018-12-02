@@ -24,6 +24,7 @@
 #include <string>
 #include <vector>
 #include <parallel/algorithm>
+#include <mutex>
 
 #include "utils.h"
 #include "sequence/kmer.h"
@@ -32,8 +33,6 @@
 #include "read_lib_functions-inl.h"
 
 #include "lv2_cpu_sort.h"
-
-extern void kt_dfor(int n_threads, void (*func)(void *, long, int), void *data, long n);
 
 namespace cx1_read2sdbg {
 
@@ -780,28 +779,32 @@ void s2_lv2_post_output(read2sdbg_global_t &globals) {
 
 struct kt_sort_t {
     read2sdbg_global_t *globals;
-    int64_t acc_size;
-    int activated_threads;
     std::vector<int64_t> thread_offset;
-    std::vector<int> tid_map;
-    volatile int lock_;
+    std::vector<int> rank;
+    int64_t acc = 0;
+    int seen = 0;
+    std::mutex mutex;
 };
 
 void kt_sort(void *_g, long i, int tid) {
     kt_sort_t *kg = (kt_sort_t *)_g;
     int b = kg->globals->cx1.lv1_start_bucket_ + i;
 
+    if (kg->thread_offset[tid] == -1) {
+        std::lock_guard<std::mutex> lk(kg->mutex);
+        kg->thread_offset[tid] = kg->acc;
+        kg->acc += kg->globals->cx1.bucket_sizes_[b];
+        kg->rank[tid] = kg->seen;
+        kg->seen++;
+    }
+
     if (kg->globals->cx1.bucket_sizes_[b] == 0) {
         return;
     }
 
-    if (tid + 1 < kg->globals->num_cpu_threads) {
-        kg->thread_offset[tid + 1] = kg->thread_offset[tid] + kg->globals->cx1.bucket_sizes_[b];
-    }
-
     size_t offset = kg->globals->cx1.lv1_num_items_ * sizeof(int32_t) +
                     kg->thread_offset[tid] * kg->globals->cx1.bytes_per_sorting_item_ +
-                    tid * sizeof(uint64_t) * 65536;
+                    kg->rank[tid] * sizeof(uint64_t) * 65536;
 
     uint32_t *substr_ptr = (uint32_t *) ((char *)kg->globals->lv1_items + offset);
     uint64_t *bucket = (uint64_t *)(substr_ptr + kg->globals->cx1.bucket_sizes_[b] * kg->globals->words_per_substring);
@@ -816,14 +819,14 @@ void kt_sort(void *_g, long i, int tid) {
 void s2_lv1_direct_sort_and_proc(read2sdbg_global_t &globals) {
     kt_sort_t kg;
     kg.globals = &globals;
-    int64_t acc_size = 0;
 
-    for (int i = 0, b = globals.cx1.lv1_start_bucket_; i < globals.num_cpu_threads && b < globals.cx1.lv1_end_bucket_; ++i, ++b) {
-        kg.thread_offset.push_back(acc_size);
-        acc_size += globals.cx1.bucket_sizes_[b];
+    kg.thread_offset.resize(globals.num_cpu_threads, -1);
+    kg.rank.resize(globals.num_cpu_threads, 0);
+    omp_set_num_threads(globals.num_cpu_threads);
+#pragma omp parallel for schedule(dynamic)
+    for (int i = 0; i < globals.cx1.lv1_end_bucket_ - globals.cx1.lv1_start_bucket_; ++i) {
+        kt_sort(&kg, i, omp_get_thread_num());
     }
-
-    kt_dfor(globals.num_cpu_threads, kt_sort, &kg, globals.cx1.lv1_end_bucket_ - globals.cx1.lv1_start_bucket_);
 }
 
 void s2_post_proc(read2sdbg_global_t &globals) {
