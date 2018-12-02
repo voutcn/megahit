@@ -9,6 +9,7 @@
 #include <algorithm>
 #include <vector>
 #include <atomic>
+#include <thread>
 
 namespace kmlib {
 /*!
@@ -111,8 +112,12 @@ class AtomicBitVector {
    * @param i the bit to lock
    */
   void lock(size_type i) {
+    unsigned retry = 0;
     while (!try_lock(i)) {
-      continue;
+      if (++retry > 64) {
+        retry = 0;
+        std::this_thread::yield();
+      }
     }
   }
 
@@ -175,6 +180,6 @@ class AtomicBitVector {
 
 } // namespace kmlib
 
-using AtomicBitVector = kmlib::AtomicBitVector<uint64_t>;
+using AtomicBitVector = kmlib::AtomicBitVector<>;
 
 #endif //KMLIB_ATOMIC_BIT_VECTOR_H

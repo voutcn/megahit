@@ -17,22 +17,21 @@ namespace kmlib {
 
 namespace internal {
 
-template<unsigned BaseSize, unsigned Index>
+template<unsigned BaseSize, unsigned Index, typename T>
 struct SubPopcountMask {
   static_assert(Index % BaseSize == 0, "");
-  static const unsigned long long value =
-      (SubPopcountMask<BaseSize, Index - BaseSize>::value << BaseSize) | 1ULL;
+  static const T value =
+      (SubPopcountMask<BaseSize, Index - BaseSize, T>::value << BaseSize) | 1ULL;
 };
 
-template<unsigned BaseSize>
-struct SubPopcountMask<BaseSize, 0> {
-  static const unsigned long long value = 0;
+template<unsigned BaseSize, typename T>
+struct SubPopcountMask<BaseSize, 0, T> {
+  static const T value = 0;
 };
 
-template<unsigned BaseSize>
+template<unsigned BaseSize, typename T>
 struct PopcountMask {
-  static const unsigned long long value =
-      SubPopcountMask<BaseSize, sizeof(unsigned long long) * 8>::value;
+  static const T value = SubPopcountMask<BaseSize, sizeof(T) * 8, T>::value;
 };
 
 template<unsigned BaseSize, typename T, unsigned Index = BaseSize / 2>
@@ -102,14 +101,14 @@ class RankAndSelect {
   using word_type = WordType;
   using interval_type = IntervalType;
   static const unsigned kBitsPerByte = 8;
-  static const unsigned kBitsPWord = sizeof(word_type) * kBitsPerByte;
+  static const unsigned kBitsPerWord = sizeof(word_type) * kBitsPerByte;
   static const unsigned kBitsPerBase = BaseSize;
   static const unsigned kAlphabetSize = AlphabetSize;
   static const unsigned kBasesPerL1 = BasePerL1Interval;
   static const unsigned kBasesPerL2 = BasePerL2Interval;
   static const unsigned kSelectSampleSize = SelectSampleSize;
   static const unsigned kL1PerL2 = kBasesPerL2 / kBasesPerL1;
-  static const unsigned kBasesPerWord = kBitsPWord / kBitsPerBase;
+  static const unsigned kBasesPerWord = kBitsPerWord / kBitsPerBase;
 
   RankAndSelect() {
     for (unsigned i = kBitsPerBase == 1 ? 1 : 0; i < kAlphabetSize; ++i) {
@@ -118,6 +117,16 @@ class RankAndSelect {
         xor_masks_[i] |= (word_type) i << (kBitsPerBase * j);
       }
       xor_masks_[i] = ~xor_masks_[i];
+
+      if (sizeof(uint64_t) == sizeof(word_type)) {
+        xor_64masks_[i] = xor_masks_[i];
+      } else {
+        xor_64masks_[i] = 0;
+        for (unsigned j = 0; j < sizeof(uint64_t) / sizeof(word_type); ++j) {
+          xor_64masks_[i] <<= kBitsPerWord;
+          xor_64masks_[i] |= xor_masks_[i];
+        }
+      }
     }
   }
 
@@ -133,7 +142,15 @@ class RankAndSelect {
       l2_occ_[c] = std::vector<uint64_t>(num_l2);
       l1_occ_[c] = std::vector<uint16_t>(num_l1);
 
-      for (uint64_t i = 0; i < size; i += kBasesPerWord, ++cur_word) {
+      uint64_t size_rd = size - size % kBasesPerL1;
+      for (uint64_t i = 0; i < size_rd; i += kBasesPerL1, cur_word += kBasesPerL1 / kBasesPerWord) {
+        if (i % kBasesPerL2 == 0) {
+          l2_occ_[c][i / kBasesPerL2] = count;
+        }
+        l1_occ_[c][i / kBasesPerL1] = count - l2_occ_[c][i / kBasesPerL2];
+        count += CountCharInWords(c, cur_word, kBasesPerL1 / kBasesPerWord);
+      }
+      for (uint64_t i = size_rd; i < size; i += kBasesPerWord, ++cur_word) {
         if (i % kBasesPerL1 == 0) {
           if (i % kBasesPerL2 == 0) {
             l2_occ_[c][i / kBasesPerL2] = count;
@@ -240,16 +257,62 @@ class RankAndSelect {
     if (BaseSize != 1) {
       x ^= xor_masks_[c];
       x = internal::PackToLowestBit<BaseSize>(x);
-      x &= kPopcountMask;
+      x &= kPopcntMask;
     }
     return internal::popcount(x & mask);
+  }
+
+  unsigned CountCharInWords(uint8_t c, const word_type *ptr, unsigned n_words) const {
+    unsigned count = 0;
+    if (BaseSize != 1) {
+#ifdef __AVX2__
+      for (; n_words * sizeof(word_type) >= 32; ptr += 32 / sizeof(word_type), n_words -= 32 / sizeof(word_type)) {
+        __m256i vec = _mm256_lddqu_si256((const __m256i*)(ptr));
+        vec = _mm256_xor_si256(vec, _mm256_set1_epi64x(xor_64masks_[c]));
+        for (unsigned i = BaseSize / 2; i > 0; i /= 2) {
+          vec = _mm256_and_si256(vec, _mm256_srli_epi64(vec, i));
+        }
+        vec = _mm256_and_si256(vec, _mm256_set1_epi64x(kPopcntMask64));
+        count += internal::popcount(_mm256_extract_epi64(vec, 0));
+        count += internal::popcount(_mm256_extract_epi64(vec, 1));
+        count += internal::popcount(_mm256_extract_epi64(vec, 2));
+        count += internal::popcount(_mm256_extract_epi64(vec, 3));
+      }
+#endif
+
+#ifdef __AVX__
+      for (; n_words * sizeof(word_type) >= 16; ptr += 16 / sizeof(word_type), n_words -= 16 / sizeof(word_type)) {
+        __m128i vec = _mm_lddqu_si128((const __m128i*)(ptr));
+        vec = _mm_xor_si128(vec, _mm_set1_epi64x(xor_64masks_[c]));
+        for (unsigned i = BaseSize / 2; i > 0; i /= 2) {
+          vec = _mm_and_si128(vec, _mm_srli_epi64(vec, i));
+        }
+        vec = _mm_and_si128(vec, _mm_set1_epi64x(kPopcntMask64));
+        count += internal::popcount(_mm_extract_epi64(vec, 0));
+        count += internal::popcount(_mm_extract_epi64(vec, 1));
+      }
+#endif
+    }
+    for (; n_words * sizeof(word_type) >= 8; ptr += 8 / sizeof(word_type), n_words -= 8 / sizeof(word_type)) {
+      uint64_t x = *reinterpret_cast<const uint64_t*>(ptr);
+      if (BaseSize != 1) {
+        x ^= xor_64masks_[c];
+        x = internal::PackToLowestBit<BaseSize>(x);
+        x &= kPopcntMask64;
+      }
+      count += internal::popcount(x);
+    }
+    for (unsigned i = 0; i < n_words; ++i) {
+      count += CountCharInWord(c, ptr[i]);
+    }
+    return count;
   }
 
   unsigned SelectInWord(uint8_t c, int num_c, word_type x) const {
     if (BaseSize != 1) {
       x ^= xor_masks_[c];
       x = internal::PackToLowestBit<BaseSize>(x);
-      x &= kPopcountMask;
+      x &= kPopcntMask;
     }
 #ifdef __BMI2__
     return internal::ctz(internal::pdep(word_type(1) << (num_c - 1), x)) / kBitsPerBase;
@@ -341,9 +404,7 @@ class RankAndSelect {
       word_type mask = 1 + ~(1ULL << kBitsPerBase * (kBasesPerWord - n_residual));
       count += CountCharInWord(c, p[0], mask);
     }
-    for (unsigned i = 1; i <= n_words; ++i) {
-      count += CountCharInWord(c, p[i]);
-    }
+    count += CountCharInWords(c, p + 1, n_words);
     return OccValue(c, itv) - count;
   }
 
@@ -353,9 +414,7 @@ class RankAndSelect {
     unsigned n_words = n_bases / kBasesPerWord;
     unsigned n_residual = n_bases % kBasesPerWord;
     unsigned count = 0;
-    for (unsigned i = 0; i < n_words; ++i) {
-      count += CountCharInWord(c, p[i]);
-    }
+    count += CountCharInWords(c, p, n_words);
     if (n_residual != 0) {
       word_type mask = (1ULL << kBitsPerBase * n_residual) - 1;
       count += CountCharInWord(c, p[n_words], mask);
@@ -392,7 +451,8 @@ class RankAndSelect {
     return (x + y - 1) / y;
   };
 
-  static const word_type kPopcountMask = internal::PopcountMask<BaseSize>::value;
+  static const word_type kPopcntMask = internal::PopcountMask<BaseSize, word_type>::value;
+  static const uint64_t kPopcntMask64 = internal::PopcountMask<BaseSize, uint64_t>::value;
   int64_t size_;
   int64_t char_count_[kAlphabetSize];
   // main memory for the structure
@@ -409,10 +469,11 @@ class RankAndSelect {
   std::vector<uint16_t> l1_occ_[kAlphabetSize]; // level 1 OCC
   std::vector<uint64_t> l2_occ_[kAlphabetSize]; // level 2 OCC
   word_type xor_masks_[kAlphabetSize];
+  uint64_t xor_64masks_[kAlphabetSize];
   // e.g. if c = 0110(2), popcount_xorers_[c] = 1001 1001 1001 1001...(2),
   // to make all c's in a word 1111
   static_assert((1 << kBitsPerBase) >= kAlphabetSize, "");
-  static_assert(kBitsPWord % kBitsPerBase == 0, "");
+  static_assert(kBitsPerWord % kBitsPerBase == 0, "");
   static_assert(kBitsPerBase <= 8, "");
   static_assert(kBasesPerL2 <= 65536, "");
 };
