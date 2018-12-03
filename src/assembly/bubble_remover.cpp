@@ -50,7 +50,7 @@ double GetSimilarity(const std::string &a, const std::string &b, double min_simi
 }
 
 int BaseBubbleRemover::SearchAndPopBubble(UnitigGraph &graph, UnitigGraph::VertexAdapter &adapter,
-                                             uint32_t max_len, const checker_type &checker) {
+                                          uint32_t max_len, const checker_type &checker) {
   UnitigGraph::VertexAdapter right;
   UnitigGraph::VertexAdapter middle[4];
   UnitigGraph::VertexAdapter possible_right[4];
@@ -112,7 +112,6 @@ int BaseBubbleRemover::SearchAndPopBubble(UnitigGraph &graph, UnitigGraph::Verte
   }
   return degree - 1;
 }
-
 
 size_t BaseBubbleRemover::PopBubbles(UnitigGraph &graph, bool permanent_rm,
                                      uint32_t max_len, const checker_type &checker) {

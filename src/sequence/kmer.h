@@ -50,15 +50,13 @@ class Kmer {
       data_[used_words - 1] = seq[used_words - 1] << offset;
 
       if (offset + k * 2 > kBitsPerWord * used_words) {
-        data_[used_words - 1] |=
-            seq[used_words] >> (kBitsPerWord - offset) % kBitsPerWord;
+        data_[used_words - 1] |= seq[used_words] >> (kBitsPerWord - offset) % kBitsPerWord;
       }
     }
 
     if (k % kCharsPerWord != 0) {
       uint32_t clean_shift = (kCharsPerWord - k % kCharsPerWord) << 1;
-      data_[used_words - 1] =
-          data_[used_words - 1] >> clean_shift << clean_shift;
+      data_[used_words - 1] = data_[used_words - 1] >> clean_shift << clean_shift;
     }
 
     memset(data_ + used_words, 0, sizeof(word_type) * (NumWords - used_words));

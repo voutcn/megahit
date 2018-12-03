@@ -176,13 +176,12 @@ class SequencePackage {
       len -= remaining_len;
       ++ptr;
     }
-    while (len >= kCharsPerWord) {
-      cvec.push_word(*ptr);
-      len -= kCharsPerWord;
-      ++ptr;
+    unsigned n_full = len / kCharsPerWord;
+    for (unsigned i = 0; i < n_full; ++i) {
+      cvec.push_word(ptr[i]);
     }
-    if (len > 0) {
-      cvec.push_word(*ptr, 0, len);
+    if (len % kCharsPerWord > 0) {
+      cvec.push_word(ptr[n_full], 0, len % kCharsPerWord);
     }
   }
 

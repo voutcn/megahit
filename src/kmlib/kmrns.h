@@ -34,6 +34,7 @@ struct PopcountMask {
   static const T value = SubPopcountMask<BaseSize, sizeof(T) * 8, T>::value;
 };
 
+#pragma omp declare simd
 template<unsigned BaseSize, typename T, unsigned Index = BaseSize / 2>
 inline T PackToLowestBit(T value) {
   if (Index == 0) {
@@ -53,7 +54,7 @@ static_assert(sizeof(T) <= sizeof(ULL), "size bigger than unsigned long long not
 static_assert(!std::is_same<T, bool>::value, "bool type not supported")
 
 template<typename T>
-inline unsigned popcount(T val) {
+inline unsigned Popcnt(T val) {
   CHECK_TYPE(T);
   return sizeof(T) <= sizeof(U) ? __builtin_popcount(val) :
          sizeof(T) <= sizeof(UL) ? __builtin_popcountl(val) :
@@ -62,7 +63,7 @@ inline unsigned popcount(T val) {
 }
 
 template<typename T>
-inline unsigned ctz(T val) {
+inline unsigned Ctz(T val) {
   CHECK_TYPE(T);
   return sizeof(T) <= sizeof(U) ? __builtin_ctz(val) :
          sizeof(T) <= sizeof(UL) ? __builtin_ctzl(val) :
@@ -71,7 +72,7 @@ inline unsigned ctz(T val) {
 }
 
 template<typename Tx, typename Ty>
-inline Tx pdep(Tx x, Ty y) {
+inline Tx Pdep(Tx x, Ty y) {
   CHECK_TYPE(Tx);
   return sizeof(Tx) <= sizeof(U) ? _pdep_u32(x, y) :
          sizeof(Tx) <= sizeof(ULL) ? _pdep_u64(x, y) :
@@ -90,18 +91,16 @@ template<
     unsigned BaseSize,
     unsigned AlphabetSize,
     unsigned Mode = rnsmode::kRandAndSelect,
-    typename WordType = uint64_t,
-    typename IntervalType = uint32_t,
+    typename TWord = uint64_t,
+    typename TInterval = uint32_t,
     unsigned BasePerL2Interval = 65536 / BaseSize,
     unsigned BasePerL1Interval = 1024 / BaseSize,
     unsigned SelectSampleSize = 4096
 >
 class RankAndSelect {
  public:
-  using word_type = WordType;
-  using interval_type = IntervalType;
   static const unsigned kBitsPerByte = 8;
-  static const unsigned kBitsPerWord = sizeof(word_type) * kBitsPerByte;
+  static const unsigned kBitsPerWord = sizeof(TWord) * kBitsPerByte;
   static const unsigned kBitsPerBase = BaseSize;
   static const unsigned kAlphabetSize = AlphabetSize;
   static const unsigned kBasesPerL1 = BasePerL1Interval;
@@ -109,20 +108,22 @@ class RankAndSelect {
   static const unsigned kSelectSampleSize = SelectSampleSize;
   static const unsigned kL1PerL2 = kBasesPerL2 / kBasesPerL1;
   static const unsigned kBasesPerWord = kBitsPerWord / kBitsPerBase;
+  using TSize = int64_t;
+  static const TSize kNullID = static_cast<TSize>(-1);
 
   RankAndSelect() {
     for (unsigned i = kBitsPerBase == 1 ? 1 : 0; i < kAlphabetSize; ++i) {
       xor_masks_[i] = 0;
       for (unsigned j = 0; j < kBasesPerWord; ++j) {
-        xor_masks_[i] |= (word_type) i << (kBitsPerBase * j);
+        xor_masks_[i] |= (TWord) i << (kBitsPerBase * j);
       }
       xor_masks_[i] = ~xor_masks_[i];
 
-      if (sizeof(uint64_t) == sizeof(word_type)) {
+      if (sizeof(uint64_t) == sizeof(TWord)) {
         xor_64masks_[i] = xor_masks_[i];
       } else {
         xor_64masks_[i] = 0;
-        for (unsigned j = 0; j < sizeof(uint64_t) / sizeof(word_type); ++j) {
+        for (unsigned j = 0; j < sizeof(uint64_t) / sizeof(TWord); ++j) {
           xor_64masks_[i] <<= kBitsPerWord;
           xor_64masks_[i] |= xor_masks_[i];
         }
@@ -132,25 +133,25 @@ class RankAndSelect {
 
   ~RankAndSelect() = default;
 
-  void build(word_type *packed_array, uint64_t size) {
-    uint64_t num_l1 = DivCeiling(size, kBasesPerL1) + 1;
-    uint64_t num_l2 = DivCeiling(size, kBasesPerL2) + 1;
+  void Build(const TWord *packed_array, TSize size) {
+    TSize num_l1 = DivCeiling(size, kBasesPerL1) + 1;
+    TSize num_l2 = DivCeiling(size, kBasesPerL2) + 1;
 
     for (unsigned c = BaseSize == 1 ? 1 : 0; c < kAlphabetSize; ++c) {
-      word_type *cur_word = packed_array;
-      word_type count = 0;
-      l2_occ_[c] = std::vector<uint64_t>(num_l2);
+      const TWord *cur_word = packed_array;
+      TSize count = 0;
+      l2_occ_[c] = std::vector<TSize>(num_l2);
       l1_occ_[c] = std::vector<uint16_t>(num_l1);
 
-      uint64_t size_rd = size - size % kBasesPerL1;
-      for (uint64_t i = 0; i < size_rd; i += kBasesPerL1, cur_word += kBasesPerL1 / kBasesPerWord) {
+      TSize size_rd = size - size % kBasesPerL1;
+      for (TSize i = 0; i < size_rd; i += kBasesPerL1, cur_word += kBasesPerL1 / kBasesPerWord) {
         if (i % kBasesPerL2 == 0) {
           l2_occ_[c][i / kBasesPerL2] = count;
         }
         l1_occ_[c][i / kBasesPerL1] = count - l2_occ_[c][i / kBasesPerL2];
         count += CountCharInWords(c, cur_word, kBasesPerL1 / kBasesPerWord);
       }
-      for (uint64_t i = size_rd; i < size; i += kBasesPerWord, ++cur_word) {
+      for (TSize i = size_rd; i < size; i += kBasesPerWord, ++cur_word) {
         if (i % kBasesPerL1 == 0) {
           if (i % kBasesPerL2 == 0) {
             l2_occ_[c][i / kBasesPerL2] = count;
@@ -165,8 +166,8 @@ class RankAndSelect {
 
       if (Mode != rnsmode::kRankOnly) {
         rank2itv_[c].reserve(DivCeiling(count, kSelectSampleSize) + 1);
-        for (uint64_t i = 0; i < num_l1; ++i) {
-          while (rank2itv_[c].size() * kSelectSampleSize < OccValue(c, i)) {
+        for (TSize i = 0; i < num_l1; ++i) {
+          while (static_cast<TSize>(rank2itv_[c].size() * kSelectSampleSize) < OccValue(c, i)) {
             rank2itv_[c].push_back(i - 1);
           }
         }
@@ -177,27 +178,27 @@ class RankAndSelect {
     this->size_ = size;
   }
 
-  int64_t rank(int64_t pos) const {
+  TSize Rank(TSize pos) const {
     static_assert(BaseSize == 1, "");
     return InternalRank(1, pos);
   }
 
-  int64_t rank(uint8_t c, int64_t pos) const {
+  TSize Rank(uint8_t c, TSize pos) const {
     static_assert(BaseSize != 1, "");
     return InternalRank(c, pos);
   }
 
-  int64_t select(int64_t ranking) const {
+  TSize Select(TSize ranking) const {
     static_assert(BaseSize == 1, "");
     return InternalSelect(1, ranking);
   }
 
-  int64_t select(uint8_t c, int64_t ranking) const {
+  TSize Select(uint8_t c, TSize ranking) const {
     static_assert(BaseSize != 1, "");
     return InternalSelect(c, ranking);
   }
 
-  int64_t pred(uint8_t c, int64_t pos) const {
+  TSize Pred(uint8_t c, TSize pos) const {
     // the last c in [0...pos]
     if (GetBaseAt(pos) == c) {
       return pos;
@@ -205,17 +206,14 @@ class RankAndSelect {
     return InternalSelect(c, InternalRank(c, pos) - 1);
   }
 
-  int64_t pred(int64_t pos) const {
+  TSize Pred(TSize pos) const {
     static_assert(BaseSize == 1, "");
-    return pred(1, pos);
+    return Pred(1, pos);
   }
 
-  int64_t pred(uint8_t c, int64_t pos, int step) const {
+  TSize Pred(uint8_t c, TSize pos, int step) const {
     // the last c in [pos-step, pos], return pos-step-1 if not exist
-    int64_t end = pos - step;
-    if (end < 0) {
-      end = 0;
-    }
+    TSize end = pos >= step ? pos - step : 0;
     while (pos >= end) {
       if (GetBaseAt(pos) == c) {
         return pos;
@@ -225,7 +223,7 @@ class RankAndSelect {
     return pos;
   }
 
-  int64_t succ(uint8_t c, int64_t pos) const {
+  TSize Succ(uint8_t c, TSize pos) const {
     // the first c in [pos...ReadLength]
     if (GetBaseAt(pos) == c) {
       return pos;
@@ -233,16 +231,14 @@ class RankAndSelect {
     return InternalSelect(c, InternalRank(c, pos - 1));
   }
 
-  int64_t succ(int64_t pos) const {
-    return succ(1, pos);
+  TSize Succ(TSize pos) const {
+    return Succ(1, pos);
   }
 
-  int64_t succ(uint8_t c, int64_t pos, int step) const {
+  TSize Succ(uint8_t c, TSize pos, int step) const {
     // the first c in [pos, pos+step], return pos+step+1 if not exist
-    int64_t end = pos - step;
-    if (end >= size_) {
-      end = size_;
-    }
+    TSize end = pos + step;
+    if (end >= size_) end = size_;
     while (pos <= end) {
       if (GetBaseAt(pos) == c) {
         return pos;
@@ -253,69 +249,33 @@ class RankAndSelect {
   }
 
  private:
-  unsigned CountCharInWord(uint8_t c, word_type x, word_type mask = word_type(-1)) const {
+#pragma omp declare simd
+  unsigned CountCharInWord(uint8_t c, TWord x, TWord mask = TWord(-1)) const {
     if (BaseSize != 1) {
       x ^= xor_masks_[c];
       x = internal::PackToLowestBit<BaseSize>(x);
       x &= kPopcntMask;
     }
-    return internal::popcount(x & mask);
+    return internal::Popcnt(x & mask);
   }
 
-  unsigned CountCharInWords(uint8_t c, const word_type *ptr, unsigned n_words) const {
+  unsigned CountCharInWords(uint8_t c, const TWord *ptr, unsigned n_words) const {
     unsigned count = 0;
-    if (BaseSize != 1) {
-#ifdef __AVX2__
-      for (; n_words * sizeof(word_type) >= 32; ptr += 32 / sizeof(word_type), n_words -= 32 / sizeof(word_type)) {
-        __m256i vec = _mm256_lddqu_si256((const __m256i*)(ptr));
-        vec = _mm256_xor_si256(vec, _mm256_set1_epi64x(xor_64masks_[c]));
-        for (unsigned i = BaseSize / 2; i > 0; i /= 2) {
-          vec = _mm256_and_si256(vec, _mm256_srli_epi64(vec, i));
-        }
-        vec = _mm256_and_si256(vec, _mm256_set1_epi64x(kPopcntMask64));
-        count += internal::popcount(_mm256_extract_epi64(vec, 0));
-        count += internal::popcount(_mm256_extract_epi64(vec, 1));
-        count += internal::popcount(_mm256_extract_epi64(vec, 2));
-        count += internal::popcount(_mm256_extract_epi64(vec, 3));
-      }
-#endif
-
-#ifdef __AVX__
-      for (; n_words * sizeof(word_type) >= 16; ptr += 16 / sizeof(word_type), n_words -= 16 / sizeof(word_type)) {
-        __m128i vec = _mm_lddqu_si128((const __m128i*)(ptr));
-        vec = _mm_xor_si128(vec, _mm_set1_epi64x(xor_64masks_[c]));
-        for (unsigned i = BaseSize / 2; i > 0; i /= 2) {
-          vec = _mm_and_si128(vec, _mm_srli_epi64(vec, i));
-        }
-        vec = _mm_and_si128(vec, _mm_set1_epi64x(kPopcntMask64));
-        count += internal::popcount(_mm_extract_epi64(vec, 0));
-        count += internal::popcount(_mm_extract_epi64(vec, 1));
-      }
-#endif
-    }
-    for (; n_words * sizeof(word_type) >= 8; ptr += 8 / sizeof(word_type), n_words -= 8 / sizeof(word_type)) {
-      uint64_t x = *reinterpret_cast<const uint64_t*>(ptr);
-      if (BaseSize != 1) {
-        x ^= xor_64masks_[c];
-        x = internal::PackToLowestBit<BaseSize>(x);
-        x &= kPopcntMask64;
-      }
-      count += internal::popcount(x);
-    }
+#pragma omp simd reduction(+: count)
     for (unsigned i = 0; i < n_words; ++i) {
       count += CountCharInWord(c, ptr[i]);
     }
     return count;
   }
 
-  unsigned SelectInWord(uint8_t c, int num_c, word_type x) const {
+  unsigned SelectInWord(uint8_t c, int num_c, TWord x) const {
     if (BaseSize != 1) {
       x ^= xor_masks_[c];
       x = internal::PackToLowestBit<BaseSize>(x);
       x &= kPopcntMask;
     }
 #ifdef __BMI2__
-    return internal::ctz(internal::pdep(word_type(1) << (num_c - 1), x)) / kBitsPerBase;
+    return internal::Ctz(internal::Pdep(TWord(1) << (num_c - 1), x)) / kBitsPerBase;
 #else
     unsigned trailing_zeros = 0;
     while (num_c > 0) {
@@ -332,19 +292,19 @@ class RankAndSelect {
     __builtin_prefetch(&l1_occ_[c][i], 0);
   }
 
-  uint64_t OccValue(uint8_t c, int64_t i) const {
+  TSize OccValue(uint8_t c, TSize i) const {
     return l2_occ_[c][i / kL1PerL2] + l1_occ_[c][i];
   }
 
  private:
-  int64_t InternalRank(uint8_t c, int64_t pos) const {
+  TSize InternalRank(uint8_t c, TSize pos) const {
     // the number of c's in [0...pos]
-    if (pos >= size_ - 1) {
-      return char_count_[c];
-    }
+    if (pos >= size_) return kNullID;
+    else if (pos == size_ - 1) return char_count_[c];
+
     ++pos;
-    int64_t itv_idx = (pos + kBasesPerL1 / 2 - 1) / kBasesPerL1;
-    int64_t sampled_pos = itv_idx * kBasesPerL1;
+    TSize itv_idx = (pos + kBasesPerL1 / 2 - 1) / kBasesPerL1;
+    TSize sampled_pos = itv_idx * kBasesPerL1;
 
     if (sampled_pos >= size_) {
       sampled_pos -= kBasesPerL1;
@@ -361,22 +321,19 @@ class RankAndSelect {
     }
   }
 
-  int64_t InternalSelect(uint8_t c, int64_t k) const {
+  TSize InternalSelect(uint8_t c, TSize k) const {
     static_assert(Mode != rnsmode::kRankOnly,
                   "cannot select on rank only struct");
     // return the pos (0-based) of the kth (0-based) c
-    if (k >= char_count_[c]) {
-      return size_;
-    } else if (k < 0) {
-      return -1;
-    }
+    if (k > char_count_[c]) return kNullID;
+    else if (k == char_count_[c]) return size_;
     // first locate which interval Select(c, k) falls
-    interval_type interval_l = rank2itv_[c][k / kSelectSampleSize];
-    interval_type interval_r = rank2itv_[c][DivCeiling(k, kSelectSampleSize)];
+    TSize interval_l = rank2itv_[c][k / kSelectSampleSize];
+    TSize interval_r = rank2itv_[c][DivCeiling(k, kSelectSampleSize)];
     PrefetchOcc(c, interval_l);
     while (interval_r > interval_l) {
-      interval_type interval_m = (interval_r + interval_l + 1) / 2;
-      if (OccValue(c, interval_m) > uint64_t(k)) {
+      TSize interval_m = (interval_r + interval_l + 1) / 2;
+      if (OccValue(c, interval_m) > k) {
         interval_r = interval_m - 1;
       } else {
         interval_l = interval_m;
@@ -394,69 +351,68 @@ class RankAndSelect {
     }
   }
 
-  uint64_t RankFwd(uint8_t c, interval_type itv, uint64_t sampled_pos, unsigned n_bases) const {
+  TSize RankFwd(uint8_t c, TInterval itv, TSize sampled_pos, unsigned n_bases) const {
     unsigned n_words = n_bases / kBasesPerWord;
-    word_type *p = packed_array_ + sampled_pos / kBasesPerWord - n_words - 1;
+    const TWord *p = packed_array_ + sampled_pos / kBasesPerWord - n_words - 1;
     __builtin_prefetch(p);
     unsigned n_residual = n_bases % kBasesPerWord;
     unsigned count = 0;
     if (n_residual != 0) {
-      word_type mask = 1 + ~(1ULL << kBitsPerBase * (kBasesPerWord - n_residual));
+      TWord mask = 1 + ~(1ULL << kBitsPerBase * (kBasesPerWord - n_residual));
       count += CountCharInWord(c, p[0], mask);
     }
     count += CountCharInWords(c, p + 1, n_words);
     return OccValue(c, itv) - count;
   }
 
-  uint64_t RankBwd(uint8_t c, interval_type itv, uint64_t sampled_pos, unsigned n_bases) const {
-    word_type *p = packed_array_ + sampled_pos / kBasesPerWord;
+  TSize RankBwd(uint8_t c, TInterval itv, TSize sampled_pos, unsigned n_bases) const {
+    const TWord *p = packed_array_ + sampled_pos / kBasesPerWord;
     __builtin_prefetch(p);
     unsigned n_words = n_bases / kBasesPerWord;
     unsigned n_residual = n_bases % kBasesPerWord;
     unsigned count = 0;
     count += CountCharInWords(c, p, n_words);
     if (n_residual != 0) {
-      word_type mask = (1ULL << kBitsPerBase * n_residual) - 1;
+      TWord mask = (1ULL << kBitsPerBase * n_residual) - 1;
       count += CountCharInWord(c, p[n_words], mask);
     }
     return OccValue(c, itv) + count;
   }
 
-  uint64_t SelectFwd(uint8_t c, interval_type itv, unsigned remain) const {
-    uint64_t pos = (uint64_t) itv * kBasesPerL1;
-    word_type *begin = packed_array_ + pos / kBasesPerWord;
-    word_type *p = begin;
-    unsigned popcnt;
-    for (; (popcnt = CountCharInWord(c, *p)) < remain; remain -= popcnt, ++p);
+  TSize SelectFwd(uint8_t c, TInterval itv, unsigned remain) const {
+    TSize pos = static_cast<TSize>(itv) * kBasesPerL1;
+    const TWord *begin = packed_array_ + pos / kBasesPerWord;
+    const TWord *p = begin;
+    for (unsigned popcnt; (popcnt = CountCharInWord(c, *p)) < remain; remain -= popcnt, ++p);
     return pos + (p - begin) * kBasesPerWord + SelectInWord(c, remain, *p);
   }
 
-  uint64_t SelectBwd(uint8_t c, interval_type itv_l, unsigned exceed) const {
-    uint64_t pos = (uint64_t) (itv_l + 1) * kBasesPerL1;
-    word_type *end = packed_array_ + pos / kBasesPerWord - 1;
-    word_type *p = end;
+  TSize SelectBwd(uint8_t c, TInterval itv_l, unsigned exceed) const {
+    TSize pos = (static_cast<TSize>(itv_l) + 1) * kBasesPerL1;
+    const TWord *end = packed_array_ + pos / kBasesPerWord - 1;
+    const TWord *p = end;
     unsigned popcnt;
     for (; (popcnt = CountCharInWord(c, *p)) <= exceed; exceed -= popcnt, --p);
     return pos - kBasesPerWord * (end - p)
         - (kBasesPerWord - SelectInWord(c, popcnt - exceed, *p));
   }
 
-  uint8_t GetBaseAt(uint64_t i) const {
+  uint8_t GetBaseAt(TSize i) const {
     return (packed_array_[i / kBasesPerWord]
         >> (i % kBasesPerWord * kBitsPerBase)) & ((1 << kBitsPerBase) - 1);
   }
 
   template<typename T1, typename T2>
-  T1 DivCeiling(T1 x, T2 y) const {
+  static T1 DivCeiling(T1 x, T2 y) {
     return (x + y - 1) / y;
   };
 
-  static const word_type kPopcntMask = internal::PopcountMask<BaseSize, word_type>::value;
+  static const TWord kPopcntMask = internal::PopcountMask<BaseSize, TWord>::value;
   static const uint64_t kPopcntMask64 = internal::PopcountMask<BaseSize, uint64_t>::value;
-  int64_t size_;
-  int64_t char_count_[kAlphabetSize];
+  TSize size_{};
+  TSize char_count_[kAlphabetSize]{};
   // main memory for the structure
-  word_type *packed_array_;
+  const TWord *packed_array_;
   // sampled structure for rank and select
   // two level sampling for rank (occ value)
   // call the function OccValue(c, i) to get the number of c's
@@ -465,11 +421,11 @@ class RankAndSelect {
   // rank_interval_lookup_[c][i]=j: the jth interval (0 based)
   // contains the (i*kSelectSampleSize)th (0 based) c
   // i.e. OccValue(c, j)<=i*kSelectSampleSize and OccValue(c, j+1)>i*kSelectSampleSize
-  std::vector<interval_type> rank2itv_[kAlphabetSize];
+  std::vector<TInterval> rank2itv_[kAlphabetSize];
   std::vector<uint16_t> l1_occ_[kAlphabetSize]; // level 1 OCC
-  std::vector<uint64_t> l2_occ_[kAlphabetSize]; // level 2 OCC
-  word_type xor_masks_[kAlphabetSize];
-  uint64_t xor_64masks_[kAlphabetSize];
+  std::vector<TSize> l2_occ_[kAlphabetSize]; // level 2 OCC
+  TWord xor_masks_[kAlphabetSize];
+  uint64_t xor_64masks_[kAlphabetSize]{};
   // e.g. if c = 0110(2), popcount_xorers_[c] = 1001 1001 1001 1001...(2),
   // to make all c's in a word 1111
   static_assert((1 << kBitsPerBase) >= kAlphabetSize, "");

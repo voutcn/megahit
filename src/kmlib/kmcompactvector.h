@@ -17,7 +17,7 @@ enum {
 template<unsigned BaseSize, typename WordType = unsigned long, int Endian = kLittleEndian>
 class CompactVector {
   static_assert(sizeof(WordType) * 8 % BaseSize == 0,
-                "BaseSize must of power of 2 and no larger than WordType");
+                "BaseSize must of power of 2 and no larger than TWord");
  public:
   using word_type = WordType;
   using size_type = typename std::vector<word_type>::size_type;

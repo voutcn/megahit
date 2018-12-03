@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.10)
 project(megahit)
-
+set(CMAKE_VERBOSE_MAKEFILE ON)
 set(CMAKE_CXX_STANDARD 11)
 
 include_directories(src)
@@ -23,15 +23,13 @@ LIST(APPEND OTHER_SOURCE
         )
 
 find_package(ZLIB REQUIRED)
-find_package(Threads REQUIRED)
 find_package(OpenMP REQUIRED)
 
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${OpenMP_CXX_FLAGS}")
-set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} ${OpenMP_EXE_LINKER_FLAGS}")
 
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -DXXH_INLINE_ALL -D__STDC_FORMAT_MACROS")
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Wno-unused-function -funroll-loops -fprefetch-loop-arrays")
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -mpopcnt -mbmi2 -mavx2")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Wno-unused-function -mpopcnt -mbmi2")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fprefetch-loop-arrays -funroll-loops -fopt-info-vec-optimized -ftree-vectorizer-verbose=1")
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -D__XFILE__='\"$(subst ${CMAKE_SOURCE_DIR}/,,$(abspath $<))\"'")
 
 set(CMAKE_CXX_FLAGS_DEBUG "-g -O1")
@@ -39,15 +37,15 @@ set(CMAKE_CXX_FLAGS_DEBUG "-g -O1")
 message(STATUS "Build type: ${CMAKE_BUILD_TYPE}: ${CMAKE_CXX_FLAGS}")
 
 add_executable(megahit_asm_core ${OTHER_SOURCE} ${ASMBL_SOURCE} ${IDBA_SOURCE} ${SDBG_SOURCE} ${LCASM_SOURCE})
-target_link_libraries(megahit_asm_core ${ZLIB_LIBRARIES} ${CMAKE_THREAD_LIBS_INIT})
+target_link_libraries(megahit_asm_core ${ZLIB_LIBRARIES} ${OpenMP_CXX_LIBRARIES})
 
 add_executable(megahit_sdbg_build ${SDBG_SOURCE} ${CX1_SOURCE}
         src/main_sdbg_build.cpp src/main_sdbg_build.cpp src/options_description.cpp
         src/sequence_manager.cpp)
-target_link_libraries(megahit_sdbg_build ${ZLIB_LIBRARIES} ${CMAKE_THREAD_LIBS_INIT})
+target_link_libraries(megahit_sdbg_build ${ZLIB_LIBRARIES} ${OpenMP_CXX_LIBRARIES})
 
 add_executable(megahit_toolkit ${TOOLKIT_SOURCE})
-target_link_libraries(megahit_toolkit ${ZLIB_LIBRARIES} ${CMAKE_THREAD_LIBS_INIT})
+target_link_libraries(megahit_toolkit ${ZLIB_LIBRARIES} ${OpenMP_CXX_LIBRARIES})
 
 add_custom_target(
         simple_test
