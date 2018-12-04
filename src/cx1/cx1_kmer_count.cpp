@@ -67,7 +67,7 @@ inline bool IsDifferentEdges(uint32_t *item1, uint32_t *item2, int num_words, in
  */
 inline void PackEdge(uint32_t *dest, uint32_t *item, int64_t counting, struct count_global_t &globals, int64_t num_items) {
     for (int i = 0; i < globals.words_per_edge && i < globals.words_per_substring; ++i) {
-        dest[i] = *(item + i * num_items);
+        dest[i] = *(item + i);
     }
 
     int chars_in_last_word = (globals.kmer_k + 1) % kCharsPerEdgeWord;
@@ -454,17 +454,17 @@ inline void lv2_extract_substr_(uint32_t *substrings_p, int64_t *read_info_p, co
 
                 if (strand == 0) {
                     CopySubstring(substrings_p, read_p, offset + start_offset, num_chars_to_copy,
-                                  num_items, words_this_seq, globals.words_per_substring);
+                                  1, words_this_seq, globals.words_per_substring);
                     *read_info_p = (full_offset << 6) | (prev << 3) | next;
                 }
                 else {
                     CopySubstringRC(substrings_p, read_p, offset + start_offset, num_chars_to_copy,
-                                    num_items, words_this_seq, globals.words_per_substring);
+                                    1, words_this_seq, globals.words_per_substring);
                     *read_info_p = (full_offset << 6) | ((next == kSentinelValue ? kSentinelValue : (3 - next)) << 3)
                                    | (prev == kSentinelValue ? kSentinelValue : (3 - prev));
                 }
 
-                substrings_p++;
+                substrings_p += globals.words_per_substring;
                 read_info_p++;
             }
         }
@@ -492,7 +492,11 @@ void lv2_sort(count_global_t &globals) {
     }
 
     omp_set_num_threads(globals.num_cpu_threads - globals.num_output_threads);
-    lv2_cpu_sort(globals.lv2_substrings, globals.permutation, globals.cpu_sort_space, globals.words_per_substring, globals.cx1.lv2_num_items_);
+  gnu_lv2_cpu_sort(globals.lv2_substrings,
+                   globals.permutation,
+                   globals.cpu_sort_space,
+                   globals.words_per_substring,
+                   globals.cx1.lv2_num_items_);
     omp_set_num_threads(globals.num_cpu_threads);
     local_timer.stop();
 
@@ -548,12 +552,12 @@ void lv2_output_(int64_t start_index, int64_t end_index, int thread_id, count_gl
     for (int64_t i = start_index; i < end_index; i = to_) {
         from_ = i;
         to_ = i + 1;
-        uint32_t *first_item = substrings + permutation[i];
+        uint32_t *first_item = substrings + i * globals.words_per_substring;
 
         while (to_ < end_index) {
             if (IsDifferentEdges(first_item,
-                                 substrings + permutation[to_],
-                                 globals.words_per_substring, num_items)) {
+                                 substrings + to_ * globals.words_per_substring,
+                                 1, num_items)) {
                 break;
             }
 
@@ -564,106 +568,106 @@ void lv2_output_(int64_t start_index, int64_t end_index, int thread_id, count_gl
 
         // update read's first and last
 
-        memset(count_prev, 0, sizeof(count_prev[0]) * 4);
-        memset(count_next, 0, sizeof(count_next[0]) * 4);
-        bool has_in = false;
-        bool has_out = false;
-
-        for (int64_t j = from_; j < to_; ++j) {
-            int prev_and_next = read_infos[permutation[j]] & ((1 << 6) - 1);
-            count_prev[prev_and_next >> 3]++;
-            count_next[prev_and_next & 7]++;
-        }
-
-        for (int j = 0; j < 4; ++j) {
-            if (count_prev[j] >= globals.kmer_freq_threshold) {
-                has_in = true;
-            }
-
-            if (count_next[j] >= globals.kmer_freq_threshold) {
-                has_out = true;
-            }
-        }
-
-        if (!has_in && count >= globals.kmer_freq_threshold) {
-            for (int64_t j = from_; j < to_; ++j) {
-                int64_t read_info = read_infos[permutation[j]] >> 6;
-                int64_t read_id = globals.package.GetSeqID(read_info >> 1);
-                int strand = read_info & 1;
-                uint32_t offset = (read_info >> 1) - globals.package.StartPosition(read_id);
-
-                if (strand == 0) {
-                    // update last
-                    while (true) {
-                        auto old_value = globals.last_0_in[read_id];
-
-                        if (old_value != kSentinelOffset && old_value >= offset) {
-                            break;
-                        }
-
-                        if (__sync_bool_compare_and_swap(globals.last_0_in + read_id, old_value, offset)) {
-                            break;
-                        }
-                    }
-                }
-                else {
-                    // update first
-                    offset++;
-
-                    while (true) {
-                        auto old_value = globals.first_0_out[read_id];
-
-                        if (old_value <= offset) {
-                            break;
-                        }
-
-                        if (__sync_bool_compare_and_swap(globals.first_0_out + read_id, old_value, offset)) {
-                            break;
-                        }
-                    }
-                }
-            }
-        }
-
-        if (!has_out && count >= globals.kmer_freq_threshold) {
-            for (int64_t j = from_; j < to_; ++j) {
-                int64_t read_info = read_infos[permutation[j]] >> 6;
-                int64_t read_id = globals.package.GetSeqID(read_info >> 1);
-                int strand = read_info & 1;
-                uint32_t offset = (read_info >> 1) - globals.package.StartPosition(read_id);
-
-                if (strand == 0) {
-                    // update first
-                    offset++;
-
-                    while (true) {
-                        auto old_value = globals.first_0_out[read_id];
-
-                        if (old_value <= offset) {
-                            break;
-                        }
-
-                        if (__sync_bool_compare_and_swap(globals.first_0_out + read_id, old_value, offset)) {
-                            break;
-                        }
-                    }
-                }
-                else {
-                    // update last
-                    while (true) {
-                        auto old_value = globals.last_0_in[read_id];
-
-                        if (old_value != kSentinelOffset && old_value >= offset) {
-                            break;
-                        }
-
-                        if (__sync_bool_compare_and_swap(globals.last_0_in + read_id, old_value, offset)) {
-                            break;
-                        }
-                    }
-                }
-            }
-        }
+//        memset(count_prev, 0, sizeof(count_prev[0]) * 4);
+//        memset(count_next, 0, sizeof(count_next[0]) * 4);
+//        bool has_in = false;
+//        bool has_out = false;
+//
+//        for (int64_t j = from_; j < to_; ++j) {
+//            int prev_and_next = read_infos[j] & ((1 << 6) - 1);
+//            count_prev[prev_and_next >> 3]++;
+//            count_next[prev_and_next & 7]++;
+//        }
+//
+//        for (int j = 0; j < 4; ++j) {
+//            if (count_prev[j] >= globals.kmer_freq_threshold) {
+//                has_in = true;
+//            }
+//
+//            if (count_next[j] >= globals.kmer_freq_threshold) {
+//                has_out = true;
+//            }
+//        }
+//
+//        if (!has_in && count >= globals.kmer_freq_threshold) {
+//            for (int64_t j = from_; j < to_; ++j) {
+//                int64_t read_info = read_infos[j] >> 6;
+//                int64_t read_id = globals.package.GetSeqID(read_info >> 1);
+//                int strand = read_info & 1;
+//                uint32_t offset = (read_info >> 1) - globals.package.StartPosition(read_id);
+//
+//                if (strand == 0) {
+//                    // update last
+//                    while (true) {
+//                        auto old_value = globals.last_0_in[read_id];
+//
+//                        if (old_value != kSentinelOffset && old_value >= offset) {
+//                            break;
+//                        }
+//
+//                        if (__sync_bool_compare_and_swap(globals.last_0_in + read_id, old_value, offset)) {
+//                            break;
+//                        }
+//                    }
+//                }
+//                else {
+//                    // update first
+//                    offset++;
+//
+//                    while (true) {
+//                        auto old_value = globals.first_0_out[read_id];
+//
+//                        if (old_value <= offset) {
+//                            break;
+//                        }
+//
+//                        if (__sync_bool_compare_and_swap(globals.first_0_out + read_id, old_value, offset)) {
+//                            break;
+//                        }
+//                    }
+//                }
+//            }
+//        }
+//
+//        if (!has_out && count >= globals.kmer_freq_threshold) {
+//            for (int64_t j = from_; j < to_; ++j) {
+//                int64_t read_info = read_infos[j] >> 6;
+//                int64_t read_id = globals.package.GetSeqID(read_info >> 1);
+//                int strand = read_info & 1;
+//                uint32_t offset = (read_info >> 1) - globals.package.StartPosition(read_id);
+//
+//                if (strand == 0) {
+//                    // update first
+//                    offset++;
+//
+//                    while (true) {
+//                        auto old_value = globals.first_0_out[read_id];
+//
+//                        if (old_value <= offset) {
+//                            break;
+//                        }
+//
+//                        if (__sync_bool_compare_and_swap(globals.first_0_out + read_id, old_value, offset)) {
+//                            break;
+//                        }
+//                    }
+//                }
+//                else {
+//                    // update last
+//                    while (true) {
+//                        auto old_value = globals.last_0_in[read_id];
+//
+//                        if (old_value != kSentinelOffset && old_value >= offset) {
+//                            break;
+//                        }
+//
+//                        if (__sync_bool_compare_and_swap(globals.last_0_in + read_id, old_value, offset)) {
+//                            break;
+//                        }
+//                    }
+//                }
+//            }
+//        }
 
         ++thread_edge_counting[std::min(count, int64_t(kMaxMul))];
 
@@ -734,7 +738,7 @@ void kt_sort(void *_g, long i, int tid) {
     int64_t *readinfo_ptr = (int64_t *) (cpu_sort_space_ptr + kg->globals->cx1.bucket_sizes_[b]);
 
     lv2_extract_substr_(substr_ptr, readinfo_ptr, *(kg->globals), b, b + 1, kg->globals->cx1.bucket_sizes_[b]);
-    lv2_cpu_radix_sort_st(substr_ptr, permutation_ptr, cpu_sort_space_ptr, bucket, kg->globals->words_per_substring, kg->globals->cx1.bucket_sizes_[b]);
+    lv2_cpu_radix_sort_st2(substr_ptr, permutation_ptr, kg->globals->words_per_substring, kg->globals->cx1.bucket_sizes_[b]);
     lv2_output_(0, kg->globals->cx1.bucket_sizes_[b], tid, *(kg->globals), substr_ptr, permutation_ptr, readinfo_ptr, kg->globals->cx1.bucket_sizes_[b]);
 }
 

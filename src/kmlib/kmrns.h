@@ -10,8 +10,6 @@
 #include <stdlib.h>
 #include <x86intrin.h>
 #include <vector>
-#include <new>
-#include <limits>
 
 namespace kmlib {
 

@@ -23,7 +23,11 @@
 #include <assert.h>
 #include "definitions.h"
 
-inline void lv2_cpu_sort(uint32_t *lv2_substrings, uint32_t *permutation, uint64_t *cpu_sort_space, int words_per_substring, int64_t lv2_num_items) {
+inline void gnu_lv2_cpu_sort(uint32_t *lv2_substrings,
+                             uint32_t *permutation,
+                             uint64_t *cpu_sort_space,
+                             int words_per_substring,
+                             int64_t lv2_num_items) {
     #pragma omp parallel for
 
     for (uint32_t i = 0; i < lv2_num_items; ++i) {
@@ -125,4 +129,46 @@ inline void lv2_cpu_radix_sort_st(uint32_t *lv2_substrings, uint32_t *permutatio
         permutation[i] = i;
     }
     lv2_cpu_radix_sort_st_core_<24>(lv2_substrings, permutation, lv2_num_items, lv2_num_items, words_per_substring - 1);
+}
+
+
+template <int NWords>
+struct Helper {
+  uint32_t data[NWords];
+  static const int n_bytes = sizeof(data);
+  bool operator< (const Helper &rhs) const {
+      for (int i = 0; i < NWords; ++i) {
+          if (data[i] < rhs.data[i]) {
+              return true;
+          } else if (data[i] > rhs.data[i]) {
+              return false;
+          }
+      }
+      return true;
+  }
+  int kth_byte(int k) const {
+      return data[NWords - 1 - k / sizeof(uint32_t)] >> (k % sizeof(uint32_t) * 8) & 0xFF;
+  }
+} __attribute((packed));
+
+#include "kmlib/kmsort.h"
+
+template <int NWords>
+inline bool helper(uint32_t *lv2_substrings, int words_per_substring, int64_t lv2_num_items) {
+    if (words_per_substring != NWords) return false;
+    auto ptr = reinterpret_cast<Helper<NWords>*>(lv2_substrings);
+    kmlib::kmsort(ptr, ptr + lv2_num_items);
+    return true;
+}
+
+inline void lv2_cpu_radix_sort_st2(uint32_t *lv2_substrings, uint32_t *permutation, int words_per_substring, int64_t lv2_num_items) {
+    if (helper<1>(lv2_substrings, words_per_substring, lv2_num_items)) return;
+    if (helper<2>(lv2_substrings, words_per_substring, lv2_num_items)) return;
+    if (helper<3>(lv2_substrings, words_per_substring, lv2_num_items)) return;
+    if (helper<4>(lv2_substrings, words_per_substring, lv2_num_items)) return;
+    if (helper<5>(lv2_substrings, words_per_substring, lv2_num_items)) return;
+    if (helper<6>(lv2_substrings, words_per_substring, lv2_num_items)) return;
+    if (helper<7>(lv2_substrings, words_per_substring, lv2_num_items)) return;
+    if (helper<8>(lv2_substrings, words_per_substring, lv2_num_items)) return;
+    assert(false);
 }
