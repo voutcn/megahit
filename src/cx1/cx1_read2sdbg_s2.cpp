@@ -32,7 +32,7 @@
 #include "packed_reads.h"
 #include "read_lib_functions-inl.h"
 
-#include "lv2_cpu_sort.h"
+#include "sorting.h"
 
 namespace cx1_read2sdbg {
 
@@ -71,11 +71,6 @@ inline bool IsDiffKMinusOneMer(uint32_t *item1, uint32_t *item2, int64_t spacing
     }
 
     return false;
-}
-
-// helper
-inline int ExtractFirstChar(uint32_t *item) {
-    return *item >> kTopCharShift;
 }
 
 // bS'a
@@ -526,7 +521,7 @@ void *s2_lv1_fill_offset(void *_data) {
     return NULL;
 }
 
-void s2_lv2_extract_substr_(int bp_from, int bp_to, read2sdbg_global_t &globals, uint32_t *substr, int64_t num_items) {
+void s2_lv2_extract_substr_(int bp_from, int bp_to, read2sdbg_global_t &globals, uint32_t *substr) {
     int *lv1_p = globals.lv1_items + globals.cx1.rp_[0].rp_bucket_offsets[bp_from];
 
     for (int b = bp_from; b < bp_to; ++b) {
@@ -577,9 +572,9 @@ void s2_lv2_extract_substr_(int bp_from, int bp_to, read2sdbg_global_t &globals,
                     }
 
                     CopySubstring(substr, read_p, offset + start_offset, num_chars_to_copy,
-                                  num_items, words_this_read, globals.words_per_substring);
+                                  1, words_this_read, globals.words_per_substring);
 
-                    uint32_t *last_word = substr + (globals.words_per_substring - 1) * num_items;
+                    uint32_t *last_word = substr + (globals.words_per_substring - 1) * 1;
                     *last_word |= int(num_chars_to_copy == globals.kmer_k) << kBWTCharNumBits;
                     *last_word |= prev;
                 }
@@ -606,63 +601,20 @@ void s2_lv2_extract_substr_(int bp_from, int bp_to, read2sdbg_global_t &globals,
                     }
 
                     CopySubstringRC(substr, read_p, offset + start_offset, num_chars_to_copy,
-                                    num_items, words_this_read, globals.words_per_substring);
+                                    1, words_this_read, globals.words_per_substring);
 
-                    uint32_t *last_word = substr + (globals.words_per_substring - 1) * num_items;
+                    uint32_t *last_word = substr + (globals.words_per_substring - 1) * 1;
                     *last_word |= int(num_chars_to_copy == globals.kmer_k) << kBWTCharNumBits;
                     *last_word |= prev;
                 }
 
-                substr++;
+                substr += globals.words_per_substring;
             }
         }
     }
 }
 
-void *s2_lv2_extract_substr(void *_data) {
-    bucketpartition_data_t &bp = *((bucketpartition_data_t *) _data);
-    read2sdbg_global_t &globals = *(bp.globals);
-    uint32_t *substr = globals.lv2_substrings +
-                       (globals.cx1.rp_[0].rp_bucket_offsets[bp.bp_start_bucket] - globals.cx1.rp_[0].rp_bucket_offsets[globals.cx1.lv2_start_bucket_]);
-    s2_lv2_extract_substr_(bp.bp_start_bucket, bp.bp_end_bucket, globals, substr, globals.cx1.lv2_num_items_);
-    return NULL;
-}
-
-void s2_lv2_pre_output_partition(read2sdbg_global_t &globals) {
-    // swap double buffers
-    globals.lv2_num_items_db = globals.cx1.lv2_num_items_;
-    std::swap(globals.lv2_substrings_db, globals.lv2_substrings);
-    std::swap(globals.permutation_db, globals.permutation);
-
-    // distribute threads
-    int64_t items_per_thread = globals.lv2_num_items_db / globals.num_output_threads;
-    int64_t acc = 0, t = 0;
-    globals.cx1.op_[t].op_start_index = 0;
-
-    for (int b = globals.cx1.lv2_start_bucket_; b < globals.cx1.lv2_end_bucket_; ++b) {
-        if (globals.cx1.bucket_sizes_[b] + acc > (t + 1) * items_per_thread) {
-            globals.cx1.op_[t].op_end_index = acc;
-            ++t;
-
-            globals.cx1.op_[t].op_start_index = acc;
-
-            if (t == globals.num_output_threads - 1) {
-                break;
-            }
-        }
-
-        acc += globals.cx1.bucket_sizes_[b];
-    }
-
-    globals.cx1.op_[t].op_end_index = globals.lv2_num_items_db;
-
-    for (++t; t < globals.num_output_threads; ++t) {
-        globals.cx1.op_[t].op_end_index = globals.lv2_num_items_db;
-        globals.cx1.op_[t].op_start_index = globals.lv2_num_items_db;
-    }
-}
-
-void output_(int64_t from, int64_t to, read2sdbg_global_t &globals, uint32_t *substr, uint32_t *permutation, int tid, int64_t num_items) {
+void output_(int64_t from, int64_t to, read2sdbg_global_t &globals, uint32_t *substr, int tid) {
     int64_t start_idx, end_idx;
     int has_solid_a = 0; // has solid (k+1)-mer aSb
     int has_solid_b = 0; // has solid aSb
@@ -671,13 +623,13 @@ void output_(int64_t from, int64_t to, read2sdbg_global_t &globals, uint32_t *su
 
     for (start_idx = from; start_idx < to; start_idx = end_idx) {
         end_idx = start_idx + 1;
-        uint32_t *item = substr + permutation[start_idx];
+        uint32_t *item = substr + start_idx * globals.words_per_substring;
 
         while (end_idx < to &&
                 !IsDiffKMinusOneMer(
                     item,
-                    substr + permutation[end_idx],
-                    num_items,
+                    substr + end_idx  * globals.words_per_substring,
+                    1,
                     globals.kmer_k)) {
             ++end_idx;
         }
@@ -687,9 +639,9 @@ void output_(int64_t from, int64_t to, read2sdbg_global_t &globals, uint32_t *su
         outputed_b = 0;
 
         for (int64_t i = start_idx; i < end_idx; ++i) {
-            uint32_t *cur_item = substr + permutation[i];
-            int a = Extract_a(cur_item, globals.words_per_substring, num_items, globals.kmer_k);
-            int b = Extract_b(cur_item, globals.words_per_substring, num_items);
+            uint32_t *cur_item = substr + i  * globals.words_per_substring;
+            int a = Extract_a(cur_item, globals.words_per_substring, 1, globals.kmer_k);
+            int b = Extract_b(cur_item, globals.words_per_substring, 1);
 
             if (a != kSentinelValue && b != kSentinelValue) {
                 has_solid_a |= 1 << a;
@@ -703,17 +655,17 @@ void output_(int64_t from, int64_t to, read2sdbg_global_t &globals, uint32_t *su
         }
 
         for (int64_t i = start_idx, j; i < end_idx; i = j) {
-            uint32_t *cur_item = substr + permutation[i];
-            int a = Extract_a(cur_item, globals.words_per_substring, num_items, globals.kmer_k);
-            int b = Extract_b(cur_item, globals.words_per_substring, num_items);
+            uint32_t *cur_item = substr + i * globals.words_per_substring;
+            int a = Extract_a(cur_item, globals.words_per_substring, 1, globals.kmer_k);
+            int b = Extract_b(cur_item, globals.words_per_substring, 1);
 
             j = i + 1;
 
             while (j < end_idx) {
-                uint32_t *next_item = substr + permutation[j];
+                uint32_t *next_item = substr + j * globals.words_per_substring;
 
-                if (Extract_a(next_item, globals.words_per_substring, num_items, globals.kmer_k) != a ||
-                        Extract_b(next_item, globals.words_per_substring, num_items) != b) {
+                if (Extract_a(next_item, globals.words_per_substring, 1, globals.kmer_k) != a ||
+                        Extract_b(next_item, globals.words_per_substring, 1) != b) {
                     break;
                 }
                 else {
@@ -748,7 +700,7 @@ void output_(int64_t from, int64_t to, read2sdbg_global_t &globals, uint32_t *su
 
             if (is_dollar) {
                 for (int64_t i = 0; i < globals.words_per_dummy_node; ++i) {
-                    tip_label[i] = cur_item[i * num_items];
+                    tip_label[i] = cur_item[i];
                 }
             }
 
@@ -761,20 +713,6 @@ void output_(int64_t from, int64_t to, read2sdbg_global_t &globals, uint32_t *su
                                     tip_label);
         }
     }
-}
-
-void *s2_lv2_output(void *_op) {
-    outputpartition_data_t *op = (outputpartition_data_t *) _op;
-    read2sdbg_global_t &globals = *(op->globals);
-    int64_t op_start_index = op->op_start_index;
-    int64_t op_end_index = op->op_end_index;
-
-    output_(op_start_index, op_end_index, globals, globals.lv2_substrings_db, globals.permutation_db, op->op_id, globals.lv2_num_items_db);
-
-    return NULL;
-}
-
-void s2_lv2_post_output(read2sdbg_global_t &globals) {
 }
 
 struct kt_sort_t {
@@ -807,13 +745,10 @@ void kt_sort(void *_g, long i, int tid) {
                     kg->rank[tid] * sizeof(uint64_t) * 65536;
 
     uint32_t *substr_ptr = (uint32_t *) ((char *)kg->globals->lv1_items + offset);
-    uint64_t *bucket = (uint64_t *)(substr_ptr + kg->globals->cx1.bucket_sizes_[b] * kg->globals->words_per_substring);
-    uint32_t *permutation_ptr = (uint32_t *)(bucket + 65536);
-    uint32_t *cpu_sort_space_ptr = permutation_ptr + kg->globals->cx1.bucket_sizes_[b];
 
-    s2_lv2_extract_substr_(b, b + 1, *(kg->globals), substr_ptr, kg->globals->cx1.bucket_sizes_[b]);
-    lv2_cpu_radix_sort_st(substr_ptr, permutation_ptr, cpu_sort_space_ptr, bucket, kg->globals->words_per_substring, kg->globals->cx1.bucket_sizes_[b]);
-    output_(0, kg->globals->cx1.bucket_sizes_[b], *(kg->globals), substr_ptr, permutation_ptr, tid, kg->globals->cx1.bucket_sizes_[b]);
+    s2_lv2_extract_substr_(b, b + 1, *(kg->globals), substr_ptr);
+    SortSubStr(substr_ptr, kg->globals->words_per_substring, kg->globals->cx1.bucket_sizes_[b]);
+    output_(0, kg->globals->cx1.bucket_sizes_[b], *(kg->globals), substr_ptr, tid);
 }
 
 void s2_lv1_direct_sort_and_proc(read2sdbg_global_t &globals) {
@@ -849,7 +784,6 @@ void s2_post_proc(read2sdbg_global_t &globals) {
     free(globals.lv1_items);
 }
 
-void s2_lv2_sort(read2sdbg_global_t &globals) {}
 
 } // s2
 

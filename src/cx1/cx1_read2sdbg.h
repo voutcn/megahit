@@ -153,11 +153,6 @@ void   *s1_lv0_calc_bucket_size(void *); // pthread working function
 void    s1_init_global_and_set_cx1(read2sdbg_global_t &g);
 void   *s1_lv1_fill_offset(void *); // pthread working function
 void    s1_lv1_direct_sort_and_count(read2sdbg_global_t &g);
-void   *s1_lv2_extract_substr(void *); // pthread working function
-void    s1_lv2_sort(read2sdbg_global_t &g);
-void    s1_lv2_pre_output_partition(read2sdbg_global_t &g);
-void   *s1_lv2_output(void *); // pthread working function
-void    s1_lv2_post_output(read2sdbg_global_t &g);
 void    s1_post_proc(read2sdbg_global_t &g);
 }
 
@@ -169,11 +164,6 @@ void   *s2_lv0_calc_bucket_size(void *); // pthread working function
 void    s2_init_global_and_set_cx1(read2sdbg_global_t &g);
 void   *s2_lv1_fill_offset(void *); // pthread working function
 void    s2_lv1_direct_sort_and_proc(read2sdbg_global_t &g);
-void   *s2_lv2_extract_substr(void *); // pthread working function
-void    s2_lv2_sort(read2sdbg_global_t &g);
-void    s2_lv2_pre_output_partition(read2sdbg_global_t &g);
-void   *s2_lv2_output(void *); // pthread working function
-void    s2_lv2_post_output(read2sdbg_global_t &g);
 void    s2_post_proc(read2sdbg_global_t &g);
 }
 

@@ -35,7 +35,7 @@
 #include "packed_reads.h"
 #include "read_lib_functions-inl.h"
 
-#include "lv2_cpu_sort.h"
+#include "sorting.h"
 
 namespace cx1_kmer_count {
 
@@ -65,9 +65,9 @@ inline bool IsDifferentEdges(uint32_t *item1, uint32_t *item2, int num_words, in
 /**
  * @brief pack an edge and its multiplicity to word-aligned spaces
  */
-inline void PackEdge(uint32_t *dest, uint32_t *item, int64_t counting, struct count_global_t &globals, int64_t num_items) {
+inline void PackEdge(uint32_t *dest, uint32_t *item, int64_t counting, struct count_global_t &globals) {
     for (int i = 0; i < globals.words_per_edge && i < globals.words_per_substring; ++i) {
-        dest[i] = *(item + i * num_items);
+        dest[i] = *(item + i);
     }
 
     int chars_in_last_word = (globals.kmer_k + 1) % kCharsPerEdgeWord;
@@ -454,90 +454,25 @@ inline void lv2_extract_substr_(uint32_t *substrings_p, int64_t *read_info_p, co
 
                 if (strand == 0) {
                     CopySubstring(substrings_p, read_p, offset + start_offset, num_chars_to_copy,
-                                  num_items, words_this_seq, globals.words_per_substring);
+                                  1, words_this_seq, globals.words_per_substring);
                     *read_info_p = (full_offset << 6) | (prev << 3) | next;
                 }
                 else {
                     CopySubstringRC(substrings_p, read_p, offset + start_offset, num_chars_to_copy,
-                                    num_items, words_this_seq, globals.words_per_substring);
+                                    1, words_this_seq, globals.words_per_substring);
                     *read_info_p = (full_offset << 6) | ((next == kSentinelValue ? kSentinelValue : (3 - next)) << 3)
                                    | (prev == kSentinelValue ? kSentinelValue : (3 - prev));
                 }
 
-                substrings_p++;
+                substrings_p += globals.words_per_substring;
                 read_info_p++;
             }
         }
     }
 }
 
-void *lv2_extract_substr(void *_data) {
-    bucketpartition_data_t &bp = *((bucketpartition_data_t *) _data);
-    count_global_t &globals = *(bp.globals);
-    uint32_t *substrings_p = globals.lv2_substrings +
-                             (globals.cx1.rp_[0].rp_bucket_offsets[bp.bp_start_bucket] - globals.cx1.rp_[0].rp_bucket_offsets[globals.cx1.lv2_start_bucket_]);
-    int64_t *read_info_p = globals.lv2_read_info +
-                           (globals.cx1.rp_[0].rp_bucket_offsets[bp.bp_start_bucket] - globals.cx1.rp_[0].rp_bucket_offsets[globals.cx1.lv2_start_bucket_]);
-
-    lv2_extract_substr_(substrings_p, read_info_p, globals, bp.bp_start_bucket, bp.bp_end_bucket, globals.cx1.lv2_num_items_);
-    return NULL;
-}
-
-void lv2_sort(count_global_t &globals) {
-    SimpleTimer local_timer;
-
-    if (cx1_t::kCX1Verbose >= 4) {
-        local_timer.reset();
-        local_timer.start();
-    }
-
-    omp_set_num_threads(globals.num_cpu_threads - globals.num_output_threads);
-    lv2_cpu_sort(globals.lv2_substrings, globals.permutation, globals.cpu_sort_space, globals.words_per_substring, globals.cx1.lv2_num_items_);
-    omp_set_num_threads(globals.num_cpu_threads);
-    local_timer.stop();
-
-    if (cx1_t::kCX1Verbose >= 4) {
-        xinfo("Sorting substrings with CPU...done. Time elapsed: %.4lf\n", local_timer.elapsed());
-    }
-}
-
-void lv2_pre_output_partition(count_global_t &globals) {
-    // swap double buffers
-    globals.lv2_num_items_db = globals.cx1.lv2_num_items_;
-    std::swap(globals.lv2_substrings_db, globals.lv2_substrings);
-    std::swap(globals.permutation_db, globals.permutation);
-    std::swap(globals.lv2_read_info_db, globals.lv2_read_info);
-
-    // distribute partition
-    int64_t items_per_thread = globals.lv2_num_items_db / globals.num_output_threads;
-    int64_t acc = 0, t = 0;
-    globals.cx1.op_[t].op_start_index = 0;
-
-    for (int b = globals.cx1.lv2_start_bucket_; b < globals.cx1.lv2_end_bucket_; ++b) {
-        if (globals.cx1.bucket_sizes_[b] + acc > (t + 1) * items_per_thread) {
-            globals.cx1.op_[t].op_end_index = acc;
-            ++t;
-
-            globals.cx1.op_[t].op_start_index = acc;
-
-            if (t == globals.num_output_threads - 1) {
-                break;
-            }
-        }
-
-        acc += globals.cx1.bucket_sizes_[b];
-    }
-
-    globals.cx1.op_[t].op_end_index = globals.lv2_num_items_db;
-
-    for (++t; t < globals.num_output_threads; ++t) {
-        globals.cx1.op_[t].op_end_index = globals.lv2_num_items_db;
-        globals.cx1.op_[t].op_start_index = globals.lv2_num_items_db;
-    }
-}
-
 void lv2_output_(int64_t start_index, int64_t end_index, int thread_id, count_global_t &globals,
-                 uint32_t *substrings, uint32_t *permutation, int64_t *read_infos, int64_t num_items) {
+                 uint32_t *substrings, int64_t *read_infos) {
     uint32_t packed_edge[32];
     int64_t count_prev[5], count_next[5];
     int64_t *thread_edge_counting = globals.thread_edge_counting + thread_id * (kMaxMul + 1);
@@ -548,12 +483,12 @@ void lv2_output_(int64_t start_index, int64_t end_index, int thread_id, count_gl
     for (int64_t i = start_index; i < end_index; i = to_) {
         from_ = i;
         to_ = i + 1;
-        uint32_t *first_item = substrings + permutation[i];
+        uint32_t *first_item = substrings + i * globals.words_per_substring;
 
         while (to_ < end_index) {
             if (IsDifferentEdges(first_item,
-                                 substrings + permutation[to_],
-                                 globals.words_per_substring, num_items)) {
+                                 substrings + to_ * globals.words_per_substring,
+                                 globals.words_per_substring, 1)) {
                 break;
             }
 
@@ -570,7 +505,7 @@ void lv2_output_(int64_t start_index, int64_t end_index, int thread_id, count_gl
         bool has_out = false;
 
         for (int64_t j = from_; j < to_; ++j) {
-            int prev_and_next = read_infos[permutation[j]] & ((1 << 6) - 1);
+            int prev_and_next = read_infos[j] & ((1 << 6) - 1);
             count_prev[prev_and_next >> 3]++;
             count_next[prev_and_next & 7]++;
         }
@@ -587,7 +522,7 @@ void lv2_output_(int64_t start_index, int64_t end_index, int thread_id, count_gl
 
         if (!has_in && count >= globals.kmer_freq_threshold) {
             for (int64_t j = from_; j < to_; ++j) {
-                int64_t read_info = read_infos[permutation[j]] >> 6;
+                int64_t read_info = read_infos[j] >> 6;
                 int64_t read_id = globals.package.GetSeqID(read_info >> 1);
                 int strand = read_info & 1;
                 uint32_t offset = (read_info >> 1) - globals.package.StartPosition(read_id);
@@ -627,7 +562,7 @@ void lv2_output_(int64_t start_index, int64_t end_index, int thread_id, count_gl
 
         if (!has_out && count >= globals.kmer_freq_threshold) {
             for (int64_t j = from_; j < to_; ++j) {
-                int64_t read_info = read_infos[permutation[j]] >> 6;
+                int64_t read_info = read_infos[j] >> 6;
                 int64_t read_id = globals.package.GetSeqID(read_info >> 1);
                 int strand = read_info & 1;
                 uint32_t offset = (read_info >> 1) - globals.package.StartPosition(read_id);
@@ -668,34 +603,10 @@ void lv2_output_(int64_t start_index, int64_t end_index, int thread_id, count_gl
         ++thread_edge_counting[std::min(count, int64_t(kMaxMul))];
 
         if (count >= globals.kmer_freq_threshold) {
-            PackEdge(packed_edge, first_item, count, globals, num_items);
+            PackEdge(packed_edge, first_item, count, globals);
             globals.edge_writer.write(packed_edge, packed_edge[0] >> (32 - 2 * kBucketPrefixLength), thread_id);
         }
     }
-}
-
-void *lv2_output(void *_op) {
-    SimpleTimer local_timer;
-
-    if (cx1_t::kCX1Verbose >= 4) {
-        local_timer.start();
-        local_timer.reset();
-    }
-
-    outputpartition_data_t *op = (outputpartition_data_t *) _op;
-    count_global_t &globals = *(op->globals);
-    int64_t op_start_index = op->op_start_index;
-    int64_t op_end_index = op->op_end_index;
-    int thread_id = op->op_id;
-
-    lv2_output_(op_start_index, op_end_index, thread_id, globals, globals.lv2_substrings_db, globals.permutation_db, globals.lv2_read_info_db, globals.lv2_num_items_db);
-
-    if (cx1_t::kCX1Verbose >= 4) {
-        local_timer.stop();
-        xinfo("Counting time elapsed: %.4lfs\n", local_timer.elapsed());
-    }
-
-    return NULL;
 }
 
 struct kt_sort_t {
@@ -734,8 +645,8 @@ void kt_sort(void *_g, long i, int tid) {
     int64_t *readinfo_ptr = (int64_t *) (cpu_sort_space_ptr + kg->globals->cx1.bucket_sizes_[b]);
 
     lv2_extract_substr_(substr_ptr, readinfo_ptr, *(kg->globals), b, b + 1, kg->globals->cx1.bucket_sizes_[b]);
-    lv2_cpu_radix_sort_st(substr_ptr, permutation_ptr, cpu_sort_space_ptr, bucket, kg->globals->words_per_substring, kg->globals->cx1.bucket_sizes_[b]);
-    lv2_output_(0, kg->globals->cx1.bucket_sizes_[b], tid, *(kg->globals), substr_ptr, permutation_ptr, readinfo_ptr, kg->globals->cx1.bucket_sizes_[b]);
+    SortSubStr(substr_ptr, kg->globals->words_per_substring, kg->globals->cx1.bucket_sizes_[b]);
+    lv2_output_(0, kg->globals->cx1.bucket_sizes_[b], tid, *(kg->globals), substr_ptr, readinfo_ptr);
 }
 
 void lv1_direct_sort_and_count(count_global_t &globals) {
@@ -747,12 +658,9 @@ void lv1_direct_sort_and_count(count_global_t &globals) {
     omp_set_num_threads(globals.num_cpu_threads);
     omp_set_num_threads(globals.num_cpu_threads);
 #pragma omp parallel for schedule(dynamic)
-    for (size_t i = 0; i < globals.cx1.lv1_end_bucket_ - globals.cx1.lv1_start_bucket_; ++i) {
+    for (int i = 0; i < globals.cx1.lv1_end_bucket_ - globals.cx1.lv1_start_bucket_; ++i) {
         kt_sort(&kg, i, omp_get_thread_num());
     }
-}
-
-void lv2_post_output(count_global_t &globals) {
 }
 
 void post_proc(count_global_t &globals) {

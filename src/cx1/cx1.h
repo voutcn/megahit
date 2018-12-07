@@ -47,7 +47,6 @@ struct CX1 {
     typedef global_data_type global_data_t;
     static const int kCX1Verbose = 3; // tunable
     // other settings, don't change
-    static const int kGPUBytePerItem = 16; // key & value, 4 byte each. double for radix sort internal buffer
     static const int kLv1BytePerItem = 4; // 32-bit differatial offset
     static const uint64_t kSpDiffMaxNum = (1ULL << 32) - 1;
     static const int64_t kDifferentialLimit = (1ULL << 31) - 1;
@@ -112,11 +111,6 @@ struct CX1 {
     void (*init_global_and_set_cx1_func_) (global_data_t &); // xxx set here
     void *(*lv1_fill_offset_func_) (void *);
     void (*lv1_sort_and_proc) (global_data_t &);
-    void *(*lv2_extract_substr_func_) (void *);
-    void (*lv2_sort_func_) (global_data_t &);
-    void (*lv2_pre_output_partition_func_) (global_data_t &); // op_ set here
-    void *(*lv2_output_func_) (void *);
-    void (*lv2_post_output_func_) (global_data_t &);
     void (*post_proc_func_) (global_data_t &);
 
     CX1() : lv1_just_go_(false) {}
@@ -351,32 +345,6 @@ struct CX1 {
         }
     }
 
-    inline void lv2_distribute_bucket_partitions_() {
-        int64_t average = lv2_num_items_ / (num_cpu_threads_ - num_output_threads_);
-        // recall: we only have (num_cpu_threads_ - num_output_threads_) bucketpartitions
-
-        int bucket = lv2_start_bucket_;
-
-        for (int t = 0; t < num_cpu_threads_ - num_output_threads_ - 1; ++t) {
-            int64_t num_items = 0;
-            bp_[t].bp_start_bucket = bucket;
-
-            while (bucket < lv2_end_bucket_) {
-                num_items += bucket_sizes_[bucket++];
-
-                if (num_items >= average) {
-                    break;
-                }
-            }
-
-            bp_[t].bp_end_bucket = bucket;
-        }
-
-        // last
-        bp_[num_cpu_threads_ - num_output_threads_ - 1].bp_start_bucket = bucket;
-        bp_[num_cpu_threads_ - num_output_threads_ - 1].bp_end_bucket = lv2_end_bucket_;
-    }
-
     // === multi-thread wrappers ====
     inline void lv0_calc_bucket_size_mt_() {
         for (int t = 0; t < num_cpu_threads_; ++t) {
@@ -413,33 +381,6 @@ struct CX1 {
 
         // revert rp_bucket_offsets
         lv1_compute_offset_();
-    }
-
-    inline void lv2_extract_substr_mt_() {
-        lv2_distribute_bucket_partitions_();
-
-        // create threads
-        for (int t = 0; t < num_cpu_threads_ - num_output_threads_; ++t) {
-            pthread_create(&(bp_[t].thread), NULL, lv2_extract_substr_func_, &bp_[t]);
-        }
-
-        for (int t = 0; t < num_cpu_threads_ - num_output_threads_; ++t) {
-            pthread_join(bp_[t].thread, NULL);
-        }
-    }
-
-    inline void lv2_output_mt_() {
-        for (int t = 0; t < num_output_threads_; ++t) {
-            op_[t].op_id = t;
-            op_[t].globals = g_;
-            pthread_create(&(op_[t].thread), NULL, lv2_output_func_, &op_[t]);
-        }
-    }
-
-    inline void lv2_output_join_() {
-        for (int t = 0; t < num_output_threads_; ++t) {
-            pthread_join(op_[t].thread, NULL);
-        }
     }
 
     // === go go go ===
@@ -490,7 +431,6 @@ struct CX1 {
         }
 
         // === start main loop ===
-        bool output_thread_created = false;
         int lv1_iteration = 0;
         lv1_start_bucket_ = 0;
 
@@ -536,61 +476,6 @@ struct CX1 {
             if (lv1_just_go_) {
                 lv1_sort_and_proc(*g_);
             }
-            else {
-                // --- lv2 loop ---
-                int lv2_iteration = 0;
-                lv2_start_bucket_ = lv1_start_bucket_;
-
-                while (lv2_start_bucket_ < lv1_end_bucket_) {
-                    SimpleTimer lv2_timer;
-
-                    lv2_iteration++;
-                    lv2_end_bucket_ = find_end_buckets_(lv2_start_bucket_, lv1_end_bucket_, max_lv2_items_, lv2_num_items_);
-
-                    if (lv2_num_items_ == 0) {
-                        fprintf(stderr, "Bucket %d too large for lv2: %lld > %lld\n", lv2_end_bucket_, (long long)bucket_sizes_[lv2_end_bucket_], (long long)max_lv2_items_);
-                        exit(1);
-                    }
-
-                    if (kCX1Verbose >= 4) {
-                        lv2_timer.reset();
-                        lv2_timer.start();
-                        xinfo("Lv2 fetching substrings from bucket %d to %d\n", lv2_start_bucket_, lv2_end_bucket_);
-                    }
-
-                    // --- extract lv2 substr and sort ---
-                    lv2_extract_substr_mt_();
-
-                    if (kCX1Verbose >= 4) {
-                        lv2_timer.stop();
-                        xinfo("Lv2 fetching substrings done. Time elapsed: %.4f\n", lv2_timer.elapsed());
-                        lv2_timer.reset();
-                        lv2_timer.start();
-                    }
-
-                    lv2_sort_func_(*g_);
-
-                    if (kCX1Verbose >= 4) {
-                        lv2_timer.stop();
-                        xinfo("Lv2 sorting done. Time elapsed: %.4f\n", lv2_timer.elapsed());
-                        lv2_timer.reset();
-                        lv2_timer.start();
-                    }
-
-                    // --- the output is pipelined, join the previous one ---
-                    if (output_thread_created) {
-                        lv2_output_join_();
-                        lv2_post_output_func_(*g_);
-                    }
-
-                    // --- the create new output threads ---
-                    lv2_pre_output_partition_func_(*g_);
-                    lv2_output_mt_();
-                    output_thread_created = true;
-
-                    lv2_start_bucket_ = lv2_end_bucket_;
-                }
-            }
 
             if (kCX1Verbose >= 3) {
                 lv1_timer.stop();
@@ -598,11 +483,6 @@ struct CX1 {
             }
 
             lv1_start_bucket_ = lv1_end_bucket_;
-        }
-
-        if (output_thread_created) {
-            lv2_output_join_();
-            lv2_post_output_func_(*g_);
         }
 
         if (kCX1Verbose >= 2) {
