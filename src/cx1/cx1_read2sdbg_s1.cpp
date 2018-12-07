@@ -457,7 +457,7 @@ void *s1_lv1_fill_offset(void *_data) {
     return NULL;
 }
 
-void s1_extract_subtstr_(int bp_from, int bp_to, read2sdbg_global_t &globals, uint32_t *substr, int64_t *readinfo_ptr, int64_t num_items) {
+void s1_extract_subtstr_(int bp_from, int bp_to, read2sdbg_global_t &globals, uint32_t *substr, int64_t *readinfo_ptr) {
     int *lv1_p = globals.lv1_items + globals.cx1.rp_[0].rp_bucket_offsets[bp_from];
 
     for (int b = bp_from; b < bp_to; ++b) {
@@ -519,28 +519,28 @@ void s1_extract_subtstr_(int bp_from, int bp_to, read2sdbg_global_t &globals, ui
 
                 if (strand == 0) {
                     CopySubstring(substr, read_p, offset + start_offset, num_chars_to_copy,
-                                  num_items, words_this_read, globals.words_per_substring);
-                    uint32_t *last_word = substr + int64_t(globals.words_per_substring - 1) * num_items;
+                                  1, words_this_read, globals.words_per_substring);
+                    uint32_t *last_word = substr + int64_t(globals.words_per_substring - 1) * 1;
                     *last_word |= (head << kBWTCharNumBits) | tail;
                     *readinfo_ptr = (full_offset << 6) | (prev << 3) | next;
                 }
                 else {
                     CopySubstringRC(substr, read_p, offset + start_offset, num_chars_to_copy,
-                                    num_items, words_this_read, globals.words_per_substring);
-                    uint32_t *last_word = substr + int64_t(globals.words_per_substring - 1) * num_items;
+                                    1, words_this_read, globals.words_per_substring);
+                    uint32_t *last_word = substr + int64_t(globals.words_per_substring - 1) * 1;
                     *last_word |= ((tail == kSentinelValue ? kSentinelValue : 3 - tail) << kBWTCharNumBits) | (head == kSentinelValue ? kSentinelValue : 3 - head);
                     *readinfo_ptr = (full_offset << 6) | ((next == kSentinelValue ? kSentinelValue : (3 - next)) << 3)
                                     | (prev == kSentinelValue ? kSentinelValue : (3 - prev));
                 }
 
-                substr++;
+                substr += globals.words_per_substring;
                 readinfo_ptr++;
             }
         }
     }
 }
 
-void s1_lv2_output_(int64_t from, int64_t to, int tid, read2sdbg_global_t &globals, uint32_t *substr, uint32_t *permutation, int64_t *readinfo_ptr, int64_t num_items) {
+void s1_lv2_output_(int64_t from, int64_t to, int tid, read2sdbg_global_t &globals, uint32_t *substr, int64_t *readinfo_ptr) {
     int64_t end_idx;
     int64_t count_prev_head[5][5];
     int64_t count_tail_next[5][5];
@@ -549,14 +549,14 @@ void s1_lv2_output_(int64_t from, int64_t to, int tid, read2sdbg_global_t &globa
 
     for (int64_t i = from; i < to; i = end_idx) {
         end_idx = i + 1;
-        uint32_t *first_item = substr + permutation[i];
+        uint32_t *first_item = substr + i * globals.words_per_substring;
         memset(count_prev_head, 0, sizeof(count_prev_head));
         memset(count_tail_next, 0, sizeof(count_tail_next));
         memset(count_head_tail, 0, sizeof(count_head_tail));
 
         {
-            uint8_t prev_and_next = ExtractPrevNext(permutation[i], readinfo_ptr);
-            uint8_t head_and_tail = ExtractHeadTail(substr + permutation[i], num_items, globals.words_per_substring);
+            uint8_t prev_and_next = ExtractPrevNext(i, readinfo_ptr);
+            uint8_t head_and_tail = ExtractHeadTail(first_item, 1, globals.words_per_substring);
             count_prev_head[prev_and_next >> 3][head_and_tail >> 3]++;
             count_tail_next[head_and_tail & 7][prev_and_next & 7]++;
             count_head_tail[head_and_tail]++;
@@ -564,14 +564,14 @@ void s1_lv2_output_(int64_t from, int64_t to, int tid, read2sdbg_global_t &globa
 
         while (end_idx < to) {
             if (IsDiffKMinusOneMer(first_item,
-                                   substr + permutation[end_idx],
-                                   num_items,
+                                   substr + end_idx * globals.words_per_substring,
+                                   1,
                                    globals.kmer_k)) {
                 break;
             }
 
-            uint8_t prev_and_next = ExtractPrevNext(permutation[end_idx], readinfo_ptr);
-            uint8_t head_and_tail = ExtractHeadTail(substr + permutation[end_idx], num_items, globals.words_per_substring);
+            uint8_t prev_and_next = ExtractPrevNext(end_idx, readinfo_ptr);
+            uint8_t head_and_tail = ExtractHeadTail(substr + end_idx * globals.words_per_substring, 1, globals.words_per_substring);
             count_prev_head[prev_and_next >> 3][head_and_tail >> 3]++;
             count_tail_next[head_and_tail & 7][prev_and_next & 7]++;
             count_head_tail[head_and_tail]++;
@@ -609,7 +609,7 @@ void s1_lv2_output_(int64_t from, int64_t to, int tid, read2sdbg_global_t &globa
         }
 
         while (i < end_idx) {
-            uint8_t head_and_tail = ExtractHeadTail(substr + permutation[i], num_items, globals.words_per_substring);
+            uint8_t head_and_tail = ExtractHeadTail(substr + i * globals.words_per_substring, 1, globals.words_per_substring);
             uint8_t head = head_and_tail >> 3;
             uint8_t tail = head_and_tail & 7;
 
@@ -619,7 +619,7 @@ void s1_lv2_output_(int64_t from, int64_t to, int tid, read2sdbg_global_t &globa
 
             if (head != kSentinelValue && tail != kSentinelValue && count_head_tail[head_and_tail] >= globals.kmer_freq_threshold) {
                 for (int64_t j = 0; j < count_head_tail[head_and_tail]; ++j, ++i) {
-                    int64_t read_info = readinfo_ptr[permutation[i]] >> 6;
+                    int64_t read_info = readinfo_ptr[i] >> 6;
                     int strand = read_info & 1;
                     int64_t read_id = globals.package.GetSeqID(read_info >> 1);
                     int offset = (read_info >> 1) - globals.package.StartPosition(read_id) - 1;
@@ -645,7 +645,7 @@ void s1_lv2_output_(int64_t from, int64_t to, int tid, read2sdbg_global_t &globa
             else {
                 // not solid, but we still need to tell whether its left/right kmer is solid
                 for (int64_t j = 0; j < count_head_tail[head_and_tail]; ++j, ++i) {
-                    int64_t read_info = readinfo_ptr[permutation[i]] >> 6;
+                    int64_t read_info = readinfo_ptr[i] >> 6;
                     int strand = read_info & 1;
                     int64_t read_id = globals.package.GetSeqID(read_info >> 1);
                     int offset = (read_info >> 1) - globals.package.StartPosition(read_id) - 1;
@@ -732,9 +732,9 @@ void kt_sort(void *_g, long i, int tid) {
     uint32_t *cpu_sort_space_ptr = permutation_ptr + kg->globals->cx1.bucket_sizes_[b];
     int64_t *readinfo_ptr = (int64_t *) (cpu_sort_space_ptr + kg->globals->cx1.bucket_sizes_[b]);
 
-    s1_extract_subtstr_(b, b + 1, *(kg->globals), substr_ptr, readinfo_ptr, kg->globals->cx1.bucket_sizes_[b]);
-    lv2_cpu_radix_sort_st(substr_ptr, permutation_ptr, cpu_sort_space_ptr, bucket, kg->globals->words_per_substring, kg->globals->cx1.bucket_sizes_[b]);
-    s1_lv2_output_(0, kg->globals->cx1.bucket_sizes_[b], tid, *(kg->globals), substr_ptr, permutation_ptr, readinfo_ptr, kg->globals->cx1.bucket_sizes_[b]);
+    s1_extract_subtstr_(b, b + 1, *(kg->globals), substr_ptr, readinfo_ptr);
+    lv2_cpu_radix_sort_st2(substr_ptr, kg->globals->words_per_substring, kg->globals->cx1.bucket_sizes_[b]);
+    s1_lv2_output_(0, kg->globals->cx1.bucket_sizes_[b], tid, *(kg->globals), substr_ptr, readinfo_ptr);
 }
 
 void s1_lv1_direct_sort_and_count(read2sdbg_global_t &globals) {

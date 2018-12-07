@@ -18,119 +18,8 @@
 
 /* contact: Dinghua Li <dhli@cs.hku.hk> */
 
-#include <parallel/algorithm>
-#include <algorithm>
 #include <assert.h>
-#include "definitions.h"
-
-inline void gnu_lv2_cpu_sort(uint32_t *lv2_substrings,
-                             uint32_t *permutation,
-                             uint64_t *cpu_sort_space,
-                             int words_per_substring,
-                             int64_t lv2_num_items) {
-    #pragma omp parallel for
-
-    for (uint32_t i = 0; i < lv2_num_items; ++i) {
-        permutation[i] = i;
-    }
-
-    for (int64_t iteration = words_per_substring - 1; iteration >= 0; --iteration) {
-        uint32_t *lv2_substr_p = lv2_substrings + lv2_num_items * iteration;
-        #pragma omp parallel for
-
-        for (uint32_t i = 0; i < lv2_num_items; ++i) {
-            cpu_sort_space[i] = uint64_t(*(lv2_substr_p + permutation[i])) << 32;
-            cpu_sort_space[i] |= i;
-        }
-
-        // pss::parallel_stable_sort(cpu_sort_space, cpu_sort_space + lv2_num_items, CompareHigh32Bits());
-        __gnu_parallel::sort(cpu_sort_space, cpu_sort_space + lv2_num_items);
-
-        #pragma omp parallel for
-
-        for (uint32_t i = 0; i < lv2_num_items; ++i) {
-            cpu_sort_space[i] &= 0xFFFFFFFFULL;
-            cpu_sort_space[i] |= uint64_t(permutation[cpu_sort_space[i]]) << 32;
-        }
-
-        #pragma omp parallel for
-
-        for (uint32_t i = 0; i < lv2_num_items; ++i) {
-            permutation[i] = cpu_sort_space[i] >> 32;
-        }
-    }
-}
-
-static const int kRadixBits = 8;
-static const int kThreN = 64;
-static const int kRadixMask = (1 << kRadixBits) - 1;
-static const int kRadixBin = 1 << kRadixBits;
-
-inline bool less_than_(uint32_t *substr, int64_t lv2_num_items, int which_word, uint32_t i, uint32_t j) {
-    while (which_word-- >= 0) {
-        if (substr[i] < substr[j]) return true;
-        else if (substr[i] > substr[j]) return false;
-        substr += lv2_num_items;
-    }
-    return false;
-}
-
-template<int kShift>
-inline void lv2_cpu_radix_sort_st_core_(uint32_t *substr, uint32_t *permutation, int64_t n, int64_t lv2_num_items, int which_word) {
-    if (n > kThreN) {
-        int64_t count[kRadixBin] = {0};
-        uint32_t *bin_s[kRadixBin], *bin_e[kRadixBin];
-        for (int64_t i = 0; i < n; ++i) ++count[substr[permutation[i]] >> kShift & kRadixMask];
-        bin_s[0] = permutation; bin_e[kRadixBin - 1] = permutation + n;
-        for (int i = 1; i < kRadixBin; ++i) bin_e[i-1] = bin_s[i] = bin_s[i-1] + count[i-1];
-
-        for (int i = 0; i < kRadixBin; ++i) {
-            while (bin_s[i] < bin_e[i]) {
-                uint32_t swapper = *bin_s[i];
-                int bin_tag = substr[swapper] >> kShift & kRadixMask;
-                if (bin_tag != i) {
-                    do {
-                        std::swap(swapper, *(bin_s[bin_tag]++));
-                    } while ((bin_tag = substr[swapper] >> kShift & kRadixMask) != i);
-                    *bin_s[i] = swapper;
-                }
-                ++bin_s[i];
-            }
-        }
-
-        if (kShift > 0) {
-            for (int i = 0; i < kRadixBin; ++i) {
-                lv2_cpu_radix_sort_st_core_<(kShift > kRadixBits ? kShift - kRadixBits : 0)>(substr, 
-                    bin_e[i] - count[i], count[i], lv2_num_items, which_word);
-            }
-        } else if (which_word > 0) {
-            for (int i = 0; i < kRadixBin; ++i) {
-                lv2_cpu_radix_sort_st_core_<24>(substr + lv2_num_items, 
-                    bin_e[i] - count[i], count[i], lv2_num_items, which_word - 1);
-            }
-        }
-    } else {
-        for (int64_t i = 1; i < n; ++i) {
-            if (less_than_(substr, lv2_num_items, which_word, permutation[i], permutation[i - 1])) {
-                uint32_t tmp = permutation[i];
-                permutation[i] = permutation[i-1];
-                int64_t j;
-                for (j = i - 1; j > 0 && less_than_(substr, lv2_num_items, which_word, tmp, permutation[j - 1]); --j) {
-                    permutation[j] = permutation[j-1];
-                }
-                permutation[j] = tmp;
-            }
-        }
-    }
-}
-
-inline void lv2_cpu_radix_sort_st(uint32_t *lv2_substrings, uint32_t *permutation, uint32_t *cpu_sort_space, uint64_t *buckets, int words_per_substring, int64_t lv2_num_items) {
-    for (uint32_t i = 0; i < lv2_num_items; ++i) {
-        permutation[i] = i;
-    }
-    lv2_cpu_radix_sort_st_core_<24>(lv2_substrings, permutation, lv2_num_items, lv2_num_items, words_per_substring - 1);
-}
-
+#include "kmlib/kmsort.h"
 
 template <int NWords>
 struct Helper {
@@ -151,24 +40,26 @@ struct Helper {
   }
 } __attribute((packed));
 
-#include "kmlib/kmsort.h"
-
 template <int NWords>
-inline bool helper(uint32_t *lv2_substrings, int words_per_substring, int64_t lv2_num_items) {
-    if (words_per_substring != NWords) return false;
-    auto ptr = reinterpret_cast<Helper<NWords>*>(lv2_substrings);
-    kmlib::kmsort(ptr, ptr + lv2_num_items);
+inline bool helper(uint32_t *substr, int words_per_substr, int64_t n) {
+    if (words_per_substr != NWords) return false;
+    auto ptr = reinterpret_cast<Helper<NWords>*>(substr);
+    kmlib::kmsort(ptr, ptr + n);
     return true;
 }
 
-inline void lv2_cpu_radix_sort_st2(uint32_t *lv2_substrings, int words_per_substring, int64_t lv2_num_items) {
-    if (helper<1>(lv2_substrings, words_per_substring, lv2_num_items)) return;
-    if (helper<2>(lv2_substrings, words_per_substring, lv2_num_items)) return;
-    if (helper<3>(lv2_substrings, words_per_substring, lv2_num_items)) return;
-    if (helper<4>(lv2_substrings, words_per_substring, lv2_num_items)) return;
-    if (helper<5>(lv2_substrings, words_per_substring, lv2_num_items)) return;
-    if (helper<6>(lv2_substrings, words_per_substring, lv2_num_items)) return;
-    if (helper<7>(lv2_substrings, words_per_substring, lv2_num_items)) return;
-    if (helper<8>(lv2_substrings, words_per_substring, lv2_num_items)) return;
+inline void lv2_cpu_radix_sort_st2(uint32_t *substr, int words_per_substr, int64_t n) {
+    if (helper<1>(substr, words_per_substr, n)) return;
+    if (helper<2>(substr, words_per_substr, n)) return;
+    if (helper<3>(substr, words_per_substr, n)) return;
+    if (helper<4>(substr, words_per_substr, n)) return;
+    if (helper<5>(substr, words_per_substr, n)) return;
+    if (helper<6>(substr, words_per_substr, n)) return;
+    if (helper<7>(substr, words_per_substr, n)) return;
+    if (helper<8>(substr, words_per_substr, n)) return;
+    if (helper<9>(substr, words_per_substr, n)) return;
+    if (helper<10>(substr, words_per_substr, n)) return;
+    if (helper<11>(substr, words_per_substr, n)) return;
+    if (helper<12>(substr, words_per_substr, n)) return;
     assert(false);
 }
