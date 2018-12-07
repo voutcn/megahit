@@ -34,7 +34,7 @@
 #include "sequence/sequence_package.h"
 #include "read_lib_functions-inl.h"
 
-#include "lv2_cpu_sort.h"
+#include "sorting.h"
 // helping functions
 
 namespace cx1_read2sdbg {
@@ -540,59 +540,6 @@ void s1_extract_subtstr_(int bp_from, int bp_to, read2sdbg_global_t &globals, ui
     }
 }
 
-void *s1_lv2_extract_substr(void *_data) {
-    bucketpartition_data_t &bp = *((bucketpartition_data_t *) _data);
-    read2sdbg_global_t &globals = *(bp.globals);
-    uint32_t *substrings_p = globals.lv2_substrings +
-                             (globals.cx1.rp_[0].rp_bucket_offsets[bp.bp_start_bucket] - globals.cx1.rp_[0].rp_bucket_offsets[globals.cx1.lv2_start_bucket_]);
-    int64_t *read_info_p = globals.lv2_read_info +
-                           (globals.cx1.rp_[0].rp_bucket_offsets[bp.bp_start_bucket] - globals.cx1.rp_[0].rp_bucket_offsets[globals.cx1.lv2_start_bucket_]);
-
-    s1_extract_subtstr_(bp.bp_start_bucket, bp.bp_end_bucket, globals, substrings_p, read_info_p, globals.cx1.lv2_num_items_);
-    return NULL;
-}
-
-void s1_lv2_pre_output_partition(read2sdbg_global_t &globals) {
-    // swap double buffers
-    globals.lv2_num_items_db = globals.cx1.lv2_num_items_;
-    std::swap(globals.lv2_substrings_db, globals.lv2_substrings);
-    std::swap(globals.permutation_db, globals.permutation);
-    std::swap(globals.lv2_read_info_db, globals.lv2_read_info);
-
-    int64_t last_end_index = 0;
-    int64_t items_per_thread = globals.lv2_num_items_db / globals.num_output_threads;
-
-    for (int t = 0; t < globals.num_output_threads - 1; ++t) {
-        int64_t this_start_index = last_end_index;
-        int64_t this_end_index = this_start_index + items_per_thread;
-
-        if (this_end_index > globals.lv2_num_items_db) {
-            this_end_index = globals.lv2_num_items_db;
-        }
-
-        if (this_end_index > 0) {
-            while (this_end_index < globals.lv2_num_items_db) {
-                uint32_t *prev_item = globals.lv2_substrings_db + globals.permutation_db[this_end_index - 1];
-                uint32_t *item = globals.lv2_substrings_db + globals.permutation_db[this_end_index];
-
-                if (IsDiffKMinusOneMer(prev_item, item, globals.lv2_num_items_db, globals.kmer_k)) {
-                    break;
-                }
-
-                ++this_end_index;
-            }
-        }
-
-        globals.cx1.op_[t].op_start_index = this_start_index;
-        globals.cx1.op_[t].op_end_index = this_end_index;
-        last_end_index = this_end_index;
-    }
-
-    // last partition
-    globals.cx1.op_[globals.num_output_threads - 1].op_start_index = last_end_index;
-    globals.cx1.op_[globals.num_output_threads - 1].op_end_index = globals.lv2_num_items_db;
-}
-
 void s1_lv2_output_(int64_t from, int64_t to, int tid, read2sdbg_global_t &globals, uint32_t *substr, uint32_t *permutation, int64_t *readinfo_ptr, int64_t num_items) {
     int64_t end_idx;
     int64_t count_prev_head[5][5];
@@ -750,33 +697,6 @@ void s1_lv2_output_(int64_t from, int64_t to, int tid, read2sdbg_global_t &globa
     }
 }
 
-void *s1_lv2_output(void *_op) {
-    SimpleTimer local_timer;
-
-    if (cx1_t::kCX1Verbose >= 4) {
-        local_timer.start();
-        local_timer.reset();
-    }
-
-    outputpartition_data_t *op = (outputpartition_data_t *) _op;
-    read2sdbg_global_t &globals = *(op->globals);
-    int64_t op_start_index = op->op_start_index;
-    int64_t op_end_index = op->op_end_index;
-    int thread_id = op->op_id;
-
-    s1_lv2_output_(op_start_index, op_end_index, thread_id, globals, globals.lv2_substrings_db, globals.permutation_db, globals.lv2_read_info_db, globals.lv2_num_items_db);
-
-    if (cx1_t::kCX1Verbose >= 4) {
-        local_timer.stop();
-        xinfo("Counting time elapsed: %.4lfs\n", local_timer.elapsed());
-    }
-
-    return NULL;
-}
-
-void s1_lv2_post_output(read2sdbg_global_t &globals) {
-}
-
 struct kt_sort_t {
     read2sdbg_global_t *globals;
     std::vector<int64_t> thread_offset;
@@ -865,8 +785,6 @@ void s1_post_proc(read2sdbg_global_t &globals) {
         fclose(globals.mercy_files[i]);
     }
 }
-
-void s1_lv2_sort(read2sdbg_global_t &globals) {}
 
 } // s1
 

@@ -150,11 +150,6 @@ void   *lv0_calc_bucket_size(void *); // pthread working function
 void    init_global_and_set_cx1(seq2sdbg_global_t &g);
 void   *lv1_fill_offset(void *); // pthread working function
 void    lv1_direct_sort_and_proc(seq2sdbg_global_t &g);
-void   *lv2_extract_substr(void *); // pthread working function
-void    lv2_sort(seq2sdbg_global_t &g);
-void    lv2_pre_output_partition(seq2sdbg_global_t &g);
-void   *lv2_output(void *); // pthread working function
-void    lv2_post_output(seq2sdbg_global_t &g);
 void    post_proc(seq2sdbg_global_t &g);
 
 } // end of namespace cx1_seq2sdbg

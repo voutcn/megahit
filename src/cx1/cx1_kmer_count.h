@@ -159,11 +159,6 @@ void   *lv0_calc_bucket_size(void *); // pthread working function
 void    init_global_and_set_cx1(count_global_t &g);
 void   *lv1_fill_offset(void *); // pthread working function
 void    lv1_direct_sort_and_count(count_global_t &g);
-void   *lv2_extract_substr(void *); // pthread working function
-void    lv2_sort(count_global_t &g);
-void    lv2_pre_output_partition(count_global_t &g);
-void   *lv2_output(void *); // pthread working function
-void    lv2_post_output(count_global_t &g);
 void    post_proc(count_global_t &g);
 
 } // end of namespace cx1_kmer_count

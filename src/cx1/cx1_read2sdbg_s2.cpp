@@ -32,7 +32,7 @@
 #include "packed_reads.h"
 #include "read_lib_functions-inl.h"
 
-#include "lv2_cpu_sort.h"
+#include "sorting.h"
 
 namespace cx1_read2sdbg {
 
@@ -71,11 +71,6 @@ inline bool IsDiffKMinusOneMer(uint32_t *item1, uint32_t *item2, int64_t spacing
     }
 
     return false;
-}
-
-// helper
-inline int ExtractFirstChar(uint32_t *item) {
-    return *item >> kTopCharShift;
 }
 
 // bS'a
@@ -619,49 +614,6 @@ void s2_lv2_extract_substr_(int bp_from, int bp_to, read2sdbg_global_t &globals,
     }
 }
 
-void *s2_lv2_extract_substr(void *_data) {
-    bucketpartition_data_t &bp = *((bucketpartition_data_t *) _data);
-    read2sdbg_global_t &globals = *(bp.globals);
-    uint32_t *substr = globals.lv2_substrings +
-                       (globals.cx1.rp_[0].rp_bucket_offsets[bp.bp_start_bucket] - globals.cx1.rp_[0].rp_bucket_offsets[globals.cx1.lv2_start_bucket_]);
-    s2_lv2_extract_substr_(bp.bp_start_bucket, bp.bp_end_bucket, globals, substr, globals.cx1.lv2_num_items_);
-    return NULL;
-}
-
-void s2_lv2_pre_output_partition(read2sdbg_global_t &globals) {
-    // swap double buffers
-    globals.lv2_num_items_db = globals.cx1.lv2_num_items_;
-    std::swap(globals.lv2_substrings_db, globals.lv2_substrings);
-    std::swap(globals.permutation_db, globals.permutation);
-
-    // distribute threads
-    int64_t items_per_thread = globals.lv2_num_items_db / globals.num_output_threads;
-    int64_t acc = 0, t = 0;
-    globals.cx1.op_[t].op_start_index = 0;
-
-    for (int b = globals.cx1.lv2_start_bucket_; b < globals.cx1.lv2_end_bucket_; ++b) {
-        if (globals.cx1.bucket_sizes_[b] + acc > (t + 1) * items_per_thread) {
-            globals.cx1.op_[t].op_end_index = acc;
-            ++t;
-
-            globals.cx1.op_[t].op_start_index = acc;
-
-            if (t == globals.num_output_threads - 1) {
-                break;
-            }
-        }
-
-        acc += globals.cx1.bucket_sizes_[b];
-    }
-
-    globals.cx1.op_[t].op_end_index = globals.lv2_num_items_db;
-
-    for (++t; t < globals.num_output_threads; ++t) {
-        globals.cx1.op_[t].op_end_index = globals.lv2_num_items_db;
-        globals.cx1.op_[t].op_start_index = globals.lv2_num_items_db;
-    }
-}
-
 void output_(int64_t from, int64_t to, read2sdbg_global_t &globals, uint32_t *substr, uint32_t *permutation, int tid, int64_t num_items) {
     int64_t start_idx, end_idx;
     int has_solid_a = 0; // has solid (k+1)-mer aSb
@@ -763,20 +715,6 @@ void output_(int64_t from, int64_t to, read2sdbg_global_t &globals, uint32_t *su
     }
 }
 
-void *s2_lv2_output(void *_op) {
-    outputpartition_data_t *op = (outputpartition_data_t *) _op;
-    read2sdbg_global_t &globals = *(op->globals);
-    int64_t op_start_index = op->op_start_index;
-    int64_t op_end_index = op->op_end_index;
-
-    output_(op_start_index, op_end_index, globals, globals.lv2_substrings_db, globals.permutation_db, op->op_id, globals.lv2_num_items_db);
-
-    return NULL;
-}
-
-void s2_lv2_post_output(read2sdbg_global_t &globals) {
-}
-
 struct kt_sort_t {
     read2sdbg_global_t *globals;
     std::vector<int64_t> thread_offset;
@@ -849,7 +787,6 @@ void s2_post_proc(read2sdbg_global_t &globals) {
     free(globals.lv1_items);
 }
 
-void s2_lv2_sort(read2sdbg_global_t &globals) {}
 
 } // s2
 

@@ -161,7 +161,7 @@ inline bool helper(uint32_t *lv2_substrings, int words_per_substring, int64_t lv
     return true;
 }
 
-inline void lv2_cpu_radix_sort_st2(uint32_t *lv2_substrings, uint32_t *permutation, int words_per_substring, int64_t lv2_num_items) {
+inline void lv2_cpu_radix_sort_st2(uint32_t *lv2_substrings, int words_per_substring, int64_t lv2_num_items) {
     if (helper<1>(lv2_substrings, words_per_substring, lv2_num_items)) return;
     if (helper<2>(lv2_substrings, words_per_substring, lv2_num_items)) return;
     if (helper<3>(lv2_substrings, words_per_substring, lv2_num_items)) return;

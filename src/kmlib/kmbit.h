@@ -31,6 +31,7 @@ struct SwapMask {
 
 template<typename T, unsigned BaseSize, unsigned MaskSize>
 struct SwapMaskedBitsHelper {
+#pragma omp declare simd
   T operator()(T value) {
     value = ((value & SwapMask<T, MaskSize>::value) << MaskSize) |
         ((value & ~SwapMask<T, MaskSize>::value) >> MaskSize);
@@ -40,12 +41,14 @@ struct SwapMaskedBitsHelper {
 
 template<typename T, unsigned BaseSize>
 struct SwapMaskedBitsHelper<T, BaseSize, BaseSize> {
+#pragma omp declare simd
   T operator()(T value) {
     return ((value & SwapMask<T, BaseSize>::value) << BaseSize) |
         ((value & ~SwapMask<T, BaseSize>::value) >> BaseSize);
   }
 };
 
+#pragma omp declare simd
 template<typename T, unsigned BaseSize, unsigned MaskSize>
 inline T SwapMaskedBits(T value) {
   return SwapMaskedBitsHelper<T, BaseSize, MaskSize>()(value);
@@ -63,20 +66,21 @@ inline T SwapMaskedBits(T value) {
  * @param value the value to reverse
  * @return the reversed value
  */
+#pragma omp declare simd
 template<unsigned BaseSize, typename T>
 inline T Reverse(T value) {
   static_assert(std::is_integral<T>::value, "Only intergral types are supported");
   static_assert(sizeof(T) <= 8, "Only intergral types <= 64 bits are supported");
   static_assert(sizeof(T) * 8 % BaseSize == 0, "Reverse only support base size of power of 2");
-  if (BaseSize > 8) {
+//  if (BaseSize > 8) {
     return internal::SwapMaskedBits<T, BaseSize, sizeof(T) * 4>(value);
-  } else {
-    value = sizeof(T) == 1 ? value :
-            sizeof(T) == 2 ? __builtin_bswap16(value) :
-            sizeof(T) == 4 ? __builtin_bswap32(value) :
-            __builtin_bswap64(value);
-    return internal::SwapMaskedBits<T, BaseSize, 4>(value);
-  }
+//  } else {
+//    value = sizeof(T) == 1 ? value :
+//            sizeof(T) == 2 ? __builtin_bswap16(value) :
+//            sizeof(T) == 4 ? __builtin_bswap32(value) :
+//            __builtin_bswap64(value);
+//    return internal::SwapMaskedBits<T, BaseSize, 4>(value);
+//  }
 }
 
 /*!
@@ -86,9 +90,25 @@ inline T Reverse(T value) {
  * @param value the value to reverse and then complement
  * @return the reverse-complemented value
  */
+#pragma omp declare simd
 template<unsigned BaseSize, typename T>
 inline T ReverseComplement(T value) {
   return ~Reverse<BaseSize>(value);
+}
+
+#pragma omp declare simd
+template<>
+inline uint32_t ReverseComplement<2, uint32_t>(uint32_t value) {
+  const uint32_t kSwap64Mask16 = 0x0000FFFF;
+  const uint32_t kSwap64Mask8 = 0x00FF00FF;
+  const uint32_t kSwap64Mask4 = 0x0F0F0F0F;
+  const uint32_t kSwap64Mask2 = 0x33333333;
+  value = ((value & kSwap64Mask16) << 16) | ((value & ~kSwap64Mask16) >> 16);
+  value = ((value & kSwap64Mask8) << 8) | ((value & ~kSwap64Mask8) >> 8);
+  value = ((value & kSwap64Mask4) << 4) | ((value & ~kSwap64Mask4) >> 4);
+  value = ((value & kSwap64Mask2) << 2) | ((value & ~kSwap64Mask2) >> 2);
+  value = ~value;
+  return value;
 }
 
 /*!
