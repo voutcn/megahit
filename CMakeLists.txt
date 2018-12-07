@@ -15,7 +15,7 @@ FILE(GLOB_RECURSE TOOLKIT_SOURCE "src/tools/*.cpp")
 LIST(APPEND OTHER_SOURCE
         src/main_asm_core_entry.cpp
         src/main_assemble.cpp
-        src/build_read_lib.cpp
+        src/main_buildlib.cpp
         src/main_iterate.cpp
         src/main_local_assemble.cpp
         src/options_description.cpp

@@ -733,7 +733,7 @@ void kt_sort(void *_g, long i, int tid) {
     int64_t *readinfo_ptr = (int64_t *) (cpu_sort_space_ptr + kg->globals->cx1.bucket_sizes_[b]);
 
     s1_extract_subtstr_(b, b + 1, *(kg->globals), substr_ptr, readinfo_ptr);
-    lv2_cpu_radix_sort_st2(substr_ptr, kg->globals->words_per_substring, kg->globals->cx1.bucket_sizes_[b]);
+    SortSubStr(substr_ptr, kg->globals->words_per_substring, kg->globals->cx1.bucket_sizes_[b]);
     s1_lv2_output_(0, kg->globals->cx1.bucket_sizes_[b], tid, *(kg->globals), substr_ptr, readinfo_ptr);
 }
 

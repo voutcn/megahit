@@ -645,7 +645,7 @@ void kt_sort(void *_g, long i, int tid) {
     int64_t *readinfo_ptr = (int64_t *) (cpu_sort_space_ptr + kg->globals->cx1.bucket_sizes_[b]);
 
     lv2_extract_substr_(substr_ptr, readinfo_ptr, *(kg->globals), b, b + 1, kg->globals->cx1.bucket_sizes_[b]);
-    lv2_cpu_radix_sort_st2(substr_ptr, kg->globals->words_per_substring, kg->globals->cx1.bucket_sizes_[b]);
+    SortSubStr(substr_ptr, kg->globals->words_per_substring, kg->globals->cx1.bucket_sizes_[b]);
     lv2_output_(0, kg->globals->cx1.bucket_sizes_[b], tid, *(kg->globals), substr_ptr, readinfo_ptr);
 }
 
@@ -658,7 +658,7 @@ void lv1_direct_sort_and_count(count_global_t &globals) {
     omp_set_num_threads(globals.num_cpu_threads);
     omp_set_num_threads(globals.num_cpu_threads);
 #pragma omp parallel for schedule(dynamic)
-    for (size_t i = 0; i < globals.cx1.lv1_end_bucket_ - globals.cx1.lv1_start_bucket_; ++i) {
+    for (int i = 0; i < globals.cx1.lv1_end_bucket_ - globals.cx1.lv1_start_bucket_; ++i) {
         kt_sort(&kg, i, omp_get_thread_num());
     }
 }

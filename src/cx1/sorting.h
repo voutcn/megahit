@@ -21,45 +21,45 @@
 #include <assert.h>
 #include "kmlib/kmsort.h"
 
-template <int NWords>
-struct Helper {
+template <unsigned NWords>
+struct Substr {
   uint32_t data[NWords];
-  static const int n_bytes = sizeof(data);
-  bool operator< (const Helper &rhs) const {
-      for (int i = 0; i < NWords; ++i) {
+  static const int n_bytes = sizeof(data) - 2;  // prefix len = 16 bits = 2 bytes
+  bool operator< (const Substr &rhs) const {
+      for (unsigned i = 0; i < NWords; ++i) {
           if (data[i] < rhs.data[i]) {
               return true;
           } else if (data[i] > rhs.data[i]) {
               return false;
           }
       }
-      return true;
+      return false;
   }
   int kth_byte(int k) const {
       return data[NWords - 1 - k / sizeof(uint32_t)] >> (k % sizeof(uint32_t) * 8) & 0xFF;
   }
 } __attribute((packed));
 
-template <int NWords>
-inline bool helper(uint32_t *substr, int words_per_substr, int64_t n) {
+template <unsigned NWords>
+inline bool SortSubstrHelper(uint32_t *substr, int words_per_substr, int64_t n) {
     if (words_per_substr != NWords) return false;
-    auto ptr = reinterpret_cast<Helper<NWords>*>(substr);
+    auto ptr = reinterpret_cast<Substr<NWords>*>(substr);
     kmlib::kmsort(ptr, ptr + n);
     return true;
 }
 
-inline void lv2_cpu_radix_sort_st2(uint32_t *substr, int words_per_substr, int64_t n) {
-    if (helper<1>(substr, words_per_substr, n)) return;
-    if (helper<2>(substr, words_per_substr, n)) return;
-    if (helper<3>(substr, words_per_substr, n)) return;
-    if (helper<4>(substr, words_per_substr, n)) return;
-    if (helper<5>(substr, words_per_substr, n)) return;
-    if (helper<6>(substr, words_per_substr, n)) return;
-    if (helper<7>(substr, words_per_substr, n)) return;
-    if (helper<8>(substr, words_per_substr, n)) return;
-    if (helper<9>(substr, words_per_substr, n)) return;
-    if (helper<10>(substr, words_per_substr, n)) return;
-    if (helper<11>(substr, words_per_substr, n)) return;
-    if (helper<12>(substr, words_per_substr, n)) return;
+inline void SortSubStr(uint32_t *substr, int words_per_substr, int64_t n) {
+    if (SortSubstrHelper<1>(substr, words_per_substr, n)) return;
+    if (SortSubstrHelper<2>(substr, words_per_substr, n)) return;
+    if (SortSubstrHelper<3>(substr, words_per_substr, n)) return;
+    if (SortSubstrHelper<4>(substr, words_per_substr, n)) return;
+    if (SortSubstrHelper<5>(substr, words_per_substr, n)) return;
+    if (SortSubstrHelper<6>(substr, words_per_substr, n)) return;
+    if (SortSubstrHelper<7>(substr, words_per_substr, n)) return;
+    if (SortSubstrHelper<8>(substr, words_per_substr, n)) return;
+    if (SortSubstrHelper<9>(substr, words_per_substr, n)) return;
+    if (SortSubstrHelper<10>(substr, words_per_substr, n)) return;
+    if (SortSubstrHelper<11>(substr, words_per_substr, n)) return;
+    if (SortSubstrHelper<12>(substr, words_per_substr, n)) return;
     assert(false);
 }
