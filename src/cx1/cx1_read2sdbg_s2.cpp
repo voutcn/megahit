@@ -40,8 +40,6 @@ namespace s2 {
 
 typedef CX1<read2sdbg_global_t, kNumBuckets> cx1_t;
 typedef CX1<read2sdbg_global_t, kNumBuckets>::readpartition_data_t readpartition_data_t;
-typedef CX1<read2sdbg_global_t, kNumBuckets>::bucketpartition_data_t bucketpartition_data_t;
-typedef CX1<read2sdbg_global_t, kNumBuckets>::outputpartition_data_t outputpartition_data_t;
 
 // helper functions
 inline int64_t EncodeOffset(int64_t read_id, int offset, int strand, SeqPackage &p, int edge_type) {
@@ -239,7 +237,6 @@ void s2_read_mercy_prepare(read2sdbg_global_t &globals) {
 
     // set cx1 param
     globals.cx1.num_cpu_threads_ = globals.num_cpu_threads;
-    globals.cx1.num_output_threads_ = globals.num_output_threads;
     globals.cx1.num_items_ = globals.num_reads;
 }
 

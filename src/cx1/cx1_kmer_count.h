@@ -61,10 +61,7 @@ struct count_opt_t {
 namespace cx1_kmer_count {
 
 static const int kBucketPrefixLength = 8;
-static const int kBucketBase = 4;
 static const int kNumBuckets = 65536; // pow(4, 8)
-static const int64_t kMinLv2BatchSize = 64 * 1024 * 1024;
-static const int64_t kMinLv2BatchSizeGPU = 64 * 1024 * 1024;
 static const int64_t kDefaultLv1ScanTime = 8;
 static const int64_t kMaxLv1ScanTime = 64;
 static const int kSentinelValue = 4;
@@ -86,7 +83,6 @@ struct count_global_t {
     int num_cpu_threads;
     int num_output_threads;
     int64_t host_mem;
-    int64_t gpu_mem;
     int mem_flag;
     std::string read_lib_file;
     std::string assist_seq_file;
@@ -121,26 +117,7 @@ struct count_global_t {
     uint32_t *last_0_in;
 #endif
     int32_t *lv1_items; // each item is an offset (read ID and position) in differential representation
-
-    int64_t *lv2_read_info; // to store where this lv2_item (k+1)-mer come from
-    int64_t *lv2_read_info_db; // double buffer
-    uint32_t *lv2_substrings; // stripped format
-    uint32_t *lv2_substrings_db; // double buffer
-    uint32_t *permutation; // permutation of { 1, ..., lv2_num_items }. for sorting (as value in a key-value pair)
-    uint32_t *permutation_db;    // double buffer
-
-#ifndef USE_GPU
-    uint64_t *cpu_sort_space;
-#else
-    void *gpu_key_buffer1;
-    void *gpu_key_buffer2;
-    void *gpu_value_buffer1;
-    void *gpu_value_buffer2;
-#endif
-
     pthread_mutex_t lv1_items_scanning_lock;
-
-    int64_t lv2_num_items_db;
 
     // memory usage
     int64_t mem_packed_reads;

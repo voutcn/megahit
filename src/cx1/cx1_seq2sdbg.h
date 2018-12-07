@@ -120,23 +120,10 @@ struct seq2sdbg_global_t {
 
     int32_t *lv1_items; // each item is an offset (read ID and position) in differential representation
 
-#ifdef USE_GPU
-    void *gpu_key_buffer1;
-    void *gpu_key_buffer2;
-    void *gpu_value_buffer1;
-    void *gpu_value_buffer2;
-#endif
-
-    uint32_t *lv2_substrings; // stripped format
-    uint32_t *lv2_substrings_db; // double buffer
-    uint32_t *permutation; // permutation of { 1, ..., lv2_num_items }. for sorting (as value in a key-value pair)
-    uint32_t *permutation_db;    // double buffer
-
     int64_t max_sorting_items;
     int64_t mem_sorting_items;
 
     pthread_mutex_t lv1_items_scanning_lock;
-    int64_t lv2_num_items_db;
     // memory usage
     int64_t mem_packed_seq;
 

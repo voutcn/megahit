@@ -81,7 +81,6 @@ int main_kmer_count(int argc, char **argv) {
     globals.kmer_k = opt.kmer_k;
     globals.kmer_freq_threshold = opt.kmer_freq_threshold;
     globals.host_mem = opt.host_mem;
-    globals.gpu_mem = opt.gpu_mem;
     globals.num_cpu_threads = opt.num_cpu_threads;
     globals.num_output_threads = opt.num_output_threads;
     globals.read_lib_file = opt.read_lib_file.c_str();
@@ -157,7 +156,6 @@ int main_read2sdbg(int argc, char **argv) {
     globals.kmer_k = opt.kmer_k;
     globals.kmer_freq_threshold = opt.kmer_freq_threshold;
     globals.host_mem = opt.host_mem;
-    globals.gpu_mem = opt.gpu_mem;
     globals.num_cpu_threads = opt.num_cpu_threads;
     globals.num_output_threads = opt.num_output_threads;
     globals.read_lib_file = opt.read_lib_file;
@@ -254,7 +252,6 @@ int main_seq2sdbg(int argc, char **argv) {
 
     cx1_seq2sdbg::seq2sdbg_global_t globals;
     globals.host_mem = opt.host_mem;
-    globals.gpu_mem = opt.gpu_mem;
     globals.num_cpu_threads = opt.num_cpu_threads;
     globals.num_output_threads = opt.num_output_threads;
     globals.input_prefix = opt.input_prefix;

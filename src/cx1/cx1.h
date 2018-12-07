@@ -54,36 +54,17 @@ struct CX1 {
     struct readpartition_data_t {
         // local data for each read partition (i.e. a subrange of input reads)
         global_data_t *globals;
-        int rp_id; // ID of this read partition, in [ 0, num_cpu_threads ).
         pthread_t thread;
         int64_t rp_start_id, rp_end_id; // start and end IDs of this read partition (end is exclusive)
         int64_t *rp_bucket_sizes; // bucket sizes for this read partition; len =
         int64_t *rp_bucket_offsets;
         int64_t rp_lv1_differential_base; // the initial offset globals.lv1_items
     };
-
-    struct bucketpartition_data_t {
-        // local data for each bucket partition (i.e. a range of buckets), used in lv.2 (extract substring)
-        global_data_t *globals;
-        int bp_id;
-        pthread_t thread;
-        int bp_start_bucket, bp_end_bucket;
-    };
-
-    struct outputpartition_data_t {
-        // output data for each thread
-        global_data_t *globals;
-        int op_id;
-        pthread_t thread;
-        int64_t op_start_index, op_end_index;
-    };
-
     // param: must be set
     global_data_t *g_;
     int64_t num_items_;
     int num_cpu_threads_;
-    int num_output_threads_;
-    int64_t max_lv1_items_, max_lv2_items_;
+    int64_t max_lv1_items_;
 
     bool lv1_just_go_;
     int64_t max_mem_remain_;
@@ -95,13 +76,10 @@ struct CX1 {
     int *ori_bucket_id_;
     int *bucket_rank_;
     readpartition_data_t *rp_;
-    bucketpartition_data_t *bp_;
-    outputpartition_data_t *op_;
 
     // may change as cx1 goes
-    int64_t lv1_num_items_, lv2_num_items_;
+    int64_t lv1_num_items_;
     int lv1_start_bucket_, lv1_end_bucket_;
-    int lv2_start_bucket_, lv2_end_bucket_;
     std::vector<int64_t> lv1_items_special_;
 
     // === functions to specify a CX1 instance ===
@@ -116,44 +94,6 @@ struct CX1 {
     CX1() : lv1_just_go_(false) {}
 
     // === single thread functions ===
-    inline void adjust_mem(int64_t mem_avail, int64_t lv2_bytes_per_item, int64_t min_lv1_items, int64_t min_lv2_items) {
-        // --- adjust max_lv2_items to fit memory ---
-        while (max_lv2_items_ >= min_lv2_items) {
-            int64_t mem_lv2 = lv2_bytes_per_item * max_lv2_items_;
-
-            if (mem_avail <= mem_lv2) {
-                max_lv2_items_ *= 0.95;
-                continue;
-            }
-
-            max_lv1_items_ = (mem_avail - mem_lv2) / kLv1BytePerItem;
-
-            if (max_lv1_items_ < min_lv1_items ||
-                    max_lv1_items_ < max_lv2_items_) {
-                max_lv2_items_ *= 0.95;
-            }
-            else {
-                break;
-            }
-        }
-
-        if (max_lv2_items_ < min_lv2_items) {
-            xfatal("No enough memory to process CX1.\n");
-        }
-
-        // --- adjust max_lv2_items to fit more lv1 item ---
-        // TODO: 4 is arbitrary chosen, not fine tune
-        while (max_lv2_items_ * 4 > max_lv1_items_) {
-            if (max_lv2_items_ * 0.95 >= min_lv2_items) {
-                max_lv2_items_ *= 0.95;
-                max_lv1_items_ = (mem_avail - lv2_bytes_per_item * max_lv2_items_) / kLv1BytePerItem;
-            }
-            else {
-                break;
-            }
-        }
-    }
-
     inline void adjust_mem_just_go(int64_t mem_avail, int64_t bytes_per_sorting_item, int64_t min_lv1_items, int64_t min_sorting_items,
                                    int64_t max_sorting_items, int64_t &max_lv1_items, int64_t &num_sorting_items) {
         num_sorting_items = max_sorting_items;
@@ -197,15 +137,9 @@ struct CX1 {
 
     inline void prepare_rp_and_bp_() { // call after prepare_func_
         rp_ = (readpartition_data_t *) xmalloc(sizeof(readpartition_data_t) * num_cpu_threads_, __FILE__, __LINE__);
-        bp_ = (bucketpartition_data_t *) xmalloc(
-            sizeof(bucketpartition_data_t) * (num_cpu_threads_ - num_output_threads_), __FILE__, __LINE__);
-        op_ = (outputpartition_data_t *) xmalloc(sizeof(outputpartition_data_t) * num_output_threads_,
-                                                 __FILE__,
-                                                 __LINE__);
 
         for (int t = 0; t < num_cpu_threads_; ++t) {
             struct readpartition_data_t &rp = rp_[t];
-            rp.rp_id = t;
             rp.globals = g_;
             rp.rp_bucket_sizes = (int64_t *) xmalloc(kNumBuckets * sizeof(int64_t), __FILE__, __LINE__);
             rp.rp_bucket_offsets = (int64_t *) xmalloc(kNumBuckets * sizeof(int64_t), __FILE__, __LINE__);
@@ -214,19 +148,6 @@ struct CX1 {
             rp.rp_start_id = t * average;
             rp.rp_end_id = t < num_cpu_threads_ - 1 ? (t + 1) * average : num_items_;
             rp.rp_lv1_differential_base = encode_lv1_diff_base_func_(rp.rp_start_id, *g_);
-        }
-
-        // init bucket partitions
-        for (int t = 0; t < num_cpu_threads_ - num_output_threads_; ++t) {
-            struct bucketpartition_data_t &bp = bp_[t];
-            bp.bp_id = t;
-            bp.globals = g_;
-        }
-
-        // init op
-        for (int t = 0; t < num_output_threads_; ++t) {
-            op_[t].op_id = t;
-            op_[t].globals = g_;
         }
 
         ori_bucket_id_ = (int *) xmalloc(sizeof(int) * kNumBuckets, __FILE__, __LINE__);
@@ -246,31 +167,9 @@ struct CX1 {
         }
 
         free(rp_);
-        free(bp_);
-        free(op_);
         free(bucket_sizes_);
         free(ori_bucket_id_);
         free(bucket_rank_);
-    }
-
-    inline int find_end_buckets_(int start_bucket, int end_limit, int64_t item_limit, int64_t &num_items) {
-        cur_lv1_buckets_.resize(kNumBuckets);
-        std::fill(cur_lv1_buckets_.begin(), cur_lv1_buckets_.end(), false);
-
-        num_items = 0;
-        int end_bucket = start_bucket;
-
-        while (end_bucket < end_limit) { // simple linear scan
-            if (num_items + bucket_sizes_[end_bucket] > item_limit) {
-                return end_bucket;
-            }
-
-            num_items += bucket_sizes_[end_bucket];
-            cur_lv1_buckets_[ori_bucket_id_[end_bucket]] = true;
-            end_bucket++;
-        }
-
-        return end_limit;
     }
 
     inline void reorder_buckets_() {
@@ -442,9 +341,6 @@ struct CX1 {
             // --- finds the bucket range for this iteration ---
             if (lv1_just_go_) {
                 lv1_end_bucket_ = find_end_buckets_with_rank_(lv1_start_bucket_, kNumBuckets, max_mem_remain_, bytes_per_sorting_item_, lv1_num_items_);
-            }
-            else {
-                lv1_end_bucket_ = find_end_buckets_(lv1_start_bucket_, kNumBuckets, max_lv1_items_, lv1_num_items_);
             }
 
             if (lv1_num_items_ == 0) {

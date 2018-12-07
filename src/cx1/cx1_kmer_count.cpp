@@ -42,8 +42,6 @@ namespace cx1_kmer_count {
 // helpers
 typedef CX1<count_global_t, kNumBuckets> cx1_t;
 typedef CX1<count_global_t, kNumBuckets>::readpartition_data_t readpartition_data_t;
-typedef CX1<count_global_t, kNumBuckets>::bucketpartition_data_t bucketpartition_data_t;
-typedef CX1<count_global_t, kNumBuckets>::outputpartition_data_t outputpartition_data_t;
 
 /**
  * @brief encode read_id and its offset in one int64_t
@@ -160,7 +158,6 @@ void read_input_prepare(count_global_t &globals) { // num_items_, num_cpu_thread
 
     // set cx1 param
     globals.cx1.num_cpu_threads_ = globals.num_cpu_threads;
-    globals.cx1.num_output_threads_ = globals.num_output_threads;
     globals.cx1.num_items_ = globals.num_reads;
 }
 

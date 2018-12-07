@@ -62,16 +62,12 @@ struct read2sdbg_opt_t {
 namespace cx1_read2sdbg {
 
 static const int kBucketPrefixLength = 8;
-static const int kBucketBase = 4;
 static const int kNumBuckets = 65536; // pow(4, 8)
-static const int64_t kMinLv2BatchSize = 2 * 1024 * 1024;
-static const int64_t kMinLv2BatchSizeGPU = 64 * 1024 * 1024;
 static const int64_t kDefaultLv1ScanTime = 8;
 static const int64_t kMaxLv1ScanTime = 64;
 static const int kSentinelValue = 4;
 static const int64_t kMaxDummyEdges = 4294967294LL;
 static const int kBWTCharNumBits = 3;
-static const int kTopCharShift = kBitsPerEdgeWord - kBitsPerEdgeChar; // bits >> to get the most significant char
 
 struct read2sdbg_global_t {
     CX1<read2sdbg_global_t, kNumBuckets> cx1;
@@ -83,7 +79,6 @@ struct read2sdbg_global_t {
     int num_cpu_threads;
     int num_output_threads;
     int64_t host_mem;
-    int64_t gpu_mem;
     int mem_flag;
     bool need_mercy;
     std::string read_lib_file;
@@ -112,22 +107,7 @@ struct read2sdbg_global_t {
     std::vector<lib_info_t> lib_info;
     AtomicBitVector is_solid; // mark <read_id, offset> is solid
     int32_t *lv1_items; // each item is an offset (read ID and position) in differential representation
-    int64_t *lv2_read_info; // to store where this lv2_item (k+1)-mer come from
-    int64_t *lv2_read_info_db; // double buffer
-    uint32_t *lv2_substrings; // stripped format
-    uint32_t *lv2_substrings_db; // double buffer
-    uint32_t *permutation; // permutation of { 1, ..., lv2_num_items }. for sorting (as value in a key-value pair)
-    uint32_t *permutation_db;    // double buffer
-
-#ifdef USE_GPU
-    void *gpu_key_buffer1;
-    void *gpu_key_buffer2;
-    void *gpu_value_buffer1;
-    void *gpu_value_buffer2;
-#endif
-
     pthread_mutex_t lv1_items_scanning_lock;
-    int64_t lv2_num_items_db;
 
     // memory usage
     int64_t mem_packed_reads;

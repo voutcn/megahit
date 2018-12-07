@@ -80,10 +80,10 @@ struct SimpleTimer {
     time_elapsed = 0;
   }
   void start() {
-    gettimeofday(&tv1, NULL);
+    gettimeofday(&tv1, nullptr);
   }
   void stop() {
-    gettimeofday(&tv2, NULL);
+    gettimeofday(&tv2, nullptr);
     time_elapsed += (long long) (tv2.tv_sec - tv1.tv_sec) * 1000000 + tv2.tv_usec - tv1.tv_usec;
   }
   double elapsed() {
