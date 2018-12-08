@@ -11,8 +11,8 @@
 #include <cstddef>
 #include <cstring>
 #include <vector>
-#include <limits>
 #include <fstream>
+#include <limits>
 
 /**
  * @brief bucket record of a SDBG
@@ -20,9 +20,9 @@
  * A bucket record contains the the statistics and metadata of the partition
  */
 struct SdbgBucketRecord {
-  static const size_t kUninitializedFileID = std::numeric_limits<size_t>::max();
-  size_t file_id{kUninitializedFileID};
-  size_t bucket_id{0};
+  static const size_t kNullID = std::numeric_limits<size_t>::max();
+  size_t file_id{kNullID};
+  size_t bucket_id{kNullID};
   size_t accumulate_item_count{0};
   size_t accumulate_tip_count{0};
   size_t starting_offset{0};

@@ -17,22 +17,14 @@
  * A SDBG writer is used to write partitioned SDBG to files
  */
 class SdbgWriter {
- private:
-  std::string file_prefix_;
-  size_t num_threads_;
-  size_t num_buckets_;
-
-  std::vector<std::shared_ptr<std::ofstream>> files_;
-  std::vector<size_t> cur_bucket_;
-  std::vector<uint64_t> cur_thread_offset_;    // offset in BYTE
-  std::vector<SdbgBucketRecord> bucket_rec_;
-
-  bool is_opened_;
-  unsigned k_;
-  size_t words_per_tip_label_;
-  SdbgMeta final_meta_;
-
  public:
+  struct Snapshot {
+   private:
+    uint64_t cur_thread_offset{0};
+    SdbgBucketRecord bucket_record{};
+
+    friend class SdbgWriter;
+  };
 
   SdbgWriter() {}
   ~SdbgWriter() {
@@ -55,11 +47,26 @@ class SdbgWriter {
 
   void InitFiles();
   void Write(unsigned tid, uint32_t bucket_id, uint8_t w, uint8_t last,
-             uint8_t tip, mul_t multiplicity, label_word_t *packed_tip_label);
+             uint8_t tip, mul_t multiplicity, label_word_t *packed_tip_label, Snapshot *snapshot);
+  void SaveSnapshot(const Snapshot &snapshot);
   void Finalize();
-  const SdbgMeta& final_meta() const {
+  const SdbgMeta &final_meta() const {
     return final_meta_;
   }
+
+ private:
+  std::string file_prefix_;
+  size_t num_threads_;
+  size_t num_buckets_;
+
+  std::vector<std::unique_ptr<std::ofstream>> files_;
+  std::vector<uint64_t> cur_thread_offset_;    // offset in BYTE
+  std::vector<SdbgBucketRecord> bucket_rec_;
+
+  bool is_opened_;
+  unsigned k_;
+  size_t words_per_tip_label_;
+  SdbgMeta final_meta_;
 };
 
 #endif //MEGAHIT_SDBG_WRITER_H

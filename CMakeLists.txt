@@ -50,9 +50,9 @@ add_custom_target(
         simple_test
         COMMAND cp ${CMAKE_SOURCE_DIR}/src/megahit .
         COMMAND cp -r ${CMAKE_SOURCE_DIR}/test_data .
+        COMMAND rm -fr test_data/megahit_out*
+        COMMAND ./megahit --12 test_data/readsInterleaved1.fa.gz,test_data/readsInterleaved2.fa.bz2,test_data/readsInterleaved3.fa -o test_data/megahit_out1 -t 2 --keep-tmp-files
         COMMAND rm -fr test_data/megahit_out
-        COMMAND ./megahit --12 test_data/readsInterleaved1.fa.gz,test_data/readsInterleaved2.fa.bz2,test_data/readsInterleaved3.fa -o test_data/megahit_out -t 2
-        COMMAND rm -fr test_data/megahit_out
-        COMMAND ./megahit --12 test_data/readsInterleaved1.fa.gz,test_data/readsInterleaved2.fa.bz2,test_data/readsInterleaved3.fa -o test_data/megahit_out -t 2 --kmin-1pass
+        COMMAND ./megahit --12 test_data/readsInterleaved1.fa.gz,test_data/readsInterleaved2.fa.bz2,test_data/readsInterleaved3.fa -o test_data/megahit_out2 -t 2 --keep-tmp-files --kmin-1pass
 )
 add_dependencies(simple_test megahit_asm_core megahit_toolkit megahit_sdbg_build)

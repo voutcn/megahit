@@ -6,18 +6,18 @@
 
 #include <cassert>
 #include <algorithm>
+#include <utils.h>
 #include "sdbg_item.h"
 
 void SdbgWriter::InitFiles() {
-  files_.resize(num_threads_);
-  cur_bucket_.resize(num_threads_, -1);
   cur_thread_offset_.resize(num_threads_, 0);
   bucket_rec_.resize(num_buckets_);
 
   for (size_t i = 0; i < num_threads_; ++i) {
-    files_[i] = std::make_shared<std::ofstream>(
-        (file_prefix_ + ".sdbg." + std::to_string(i)).c_str(),
-        std::ofstream::binary | std::ofstream::out);
+    files_.emplace_back(
+        new std::ofstream((file_prefix_ + ".sdbg." + std::to_string(i)).c_str(),
+                          std::ofstream::binary | std::ofstream::out)
+    );
     assert(files_[i]->is_open());
   }
   is_opened_ = true;
@@ -29,36 +29,45 @@ void SdbgWriter::Write(unsigned tid,
                        uint8_t last,
                        uint8_t tip,
                        mul_t multiplicity,
-                       label_word_t *packed_tip_label) {
-  assert(tid < num_threads_);
-  if (bucket_id != cur_bucket_[tid]) {
-    cur_bucket_[tid] = bucket_id;
-    assert(bucket_rec_[bucket_id].file_id == SdbgBucketRecord::kUninitializedFileID);
-    bucket_rec_[bucket_id].file_id = tid;
-    bucket_rec_[bucket_id].bucket_id = bucket_id;
-    bucket_rec_[bucket_id].starting_offset = cur_thread_offset_[tid];
+                       label_word_t *packed_tip_label,
+                       Snapshot *snapshot) {
+  if (bucket_id != snapshot->bucket_record.bucket_id) {
+    assert(snapshot->bucket_record.bucket_id == SdbgBucketRecord::kNullID);
+    assert(snapshot->bucket_record.file_id == SdbgBucketRecord::kNullID);
+    snapshot->bucket_record.file_id = tid;
+    snapshot->bucket_record.bucket_id = bucket_id;
+    snapshot->bucket_record.starting_offset = cur_thread_offset_[tid];
+    snapshot->cur_thread_offset = cur_thread_offset_[tid];
   }
+  assert(tid < num_threads_ && tid == snapshot->bucket_record.file_id);
 
   SdbgItem item(w, last, tip, std::min(multiplicity, mul_t{kSmallMulSentinel}));
   files_[tid]->write(reinterpret_cast<const char *>(&item),
                      sizeof(item));
-  ++bucket_rec_[bucket_id].num_items;
-  ++bucket_rec_[bucket_id].num_w[w];
-  bucket_rec_[bucket_id].ones_in_last += last;
-  cur_thread_offset_[tid] += sizeof(uint16_t);
+  ++snapshot->bucket_record.num_items;
+  ++snapshot->bucket_record.num_w[w];
+  snapshot->bucket_record.ones_in_last += last;
+  snapshot->cur_thread_offset += sizeof(uint16_t);
 
   if (multiplicity > kMaxSmallMul) {
     files_[tid]->write(reinterpret_cast<const char *>(&multiplicity),
                        sizeof(multiplicity));
-    ++bucket_rec_[bucket_id].num_large_mul;
-    cur_thread_offset_[tid] += sizeof(mul_t);
+    ++snapshot->bucket_record.num_large_mul;
+    snapshot->cur_thread_offset += sizeof(mul_t);
   }
 
   if (tip) {
     files_[tid]->write(reinterpret_cast<const char *>(packed_tip_label),
                        sizeof(label_word_t) * words_per_tip_label_);
-    ++bucket_rec_[bucket_id].num_tips;
-    cur_thread_offset_[tid] += sizeof(label_word_t) * words_per_tip_label_;
+    ++snapshot->bucket_record.num_tips;
+    snapshot->cur_thread_offset += sizeof(label_word_t) * words_per_tip_label_;
+  }
+}
+
+void SdbgWriter::SaveSnapshot(const SdbgWriter::Snapshot &snapshot) {
+  if (snapshot.bucket_record.file_id != SdbgBucketRecord::kNullID) {
+    bucket_rec_[snapshot.bucket_record.bucket_id] = snapshot.bucket_record;
+    cur_thread_offset_[snapshot.bucket_record.file_id] = snapshot.cur_thread_offset;
   }
 }
 

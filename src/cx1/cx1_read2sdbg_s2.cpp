@@ -608,6 +608,7 @@ void output_(int64_t from, int64_t to, read2sdbg_global_t &globals, uint32_t *su
     int has_solid_b = 0; // has solid aSb
     int64_t last_a[4], outputed_b;
     uint32_t tip_label[32];
+    SdbgWriter::Snapshot snapshot;
 
     for (start_idx = from; start_idx < to; start_idx = end_idx) {
         end_idx = start_idx + 1;
@@ -698,9 +699,10 @@ void output_(int64_t from, int64_t to, read2sdbg_global_t &globals, uint32_t *su
                                     last,
                                     is_dollar,
                                     count,
-                                    tip_label);
+                                    tip_label, &snapshot);
         }
     }
+  globals.sdbg_writer.SaveSnapshot(snapshot);
 }
 
 struct kt_sort_t {

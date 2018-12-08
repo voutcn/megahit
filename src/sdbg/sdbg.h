@@ -34,7 +34,7 @@ class SDBG {
     prefix_look_up_.resize(content_.meta.bucket_count());
     std::fill(f_, f_ + kAlphabetSize + 2, 0);
     f_[0] = -1;
-    for (auto it = content_.meta.begin_bucket(); it != content_.meta.end_bucket(); ++it) {
+    for (auto it = content_.meta.begin_bucket(); it != content_.meta.end_bucket() && it->bucket_id != it->kNullID; ++it) {
       f_[it->bucket_id / (content_.meta.bucket_count() / kAlphabetSize) + 2] += it->num_items;
       prefix_look_up_[it->bucket_id].first = it->accumulate_item_count;
       prefix_look_up_[it->bucket_id].second = it->accumulate_item_count + it->num_items - 1;

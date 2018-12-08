@@ -32,11 +32,11 @@ void LoadSdbgRawContent(SdbgRawContent *raw_content, const std::string &file_pre
   }
 
   BufferedReader in;
-  size_t last_file_id = SdbgBucketRecord::kUninitializedFileID;
+  size_t last_file_id = SdbgBucketRecord::kNullID;
   size_t file_offset = 0;
 
   for (auto bucket_it = metadata.begin_bucket();
-       bucket_it != metadata.end_bucket() && bucket_it->file_id != SdbgBucketRecord::kUninitializedFileID;
+       bucket_it != metadata.end_bucket() && bucket_it->bucket_id != bucket_it->kNullID;
        ++bucket_it) {
     if (bucket_it->file_id != last_file_id) {
       if (is.is_open()) {

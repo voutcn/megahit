@@ -40,13 +40,16 @@ SdbgMeta &SdbgMeta::FromBucketRecord(
             }
   );
   for (auto &b : bucket_rec_) {
+    if (b.file_id == SdbgBucketRecord::kNullID || b.bucket_id == SdbgBucketRecord::kNullID) {
+      continue;
+    }
     b.accumulate_item_count = item_count_;
     b.accumulate_tip_count = tip_count_;
     item_count_ += b.num_items;
     tip_count_ += b.num_tips;
     large_mul_count_ += b.num_large_mul;
-    num_files_ = std::max(num_files_, b.file_id);
     ones_in_last_ += b.ones_in_last;
+    num_files_ = std::max(num_files_, b.file_id + 1);
     for (unsigned w = 0; w < kWAlphabetSize; ++w) {
       w_count_[w] += b.num_w[w];
     }
@@ -81,14 +84,14 @@ SdbgMeta &SdbgMeta::Deserialize(std::ifstream &is) {
   ScanField(is, "words_per_tip_label", words_per_tip_label_);
   ScanField(is, "num_buckets", num_buckets);
   ScanField(is, "num_files", num_files_);
-  bucket_rec_.resize(num_buckets);
+  std::vector<SdbgBucketRecord> bucket_rec(num_buckets);
   for (size_t i = 0; i < num_buckets; ++i) {
-    is >> bucket_rec_[i].bucket_id
-       >> bucket_rec_[i].file_id
-       >> bucket_rec_[i].starting_offset
-       >> bucket_rec_[i].num_items
-       >> bucket_rec_[i].num_tips
-       >> bucket_rec_[i].num_large_mul;
+    is >> bucket_rec[i].bucket_id
+       >> bucket_rec[i].file_id
+       >> bucket_rec[i].starting_offset
+       >> bucket_rec[i].num_items
+       >> bucket_rec[i].num_tips
+       >> bucket_rec[i].num_large_mul;
   }
-  return FromBucketRecord(bucket_rec_, k_, words_per_tip_label_);
+  return FromBucketRecord(bucket_rec, k_, words_per_tip_label_);
 }
