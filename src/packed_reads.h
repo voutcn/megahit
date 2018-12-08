@@ -47,37 +47,23 @@ inline void CopySubstring(uint32_t *dest, const uint32_t *src_read, int offset, 
   int which_word = offset / kCharsPerEdgeWord;
   int word_offset = offset % kCharsPerEdgeWord;
   const uint32_t *src_p = src_read + which_word;
-  uint32_t *dest_p = dest;
-  int num_words_copied = 0;
 
   if (!word_offset) { // special case (word aligned), easy
-    while (which_word < words_per_read && num_words_copied < words_per_substring) {
-      *dest_p = *src_p; // write out
-      dest_p += spacing;
-      src_p++;
-      which_word++;
-      num_words_copied++;
+    int limit = std::min(words_per_read - which_word, words_per_substring);
+    for (int i = 0; i < limit; ++i) {
+      dest[i] = src_p[i];
     }
   } else {   // not word-aligned
     int bit_shift = word_offset * kBitsPerEdgeChar;
-    uint32_t s = *src_p;
-    uint32_t d = s << bit_shift;
-    which_word++;
 
-    while (which_word < words_per_read) {
-      s = *(++src_p);
-      d |= s >> (kBitsPerEdgeWord - bit_shift);
-      *dest_p = d; // write out
+    int limit = std::min(words_per_read - which_word - 1, words_per_substring);
 
-      if (++num_words_copied >= words_per_substring) goto here;
-
-      dest_p += spacing;
-      d = s << bit_shift;
-      which_word++;
+    for (int i = 0; i < limit; ++i) {
+      dest[i] = (src_p[i] << bit_shift) | (src_p[i + 1] >> (kBitsPerEdgeWord - bit_shift));
     }
-
-    *dest_p = d; // write last word
-    here:;
+    if (limit != words_per_substring) {
+      dest[limit] = src_p[limit] << bit_shift;
+    }
   }
 
   {
@@ -118,10 +104,12 @@ inline void CopySubstringRC(uint32_t *dest, const uint32_t *src_read, int offset
   uint32_t *dest_p = dest;
 
   if (word_offset == kCharsPerEdgeWord - 1) { // uint32_t aligned
+    int limit = std::min(words_per_substring, which_word + 1);
+    for (int i = 0; i < limit; ++i) {
+      dest[i] = src_read[which_word - i];
+    }
     for (int i = 0; i < words_per_substring && i <= which_word; ++i) {
-      *dest_p = src_read[which_word - i];
-      *dest_p = kmlib::bit::ReverseComplement<2>(*dest_p);
-      dest_p += spacing;
+      dest[i] = kmlib::bit::ReverseComplement<2>(dest[i]);
     }
   } else {
     int bit_offset = (kCharsPerEdgeWord - 1 - word_offset) * kBitsPerEdgeChar;
