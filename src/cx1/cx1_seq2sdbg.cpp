@@ -37,7 +37,7 @@ namespace cx1_seq2sdbg {
 
 // helpers
 typedef CX1<seq2sdbg_global_t, kNumBuckets> cx1_t;
-typedef CX1<seq2sdbg_global_t, kNumBuckets>::readpartition_data_t readpartition_data_t;
+typedef CX1<seq2sdbg_global_t, kNumBuckets>::ReadPartition readpartition_data_t;
 
 /**
  * @brief encode seq_id and its offset in one int64_t
@@ -537,8 +537,8 @@ void read_seq_and_prepare(seq2sdbg_global_t &globals) {
 void *lv0_calc_bucket_size(void *_data) {
     readpartition_data_t &rp = *((readpartition_data_t *) _data);
     seq2sdbg_global_t &globals = *(rp.globals);
-    int64_t *bucket_sizes = rp.rp_bucket_sizes;
-    memset(bucket_sizes, 0, kNumBuckets * sizeof(int64_t));
+    auto &bucket_sizes = rp.rp_bucket_sizes;
+    std::fill(bucket_sizes.begin(), bucket_sizes.end(), 0);
 
     for (int64_t seq_id = rp.rp_start_id; seq_id < rp.rp_end_id; ++seq_id) {
         int seq_len = globals.package.SequenceLength(seq_id);
@@ -579,7 +579,7 @@ void *lv0_calc_bucket_size(void *_data) {
 
 void init_global_and_set_cx1(seq2sdbg_global_t &globals) {
     // --- calculate lv2 memory ---
-    globals.max_bucket_size = *std::max_element(globals.cx1.bucket_sizes_, globals.cx1.bucket_sizes_ + kNumBuckets);
+    globals.max_bucket_size = *std::max_element(globals.cx1.bucket_sizes_.begin(), globals.cx1.bucket_sizes_.end());
     globals.tot_bucket_size = 0;
     int num_non_empty = 0;
 

@@ -43,7 +43,7 @@ namespace s1 {
 
 // helpers
 typedef CX1<read2sdbg_global_t, kNumBuckets> cx1_t;
-typedef CX1<read2sdbg_global_t, kNumBuckets>::readpartition_data_t readpartition_data_t;
+typedef CX1<read2sdbg_global_t, kNumBuckets>::ReadPartition readpartition_data_t;
 
 /**
  * @brief encode read_id and its offset in one int64_t
@@ -176,8 +176,8 @@ void s1_read_input_prepare(read2sdbg_global_t &globals) {
 void *s1_lv0_calc_bucket_size(void *_data) {
     readpartition_data_t &rp = *((readpartition_data_t *) _data);
     read2sdbg_global_t &globals = *(rp.globals);
-    int64_t *bucket_sizes = rp.rp_bucket_sizes;
-    memset(bucket_sizes, 0, kNumBuckets * sizeof(int64_t));
+    auto &bucket_sizes = rp.rp_bucket_sizes;
+    std::fill(bucket_sizes.begin(), bucket_sizes.end(), 0);
     GenericKmer k_minus1_mer, rev_k_minus1_mer; // (k-1)-mer and its rc
 
     for (int64_t read_id = rp.rp_start_id; read_id < rp.rp_end_id; ++read_id) {
@@ -228,7 +228,7 @@ void *s1_lv0_calc_bucket_size(void *_data) {
 }
 
 void s1_init_global_and_set_cx1(read2sdbg_global_t &globals) {
-    globals.max_bucket_size = *std::max_element(globals.cx1.bucket_sizes_, globals.cx1.bucket_sizes_ + kNumBuckets);
+    globals.max_bucket_size = *std::max_element(globals.cx1.bucket_sizes_.begin(), globals.cx1.bucket_sizes_.end());
     globals.tot_bucket_size = 0;
     int num_non_empty = 0;
 

@@ -29,7 +29,6 @@
 #include <vector>
 #include <algorithm>
 
-#include "safe_alloc_open-inl.h"
 #include "utils.h"
 #include "kmlib/kmthread.h"
 
@@ -37,360 +36,363 @@
  * @brief    an CX1 engine
  * @details  use CX1 algorithm to do all kinds of things related to substring sorting
  *
- * @tparam global_data_type the type of global datas used in a specified CX1 engine
+ * @tparam TGlobal the type of global datas used in a specified CX1 engine
  *                          must contain a member `CX1* cx1`, where cx1->g_ is itself,
  *                          that enables interactions with CX1 functions
- * @tparam kNumBuckets      number of buckets
+ * @tparam NBuckets      number of buckets
  */
-template <typename global_data_type, int kNumBuckets>
+template<typename TGlobal, int NBuckets>
 struct CX1 {
-    typedef global_data_type global_data_t;
-    static const int kCX1Verbose = 3; // tunable
-    // other settings, don't change
-    static const int kLv1BytePerItem = 4; // 32-bit differatial offset
-    static const uint64_t kSpDiffMaxNum = (1ULL << 32) - 1;
-    static const int64_t kDifferentialLimit = (1ULL << 31) - 1;
+  typedef TGlobal global_data_t;
+  static const int kCX1Verbose = 3; // tunable
+  // other settings, don't change
+  static const int kLv1BytePerItem = 4; // 32-bit differatial offset
+  static const uint64_t kSpDiffMaxNum = (1ULL << 32) - 1;
+  static const int64_t kDifferentialLimit = (1ULL << 31) - 1;
 
-    struct readpartition_data_t {
-        // local data for each read partition (i.e. a subrange of input reads)
-        global_data_t *globals;
-        std::thread thread;
-        int64_t rp_start_id, rp_end_id; // start and end IDs of this read partition (end is exclusive)
-        int64_t *rp_bucket_sizes; // bucket sizes for this read partition; len =
-        int64_t *rp_bucket_offsets;
-        int64_t rp_lv1_differential_base; // the initial offset globals.lv1_items
-    };
-    // param: must be set
-    global_data_t *g_;
-    int64_t num_items_;
-    int num_cpu_threads_;
-    int64_t max_lv1_items_;
+  struct ReadPartition {
+    // local data for each read partition (i.e. a subrange of input reads)
+    global_data_t *globals;
+    int64_t rp_start_id, rp_end_id; // start and end IDs of this read partition (end is exclusive)
+    std::array<int64_t, NBuckets> rp_bucket_sizes;
+    std::array<int64_t, NBuckets> rp_bucket_offsets;
+    int64_t rp_lv1_differential_base; // the initial offset globals.lv1_items
+  };
+  // param: must be set
+  global_data_t *g_;
+  int64_t num_items_;
+  int num_cpu_threads_;
+  int64_t max_lv1_items_;
 
-    bool lv1_just_go_;
-    int64_t max_mem_remain_;
-    int64_t bytes_per_sorting_item_;
-    std::vector<bool> cur_lv1_buckets_;
+  bool lv1_just_go_;
+  int64_t max_mem_remain_;
+  int64_t bytes_per_sorting_item_;
+  std::vector<bool> cur_lv1_buckets_;
 
-    // other data
-    int64_t *bucket_sizes_;
-    int *ori_bucket_id_;
-    int *bucket_rank_;
-    readpartition_data_t *rp_;
+  // other data
+  std::array<int64_t, NBuckets> bucket_sizes_;
+  std::array<int, NBuckets> ori_bucket_id_;
+  std::array<int, NBuckets> bucket_rank_;
+  std::vector<ReadPartition> rp_;
 
-    // may change as cx1 goes
-    int64_t lv1_num_items_;
-    int lv1_start_bucket_, lv1_end_bucket_;
-    std::vector<int64_t> lv1_items_special_;
+  // may change as cx1 goes
+  int64_t lv1_num_items_;
+  int lv1_start_bucket_, lv1_end_bucket_;
+  std::vector<int64_t> lv1_items_special_;
 
-    // === functions to specify a CX1 instance ===
-    int64_t (*encode_lv1_diff_base_func_) (int64_t, global_data_t &);
-    void (*prepare_func_) (global_data_t &); // num_items_, num_cpu_threads_ and num_output_threads_ must be set here
-    void *(*lv0_calc_bucket_size_func_) (void *);
-    void (*init_global_and_set_cx1_func_) (global_data_t &); // xxx set here
-    void *(*lv1_fill_offset_func_) (void *);
-    void (*lv1_sort_and_proc) (global_data_t &);
-    void (*post_proc_func_) (global_data_t &);
+  // === functions to specify a CX1 instance ===
+  int64_t (*encode_lv1_diff_base_func_)(int64_t, global_data_t &);
+  void (*prepare_func_)(global_data_t &); // num_items_, num_cpu_threads_ and num_output_threads_ must be set here
+  void *(*lv0_calc_bucket_size_func_)(void *);
+  void (*init_global_and_set_cx1_func_)(global_data_t &); // xxx set here
+  void *(*lv1_fill_offset_func_)(void *);
+  void (*lv1_sort_and_proc)(global_data_t &);
+  void (*post_proc_func_)(global_data_t &);
 
-    CX1() : lv1_just_go_(false) {}
+  CX1() : lv1_just_go_(true) {}
 
-    // === single thread functions ===
-    inline void adjust_mem_just_go(int64_t mem_avail, int64_t bytes_per_sorting_item, int64_t min_lv1_items, int64_t min_sorting_items,
-                                   int64_t max_sorting_items, int64_t &max_lv1_items, int64_t &num_sorting_items) {
-        num_sorting_items = max_sorting_items;
+  // === single thread functions ===
+  inline void adjust_mem_just_go(int64_t mem_avail,
+                                 int64_t bytes_per_sorting_item,
+                                 int64_t min_lv1_items,
+                                 int64_t min_sorting_items,
+                                 int64_t max_sorting_items,
+                                 int64_t &max_lv1_items,
+                                 int64_t &num_sorting_items) {
+    num_sorting_items = max_sorting_items;
 
-        while (num_sorting_items >= min_sorting_items) {
-            int64_t mem_sorting_items = bytes_per_sorting_item * num_sorting_items;
-            xinfo("Adjusting memory layout: max_lv1_items=%lld, num_sorting_items=%lld, "
-                 "mem_sorting_items=%lld, mem_avail=%lld\n",
-                 max_lv1_items, num_sorting_items, mem_sorting_items, mem_avail);
+    while (num_sorting_items >= min_sorting_items) {
+      int64_t mem_sorting_items = bytes_per_sorting_item * num_sorting_items;
+      xinfo("Adjusting memory layout: max_lv1_items=%lld, num_sorting_items=%lld, "
+            "mem_sorting_items=%lld, mem_avail=%lld\n",
+            max_lv1_items, num_sorting_items, mem_sorting_items, mem_avail);
 
-            if (mem_avail < mem_sorting_items) {
-                num_sorting_items = num_sorting_items * 0.95;
-                continue;
-            }
+      if (mem_avail < mem_sorting_items) {
+        num_sorting_items = num_sorting_items * 0.95;
+        continue;
+      }
 
-            max_lv1_items = (mem_avail - mem_sorting_items) / kLv1BytePerItem;
-            if (max_lv1_items < min_lv1_items || max_lv1_items < num_sorting_items) {
-                num_sorting_items *= 0.95;
-            }
-            else {
-                break;
-            }
-        }
-
-        if (num_sorting_items < min_sorting_items) {
-            xfatal("No enough memory to process CX1.\n");
-        }
-
-        // --- adjust num_sorting_items to fit more lv1 item ---
-        // TODO: 4 is arbitrary chosen, not fine tune
-        while (num_sorting_items * 4 > max_lv1_items) {
-            if (num_sorting_items * 0.95 >= min_sorting_items) {
-                num_sorting_items *= 0.95;
-                max_lv1_items = (mem_avail - bytes_per_sorting_item * num_sorting_items) / kLv1BytePerItem;
-            }
-            else {
-                break;
-            }
-        }
+      max_lv1_items = (mem_avail - mem_sorting_items) / kLv1BytePerItem;
+      if (max_lv1_items < min_lv1_items || max_lv1_items < num_sorting_items) {
+        num_sorting_items *= 0.95;
+      } else {
+        break;
+      }
     }
 
-    inline void prepare_rp_and_bp_() { // call after prepare_func_
-        rp_ = (readpartition_data_t *) xmalloc(sizeof(readpartition_data_t) * num_cpu_threads_, __FILE__, __LINE__);
-
-        for (int t = 0; t < num_cpu_threads_; ++t) {
-            struct readpartition_data_t &rp = rp_[t];
-            rp.globals = g_;
-            rp.rp_bucket_sizes = (int64_t *) xmalloc(kNumBuckets * sizeof(int64_t), __FILE__, __LINE__);
-            rp.rp_bucket_offsets = (int64_t *) xmalloc(kNumBuckets * sizeof(int64_t), __FILE__, __LINE__);
-            // distribute reads to partitions
-            int64_t average = num_items_ / num_cpu_threads_;
-            rp.rp_start_id = t * average;
-            rp.rp_end_id = t < num_cpu_threads_ - 1 ? (t + 1) * average : num_items_;
-            rp.rp_lv1_differential_base = encode_lv1_diff_base_func_(rp.rp_start_id, *g_);
-        }
-
-        ori_bucket_id_ = (int *) xmalloc(sizeof(int) * kNumBuckets, __FILE__, __LINE__);
-        bucket_rank_ = (int *) xmalloc(sizeof(int) * kNumBuckets, __FILE__, __LINE__);
-        bucket_sizes_ = (int64_t *) xmalloc(kNumBuckets * sizeof(int64_t), __FILE__, __LINE__);
-
-        for (int i = 0; i < kNumBuckets; ++i) {
-            ori_bucket_id_[i] = i;
-            bucket_rank_[i] = i;
-        }
+    if (num_sorting_items < min_sorting_items) {
+      xfatal("No enough memory to process CX1.\n");
     }
 
-    inline void clean_() {
-        for (int t = 0; t < num_cpu_threads_; ++t) {
-            free(rp_[t].rp_bucket_sizes);
-            free(rp_[t].rp_bucket_offsets);
-        }
+    // --- adjust num_sorting_items to fit more lv1 item ---
+    // TODO: 4 is arbitrary chosen, not fine tune
+    while (num_sorting_items * 4 > max_lv1_items) {
+      if (num_sorting_items * 0.95 >= min_sorting_items) {
+        num_sorting_items *= 0.95;
+        max_lv1_items = (mem_avail - bytes_per_sorting_item * num_sorting_items) / kLv1BytePerItem;
+      } else {
+        break;
+      }
+    }
+  }
 
-        free(rp_);
-        free(bucket_sizes_);
-        free(ori_bucket_id_);
-        free(bucket_rank_);
+  inline void prepare_rp_and_bp_() { // call after prepare_func_
+    rp_.resize(num_cpu_threads_);
+
+    for (int t = 0; t < num_cpu_threads_; ++t) {
+      struct ReadPartition &rp = rp_[t];
+      rp.globals = g_;
+      // distribute reads to partitions
+      int64_t average = num_items_ / num_cpu_threads_;
+      rp.rp_start_id = t * average;
+      rp.rp_end_id = t < num_cpu_threads_ - 1 ? (t + 1) * average : num_items_;
+      rp.rp_lv1_differential_base = encode_lv1_diff_base_func_(rp.rp_start_id, *g_);
     }
 
-    inline void reorder_buckets_() {
-        std::vector<std::pair<int64_t, int> > tmp_v(kNumBuckets);
+    for (int i = 0; i < NBuckets; ++i) {
+      ori_bucket_id_[i] = i;
+      bucket_rank_[i] = i;
+    }
+  }
 
-        for (int i = 0; i < kNumBuckets; ++i) {
-            tmp_v[i] = std::make_pair(bucket_sizes_[i], i);
-        }
+  inline void clean_() {
+  }
 
-        std::sort(tmp_v.rbegin(), tmp_v.rend());
+  inline void reorder_buckets_() {
+    std::vector<std::pair<int64_t, int> > tmp_v(NBuckets);
 
-        for (int i = 0; i < kNumBuckets; ++i) {
-            bucket_sizes_[i] = tmp_v[i].first;
-            ori_bucket_id_[i] = tmp_v[i].second;
-            bucket_rank_[tmp_v[i].second] = i;
-        }
-
-        for (int tid = 0; tid < num_cpu_threads_; ++tid) {
-            std::vector<int64_t> old_rp_bucket_sizes(rp_[tid].rp_bucket_sizes, rp_[tid].rp_bucket_sizes + kNumBuckets);
-
-            for (int i = 0; i < kNumBuckets; ++i) {
-                rp_[tid].rp_bucket_sizes[i] = old_rp_bucket_sizes[tmp_v[i].second];
-            }
-        }
+    for (int i = 0; i < NBuckets; ++i) {
+      tmp_v[i] = std::make_pair(bucket_sizes_[i], i);
     }
 
-    inline int find_end_buckets_with_rank_(int start_bucket, int end_limit, int64_t mem_limit, int bytes_per_sorting_items, int64_t &num_items) {
-        num_items = 0;
-        int end_bucket = start_bucket;
-        int used_threads = 0;
-        int64_t mem_sorting_items = 0;
+    std::sort(tmp_v.rbegin(), tmp_v.rend());
 
-        cur_lv1_buckets_.resize(kNumBuckets);
-        std::fill(cur_lv1_buckets_.begin(), cur_lv1_buckets_.end(), false);
-
-        while (end_bucket < end_limit) {
-            if (used_threads < num_cpu_threads_) {
-                mem_sorting_items += bytes_per_sorting_items * bucket_sizes_[end_bucket];
-                ++used_threads;
-            }
-
-            if (mem_sorting_items + (num_items + bucket_sizes_[end_bucket]) * kLv1BytePerItem > mem_limit) {
-                return end_bucket;
-            }
-
-            num_items += bucket_sizes_[end_bucket];
-            cur_lv1_buckets_[ori_bucket_id_[end_bucket]] = true;
-            ++end_bucket;
-        }
-
-        return end_limit;
+    for (int i = 0; i < NBuckets; ++i) {
+      bucket_sizes_[i] = tmp_v[i].first;
+      ori_bucket_id_[i] = tmp_v[i].second;
+      bucket_rank_[tmp_v[i].second] = i;
     }
 
-    inline void lv1_compute_offset_() {
-        // compute "global" (thread 0) offsets first
-        int64_t *offsets = rp_[0].rp_bucket_offsets;
-        offsets[lv1_start_bucket_] = 0;
+    for (int tid = 0; tid < num_cpu_threads_; ++tid) {
+      auto old_rp_bucket_sizes = rp_[tid].rp_bucket_sizes;
+      for (int i = 0; i < NBuckets; ++i) {
+        rp_[tid].rp_bucket_sizes[i] = old_rp_bucket_sizes[tmp_v[i].second];
+      }
+    }
+  }
 
-        for (int b = lv1_start_bucket_ + 1; b < lv1_end_bucket_; ++b) {
-            offsets[b] = offsets[b - 1] + bucket_sizes_[b - 1]; // accumulate
-        }
+  inline int find_end_buckets_with_rank_(int start_bucket,
+                                         int end_limit,
+                                         int64_t mem_limit,
+                                         int bytes_per_sorting_items,
+                                         int64_t &num_items) {
+    num_items = 0;
+    int end_bucket = start_bucket;
+    int used_threads = 0;
+    int64_t mem_sorting_items = 0;
 
-        // then for each read partition
-        for (int t = 1; t < num_cpu_threads_; ++t) {
-            int64_t *this_offsets = rp_[t].rp_bucket_offsets;
-            int64_t *prev_offsets = rp_[t - 1].rp_bucket_offsets;
-            int64_t *sizes = rp_[t - 1].rp_bucket_sizes;
+    cur_lv1_buckets_.resize(NBuckets);
+    std::fill(cur_lv1_buckets_.begin(), cur_lv1_buckets_.end(), false);
 
-            for (int b = lv1_start_bucket_; b < lv1_end_bucket_; ++b) {
-                this_offsets[b] = prev_offsets[b] + sizes[b];
-            }
-        }
+    while (end_bucket < end_limit) {
+      if (used_threads < num_cpu_threads_) {
+        mem_sorting_items += bytes_per_sorting_items * bucket_sizes_[end_bucket];
+        ++used_threads;
+      }
+
+      if (mem_sorting_items + (num_items + bucket_sizes_[end_bucket]) * kLv1BytePerItem > mem_limit) {
+        return end_bucket;
+      }
+
+      num_items += bucket_sizes_[end_bucket];
+      cur_lv1_buckets_[ori_bucket_id_[end_bucket]] = true;
+      ++end_bucket;
     }
 
-    // === multi-thread wrappers ====
-    inline void lv0_calc_bucket_size_mt_() {
+    return end_limit;
+  }
+
+  inline void lv1_compute_offset_() {
+    // compute "global" (thread 0) offsets first
+    auto &offsets = rp_[0].rp_bucket_offsets;
+    offsets[lv1_start_bucket_] = 0;
+
+    for (int b = lv1_start_bucket_ + 1; b < lv1_end_bucket_; ++b) {
+      offsets[b] = offsets[b - 1] + bucket_sizes_[b - 1]; // accumulate
+    }
+
+    // then for each read partition
+    for (int t = 1; t < num_cpu_threads_; ++t) {
+      auto &this_offsets = rp_[t].rp_bucket_offsets;
+      auto &prev_offsets = rp_[t - 1].rp_bucket_offsets;
+      auto &sizes = rp_[t - 1].rp_bucket_sizes;
+
+      for (int b = lv1_start_bucket_; b < lv1_end_bucket_; ++b) {
+        this_offsets[b] = prev_offsets[b] + sizes[b];
+      }
+    }
+  }
+
+  // === multi-thread wrappers ====
+  inline void lv0_calc_bucket_size_mt_() {
 #pragma omp parallel for
-        for (int t = 0; t < num_cpu_threads_; ++t) {
-          lv0_calc_bucket_size_func_(&rp_[t]);
-        }
-        // sum up readpartitions bucketsizes to form global bucketsizes
-        memset(bucket_sizes_, 0, kNumBuckets * sizeof(bucket_sizes_[0]));
-
-        // the array accesses in this loop are optimized by the compiler??
-        for (int t = 0; t < num_cpu_threads_; ++t) {
-            for (int b = 0; b < kNumBuckets; ++b) {
-                bucket_sizes_[b] += rp_[t].rp_bucket_sizes[b];
-            }
-        }
+    for (int t = 0; t < num_cpu_threads_; ++t) {
+      lv0_calc_bucket_size_func_(&rp_[t]);
     }
+    // sum up readpartitions bucketsizes to form global bucketsizes
+    std::fill(bucket_sizes_.begin(), bucket_sizes_.end(), 0);
 
-    inline void lv1_fill_offset_mt_() {
-        lv1_items_special_.clear();
-        lv1_compute_offset_();
+    // the array accesses in this loop are optimized by the compiler??
+    for (int t = 0; t < num_cpu_threads_; ++t) {
+      for (int b = 0; b < NBuckets; ++b) {
+        bucket_sizes_[b] += rp_[t].rp_bucket_sizes[b];
+      }
+    }
+  }
 
-        // create threads
+  inline void lv1_fill_offset_mt_() {
+    lv1_items_special_.clear();
+    lv1_compute_offset_();
+
+    // create threads
 #pragma omp parallel for
-        for (int t = 0; t < num_cpu_threads_; ++t) {
-          lv1_fill_offset_func_(&rp_[t]);
-        }
-        lv1_compute_offset_();
+    for (int t = 0; t < num_cpu_threads_; ++t) {
+      lv1_fill_offset_func_(&rp_[t]);
+    }
+    lv1_compute_offset_();
+  }
+
+  // === go go go ===
+  inline void run() {
+    SimpleTimer lv0_timer;
+
+    // read input & prepare
+    if (kCX1Verbose >= 2) {
+      lv0_timer.reset();
+      lv0_timer.start();
+      xinfo("Preparing data...\n");
     }
 
-    // === go go go ===
-    inline void run() {
-        SimpleTimer lv0_timer;
+    prepare_func_(*g_);
 
-        // read input & prepare
-        if (kCX1Verbose >= 2) {
-            lv0_timer.reset();
-            lv0_timer.start();
-            xinfo("Preparing data...\n");
-        }
-
-        prepare_func_(*g_);
-
-        if (kCX1Verbose >= 2) {
-            lv0_timer.stop();
-            xinfo("Preparing data... Done. Time elapsed: %.4f\n", lv0_timer.elapsed());
-        }
-
-
-        if (kCX1Verbose >= 2) {
-            lv0_timer.reset();
-            lv0_timer.start();
-            xinfo("Preparing partitions and initialing global data...\n");
-        }
-
-        // prepare rp bp and op
-        prepare_rp_and_bp_();
-        // calc bucket size
-        lv0_calc_bucket_size_mt_();
-        // init global datas
-        init_global_and_set_cx1_func_(*g_);
-
-        if (lv1_just_go_) {
-            reorder_buckets_();
-        }
-
-        if (kCX1Verbose >= 2) {
-            lv0_timer.stop();
-            xinfo("Preparing partitions and initialing global data... Done. Time elapsed: %.4f\n", lv0_timer.elapsed());
-        }
-
-        if (kCX1Verbose >= 2) {
-            lv0_timer.reset();
-            lv0_timer.start();
-            xinfo("Start main loop...\n");
-        }
-
-        // === start main loop ===
-        int lv1_iteration = 0;
-        lv1_start_bucket_ = 0;
-
-        while (lv1_start_bucket_ < kNumBuckets) {
-            SimpleTimer lv1_timer;
-
-            lv1_iteration++;
-
-            // --- finds the bucket range for this iteration ---
-            if (lv1_just_go_) {
-                lv1_end_bucket_ = find_end_buckets_with_rank_(lv1_start_bucket_, kNumBuckets, max_mem_remain_, bytes_per_sorting_item_, lv1_num_items_);
-            }
-
-            if (lv1_num_items_ == 0) {
-                fprintf(stderr, "Bucket %d too large for lv1: %lld > %lld\n", lv1_end_bucket_, (long long)bucket_sizes_[lv1_end_bucket_], (long long)max_lv1_items_);
-                exit(1);
-            }
-
-            if (kCX1Verbose >= 3) {
-                lv1_timer.reset();
-                lv1_timer.start();
-                xinfo("Lv1 scanning from bucket %d to %d\n", lv1_start_bucket_, lv1_end_bucket_);
-            }
-
-            // --- scan to fill offset ---
-            lv1_fill_offset_mt_();
-
-            if (lv1_items_special_.size() > kSpDiffMaxNum) {
-                fprintf(stderr, "Too many large diff items (%lu) from in buckets [%d, %d)\n", lv1_items_special_.size(), lv1_start_bucket_, lv1_end_bucket_);
-                exit(1);
-            }
-
-            if (kCX1Verbose >= 3) {
-                lv1_timer.stop();
-                xinfo("Lv1 scanning done. Large diff: %lu. Time elapsed: %.4f\n", lv1_items_special_.size(), lv1_timer.elapsed());
-                lv1_timer.reset();
-                lv1_timer.start();
-            }
-
-            if (lv1_just_go_) {
-                lv1_sort_and_proc(*g_);
-            }
-
-            if (kCX1Verbose >= 3) {
-                lv1_timer.stop();
-                xinfo("Lv1 fetching & sorting done. Time elapsed: %.4f\n", lv1_timer.elapsed());
-            }
-
-            lv1_start_bucket_ = lv1_end_bucket_;
-        }
-
-        if (kCX1Verbose >= 2) {
-            lv0_timer.stop();
-            xinfo("Main loop done. Time elapsed: %.4f\n", lv0_timer.elapsed());
-        }
-
-        if (kCX1Verbose >= 2) {
-            lv0_timer.reset();
-            lv0_timer.start();
-            xinfo("Postprocessing...\n");
-        }
-
-        post_proc_func_(*g_);
-        clean_();
-
-        if (kCX1Verbose >= 2) {
-            lv0_timer.stop();
-            xinfo("Postprocess done. Time elapsed: %.4f\n", lv0_timer.elapsed());
-        }
+    if (kCX1Verbose >= 2) {
+      lv0_timer.stop();
+      xinfo("Preparing data... Done. Time elapsed: %.4f\n", lv0_timer.elapsed());
     }
+
+    if (kCX1Verbose >= 2) {
+      lv0_timer.reset();
+      lv0_timer.start();
+      xinfo("Preparing partitions and initialing global data...\n");
+    }
+
+    // prepare rp bp and op
+    prepare_rp_and_bp_();
+    // calc bucket size
+    lv0_calc_bucket_size_mt_();
+    // init global datas
+    init_global_and_set_cx1_func_(*g_);
+
+    if (lv1_just_go_) {
+      reorder_buckets_();
+    }
+
+    if (kCX1Verbose >= 2) {
+      lv0_timer.stop();
+      xinfo("Preparing partitions and initialing global data... Done. Time elapsed: %.4f\n", lv0_timer.elapsed());
+    }
+
+    if (kCX1Verbose >= 2) {
+      lv0_timer.reset();
+      lv0_timer.start();
+      xinfo("Start main loop...\n");
+    }
+
+    // === start main loop ===
+    int lv1_iteration = 0;
+    lv1_start_bucket_ = 0;
+
+    while (lv1_start_bucket_ < NBuckets) {
+      SimpleTimer lv1_timer;
+
+      lv1_iteration++;
+
+      // --- finds the bucket range for this iteration ---
+      if (lv1_just_go_) {
+        lv1_end_bucket_ = find_end_buckets_with_rank_(lv1_start_bucket_,
+                                                      NBuckets,
+                                                      max_mem_remain_,
+                                                      bytes_per_sorting_item_,
+                                                      lv1_num_items_);
+      }
+
+      if (lv1_num_items_ == 0) {
+        fprintf(stderr,
+                "Bucket %d too large for lv1: %lld > %lld\n",
+                lv1_end_bucket_,
+                (long long) bucket_sizes_[lv1_end_bucket_],
+                (long long) max_lv1_items_);
+        exit(1);
+      }
+
+      if (kCX1Verbose >= 3) {
+        lv1_timer.reset();
+        lv1_timer.start();
+        xinfo("Lv1 scanning from bucket %d to %d\n", lv1_start_bucket_, lv1_end_bucket_);
+      }
+
+      // --- scan to fill offset ---
+      lv1_fill_offset_mt_();
+
+      if (lv1_items_special_.size() > kSpDiffMaxNum) {
+        fprintf(stderr,
+                "Too many large diff items (%lu) from in buckets [%d, %d)\n",
+                lv1_items_special_.size(),
+                lv1_start_bucket_,
+                lv1_end_bucket_);
+        exit(1);
+      }
+
+      if (kCX1Verbose >= 3) {
+        lv1_timer.stop();
+        xinfo("Lv1 scanning done. Large diff: %lu. Time elapsed: %.4f\n",
+              lv1_items_special_.size(),
+              lv1_timer.elapsed());
+        lv1_timer.reset();
+        lv1_timer.start();
+      }
+
+      if (lv1_just_go_) {
+        lv1_sort_and_proc(*g_);
+      }
+
+      if (kCX1Verbose >= 3) {
+        lv1_timer.stop();
+        xinfo("Lv1 fetching & sorting done. Time elapsed: %.4f\n", lv1_timer.elapsed());
+      }
+
+      lv1_start_bucket_ = lv1_end_bucket_;
+    }
+
+    if (kCX1Verbose >= 2) {
+      lv0_timer.stop();
+      xinfo("Main loop done. Time elapsed: %.4f\n", lv0_timer.elapsed());
+    }
+
+    if (kCX1Verbose >= 2) {
+      lv0_timer.reset();
+      lv0_timer.start();
+      xinfo("Postprocessing...\n");
+    }
+
+    post_proc_func_(*g_);
+    clean_();
+
+    if (kCX1Verbose >= 2) {
+      lv0_timer.stop();
+      xinfo("Postprocess done. Time elapsed: %.4f\n", lv0_timer.elapsed());
+    }
+  }
 };
 
 #endif // CX1_H__
