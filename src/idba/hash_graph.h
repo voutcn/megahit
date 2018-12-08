@@ -16,12 +16,12 @@
 
 #include "bit_operation.h"
 #include "histgram.h"
-#include "lib_idba/hash_table.h"
-#include "lib_idba/kmer.h"
-#include "lib_idba/contig_info.h"
-#include "lib_idba/hash_graph_vertex.h"
-#include "lib_idba/hash_graph_path.h"
-#include "lib_idba/sequence.h"
+#include "idba/hash_table.h"
+#include "idba/kmer.h"
+#include "idba/contig_info.h"
+#include "idba/hash_graph_vertex.h"
+#include "idba/hash_graph_path.h"
+#include "idba/sequence.h"
 
 class IdbaKmer;
 class Sequence;

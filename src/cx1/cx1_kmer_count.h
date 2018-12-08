@@ -105,8 +105,6 @@ struct count_global_t {
     int64_t mem_sorting_items;
 
     uint32_t *substr_all;
-    uint32_t *permutations_all;
-    uint32_t *cpu_sort_space_all;
     int64_t *readinfo_all;
 
 #ifndef LONG_READS

@@ -12,10 +12,10 @@
 
 #include <algorithm>
 
-#include "bit_operation.h"
-#include "lib_idba/kmer.h"
-#include "lib_idba/bit_edges.h"
-#include "lib_idba/vertex_status.h"
+#include "idba/bit_operation.h"
+#include "idba/kmer.h"
+#include "idba/bit_edges.h"
+#include "idba/vertex_status.h"
 
 
 /**

@@ -6,14 +6,14 @@
  * @date 2011-08-02
  */
 
-#include "lib_idba/sequence.h"
+#include "idba/sequence.h"
 
 #include <istream>
 #include <ostream>
 #include <stdexcept>
 #include <string>
 
-#include "lib_idba/kmer.h"
+#include "idba/kmer.h"
 
 
 using namespace std;

@@ -18,7 +18,7 @@
 #include <ostream>
 #include <stdexcept>
 
-#include "lib_idba/pool.h"
+#include "idba/pool.h"
 #include "hash.h"
 #include "functional.h"
 

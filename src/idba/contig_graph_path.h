@@ -14,9 +14,9 @@
 
 #include <deque>
 
-#include "lib_idba/contig_builder.h"
-#include "lib_idba/contig_graph_vertex.h"
-#include "lib_idba/contig_info.h"
+#include "idba/contig_builder.h"
+#include "idba/contig_graph_vertex.h"
+#include "idba/contig_info.h"
 
 
 /**

@@ -6,7 +6,7 @@
  * @date 2011-08-26
  */
 
-#include "lib_idba/contig_graph.h"
+#include "contig_graph.h"
 
 #include <deque>
 #include <iostream>
@@ -15,8 +15,8 @@
 #include <set>
 #include <sstream>
 
-#include "lib_idba/contig_graph_branch_group.h"
-#include "lib_idba/sequence.h"
+#include "contig_graph_branch_group.h"
+#include "sequence.h"
 
 
 using namespace std;

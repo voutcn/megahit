@@ -10,10 +10,10 @@
 
 #define __GRAPH_CONTIG_BUILDER_H_
 
-#include "lib_idba/contig_graph_vertex.h"
-#include "lib_idba/contig_info.h"
-#include "lib_idba/hash_graph_vertex.h"
-#include "lib_idba/sequence.h"
+#include "idba/contig_graph_vertex.h"
+#include "idba/contig_info.h"
+#include "idba/hash_graph_vertex.h"
+#include "idba/sequence.h"
 
 
 /**

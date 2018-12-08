@@ -10,8 +10,8 @@
 
 #define __GRAPH_HASH_GRAPH_PATH_H_
 
-#include "lib_idba/kmer.h"
-#include "lib_idba/hash_graph.h"
+#include "idba/kmer.h"
+#include "idba/hash_graph.h"
 
 #include <deque>
 

@@ -12,7 +12,7 @@
 
 #include "functional.h"
 #include "hash.h"
-#include "lib_idba/hash_table.h"
+#include "idba/hash_table.h"
 
 #include <functional>
 

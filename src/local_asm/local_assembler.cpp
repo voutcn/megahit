@@ -29,9 +29,9 @@
 #include <iostream>
 
 #include <omp.h>
-#include "lib_idba/sequence.h"
-#include "lib_idba/hash_graph.h"
-#include "lib_idba/contig_graph.h"
+#include "idba/sequence.h"
+#include "idba/hash_graph.h"
+#include "idba/contig_graph.h"
 #include "kmlib/kmbit.h"
 
 #include "utils.h"

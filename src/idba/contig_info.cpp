@@ -1,11 +1,11 @@
-#include "lib_idba/contig_info.h"
+#include "contig_info.h"
 
 #include <fstream>
 #include <istream>
 #include <ostream>
 #include <string>
 
-#include "lib_idba/bit_edges.h"
+#include "bit_edges.h"
 
 using namespace std;
 

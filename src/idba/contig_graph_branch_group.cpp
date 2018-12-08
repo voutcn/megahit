@@ -6,7 +6,7 @@
  * @date 2011-12-27
  */
 
-#include "lib_idba/contig_graph_branch_group.h"
+#include "contig_graph_branch_group.h"
 
 #include <algorithm>
 #include <cstdio>

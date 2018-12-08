@@ -15,11 +15,11 @@
 #include <algorithm>
 #include <string>
 
-#include "lib_idba/kmer.h"
-#include "lib_idba/bit_edges.h"
-#include "lib_idba/contig_info.h"
-#include "lib_idba/vertex_status.h"
-#include "lib_idba/sequence.h"
+#include "idba/kmer.h"
+#include "idba/bit_edges.h"
+#include "idba/contig_info.h"
+#include "idba/vertex_status.h"
+#include "idba/sequence.h"
 
 
 /**

@@ -6,7 +6,7 @@
  * @date 2011-08-05
  */
 
-#include "lib_idba/hash_graph.h"
+#include "idba/hash_graph.h"
 
 #include <algorithm>
 #include <deque>
@@ -15,11 +15,11 @@
 #include "hash_table.h"
 #include "bit_operation.h"
 #include "histgram.h"
-#include "lib_idba/kmer.h"
-#include "lib_idba/contig_builder.h"
-#include "lib_idba/contig_info.h"
-#include "lib_idba/hash_graph_vertex.h"
-#include "lib_idba/sequence.h"
+#include "idba/kmer.h"
+#include "idba/contig_builder.h"
+#include "idba/contig_info.h"
+#include "idba/hash_graph_vertex.h"
+#include "idba/sequence.h"
 
 using namespace std;
 

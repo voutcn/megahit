@@ -16,7 +16,7 @@
 #include <ostream>
 #include <string>
 
-#include "lib_idba/kmer.h"
+#include "idba/kmer.h"
 
 /**
  * @brief It represents a DNA sequence ({A, C, G, T, N}) as a digit sequence 

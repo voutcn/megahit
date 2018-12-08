@@ -10,7 +10,7 @@
 
 #define __GRAPH_CONTIG_INFO_H_
 
-#include "lib_idba/bit_edges.h"
+#include "bit_edges.h"
 
 #include <algorithm>
 #include <deque>

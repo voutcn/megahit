@@ -12,8 +12,8 @@
 
 #include <vector>
 
-#include "lib_idba/contig_graph.h"
-#include "lib_idba/contig_graph_path.h"
+#include "idba/contig_graph.h"
+#include "idba/contig_graph_path.h"
 
 
 /**
