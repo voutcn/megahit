@@ -710,18 +710,23 @@ void *lv1_fill_offset(void *_data) {
             continue;
         }
 
-        int key = 0; // $$$$$$$$
-        int rev_key = 0;
-
         // build initial partial key
-        for (int i = 0; i < kBucketPrefixLength - 1; ++i) {
-            key = key * kBucketBase + globals.package.GetBase(seq_id, i);
-            rev_key = rev_key * kBucketBase + (3 - globals.package.GetBase(seq_id, seq_len - 1 - i)); // complement
-        }
+        Kmer<1, uint32_t> kmer, rev_kmer;
+        auto ptr_and_offset = globals.package.WordPtrAndOffset(seq_id);
+        kmer.InitFromPtr(ptr_and_offset.first, ptr_and_offset.second, kBucketPrefixLength);
+        auto rev_ptr_and_offset = globals.package.WordPtrAndOffset(seq_id, seq_len - kBucketPrefixLength);
+        rev_kmer.InitFromPtr(rev_ptr_and_offset.first, rev_ptr_and_offset.second, kBucketPrefixLength);
+        rev_kmer.ReverseComplement(kBucketPrefixLength);
+
+
+        int key = kmer.data()[0] >> (32 - kBucketPrefixLength * 2);
+        int rev_key = rev_kmer.data()[0] >> (32 - kBucketPrefixLength * 2);
+        CHECK_AND_SAVE_OFFSET(key, 0, 0);
+        CHECK_AND_SAVE_OFFSET(rev_key, 0, 1);
 
         // sequence = xxxxxxxxx
         // edges = $xxxx, xxxxx, ..., xxxx$
-        for (int i = kBucketPrefixLength - 1; i - (kBucketPrefixLength - 1) + globals.kmer_k - 1 <= seq_len; ++i) {
+        for (int i = kBucketPrefixLength; i - (kBucketPrefixLength - 1) + globals.kmer_k - 1 <= seq_len; ++i) {
             key = (key * kBucketBase + globals.package.GetBase(seq_id, i)) % kNumBuckets;
             rev_key = rev_key * kBucketBase + (3 - globals.package.GetBase(seq_id, seq_len - 1 - i));
             rev_key %= kNumBuckets;
