@@ -21,10 +21,10 @@
 #ifndef CX1_READ2SDBG_H__
 #define CX1_READ2SDBG_H__
 
-#include <pthread.h>
 #include <stdint.h>
 #include <vector>
 #include <string>
+#include <mutex>
 #include "cx1.h"
 #include "sdbg/sdbg_writer.h"
 #include "kmlib/kmbitvector.h"
@@ -107,7 +107,7 @@ struct read2sdbg_global_t {
     std::vector<lib_info_t> lib_info;
     AtomicBitVector is_solid; // mark <read_id, offset> is solid
     int32_t *lv1_items; // each item is an offset (read ID and position) in differential representation
-    pthread_mutex_t lv1_items_scanning_lock;
+    std::mutex lv1_items_scanning_lock;
 
     // memory usage
     int64_t mem_packed_reads;
@@ -117,9 +117,7 @@ struct read2sdbg_global_t {
     int64_t *thread_edge_counting;
 
     // output-stage1
-    // std::vector<pthread_spinlock_t> mercy_file_locks;
     std::vector<FILE *> mercy_files;
-    std::vector<std::vector<uint64_t> > lv2_output_items;
 
     // output-stage2
     SdbgWriter sdbg_writer;

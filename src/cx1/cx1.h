@@ -25,7 +25,6 @@
 #include <stdio.h>
 #include <string.h>
 #include <assert.h>
-#include <pthread.h>
 #include <stdint.h>
 #include <vector>
 #include <algorithm>
@@ -54,7 +53,6 @@ struct CX1 {
     struct readpartition_data_t {
         // local data for each read partition (i.e. a subrange of input reads)
         global_data_t *globals;
-        pthread_t thread;
         int64_t rp_start_id, rp_end_id; // start and end IDs of this read partition (end is exclusive)
         int64_t *rp_bucket_sizes; // bucket sizes for this read partition; len =
         int64_t *rp_bucket_offsets;
@@ -246,14 +244,10 @@ struct CX1 {
 
     // === multi-thread wrappers ====
     inline void lv0_calc_bucket_size_mt_() {
+#pragma omp parallel for
         for (int t = 0; t < num_cpu_threads_; ++t) {
-            pthread_create(&(rp_[t].thread), NULL, lv0_calc_bucket_size_func_, &rp_[t]);
+          lv0_calc_bucket_size_func_(&rp_[t]);
         }
-
-        for (int t = 0; t < num_cpu_threads_; ++t) {
-            pthread_join(rp_[t].thread, NULL);
-        }
-
         // sum up readpartitions bucketsizes to form global bucketsizes
         memset(bucket_sizes_, 0, kNumBuckets * sizeof(bucket_sizes_[0]));
 
@@ -270,15 +264,10 @@ struct CX1 {
         lv1_compute_offset_();
 
         // create threads
+#pragma omp parallel for
         for (int t = 0; t < num_cpu_threads_; ++t) {
-            pthread_create(&(rp_[t].thread), NULL, lv1_fill_offset_func_, &rp_[t]);
+          lv1_fill_offset_func_(&rp_[t]);
         }
-
-        for (int t = 0; t < num_cpu_threads_; ++t) {
-            pthread_join(rp_[t].thread, NULL);
-        }
-
-        // revert rp_bucket_offsets
         lv1_compute_offset_();
     }
 

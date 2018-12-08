@@ -336,8 +336,6 @@ void s1_init_global_and_set_cx1(read2sdbg_global_t &globals) {
         globals.mercy_files.push_back(xfopen(FormatString("%s.mercy_cand.%d", globals.output_prefix.c_str(), i), "wb"));
     }
 
-    pthread_mutex_init(&globals.lv1_items_scanning_lock, NULL); // init lock
-
     // --- initialize stat ---
     globals.edge_counting = (int64_t *) xmalloc((kMaxMul + 1) * sizeof(int64_t), __FILE__, __LINE__);
     globals.thread_edge_counting = (int64_t *) xmalloc((kMaxMul + 1) * globals.num_output_threads * sizeof(int64_t),
@@ -384,10 +382,9 @@ void *s1_lv1_fill_offset(void *_data) {
             int64_t full_offset = EncodeOffset(read_id, offset, strand, globals.package);                      \
             int64_t differential = full_offset - prev_full_offsets[key_];                                      \
             if (differential > cx1_t::kDifferentialLimit) {                                                    \
-                pthread_mutex_lock(&globals.lv1_items_scanning_lock);                                          \
+                std::lock_guard<std::mutex> lk(globals.lv1_items_scanning_lock);                               \
                 globals.lv1_items[rp.rp_bucket_offsets[key_]++] = -globals.cx1.lv1_items_special_.size() - 1;  \
                 globals.cx1.lv1_items_special_.push_back(full_offset);                                         \
-                pthread_mutex_unlock(&globals.lv1_items_scanning_lock);                                        \
             } else {                                                                                           \
                 assert((int) differential >= 0);                                                               \
                 globals.lv1_items[rp.rp_bucket_offsets[key_]++] = (int) differential;                          \
@@ -775,7 +772,6 @@ void s1_post_proc(read2sdbg_global_t &globals) {
     fclose(counting_file);
 
     // --- cleaning ---
-    pthread_mutex_destroy(&globals.lv1_items_scanning_lock);
     free(globals.lv1_items);
 
     for (int i = 0; i < globals.num_mercy_files; ++i) {

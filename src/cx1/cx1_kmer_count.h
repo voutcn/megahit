@@ -21,10 +21,10 @@
 #ifndef CX1_KMER_COUNT_H__
 #define CX1_KMER_COUNT_H__
 
-#include <pthread.h>
 #include <stdint.h>
 #include <vector>
 #include <string>
+#include <mutex>
 #include "definitions.h"
 #include "cx1.h"
 #include "edge_io.h"
@@ -117,7 +117,7 @@ struct count_global_t {
     uint32_t *last_0_in;
 #endif
     int32_t *lv1_items; // each item is an offset (read ID and position) in differential representation
-    pthread_mutex_t lv1_items_scanning_lock;
+    std::mutex lv1_items_scanning_lock;
 
     // memory usage
     int64_t mem_packed_reads;

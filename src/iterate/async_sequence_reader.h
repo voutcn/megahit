@@ -44,17 +44,17 @@ class AsyncSequenceReader {
 
 class AsyncContigReader : public AsyncSequenceReader<std::pair<SeqPackage, std::vector<float>>> {
  public:
-  AsyncContigReader(const std::string &file_name) {
+  explicit AsyncContigReader(const std::string &file_name) {
     seq_manager_.set_file_type(SequenceManager::kMegahitContigs);
     seq_manager_.set_file(file_name);
     AsyncReadNextBatch();
   }
-  virtual ~AsyncContigReader() {
+  ~AsyncContigReader() override {
     StopReading();
   }
 
  protected:
-  void ReadOneBatch(package_type *pkg) {
+  void ReadOneBatch(package_type *pkg) override {
     seq_manager_.set_package(&pkg->first);
     seq_manager_.set_float_multiplicity_vector(&pkg->second);
     int64_t kMaxNumContigs = 1 << 22;
@@ -74,17 +74,17 @@ class AsyncContigReader : public AsyncSequenceReader<std::pair<SeqPackage, std::
 
 class AsyncReadReader : public AsyncSequenceReader<SeqPackage> {
  public:
-  AsyncReadReader(const std::string &file_name) {
+  explicit AsyncReadReader(const std::string &file_name) {
     seq_manager_.set_file_type(SequenceManager::kBinaryReads);
     seq_manager_.set_readlib_type(SequenceManager::kSingle); // PE info not used
     seq_manager_.set_file(file_name);
     AsyncReadNextBatch();
   }
-  virtual ~AsyncReadReader() {
+  ~AsyncReadReader() override {
     StopReading();
   }
  protected:
-  void ReadOneBatch(SeqPackage *seq_pkg) {
+  void ReadOneBatch(SeqPackage *seq_pkg) override {
     seq_manager_.set_package(seq_pkg);
     int64_t kMaxNumReads = 1 << 22;
     int64_t kMaxNumBases = 1 << 28;

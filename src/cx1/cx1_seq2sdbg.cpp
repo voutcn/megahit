@@ -29,6 +29,7 @@
 #include "utils.h"
 #include "packed_reads.h"
 #include "sequence/kmer.h"
+#include "iterate/async_sequence_reader.h"
 
 #include "sorting.h"
 
@@ -169,7 +170,7 @@ static void *MercyInputThread(void *seq_manager) {
     bool append = false;
     bool reverse = false;
     sm->ReadShortReads(kMaxReads, kMaxBases, append, reverse);
-    pthread_exit(NULL);
+    return nullptr;
 }
 
 void GenMercyEdges(seq2sdbg_global_t &globals) {
@@ -177,16 +178,8 @@ void GenMercyEdges(seq2sdbg_global_t &globals) {
     InitLookupTable(edge_lookup, globals.package);
 
     std::vector<GenericKmer> mercy_edges;
+    AsyncReadReader reader(globals.input_prefix + ".cand");
 
-    SeqPackage read_package[2];
-    SequenceManager seq_manager;
-    seq_manager.set_file_type(SequenceManager::kBinaryReads);
-    seq_manager.set_file(globals.input_prefix + ".cand");
-    int thread_index = 0;
-    seq_manager.set_package(&read_package[0]);
-
-    pthread_t input_thread;
-    pthread_create(&input_thread, NULL, MercyInputThread, &seq_manager);
     int num_threads = globals.num_cpu_threads - 1;
     omp_set_num_threads(num_threads);
     omp_lock_t mercy_lock;
@@ -196,22 +189,15 @@ void GenMercyEdges(seq2sdbg_global_t &globals) {
     int64_t num_mercy_reads = 0;
 
     while (true) {
-        pthread_join(input_thread, NULL);
-        SeqPackage &rp = read_package[thread_index];
+        SeqPackage &rp = reader.Next();
 
         if (rp.size() == 0) {
             break;
         }
 
-        thread_index ^= 1;
-        seq_manager.set_package(&read_package[thread_index]);
-        pthread_create(&input_thread, NULL, MercyInputThread, &seq_manager);
-
         num_mercy_reads += rp.size();
         mercy_edges.clear();
-
         #pragma omp parallel for reduction(+:num_mercy_edges)
-
         for (unsigned read_id = 0; read_id < rp.size(); ++read_id) {
 
             int read_len = rp.SequenceLength(read_id);
@@ -588,8 +574,7 @@ void *lv0_calc_bucket_size(void *_data) {
             bucket_sizes[key]++;
         }
     }
-
-    pthread_exit(NULL);
+    return nullptr;
 }
 
 void init_global_and_set_cx1(seq2sdbg_global_t &globals) {
@@ -672,9 +657,6 @@ void init_global_and_set_cx1(seq2sdbg_global_t &globals) {
 
     globals.lv1_items = (int32_t *) xmalloc(
         globals.cx1.max_mem_remain_ + globals.num_cpu_threads * sizeof(uint64_t) * 65536, __FILE__, __LINE__);
-    // --- init lock ---
-    pthread_mutex_init(&globals.lv1_items_scanning_lock, NULL);
-
 
     if (cx1_t::kCX1Verbose >= 2) {
         xinfo("Memory for sequence: %lld\n", globals.mem_packed_seq);
@@ -707,10 +689,9 @@ void *lv1_fill_offset(void *_data) {
             int64_t full_offset = EncodeEdgeOffset(seq_id, offset, strand, globals.package);                    \
             int64_t differential = full_offset - prev_full_offsets[key_];                                       \
             if (differential > cx1_t::kDifferentialLimit) {                                                     \
-                pthread_mutex_lock(&globals.lv1_items_scanning_lock);                                           \
+                std::lock_guard<std::mutex> lk(globals.lv1_items_scanning_lock);                                \
                 globals.lv1_items[rp.rp_bucket_offsets[key_]++] = -globals.cx1.lv1_items_special_.size() - 1;   \
                 globals.cx1.lv1_items_special_.push_back(full_offset);                                          \
-                pthread_mutex_unlock(&globals.lv1_items_scanning_lock);                                         \
             } else {                                                                                            \
                 assert(differential >= 0);                                                                      \
                 globals.lv1_items[rp.rp_bucket_offsets[key_]++] = (int) differential;                           \
@@ -752,7 +733,7 @@ void *lv1_fill_offset(void *_data) {
 #undef CHECK_AND_SAVE_OFFSET
 
     free(prev_full_offsets);
-    pthread_exit(NULL);
+    return nullptr;
 }
 
 // inline int BucketToPrefix(int x) {
@@ -1019,7 +1000,6 @@ void post_proc(seq2sdbg_global_t &globals) {
     }
 
     // --- cleaning ---
-    pthread_mutex_destroy(&globals.lv1_items_scanning_lock);
     free(globals.lv1_items);
 }
 

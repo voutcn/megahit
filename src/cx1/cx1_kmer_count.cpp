@@ -318,9 +318,6 @@ void init_global_and_set_cx1(count_global_t &globals) {
                                                        __LINE__);
     memset(globals.edge_counting, 0, (kMaxMul + 1) * sizeof(int64_t));
 
-    // --- initialize lock ---
-    pthread_mutex_init(&globals.lv1_items_scanning_lock, NULL); // init lock
-
     // --- initialize writer ---
     globals.edge_writer.set_file_prefix(globals.output_prefix);
     globals.edge_writer.set_num_threads(globals.num_output_threads);
@@ -362,10 +359,9 @@ void *lv1_fill_offset(void *_data) {
             int64_t full_offset = EncodeOffset(read_id, offset, strand, globals.package);                       \
             int64_t differential = full_offset - prev_full_offsets[key_];                                       \
             if (differential > cx1_t::kDifferentialLimit) {                                                     \
-                pthread_mutex_lock(&globals.lv1_items_scanning_lock);                                           \
+                std::lock_guard<std::mutex> lk(globals.lv1_items_scanning_lock);                                \
                 globals.lv1_items[rp.rp_bucket_offsets[key_]++] = -globals.cx1.lv1_items_special_.size() - 1;   \
                 globals.cx1.lv1_items_special_.push_back(full_offset);                                          \
-                pthread_mutex_unlock(&globals.lv1_items_scanning_lock);                                         \
             } else {                                                                                            \
                 assert((int) differential >= 0);                                                                \
                 globals.lv1_items[rp.rp_bucket_offsets[key_]++] = (int) differential;                           \
@@ -714,7 +710,6 @@ void post_proc(count_global_t &globals) {
     fclose(counting_file);
 
     // --- cleaning ---
-    pthread_mutex_destroy(&globals.lv1_items_scanning_lock);
     free(globals.lv1_items);
     free(globals.first_0_out);
     free(globals.last_0_in);

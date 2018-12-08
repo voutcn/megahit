@@ -22,10 +22,10 @@
 #ifndef CX1_SEQUENCES2SDBG_H__
 #define CX1_SEQUENCES2SDBG_H__
 
-#include <pthread.h>
 #include <stdint.h>
 #include <vector>
 #include <string>
+#include <mutex>
 #include "cx1.h"
 #include "sdbg/sdbg_writer.h"
 #include "sequence_manager.h"
@@ -77,8 +77,6 @@ static const int kLookUpSize = 1 << (2 * kLookUpPrefixLength);
 
 static const int64_t kMaxDummyEdges = 4294967294LL;
 
-static const int64_t kMinLv2BatchSize = 2 * 1024 * 1024;
-static const int64_t kMinLv2BatchSizeGPU = 64 * 1024 * 1024;
 static const int64_t kDefaultLv1ScanTime = 8;
 static const int64_t kMaxLv1ScanTime = 64;
 static const int kSentinelValue = 4;
@@ -94,7 +92,6 @@ struct seq2sdbg_global_t {
     int num_cpu_threads;
     int num_output_threads;
     int64_t host_mem;
-    int64_t gpu_mem;
     int mem_flag;
     bool need_mercy;
 
@@ -123,7 +120,7 @@ struct seq2sdbg_global_t {
     int64_t max_sorting_items;
     int64_t mem_sorting_items;
 
-    pthread_mutex_t lv1_items_scanning_lock;
+    std::mutex lv1_items_scanning_lock;
     // memory usage
     int64_t mem_packed_seq;
 

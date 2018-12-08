@@ -397,8 +397,6 @@ void s2_init_global_and_set_cx1(read2sdbg_global_t &globals) {
         xinfo("Memory for sequence: %lld\n", globals.mem_packed_reads);
         xinfo("max # lv.1 items = %lld\n", globals.cx1.max_lv1_items_);
     }
-
-    pthread_mutex_init(&globals.lv1_items_scanning_lock, NULL); // init lock
     // --- init output ---
     globals.sdbg_writer.set_num_threads(globals.num_output_threads);
     globals.sdbg_writer.set_kmer_size(globals.kmer_k);
@@ -444,10 +442,9 @@ void *s2_lv1_fill_offset(void *_data) {
             int64_t full_offset = EncodeOffset(read_id, offset, strand, globals.package, edge_type);                    \
             int64_t differential = full_offset - prev_full_offsets[key_];                                               \
             if (differential > cx1_t::kDifferentialLimit) {                                                             \
-                pthread_mutex_lock(&globals.lv1_items_scanning_lock);                                                   \
+                std::lock_guard<std::mutex> lk(globals.lv1_items_scanning_lock);                                        \
                 globals.lv1_items[rp.rp_bucket_offsets[key_]++] = -globals.cx1.lv1_items_special_.size() - 1;           \
                 globals.cx1.lv1_items_special_.push_back(full_offset);                                                  \
-                pthread_mutex_unlock(&globals.lv1_items_scanning_lock);                                                 \
             } else {                                                                                                    \
                 assert ((int) differential >= 0);                                                                       \
                 globals.lv1_items[rp.rp_bucket_offsets[key_]++] = (int) differential;                                   \
@@ -777,7 +774,6 @@ void s2_post_proc(read2sdbg_global_t &globals) {
         xinfo("Total number of $v edges: %lld\n", (long long)globals.sdbg_writer.final_meta().tip_count());
     }
     // --- clean ---
-    pthread_mutex_destroy(&globals.lv1_items_scanning_lock);
     free(globals.lv1_items);
 }
 
