@@ -201,7 +201,7 @@ void *lv0_calc_bucket_size(void *_data) {
         }
     }
 
-    return NULL;
+    return nullptr;
 }
 
 void init_global_and_set_cx1(count_global_t &globals) {
@@ -238,9 +238,8 @@ void init_global_and_set_cx1(count_global_t &globals) {
 
     globals.max_sorting_items = std::max(3 * globals.tot_bucket_size / num_non_empty * globals.num_cpu_threads, globals.max_bucket_size);
 
-    // lv2 bytes: substring, permutation, readinfo
-    int64_t lv2_bytes_per_item = globals.words_per_substring * sizeof(uint32_t) + sizeof(uint32_t) + sizeof(int64_t);
-    lv2_bytes_per_item += sizeof(uint32_t); // cpu sorting space
+    // lv2 bytes: substring, readinfo
+    int64_t lv2_bytes_per_item = globals.words_per_substring * sizeof(uint32_t) + sizeof(int64_t);
 
     int64_t mem_remained = globals.host_mem
                            - globals.mem_packed_reads
@@ -329,8 +328,7 @@ void init_global_and_set_cx1(count_global_t &globals) {
 void *lv1_fill_offset(void *_data) {
     readpartition_data_t &rp = *((readpartition_data_t *) _data);
     count_global_t &globals = *(rp.globals);
-    int64_t *prev_full_offsets = (int64_t *) xmalloc(kNumBuckets * sizeof(int64_t), __FILE__, __LINE__); // temporary array for computing differentials
-    assert(prev_full_offsets != NULL);
+    std::array<int64_t, kNumBuckets> prev_full_offsets;
 
     for (int b = globals.cx1.lv1_start_bucket_; b < globals.cx1.lv1_end_bucket_; ++b)
         prev_full_offsets[b] = rp.rp_lv1_differential_base;
@@ -397,12 +395,10 @@ void *lv1_fill_offset(void *_data) {
     }
 
 #undef CHECK_AND_SAVE_OFFSET
-
-    free(prev_full_offsets);
-    return NULL;
+    return nullptr;
 }
 
-inline void lv2_extract_substr_(uint32_t *substrings_p, int64_t *read_info_p, count_global_t &globals, int start_bucket, int end_bucket, int64_t num_items) {
+inline void lv2_extract_substr_(uint32_t *substrings_p, count_global_t &globals, int start_bucket, int end_bucket) {
     int *lv1_p = globals.lv1_items + globals.cx1.rp_[0].rp_bucket_offsets[start_bucket];
 
     for (int b = start_bucket; b < end_bucket; ++b) {
@@ -444,7 +440,7 @@ inline void lv2_extract_substr_(uint32_t *substrings_p, int64_t *read_info_p, co
                 else {
                     next = kSentinelValue;
                 }
-
+                uint64_t *read_info_p = reinterpret_cast<uint64_t*>(substrings_p + globals.words_per_substring);
                 if (strand == 0) {
                     CopySubstring(substrings_p, read_p, offset + start_offset, num_chars_to_copy,
                                   1, words_this_seq, globals.words_per_substring);
@@ -457,15 +453,14 @@ inline void lv2_extract_substr_(uint32_t *substrings_p, int64_t *read_info_p, co
                                    | (prev == kSentinelValue ? kSentinelValue : (3 - prev));
                 }
 
-                substrings_p += globals.words_per_substring;
-                read_info_p++;
+                substrings_p += globals.words_per_substring + 2;
             }
         }
     }
 }
 
 void lv2_output_(int64_t start_index, int64_t end_index, int thread_id, count_global_t &globals,
-                 uint32_t *substrings, int64_t *read_infos) {
+                 uint32_t *substrings) {
     uint32_t packed_edge[32];
     int64_t count_prev[5], count_next[5];
     int64_t *thread_edge_counting = globals.thread_edge_counting + thread_id * (kMaxMul + 1);
@@ -476,11 +471,11 @@ void lv2_output_(int64_t start_index, int64_t end_index, int thread_id, count_gl
     for (int64_t i = start_index; i < end_index; i = to_) {
         from_ = i;
         to_ = i + 1;
-        uint32_t *first_item = substrings + i * globals.words_per_substring;
+        uint32_t *first_item = substrings + i * (globals.words_per_substring + 2);
 
         while (to_ < end_index) {
             if (IsDifferentEdges(first_item,
-                                 substrings + to_ * globals.words_per_substring,
+                                 substrings + to_ * (globals.words_per_substring + 2),
                                  globals.words_per_substring, 1)) {
                 break;
             }
@@ -498,7 +493,9 @@ void lv2_output_(int64_t start_index, int64_t end_index, int thread_id, count_gl
         bool has_out = false;
 
         for (int64_t j = from_; j < to_; ++j) {
-            int prev_and_next = read_infos[j] & ((1 << 6) - 1);
+          auto *read_info = reinterpret_cast<uint64_t*>(
+                substrings + j * (globals.words_per_substring + 2) + globals.words_per_substring);
+            int prev_and_next = *read_info & ((1 << 6) - 1);
             count_prev[prev_and_next >> 3]++;
             count_next[prev_and_next & 7]++;
         }
@@ -515,7 +512,9 @@ void lv2_output_(int64_t start_index, int64_t end_index, int thread_id, count_gl
 
         if (!has_in && count >= globals.kmer_freq_threshold) {
             for (int64_t j = from_; j < to_; ++j) {
-                int64_t read_info = read_infos[j] >> 6;
+                auto *read_info_ptr = reinterpret_cast<uint64_t*>(
+                  substrings + j * (globals.words_per_substring + 2) + globals.words_per_substring);
+                int64_t read_info = *read_info_ptr >> 6;
                 int64_t read_id = globals.package.GetSeqID(read_info >> 1);
                 int strand = read_info & 1;
                 uint32_t offset = (read_info >> 1) - globals.package.StartPosition(read_id);
@@ -555,7 +554,9 @@ void lv2_output_(int64_t start_index, int64_t end_index, int thread_id, count_gl
 
         if (!has_out && count >= globals.kmer_freq_threshold) {
             for (int64_t j = from_; j < to_; ++j) {
-                int64_t read_info = read_infos[j] >> 6;
+                auto *read_info_ptr = reinterpret_cast<uint64_t*>(
+                    substrings + j * (globals.words_per_substring + 2) + globals.words_per_substring);
+                int64_t read_info = *read_info_ptr >> 6;
                 int64_t read_id = globals.package.GetSeqID(read_info >> 1);
                 int strand = read_info & 1;
                 uint32_t offset = (read_info >> 1) - globals.package.StartPosition(read_id);
@@ -631,15 +632,10 @@ void kt_sort(void *_g, long i, int tid) {
                     kg->thread_offset[tid] * kg->globals->cx1.bytes_per_sorting_item_ +
                     kg->rank[tid] * sizeof(uint64_t) * 65536;
 
-    uint32_t *substr_ptr = (uint32_t *) ((char *)kg->globals->lv1_items + offset);
-    uint64_t *bucket = (uint64_t *)(substr_ptr + kg->globals->cx1.bucket_sizes_[b] * kg->globals->words_per_substring);
-    uint32_t *permutation_ptr = (uint32_t *)(bucket + 65536);
-    uint32_t *cpu_sort_space_ptr = permutation_ptr + kg->globals->cx1.bucket_sizes_[b];
-    int64_t *readinfo_ptr = (int64_t *) (cpu_sort_space_ptr + kg->globals->cx1.bucket_sizes_[b]);
-
-    lv2_extract_substr_(substr_ptr, readinfo_ptr, *(kg->globals), b, b + 1, kg->globals->cx1.bucket_sizes_[b]);
-    SortSubStr(substr_ptr, kg->globals->words_per_substring, kg->globals->cx1.bucket_sizes_[b]);
-    lv2_output_(0, kg->globals->cx1.bucket_sizes_[b], tid, *(kg->globals), substr_ptr, readinfo_ptr);
+    auto *substr_ptr = reinterpret_cast<uint32_t*>((char *)kg->globals->lv1_items + offset);
+    lv2_extract_substr_(substr_ptr, *(kg->globals), b, b + 1);
+    SortSubStr(substr_ptr, kg->globals->words_per_substring + 2, kg->globals->cx1.bucket_sizes_[b]);
+    lv2_output_(0, kg->globals->cx1.bucket_sizes_[b], tid, *(kg->globals), substr_ptr);
 }
 
 void lv1_direct_sort_and_count(count_global_t &globals) {

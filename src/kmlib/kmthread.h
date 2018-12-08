@@ -79,7 +79,6 @@ inline void kmfor(size_t n_threads, const Function &func, SizeType begin, SizeTy
           if (stolen_task >= task_range[thread_to_steal].second) {
             break;
           }
-          fprintf(stderr, "%d steals %d from %d\n", tid, stolen_task, thread_to_steal);
           func(stolen_task, tid);
         }
       };

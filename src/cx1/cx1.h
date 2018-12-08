@@ -31,6 +31,7 @@
 
 #include "safe_alloc_open-inl.h"
 #include "utils.h"
+#include "kmlib/kmthread.h"
 
 /**
  * @brief    an CX1 engine
@@ -53,6 +54,7 @@ struct CX1 {
     struct readpartition_data_t {
         // local data for each read partition (i.e. a subrange of input reads)
         global_data_t *globals;
+        std::thread thread;
         int64_t rp_start_id, rp_end_id; // start and end IDs of this read partition (end is exclusive)
         int64_t *rp_bucket_sizes; // bucket sizes for this read partition; len =
         int64_t *rp_bucket_offsets;
@@ -244,10 +246,13 @@ struct CX1 {
 
     // === multi-thread wrappers ====
     inline void lv0_calc_bucket_size_mt_() {
-#pragma omp parallel for
-        for (int t = 0; t < num_cpu_threads_; ++t) {
-          lv0_calc_bucket_size_func_(&rp_[t]);
-        }
+      kmlib::kmfor(num_cpu_threads_,
+          [this](int task, int thread){lv0_calc_bucket_size_func_(&rp_[task]);},
+          0, num_cpu_threads_);
+//#pragma omp parallel for
+//        for (int t = 0; t < num_cpu_threads_; ++t) {
+//          lv0_calc_bucket_size_func_(&rp_[t]);
+//        }
         // sum up readpartitions bucketsizes to form global bucketsizes
         memset(bucket_sizes_, 0, kNumBuckets * sizeof(bucket_sizes_[0]));
 
@@ -263,11 +268,15 @@ struct CX1 {
         lv1_items_special_.clear();
         lv1_compute_offset_();
 
+      kmlib::kmfor(num_cpu_threads_,
+                   [this](int task, int thread){lv1_fill_offset_func_(&rp_[task]);},
+                   0, num_cpu_threads_);
+
         // create threads
-#pragma omp parallel for
-        for (int t = 0; t < num_cpu_threads_; ++t) {
-          lv1_fill_offset_func_(&rp_[t]);
-        }
+//#pragma omp parallel for schedule(dynamic)
+//        for (int t = 0; t < num_cpu_threads_; ++t) {
+//          lv1_fill_offset_func_(&rp_[t]);
+//        }
         lv1_compute_offset_();
     }
 

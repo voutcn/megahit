@@ -602,7 +602,7 @@ void init_global_and_set_cx1(seq2sdbg_global_t &globals) {
         }
     }
 
-    int64_t lv2_bytes_per_item = globals.words_per_substring * sizeof(uint32_t) + sizeof(uint32_t) + sizeof(uint32_t);
+    int64_t lv2_bytes_per_item = globals.words_per_substring * sizeof(uint32_t);
 
     globals.max_sorting_items = std::max(3 * globals.tot_bucket_size * globals.num_cpu_threads / num_non_empty, globals.max_bucket_size);
     globals.cx1.lv1_just_go_ = true;
@@ -674,7 +674,7 @@ void init_global_and_set_cx1(seq2sdbg_global_t &globals) {
 void *lv1_fill_offset(void *_data) {
     readpartition_data_t &rp = *((readpartition_data_t *) _data);
     seq2sdbg_global_t &globals = *(rp.globals);
-    int64_t *prev_full_offsets = (int64_t *) xmalloc(kNumBuckets * sizeof(int64_t), __FILE__, __LINE__); // temporary array for computing differentials
+    std::array<int64_t, kNumBuckets> prev_full_offsets;
 
     for (int b = globals.cx1.lv1_start_bucket_; b < globals.cx1.lv1_end_bucket_; ++b)
         prev_full_offsets[b] = rp.rp_lv1_differential_base;
@@ -731,8 +731,6 @@ void *lv1_fill_offset(void *_data) {
     }
 
 #undef CHECK_AND_SAVE_OFFSET
-
-    free(prev_full_offsets);
     return nullptr;
 }
 

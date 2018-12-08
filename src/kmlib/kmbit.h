@@ -72,15 +72,15 @@ inline T Reverse(T value) {
   static_assert(std::is_integral<T>::value, "Only intergral types are supported");
   static_assert(sizeof(T) <= 8, "Only intergral types <= 64 bits are supported");
   static_assert(sizeof(T) * 8 % BaseSize == 0, "Reverse only support base size of power of 2");
-//  if (BaseSize > 8) {
+  if (BaseSize > 8) {
     return internal::SwapMaskedBits<T, BaseSize, sizeof(T) * 4>(value);
-//  } else {
-//    value = sizeof(T) == 1 ? value :
-//            sizeof(T) == 2 ? __builtin_bswap16(value) :
-//            sizeof(T) == 4 ? __builtin_bswap32(value) :
-//            __builtin_bswap64(value);
-//    return internal::SwapMaskedBits<T, BaseSize, 4>(value);
-//  }
+  } else {
+    value = sizeof(T) == 1 ? value :
+            sizeof(T) == 2 ? __builtin_bswap16(value) :
+            sizeof(T) == 4 ? __builtin_bswap32(value) :
+            __builtin_bswap64(value);
+    return internal::SwapMaskedBits<T, BaseSize, 4>(value);
+  }
 }
 
 /*!
@@ -94,21 +94,6 @@ inline T Reverse(T value) {
 template<unsigned BaseSize, typename T>
 inline T ReverseComplement(T value) {
   return ~Reverse<BaseSize>(value);
-}
-
-#pragma omp declare simd
-template<>
-inline uint32_t ReverseComplement<2, uint32_t>(uint32_t value) {
-  const uint32_t kSwap64Mask16 = 0x0000FFFF;
-  const uint32_t kSwap64Mask8 = 0x00FF00FF;
-  const uint32_t kSwap64Mask4 = 0x0F0F0F0F;
-  const uint32_t kSwap64Mask2 = 0x33333333;
-  value = ((value & kSwap64Mask16) << 16) | ((value & ~kSwap64Mask16) >> 16);
-  value = ((value & kSwap64Mask8) << 8) | ((value & ~kSwap64Mask8) >> 8);
-  value = ((value & kSwap64Mask4) << 4) | ((value & ~kSwap64Mask4) >> 4);
-  value = ((value & kSwap64Mask2) << 2) | ((value & ~kSwap64Mask2) >> 2);
-  value = ~value;
-  return value;
 }
 
 /*!
