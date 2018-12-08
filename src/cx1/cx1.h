@@ -155,9 +155,6 @@ struct CX1 {
     }
   }
 
-  inline void clean_() {
-  }
-
   inline void reorder_buckets_() {
     std::vector<std::pair<int64_t, int> > tmp_v(NBuckets);
 
@@ -386,7 +383,6 @@ struct CX1 {
     }
 
     post_proc_func_(*g_);
-    clean_();
 
     if (kCX1Verbose >= 2) {
       lv0_timer.stop();

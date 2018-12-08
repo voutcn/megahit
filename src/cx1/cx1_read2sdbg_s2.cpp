@@ -44,7 +44,7 @@ typedef CX1<read2sdbg_global_t, kNumBuckets>::ReadPartition readpartition_data_t
 // helper functions
 inline int64_t EncodeOffset(int64_t read_id, int offset, int strand, SeqPackage &p, int edge_type) {
     // edge_type: 0 left $; 1 solid; 2 right $
-    return ((p.StartPosition(read_id) + offset) << 3) | (edge_type << 1) | strand;
+    return ((p.StartPos(read_id) + offset) << 3) | (edge_type << 1) | strand;
 }
 
 // helper: see whether two lv2 items have the same (k-1)-mer
@@ -178,7 +178,7 @@ void s2_read_mercy_prepare(read2sdbg_global_t &globals) {
                 std::fill(has_solid_kmer.begin(), has_solid_kmer.end(), false);
 
                 while (i != end_idx[tid] && globals.package.GetSeqID(mercy_cand[i] >> 2) == read_id) {
-                    int offset = (mercy_cand[i] >> 2) - globals.package.StartPosition(read_id);
+                    int offset = (mercy_cand[i] >> 2) - globals.package.StartPos(read_id);
                     if ((mercy_cand[i] & 3) == 2) {
                         no_out[offset] = true;
                         first_0_out = std::min(first_0_out, offset);
@@ -200,7 +200,7 @@ void s2_read_mercy_prepare(read2sdbg_global_t &globals) {
                 int last_no_out = -1;
 
                 for (int i = 0; i + globals.kmer_k < read_length; ++i) {
-                    if (globals.is_solid.at(globals.package.StartPosition(read_id) + i)) {
+                    if (globals.is_solid.at(globals.package.StartPos(read_id) + i)) {
                         has_solid_kmer[i] = has_solid_kmer[i + 1] = true;
                     }
                 }
@@ -208,7 +208,7 @@ void s2_read_mercy_prepare(read2sdbg_global_t &globals) {
                 for (int i = 0; i + globals.kmer_k <= read_length; ++i) {
                     if (no_in[i] && last_no_out != -1) {
                         for (int j = last_no_out; j < i; ++j) {
-                            globals.is_solid.set(globals.package.StartPosition(read_id) + j);
+                            globals.is_solid.set(globals.package.StartPos(read_id) + j);
                         }
 
                         num_mercy += i - last_no_out;
@@ -263,7 +263,7 @@ void *s2_lv0_calc_bucket_size(void *_data) {
         rev_edge.ReverseComplement(globals.kmer_k + 1);
 
         int last_char_offset = globals.kmer_k;
-        int64_t full_offset = globals.package.StartPosition(read_id);
+        int64_t full_offset = globals.package.StartPos(read_id);
         bool is_solid = globals.kmer_freq_threshold == 1 || read_id >= globals.num_short_reads;
 
         while (true) {
@@ -330,13 +330,7 @@ void s2_init_global_and_set_cx1(read2sdbg_global_t &globals) {
 
     num_non_empty = std::max(1, num_non_empty);
 
-    for (int i = 0; i < kNumBuckets; ++i) {
-        if (globals.cx1.bucket_sizes_[i] > 2 * globals.tot_bucket_size / num_non_empty) {
-            // xinfo("Bucket %d size = %lld > %lld = 2 * avg\n", i, (long long)globals.cx1.bucket_sizes_[i], (long long)2 * globals.tot_bucket_size / num_non_empty);
-        }
-    }
-
-    int64_t lv2_bytes_per_item = globals.words_per_substring * sizeof(uint32_t) + sizeof(uint32_t) + sizeof(uint32_t);
+    int64_t lv2_bytes_per_item = globals.words_per_substring * sizeof(uint32_t);
 
     globals.max_sorting_items = std::max(globals.tot_bucket_size * globals.num_cpu_threads / num_non_empty, globals.max_bucket_size);
     globals.cx1.lv1_just_go_ = true;
@@ -457,7 +451,7 @@ void *s2_lv1_fill_offset(void *_data) {
 
         // shift the key char by char
         int last_char_offset = globals.kmer_k;
-        int64_t full_offset = globals.package.StartPosition(read_id);
+        int64_t full_offset = globals.package.StartPos(read_id);
         bool is_solid = globals.kmer_freq_threshold == 1 || read_id >= globals.num_short_reads;
 
         while (true) {
@@ -512,7 +506,7 @@ void *s2_lv1_fill_offset(void *_data) {
 #undef CHECK_AND_SAVE_OFFSET
 
     free(prev_full_offsets);
-    return NULL;
+    return nullptr;
 }
 
 void s2_lv2_extract_substr_(int bp_from, int bp_to, read2sdbg_global_t &globals, uint32_t *substr) {
@@ -532,7 +526,7 @@ void s2_lv2_extract_substr_(int bp_from, int bp_to, read2sdbg_global_t &globals,
                 }
 
                 int64_t read_id = globals.package.GetSeqID(full_offset >> 3);
-                int offset = (full_offset >> 3) - globals.package.StartPosition(read_id);
+                int offset = (full_offset >> 3) - globals.package.StartPos(read_id);
                 int strand = full_offset & 1;
                 int edge_type = (full_offset >> 1) & 3;
                 int read_length = globals.package.SequenceLength(read_id);

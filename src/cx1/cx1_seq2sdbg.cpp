@@ -43,7 +43,7 @@ typedef CX1<seq2sdbg_global_t, kNumBuckets>::ReadPartition readpartition_data_t;
  * @brief encode seq_id and its offset in one int64_t
  */
 inline int64_t EncodeEdgeOffset(int64_t seq_id, int offset, int strand, SeqPackage &p) {
-    return ((p.StartPosition(seq_id) + offset) << 1) | strand;
+    return ((p.StartPos(seq_id) + offset) << 1) | strand;
 }
 
 inline bool IsDiffKMinusOneMer(uint32_t *item1, uint32_t *item2, int64_t spacing, int kmer_k) {
@@ -767,7 +767,7 @@ void lv2_extract_substr_(int from_bucket, int to_bucket, seq2sdbg_global_t &glob
                 }
 
                 int64_t seq_id = globals.package.GetSeqID(full_offset >> 1);
-                int offset = (full_offset >> 1) - globals.package.StartPosition(seq_id);
+                int offset = (full_offset >> 1) - globals.package.StartPos(seq_id);
                 int strand = full_offset & 1;
 
                 int seq_len = globals.package.SequenceLength(seq_id);

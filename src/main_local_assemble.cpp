@@ -23,7 +23,7 @@
 #include <omp.h>
 
 #include "options_description.h"
-#include "local_asm/local_assembler.h"
+#include "localasm/local_assembler.h"
 #include "utils.h"
 
 namespace {

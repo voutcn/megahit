@@ -47,7 +47,7 @@ typedef CX1<count_global_t, kNumBuckets>::ReadPartition readpartition_data_t;
  * @brief encode read_id and its offset in one int64_t
  */
 inline int64_t EncodeOffset(int64_t read_id, int offset, int strand, SeqPackage &p) {
-    return ((p.StartPosition(read_id) + offset) << 1) | strand;
+    return ((p.StartPos(read_id) + offset) << 1) | strand;
 }
 
 inline bool IsDifferentEdges(uint32_t *item1, uint32_t *item2, int num_words, int64_t spacing) {
@@ -416,7 +416,7 @@ inline void lv2_extract_substr_(uint32_t *substrings_p, count_global_t &globals,
 
                 int64_t read_id = globals.package.GetSeqID(full_offset >> 1);
                 int strand = full_offset & 1;
-                int offset = (full_offset >> 1) - globals.package.StartPosition(read_id);
+                int offset = (full_offset >> 1) - globals.package.StartPos(read_id);
                 int num_chars_to_copy = globals.kmer_k + 1;
 
                 int read_length = globals.package.SequenceLength(read_id);
@@ -517,7 +517,7 @@ void lv2_output_(int64_t start_index, int64_t end_index, int thread_id, count_gl
                 int64_t read_info = *read_info_ptr >> 6;
                 int64_t read_id = globals.package.GetSeqID(read_info >> 1);
                 int strand = read_info & 1;
-                uint32_t offset = (read_info >> 1) - globals.package.StartPosition(read_id);
+                uint32_t offset = (read_info >> 1) - globals.package.StartPos(read_id);
 
                 if (strand == 0) {
                     // update last
@@ -559,7 +559,7 @@ void lv2_output_(int64_t start_index, int64_t end_index, int thread_id, count_gl
                 int64_t read_info = *read_info_ptr >> 6;
                 int64_t read_id = globals.package.GetSeqID(read_info >> 1);
                 int strand = read_info & 1;
-                uint32_t offset = (read_info >> 1) - globals.package.StartPosition(read_id);
+                uint32_t offset = (read_info >> 1) - globals.package.StartPos(read_id);
 
                 if (strand == 0) {
                     // update first

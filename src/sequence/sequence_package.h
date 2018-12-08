@@ -91,10 +91,10 @@ class SequencePackage {
   }
 
   uint8_t GetBase(size_t seq_id, unsigned offset) const {
-    return sequences_[StartPosition(seq_id) + offset];
+    return sequences_[StartPos(seq_id) + offset];
   }
 
-  uint64_t StartPosition(size_t seq_id) const {
+  uint64_t StartPos(size_t seq_id) const {
     if (seq_id < num_fixed_len_) {
       return seq_id * fixed_len_;
     } else {
@@ -103,7 +103,7 @@ class SequencePackage {
   }
 
   std::pair<const word_type *, unsigned> WordPtrAndOffset(size_t seq_id, unsigned offset = 0) const {
-    size_t index = StartPosition(seq_id) + offset;
+    size_t index = StartPos(seq_id) + offset;
     return {sequences_.data() + index / kCharsPerWord, index % kCharsPerWord};
   }
 

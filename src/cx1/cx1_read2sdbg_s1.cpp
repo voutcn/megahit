@@ -49,7 +49,7 @@ typedef CX1<read2sdbg_global_t, kNumBuckets>::ReadPartition readpartition_data_t
  * @brief encode read_id and its offset in one int64_t
  */
 inline int64_t EncodeOffset(int64_t read_id, int offset, int strand, SeqPackage &p) {
-    return ((p.StartPosition(read_id) + offset) << 1) | strand;
+    return ((p.StartPos(read_id) + offset) << 1) | strand;
 }
 
 // helper: see whether two lv2 items have the same (k-1)-mer
@@ -80,8 +80,8 @@ inline uint8_t ExtractHeadTail(uint32_t *item, int64_t spacing, int words_per_su
     return *(item + spacing * (words_per_substring - 1)) & ((1 << 2 * kBWTCharNumBits) - 1);
 }
 
-inline uint8_t ExtractPrevNext(int i, int64_t *readinfo) {
-    return readinfo[i] & ((1 << 2 * kBWTCharNumBits) - 1);
+inline uint8_t ExtractPrevNext(int64_t readinfo) {
+    return readinfo & ((1 << 2 * kBWTCharNumBits) - 1);
 }
 
 // cx1 core functions
@@ -248,8 +248,8 @@ void s1_init_global_and_set_cx1(read2sdbg_global_t &globals) {
         xinfo("%d words per substring\n", globals.words_per_substring);
     }
 
-    // lv2 bytes: substring, permutation, readinfo
-    int64_t lv2_bytes_per_item = (globals.words_per_substring) * sizeof(uint32_t) + sizeof(uint32_t) + sizeof(int64_t);
+    // lv2 bytes: substring, readinfo
+    int64_t lv2_bytes_per_item = (globals.words_per_substring) * sizeof(uint32_t) + sizeof(uint64_t);
 
     globals.cx1.lv1_just_go_ = true;
     globals.num_output_threads = globals.num_cpu_threads;
@@ -451,7 +451,7 @@ void *s1_lv1_fill_offset(void *_data) {
     return NULL;
 }
 
-void s1_extract_subtstr_(int bp_from, int bp_to, read2sdbg_global_t &globals, uint32_t *substr, int64_t *readinfo_ptr) {
+void s1_extract_subtstr_(int bp_from, int bp_to, read2sdbg_global_t &globals, uint32_t *substr) {
     int *lv1_p = globals.lv1_items + globals.cx1.rp_[0].rp_bucket_offsets[bp_from];
 
     for (int b = bp_from; b < bp_to; ++b) {
@@ -469,7 +469,7 @@ void s1_extract_subtstr_(int bp_from, int bp_to, read2sdbg_global_t &globals, ui
 
                 int64_t read_id = globals.package.GetSeqID(full_offset >> 1);
                 int strand = full_offset & 1;
-                int offset = (full_offset >> 1) - globals.package.StartPosition(read_id);
+                int offset = (full_offset >> 1) - globals.package.StartPos(read_id);
                 int read_length = globals.package.SequenceLength(read_id);
                 int num_chars_to_copy = globals.kmer_k - 1;
                 unsigned char prev, next, head, tail; // (k+1)=abScd, prev=a, head=b, tail=c, next=d
@@ -510,6 +510,7 @@ void s1_extract_subtstr_(int bp_from, int bp_to, read2sdbg_global_t &globals, ui
                 int start_offset = ptr_and_offset.second;
                 const uint32_t *read_p = ptr_and_offset.first;
                 int words_this_read = DivCeiling(start_offset + read_length, 16);
+                uint64_t *readinfo_ptr = reinterpret_cast<uint64_t*>(substr + globals.words_per_substring);
 
                 if (strand == 0) {
                     CopySubstring(substr, read_p, offset + start_offset, num_chars_to_copy,
@@ -527,14 +528,13 @@ void s1_extract_subtstr_(int bp_from, int bp_to, read2sdbg_global_t &globals, ui
                                     | (prev == kSentinelValue ? kSentinelValue : (3 - prev));
                 }
 
-                substr += globals.words_per_substring;
-                readinfo_ptr++;
+                substr += globals.words_per_substring + 2;
             }
         }
     }
 }
 
-void s1_lv2_output_(int64_t from, int64_t to, int tid, read2sdbg_global_t &globals, uint32_t *substr, int64_t *readinfo_ptr) {
+void s1_lv2_output_(int64_t from, int64_t to, int tid, read2sdbg_global_t &globals, uint32_t *substr) {
     int64_t end_idx;
     int64_t count_prev_head[5][5];
     int64_t count_tail_next[5][5];
@@ -543,13 +543,15 @@ void s1_lv2_output_(int64_t from, int64_t to, int tid, read2sdbg_global_t &globa
 
     for (int64_t i = from; i < to; i = end_idx) {
         end_idx = i + 1;
-        uint32_t *first_item = substr + i * globals.words_per_substring;
+        uint32_t *first_item = substr + i * (2 + globals.words_per_substring);
+
         memset(count_prev_head, 0, sizeof(count_prev_head));
         memset(count_tail_next, 0, sizeof(count_tail_next));
         memset(count_head_tail, 0, sizeof(count_head_tail));
 
         {
-            uint8_t prev_and_next = ExtractPrevNext(i, readinfo_ptr);
+            uint64_t *readinfo_ptr = reinterpret_cast<uint64_t*>(first_item + globals.words_per_substring);
+            uint8_t prev_and_next = ExtractPrevNext(*readinfo_ptr);
             uint8_t head_and_tail = ExtractHeadTail(first_item, 1, globals.words_per_substring);
             count_prev_head[prev_and_next >> 3][head_and_tail >> 3]++;
             count_tail_next[head_and_tail & 7][prev_and_next & 7]++;
@@ -558,14 +560,16 @@ void s1_lv2_output_(int64_t from, int64_t to, int tid, read2sdbg_global_t &globa
 
         while (end_idx < to) {
             if (IsDiffKMinusOneMer(first_item,
-                                   substr + end_idx * globals.words_per_substring,
+                                   substr + end_idx * (2 + globals.words_per_substring),
                                    1,
                                    globals.kmer_k)) {
                 break;
             }
 
-            uint8_t prev_and_next = ExtractPrevNext(end_idx, readinfo_ptr);
-            uint8_t head_and_tail = ExtractHeadTail(substr + end_idx * globals.words_per_substring, 1, globals.words_per_substring);
+
+            uint64_t *readinfo_ptr = reinterpret_cast<uint64_t*>(substr + end_idx * (2 + globals.words_per_substring) + globals.words_per_substring);
+            uint8_t prev_and_next = ExtractPrevNext(*readinfo_ptr);
+            uint8_t head_and_tail = ExtractHeadTail(substr + end_idx * (globals.words_per_substring + 2), 1, globals.words_per_substring);
             count_prev_head[prev_and_next >> 3][head_and_tail >> 3]++;
             count_tail_next[head_and_tail & 7][prev_and_next & 7]++;
             count_head_tail[head_and_tail]++;
@@ -603,20 +607,20 @@ void s1_lv2_output_(int64_t from, int64_t to, int tid, read2sdbg_global_t &globa
         }
 
         while (i < end_idx) {
-            uint8_t head_and_tail = ExtractHeadTail(substr + i * globals.words_per_substring, 1, globals.words_per_substring);
+            uint8_t head_and_tail = ExtractHeadTail(substr + i * (2 + globals.words_per_substring), 1, globals.words_per_substring);
             uint8_t head = head_and_tail >> 3;
             uint8_t tail = head_and_tail & 7;
 
             if (head != kSentinelValue && tail != kSentinelValue) {
                 ++thread_edge_counting[std::min(int64_t(kMaxMul), count_head_tail[head_and_tail])];
             }
-
             if (head != kSentinelValue && tail != kSentinelValue && count_head_tail[head_and_tail] >= globals.kmer_freq_threshold) {
                 for (int64_t j = 0; j < count_head_tail[head_and_tail]; ++j, ++i) {
-                    int64_t read_info = readinfo_ptr[i] >> 6;
+                    uint64_t *readinfo_ptr = reinterpret_cast<uint64_t*>(substr + i * (2 + globals.words_per_substring) + globals.words_per_substring);
+                    int64_t read_info = *readinfo_ptr >> 6;
                     int strand = read_info & 1;
                     int64_t read_id = globals.package.GetSeqID(read_info >> 1);
-                    int offset = (read_info >> 1) - globals.package.StartPosition(read_id) - 1;
+                    int offset = (read_info >> 1) - globals.package.StartPos(read_id) - 1;
                     int l_offset = strand == 0 ? offset : offset + 1;
                     int r_offset = strand == 0 ? offset + 1 : offset;
 
@@ -625,13 +629,13 @@ void s1_lv2_output_(int64_t from, int64_t to, int tid, read2sdbg_global_t &globa
 
                     if (!(has_in & (1 << head))) {
                         // no in
-                        int64_t packed_mercy_cand = ((globals.package.StartPosition(read_id) + l_offset) << 2) | (1 + strand);
+                        int64_t packed_mercy_cand = ((globals.package.StartPos(read_id) + l_offset) << 2) | (1 + strand);
                         fwrite(&packed_mercy_cand, sizeof(packed_mercy_cand), 1, globals.mercy_files[read_id & (globals.num_mercy_files - 1)]);
                     }
 
                     if (!(has_out & (1 << tail))) {
                         // no out
-                        int64_t packed_mercy_cand = ((globals.package.StartPosition(read_id) + r_offset) << 2) | (2 - strand);
+                        int64_t packed_mercy_cand = ((globals.package.StartPos(read_id) + r_offset) << 2) | (2 - strand);
                         fwrite(&packed_mercy_cand, sizeof(packed_mercy_cand), 1, globals.mercy_files[read_id & (globals.num_mercy_files - 1)]);
                     }
                 }
@@ -639,29 +643,30 @@ void s1_lv2_output_(int64_t from, int64_t to, int tid, read2sdbg_global_t &globa
             else {
                 // not solid, but we still need to tell whether its left/right kmer is solid
                 for (int64_t j = 0; j < count_head_tail[head_and_tail]; ++j, ++i) {
-                    int64_t read_info = readinfo_ptr[i] >> 6;
+                    uint64_t *readinfo_ptr = reinterpret_cast<uint64_t*>(substr + i * (2 + globals.words_per_substring) + globals.words_per_substring);
+                    int64_t read_info = *readinfo_ptr >> 6;
                     int strand = read_info & 1;
                     int64_t read_id = globals.package.GetSeqID(read_info >> 1);
-                    int offset = (read_info >> 1) - globals.package.StartPosition(read_id) - 1;
+                    int offset = (read_info >> 1) - globals.package.StartPos(read_id) - 1;
                     int l_offset = strand == 0 ? offset : offset + 1;
                     int r_offset = strand == 0 ? offset + 1 : offset;
 
                     if (l_has_out & (1 << head)) {
                         if (has_in & (1 << head)) {
                             // has both in & out
-                            int64_t packed_mercy_cand = ((globals.package.StartPosition(read_id) + l_offset) << 2) | 0;
+                            int64_t packed_mercy_cand = ((globals.package.StartPos(read_id) + l_offset) << 2) | 0;
                             fwrite(&packed_mercy_cand, sizeof(packed_mercy_cand), 1, globals.mercy_files[read_id & (globals.num_mercy_files - 1)]);
                         }
                         else {
                             // has out but no in
-                            int64_t packed_mercy_cand = ((globals.package.StartPosition(read_id) + l_offset) << 2) | (1 + strand);
+                            int64_t packed_mercy_cand = ((globals.package.StartPos(read_id) + l_offset) << 2) | (1 + strand);
                             fwrite(&packed_mercy_cand, sizeof(packed_mercy_cand), 1, globals.mercy_files[read_id & (globals.num_mercy_files - 1)]);
                         }
                     }
                     else {
                         if (has_in & (1 << head)) {
                             // has in but no out
-                            int64_t packed_mercy_cand = ((globals.package.StartPosition(read_id) + l_offset) << 2) | (2 - strand);
+                            int64_t packed_mercy_cand = ((globals.package.StartPos(read_id) + l_offset) << 2) | (2 - strand);
                             fwrite(&packed_mercy_cand, sizeof(packed_mercy_cand), 1, globals.mercy_files[read_id & (globals.num_mercy_files - 1)]);
                         }
                     }
@@ -669,19 +674,19 @@ void s1_lv2_output_(int64_t from, int64_t to, int tid, read2sdbg_global_t &globa
                     if (r_has_in & (1 << tail)) {
                         if (has_out & (1 << tail)) {
                             // has both in & out
-                            int64_t packed_mercy_cand = ((globals.package.StartPosition(read_id) + r_offset) << 2) | 0;
+                            int64_t packed_mercy_cand = ((globals.package.StartPos(read_id) + r_offset) << 2) | 0;
                             fwrite(&packed_mercy_cand, sizeof(packed_mercy_cand), 1, globals.mercy_files[read_id & (globals.num_mercy_files - 1)]);
                         }
                         else {
                             // has in but no out
-                            int64_t packed_mercy_cand = ((globals.package.StartPosition(read_id) + r_offset) << 2) | (2 - strand);
+                            int64_t packed_mercy_cand = ((globals.package.StartPos(read_id) + r_offset) << 2) | (2 - strand);
                             fwrite(&packed_mercy_cand, sizeof(packed_mercy_cand), 1, globals.mercy_files[read_id & (globals.num_mercy_files - 1)]);
                         }
                     }
                     else {
                         if (has_out & (1 << tail)) {
                             // has out but no in
-                            int64_t packed_mercy_cand = ((globals.package.StartPosition(read_id) + r_offset) << 2) | (1 + strand);
+                            int64_t packed_mercy_cand = ((globals.package.StartPos(read_id) + r_offset) << 2) | (1 + strand);
                             fwrite(&packed_mercy_cand, sizeof(packed_mercy_cand), 1, globals.mercy_files[read_id & (globals.num_mercy_files - 1)]);
                         }
                     }
@@ -721,14 +726,10 @@ void kt_sort(void *_g, long i, int tid) {
                     kg->rank[tid] * sizeof(uint64_t) * 65536;
 
     uint32_t *substr_ptr = (uint32_t *) ((char *)kg->globals->lv1_items + offset);
-    uint64_t *bucket = (uint64_t *)(substr_ptr + kg->globals->cx1.bucket_sizes_[b] * kg->globals->words_per_substring);
-    uint32_t *permutation_ptr = (uint32_t *)(bucket + 65536);
-    uint32_t *cpu_sort_space_ptr = permutation_ptr + kg->globals->cx1.bucket_sizes_[b];
-    int64_t *readinfo_ptr = (int64_t *) (cpu_sort_space_ptr + kg->globals->cx1.bucket_sizes_[b]);
 
-    s1_extract_subtstr_(b, b + 1, *(kg->globals), substr_ptr, readinfo_ptr);
-    SortSubStr(substr_ptr, kg->globals->words_per_substring, kg->globals->cx1.bucket_sizes_[b]);
-    s1_lv2_output_(0, kg->globals->cx1.bucket_sizes_[b], tid, *(kg->globals), substr_ptr, readinfo_ptr);
+    s1_extract_subtstr_(b, b + 1, *(kg->globals), substr_ptr);
+    SortSubStr(substr_ptr, kg->globals->words_per_substring, kg->globals->cx1.bucket_sizes_[b], 2);
+    s1_lv2_output_(0, kg->globals->cx1.bucket_sizes_[b], tid, *(kg->globals), substr_ptr);
 }
 
 void s1_lv1_direct_sort_and_count(read2sdbg_global_t &globals) {
