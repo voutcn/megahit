@@ -42,6 +42,14 @@ class EdgeWriter {
   bool is_opened_;
 
  public:
+  class Snapshot {
+   private:
+    PartitionRecord p_rec;
+    int64_t cur_num_edges{};
+    int bucket_id{-1};
+    friend class EdgeWriter;
+  };
+
   EdgeWriter() : unsorted_(false), is_opened_(false) {};
   ~EdgeWriter() {
     destroy();
@@ -87,19 +95,28 @@ class EdgeWriter {
     is_opened_ = true;
   }
 
-  void write(uint32_t *edge_ptr, int32_t bucket, int tid) {
-    // assert(bucket >= cur_bucket_[tid]);
-    if (bucket != cur_bucket_[tid]) {
-      // megahit_log__("Bucket %d: output via thread %d\n", bucket, tid);
-      assert(p_rec_[bucket].thread_id == -1);
-      p_rec_[bucket].thread_id = tid;
-      p_rec_[bucket].starting_offset = cur_num_edges_[tid];
-      cur_bucket_[tid] = bucket;
+  void write(uint32_t *edge_ptr, int32_t bucket, int tid, Snapshot *snapshot) const {
+    if (bucket != snapshot->bucket_id) {
+      assert(snapshot->bucket_id == -1);
+      assert(snapshot->p_rec.thread_id == -1);
+      snapshot->bucket_id = bucket;
+      snapshot->p_rec.thread_id = tid;
+      snapshot->p_rec.starting_offset = cur_num_edges_[tid];
+      snapshot->cur_num_edges = cur_num_edges_[tid];
     }
+    assert(snapshot->bucket_id == bucket);
+    assert(snapshot->p_rec.thread_id == tid);
 
     fwrite(edge_ptr, sizeof(uint32_t), words_per_edge_, files_[tid]);
-    ++cur_num_edges_[tid];
-    ++p_rec_[bucket].total_number;
+    ++snapshot->cur_num_edges;
+    ++snapshot->p_rec.total_number;
+  }
+
+  void SaveSnapshot(const Snapshot &snapshot) {
+    if (snapshot.bucket_id != -1) {
+      p_rec_[snapshot.bucket_id] = snapshot.p_rec;
+      cur_num_edges_[snapshot.p_rec.thread_id] = snapshot.cur_num_edges;
+    }
   }
 
   void write_unsorted(uint32_t *edge_ptr, int tid) {

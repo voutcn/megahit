@@ -468,6 +468,8 @@ void lv2_output_(int64_t start_index, int64_t end_index, int thread_id, count_gl
     int64_t from_;
     int64_t to_;
 
+    EdgeWriter::Snapshot snapshot;
+
     for (int64_t i = start_index; i < end_index; i = to_) {
         from_ = i;
         to_ = i + 1;
@@ -598,9 +600,12 @@ void lv2_output_(int64_t start_index, int64_t end_index, int thread_id, count_gl
 
         if (count >= globals.kmer_freq_threshold) {
             PackEdge(packed_edge, first_item, count, globals);
-            globals.edge_writer.write(packed_edge, packed_edge[0] >> (32 - 2 * kBucketPrefixLength), thread_id);
+            globals.edge_writer.write(packed_edge, packed_edge[0] >> (32 - 2 * kBucketPrefixLength), thread_id,
+                &snapshot);
         }
     }
+
+    globals.edge_writer.SaveSnapshot(snapshot);
 }
 
 struct kt_sort_t {
