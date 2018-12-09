@@ -45,7 +45,6 @@ class EdgeWriter {
   class Snapshot {
    private:
     PartitionRecord p_rec;
-    int64_t cur_num_edges{};
     int bucket_id{-1};
     friend class EdgeWriter;
   };
@@ -102,20 +101,18 @@ class EdgeWriter {
       snapshot->bucket_id = bucket;
       snapshot->p_rec.thread_id = tid;
       snapshot->p_rec.starting_offset = cur_num_edges_[tid];
-      snapshot->cur_num_edges = cur_num_edges_[tid];
     }
     assert(snapshot->bucket_id == bucket);
     assert(snapshot->p_rec.thread_id == tid);
 
     fwrite(edge_ptr, sizeof(uint32_t), words_per_edge_, files_[tid]);
-    ++snapshot->cur_num_edges;
     ++snapshot->p_rec.total_number;
   }
 
   void SaveSnapshot(const Snapshot &snapshot) {
     if (snapshot.bucket_id != -1) {
       p_rec_[snapshot.bucket_id] = snapshot.p_rec;
-      cur_num_edges_[snapshot.p_rec.thread_id] = snapshot.cur_num_edges;
+      cur_num_edges_[snapshot.p_rec.thread_id] = snapshot.p_rec.total_number + snapshot.p_rec.starting_offset;
     }
   }
 

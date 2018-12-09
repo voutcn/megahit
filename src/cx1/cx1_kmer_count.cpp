@@ -164,7 +164,7 @@ void read_input_prepare(count_global_t &globals) { // num_items_, num_cpu_thread
 void *lv0_calc_bucket_size(void *_data) {
     readpartition_data_t &rp = *((readpartition_data_t *) _data);
     count_global_t &globals = *(rp.globals);
-    auto &bucket_sizes = rp.rp_bucket_sizes;
+    std::array<int64_t, kNumBuckets> &bucket_sizes = rp.rp_bucket_sizes;
     std::fill(bucket_sizes.begin(), bucket_sizes.end(), 0);
     GenericKmer edge, rev_edge; // (k+1)-mer and its rc
 
@@ -200,7 +200,6 @@ void *lv0_calc_bucket_size(void *_data) {
             }
         }
     }
-
     return nullptr;
 }
 
