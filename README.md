@@ -1,7 +1,4 @@
-*If you are using MEGAHIT v1.0.4-beta or v1.0.5, please be advised to update it to the latest version.*
-
 [![BioConda Install](https://img.shields.io/conda/dn/bioconda/megahit.svg?style=flag&label=BioConda%20install)](https://anaconda.org/bioconda/megahit)
-[![GitHub Downloads](https://img.shields.io/github/downloads/voutcn/megahit/total.svg?style=social&logo=github&label=Download)](https://github.com/voutcn/megahit/releases)
 [![Build Status](https://travis-ci.org/voutcn/megahit.svg?branch=master)](https://travis-ci.org/voutcn/megahit)
 
 ## Getting Started
@@ -9,12 +6,17 @@
 ```
 git clone https://github.com/voutcn/megahit.git
 cd megahit
+mkdir build && cd build
+cmake ..
 make
 ./megahit -1 pe_1.fq.gz -2 pe_2.fq.gz -o megahit_out
 ```
 
 ## Introduction
-MEGAHIT is a single node assembler for large and complex metagenomics NGS reads, such as soil. It makes use of succinct *de Bruijn* graph (SdBG) to achieve low memory assembly. MEGAHIT can **optionally** utilize a CUDA-enabled GPU to accelerate its SdBG contstruction. The GPU-accelerated version of MEGAHIT has been tested on NVIDIA GTX680 (4G memory) and Tesla K40c (12G memory) with CUDA 5.5, 6.0 and 6.5. MEGAHIT v1.0 or greater also supports IBM Power PC and has been tested on IBM POWER8.
+MEGAHIT is a single node metagenome assembler for NGS reads. It makes use of succinct *de Bruijn* graph (SdBG) to achieve low memory assembly.
+
+## What's new in version 1.2
+
 
 ## Dependency & Installation
 MEGAHIT is suitable for 64-bit Linux and MAC OS X. It requires [zlib](http://www.zlib.net/), python 2.6 or greater and G++ 4.4 or greater (with `-std=c++0x` and [OpenMP](http://openmp.org) support).
@@ -56,25 +58,3 @@ If you use MEGAHIT v0.x or want to cite MEGAHIT for general purpose (e.g. review
 
 If you use MEGAHIT v1.0 or higher version, or assemblies in [MEGABOX](http://hku-bal.github.io/megabox/), please also cite:
 - Li, D., Luo, R., Liu, C.M., Leung, C.M., Ting, H.F., Sadakane, K., Yamashita, H. and Lam, T.W., 2016. MEGAHIT v1.0: A Fast and Scalable Metagenome Assembler driven by Advanced Methodologies and Community Practices. Methods.
-
-## License & Supports
-
-```
-    MEGAHIT
-    Copyright (C) 2014-2015  The University of Hong Kong & L3 Bioinformatics Limited
-
-    This program is free software: you can redistribute it and/or modify
-    it under the terms of the GNU General Public License as published by
-    the Free Software Foundation, either version 3 of the License, or
-    (at your option) any later version.
-
-    This program is distributed in the hope that it will be useful,
-    but WITHOUT ANY WARRANTY; without even the implied warranty of
-    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-    GNU General Public License for more details.
-
-    You should have received a copy of the GNU General Public License
-    along with this program.  If not, see <http://www.gnu.org/licenses/>.
-```
-
-MEGAHIT is released under GPLv3. For personalized customization and commercial supports, please contact L3 Bioinformatics Limited (rb at l3-bioinfo.com).

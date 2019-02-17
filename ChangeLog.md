@@ -1,4 +1,19 @@
-### 1.1.3 / 2018-11-01 PST
+### 1.2.0-beta / 2019-02-17
+
+Heavily refactored the whole project:
+
+* Remove GPU support
+* Use cmake
+* Use sparsepp to replace IDBA's hash map for better performance in both speed and memory efficiency
+* Use pdep instruction to speed up rand and select
+* Rewrite unitig graph
+* Rewrite the iterate-edge component
+* Rewrite the SDBG library, except for the builder
+* Fixed a bug which may involve too many reads into local assembly
+
+The changes result in a faster and more memory-efficient tool, but have little effect on assembly quality.
+
+### 1.1.4 / 2018-11-01 PST
 
 * Fixed a bug in mercy edge stage in 1-pass mode
 

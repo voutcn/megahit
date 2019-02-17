@@ -1,6 +1,9 @@
 [submodule "src/sparsepp"]
 	path = src/sparsepp
-	url = git@github.com:greg7mdp/sparsepp.git
+	url = https://github.com/greg7mdp/sparsepp.git
+[submodule "src/--force"]
+	path = src/--force
+	url = https://github.com/greg7mdp/sparsepp.git
 [submodule "src/xxHash"]
 	path = src/xxHash
-	url = git@github.com:Cyan4973/xxHash.git
+	url = https://github.com/Cyan4973/xxHash.git
