@@ -30,7 +30,6 @@
 #include <algorithm>
 
 #include "utils.h"
-#include "kmlib/kmthread.h"
 
 /**
  * @brief    an CX1 engine

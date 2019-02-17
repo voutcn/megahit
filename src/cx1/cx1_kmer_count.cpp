@@ -27,7 +27,6 @@
 #include <omp.h>
 #include <mutex>
 
-#include "kmlib/kmthread.h"
 #include "safe_alloc_open-inl.h"
 #include "sequence/kseq.h"
 #include "utils.h"
