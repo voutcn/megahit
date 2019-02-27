@@ -25,7 +25,7 @@ LIST(APPEND OTHER_SOURCE
 find_package(ZLIB REQUIRED)
 find_package(OpenMP REQUIRED)
 
-set(STATIC_LIBS -lz -ldl -lpthread -lgomp -static-libstdc++ -static-libgcc -static)
+#set(STATIC_LIBS -lz -ldl -lpthread -lgomp -static-libstdc++ -static-libgcc -static)
 
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${OpenMP_CXX_FLAGS}")
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -DXXH_INLINE_ALL -D__STDC_FORMAT_MACROS")
@@ -39,15 +39,15 @@ set(CMAKE_CXX_FLAGS_DEBUG "-g -O1")
 message(STATUS "Build type: ${CMAKE_BUILD_TYPE}: ${CMAKE_CXX_FLAGS}")
 
 add_executable(megahit_asm_core ${OTHER_SOURCE} ${ASMBL_SOURCE} ${IDBA_SOURCE} ${SDBG_SOURCE} ${LCASM_SOURCE})
-target_link_libraries(megahit_asm_core ${STATIC_LIBS})
+target_link_libraries(megahit_asm_core ${ZLIB_LIBRARIES} ${OpenMP_CXX_LIBRARIES})
 
 add_executable(megahit_sdbg_build ${SDBG_SOURCE} ${CX1_SOURCE}
         src/main_sdbg_build.cpp src/options_description.cpp
         src/sequence_manager.cpp)
-target_link_libraries(megahit_sdbg_build ${STATIC_LIBS})
+target_link_libraries(megahit_sdbg_build ${ZLIB_LIBRARIES} ${OpenMP_CXX_LIBRARIES})
 
 add_executable(megahit_toolkit ${TOOLKIT_SOURCE})
-target_link_libraries(megahit_toolkit ${STATIC_LIBS})
+target_link_libraries(megahit_toolkit ${ZLIB_LIBRARIES} ${OpenMP_CXX_LIBRARIES})
 
 add_custom_target(
         simple_test
