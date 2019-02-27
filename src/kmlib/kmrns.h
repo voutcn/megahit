@@ -32,7 +32,6 @@ struct PopcountMask {
   static const T value = SubPopcountMask<BaseSize, sizeof(T) * 8, T>::value;
 };
 
-#pragma omp declare simd
 template<unsigned BaseSize, typename T, unsigned Index = BaseSize / 2>
 inline T PackToLowestBit(T value) {
   if (Index == 0) {
@@ -247,7 +246,6 @@ class RankAndSelect {
   }
 
  private:
-#pragma omp declare simd
   unsigned CountCharInWord(uint8_t c, TWord x, TWord mask = TWord(-1)) const {
     if (BaseSize != 1) {
       x ^= xor_masks_[c];
@@ -259,7 +257,6 @@ class RankAndSelect {
 
   unsigned CountCharInWords(uint8_t c, const TWord *ptr, unsigned n_words) const {
     unsigned count = 0;
-#pragma omp simd reduction(+: count)
     for (unsigned i = 0; i < n_words; ++i) {
       count += CountCharInWord(c, ptr[i]);
     }

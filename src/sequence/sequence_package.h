@@ -207,7 +207,7 @@ class SequencePackage {
 
   void AppendStringSequence(const char *from, const char *to, unsigned len) {
     UpdateLength(len);
-    ptrdiff_t step = from < to ? 1 : -1;
+    std::ptrdiff_t step = from < to ? 1 : -1;
     for (auto ptr = from; ptr != to; ptr += step) {
       sequences_.push_back(dna_map_[static_cast<int>(*ptr)]);
     }
