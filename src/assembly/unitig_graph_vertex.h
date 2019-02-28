@@ -65,6 +65,7 @@ class UnitigGraphVertex {
     uint8_t cached_out_degree() const { return strand_info().cached_out_degree; }
     uint8_t cached_in_degree() const { return strand_info(1).cached_out_degree; }
     uint64_t rep_id() const { return std::min(start(), rstart()); };
+    void to_unique_format() { if (rep_id() != start()) { ReverseComplement(); }}
     bool forsure_standalone() const {
       return (cached_out_degree() == 0 && cached_in_degree() == 0) || is_loop();
     }
