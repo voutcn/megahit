@@ -63,7 +63,7 @@ struct LocalAssembler {
       assert(strand < 2);
     }
     bool operator<(const MappedReadRecord &rhs) const {
-      return reinterpret_cast<const uint64_t *>(this) < reinterpret_cast<const uint64_t *>(&rhs);
+      return *reinterpret_cast<const uint64_t *>(this) < *reinterpret_cast<const uint64_t *>(&rhs);
     }
   };
 

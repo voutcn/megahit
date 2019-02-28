@@ -59,7 +59,11 @@ class CompactVector {
     return v[i / kBasesPerWord] >> bit_shift(i % kBasesPerWord) & kBaseMask;
   }
   static word_type sub_word(word_type val, unsigned pos, unsigned len = 1) {
-    return val >> bit_shift(pos, len) & ((word_type{1} << len * kBaseSize) - 1);
+    if (len == kBasesPerWord) {
+      return val >> bit_shift(pos, len);
+    } else {
+      return val >> bit_shift(pos, len) & ((word_type{1} << len * kBaseSize) - 1);
+    }
   }
  public:
   explicit CompactVector(size_type size = 0) :
