@@ -6,4 +6,4 @@ python:
   - "3.2"
   - "3.3"
   - "3.4"
-script: git submodule update --init && mkdir build && cd build && cmake .. DCMAKE_BUILD_TYPE=Debug && make simple_test
+script: git submodule update --init && mkdir build && cd build && cmake .. -DCMAKE_BUILD_TYPE=Debug && make simple_test
