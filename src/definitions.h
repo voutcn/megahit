@@ -24,7 +24,7 @@
 #include <stdint.h>
 
 #ifndef PACKAGE_VERSION
-#define PACKAGE_VERSION "v1.1.3"
+#define PACKAGE_VERSION "v1.2.0-beta"
 #endif
 
 #include "sdbg/sdbg_def.h"
