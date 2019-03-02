@@ -39,7 +39,7 @@ struct Option {
   int min_contig_len{200};
   int sparsity{8};
   double similarity{0.8};
-  double min_mapping_len{75};
+  int min_mapping_len{75};
 
   int num_threads{0};
   std::string output_file;

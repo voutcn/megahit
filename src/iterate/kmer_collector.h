@@ -19,14 +19,14 @@ class KmerCollector {
   using kmer_plus = KmerPlus<KmerType, mul_t>;
   using hash_set = spp::sparse_hash_set<kmer_plus, KmerHash>;
 
-  KmerCollector(unsigned k, const std::string &out_prefix, unsigned n_threads)
-      : k_(k), output_prefix_(out_prefix), n_threads_(n_threads) {
+  KmerCollector(unsigned k, const std::string &out_prefix)
+      : k_(k), output_prefix_(out_prefix) {
     last_shift_ = k_ % 16;
     last_shift_ = (last_shift_ == 0 ? 0 : 16 - last_shift_) * 2;
     words_per_kmer_ = DivCeiling(k_ * 2 + kBitsPerMul, 32);
-    buffer_.resize(n_threads * words_per_kmer_);
+    buffer_.resize(words_per_kmer_);
 
-    writer_.set_num_threads(n_threads);
+    writer_.set_num_threads(1);
     writer_.set_file_prefix(out_prefix);
     writer_.set_unsorted();
     writer_.set_kmer_size(k_ - 1);
@@ -47,8 +47,8 @@ class KmerCollector {
   }
  private:
   void WriteToFile(const KmerType &kmer, mul_t mul) {
-    int tid = omp_get_thread_num();
-    uint32_t *start_ptr = buffer_.data() + tid * words_per_kmer_;
+    uint32_t *start_ptr = buffer_.data();
+    memset(start_ptr, 0, words_per_kmer_ * sizeof(buffer_[0]));
     auto ptr = start_ptr;
     uint32_t w = 0;
 
@@ -61,15 +61,15 @@ class KmerCollector {
       }
     }
 
+    assert(ptr - start_ptr < words_per_kmer_);
     *ptr = (w << last_shift_);
     assert((start_ptr[words_per_kmer_ - 1] & kMaxMul) == 0);
     start_ptr[words_per_kmer_ - 1] |= mul;
-    writer_.write_unsorted(ptr, tid);
+    writer_.write_unsorted(start_ptr, 0);
   }
  private:
   unsigned k_;
   std::string output_prefix_;
-  unsigned n_threads_;
   std::mutex lock_;
   hash_set collection_;
 

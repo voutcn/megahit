@@ -58,14 +58,13 @@ int BaseBubbleRemover::SearchAndPopBubble(UnitigGraph &graph, UnitigGraph::Verte
   int degree = graph.GetNextAdapters(adapter, middle);
   if (degree <= 1) { return 0; }
 
-  bool bubble_valid = true;
   for (int j = 0; j < degree; ++j) {
     if (middle[j].is_to_delete() || middle[j].length() > max_len) {
       return 0;
     }
   }
 
-  for (int j = 0; bubble_valid && j < degree; ++j) {
+  for (int j = 0; j < degree; ++j) {
     if (graph.InDegree(middle[j]) != 1 || graph.GetNextAdapters(middle[j], possible_right) != 1) {
       return 0;
     }

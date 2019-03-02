@@ -111,8 +111,7 @@ static bool ReadReadsAndProcessKernel(const Option &opt, IndexType &index) {
   }
   xinfo("Selected kmer type size for next k: %u\n", sizeof(KmerType));
   AsyncReadReader reader(opt.read_file);
-  KmerCollector<KmerType> collector(opt.kmer_k + opt.step + 1, opt.output_prefix,
-                                    opt.num_cpu_threads);
+  KmerCollector<KmerType> collector(opt.kmer_k + opt.step + 1, opt.output_prefix);
   int64_t num_aligned_reads = 0;
   int64_t num_total_reads = 0;
 
