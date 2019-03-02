@@ -360,7 +360,8 @@ void UnitigGraph::Refresh(bool set_changed) {
   }
 }
 
-std::string UnitigGraph::VertexToDNAString(const VertexAdapter &v) {
+std::string UnitigGraph::VertexToDNAString(VertexAdapter v) {
+  v.to_unique_format();
   std::string label;
   label.reserve(k() + v.length());
   uint64_t cur_edge = v.end();

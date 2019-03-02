@@ -31,7 +31,7 @@ class UnitigGraph {
 
  public:
   void Refresh(bool mark_changed = false);
-  std::string VertexToDNAString(const VertexAdapter &adapter);
+  std::string VertexToDNAString(VertexAdapter adapter);
  public:
   /*
    * Function for VertexAdapter obtaining & traversal

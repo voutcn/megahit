@@ -9,6 +9,33 @@
 
 namespace {
 
+inline char Complement(char c) {
+  if (c >= 0 && c < 4) {
+    return 3 - c;
+  }
+  switch (c) {
+    case 'A': return 'T';
+    case 'C': return 'G';
+    case 'G': return 'C';
+    case 'T': return 'A';
+    default: assert(false);
+  }
+  return 0;
+}
+
+inline void ReverseComplement(std::string &s) {
+  int i, j;
+  for (i = 0, j = s.length() - 1; i < j; ++i, --j) {
+    std::swap(s[i], s[j]);
+    s[i] = Complement(s[i]);
+    s[j] = Complement(s[j]);
+  }
+  if (i == j) {
+    s[i] = Complement(s[i]);
+  }
+}
+
+
 void FoldPalindrome(std::string &s, unsigned kmer_k, bool is_loop) {
   if (is_loop) {
     for (unsigned i = 1; i + kmer_k <= s.length(); ++i) {
