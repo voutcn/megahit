@@ -3,6 +3,9 @@ project(megahit)
 set(CMAKE_VERBOSE_MAKEFILE ON)
 set(CMAKE_CXX_STANDARD 11)
 
+option(USE_POPCNT "Use popcnt hardware instructions" ON)
+option(USE_BMI2 "Use bmi2 hardware instructions" ON)
+
 include_directories(src)
 include_directories(src/sparsepp)
 FILE(GLOB_RECURSE ASMBL_SOURCE "src/assembly/*.cpp")
@@ -29,9 +32,18 @@ find_package(OpenMP REQUIRED)
 
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${OpenMP_CXX_FLAGS}")
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -DXXH_INLINE_ALL -D__STDC_FORMAT_MACROS")
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Wno-unused-function -mpopcnt -mbmi2")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Wno-unused-function")
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fprefetch-loop-arrays -funroll-loops -fopt-info-vec-optimized -ftree-vectorizer-verbose=1")
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -D__XFILE__='\"$(subst ${CMAKE_SOURCE_DIR}/,,$(abspath $<))\"'")
+
+
+if(USE_POPCNT)
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -mpopcnt")
+endif(USE_POPCNT)
+
+if(USE_BMI2)
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -mbmi2 -DUSE_BMI2")
+endif(USE_BMI2)
 
 set(CMAKE_CXX_FLAGS_DEBUG "-g -O1")
 
@@ -50,12 +62,17 @@ add_executable(megahit_toolkit ${TOOLKIT_SOURCE})
 target_link_libraries(megahit_toolkit ${ZLIB_LIBRARIES} ${OpenMP_CXX_LIBRARIES})
 
 add_custom_target(
-        simple_test
+        megahit
         COMMAND cp ${CMAKE_SOURCE_DIR}/src/megahit .
+)
+
+add_custom_target(
+        simple_test
         COMMAND cp -r ${CMAKE_SOURCE_DIR}/test_data .
         COMMAND rm -fr test_data/megahit_out*
         COMMAND ./megahit --12 test_data/readsInterleaved1.fa.gz,test_data/readsInterleaved2.fa.bz2,test_data/readsInterleaved3.fa -o test_data/megahit_out1 -t 2 --keep-tmp-files
         COMMAND rm -fr test_data/megahit_out
         COMMAND ./megahit --12 test_data/readsInterleaved1.fa.gz,test_data/readsInterleaved2.fa.bz2,test_data/readsInterleaved3.fa -o test_data/megahit_out2 -t 2 --keep-tmp-files --kmin-1pass
 )
-add_dependencies(simple_test megahit_asm_core megahit_toolkit megahit_sdbg_build)
+add_dependencies(megahit megahit_asm_core megahit_toolkit megahit_sdbg_build)
+add_dependencies(simple_test megahit)

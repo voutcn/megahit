@@ -269,13 +269,13 @@ class RankAndSelect {
       x = internal::PackToLowestBit<BaseSize>(x);
       x &= kPopcntMask;
     }
-#ifdef __BMI2__
+#if defined(__BMI2__) && defined(USE_BMI2)
     return internal::Ctz(internal::Pdep(TWord(1) << (num_c - 1), x)) / kBitsPerBase;
 #else
     unsigned trailing_zeros = 0;
     while (num_c > 0) {
-      trailing_zeros = internal::ctz(x);
-      x ^= word_type(1) << trailing_zeros;
+      trailing_zeros = internal::Ctz(x);
+      x ^= TWord{1} << trailing_zeros;
       --num_c;
     }
     return trailing_zeros / kBitsPerBase;
