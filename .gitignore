@@ -27,14 +27,8 @@
 # Other library
 
 # Sublime Text file
-sftp-config.json
-src/megahit_asm_core
-src/megahit_sdbg_build
-src/megahit_toolkit
-*.tar.gz
-*-bin
-src/example/megahit_out
 cmake-build-debug
 .idea
 
 build
+debug

@@ -76,3 +76,7 @@ add_custom_target(
 )
 add_dependencies(megahit megahit_asm_core megahit_toolkit megahit_sdbg_build)
 add_dependencies(simple_test megahit)
+
+install(TARGETS megahit_asm_core megahit_toolkit megahit_sdbg_build DESTINATION bin)
+install(FILES src/megahit DESTINATION bin)
+install(DIRECTORY test_data DESTINATION share/${PROJECT_NAME})
