@@ -45,7 +45,7 @@ if(USE_BMI2)
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -mbmi2 -DUSE_BMI2")
 endif(USE_BMI2)
 
-set(CMAKE_CXX_FLAGS_DEBUG "-g -O1")
+set(CMAKE_CXX_FLAGS_DEBUG "-g -ggdb -O1")
 
 
 message(STATUS "Build type: ${CMAKE_BUILD_TYPE}: ${CMAKE_CXX_FLAGS}")
@@ -66,14 +66,16 @@ add_custom_target(
         COMMAND cp ${CMAKE_SOURCE_DIR}/src/megahit .
 )
 
+set(TEST_DATA ${CMAKE_SOURCE_DIR}/test_data)
+
 add_custom_target(
         simple_test
-        COMMAND cp -r ${CMAKE_SOURCE_DIR}/test_data .
-        COMMAND rm -fr test_data/megahit_out*
-        COMMAND ./megahit --12 test_data/readsInterleaved1.fa.gz,test_data/readsInterleaved2.fa.bz2,test_data/readsInterleaved3.fa -o test_data/megahit_out1 -t 2 --keep-tmp-files
-        COMMAND rm -fr test_data/megahit_out
-        COMMAND ./megahit --12 test_data/readsInterleaved1.fa.gz,test_data/readsInterleaved2.fa.bz2,test_data/readsInterleaved3.fa -o test_data/megahit_out2 -t 2 --keep-tmp-files --kmin-1pass
+        COMMAND rm -rf megahit_out*
+        COMMAND ./megahit --12 ${TEST_DATA}/r1.il.fa.gz,${TEST_DATA}/r2.il.fa.bz2,${TEST_DATA}/r3.il.fa -o megahit_out1 -t 2 --keep-tmp-files
+        COMMAND rm -rf megahit_out*
+        COMMAND ./megahit --12 ${TEST_DATA}/r1.il.fa.gz,${TEST_DATA}/r2.il.fa.bz2,${TEST_DATA}/r3.il.fa -o megahit_out2 -t 2 --keep-tmp-files --kmin-1pass
 )
+
 add_dependencies(megahit megahit_asm_core megahit_toolkit megahit_sdbg_build)
 add_dependencies(simple_test megahit)
 
