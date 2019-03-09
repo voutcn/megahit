@@ -27,7 +27,7 @@ UnitigGraph::UnitigGraph(SDBG *sdbg)
   size_t count_palindrome = 0;
   // assemble simple paths
 #pragma omp parallel for reduction(+: count_palindrome)
-  for (size_t edge_idx = 0; edge_idx < sdbg_->size(); ++edge_idx) {
+  for (uint64_t edge_idx = 0; edge_idx < sdbg_->size(); ++edge_idx) {
     if (sdbg_->IsValidEdge(edge_idx) && sdbg_->NextSimplePathEdge(edge_idx) == SDBG::kNullID
         && locks_.try_lock(edge_idx)) {
       bool will_be_added = true;

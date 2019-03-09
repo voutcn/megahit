@@ -10,6 +10,7 @@
 #include <vector>
 #include <atomic>
 #include <thread>
+#include <cassert>
 
 namespace kmlib {
 /*!
@@ -94,17 +95,9 @@ class AtomicBitVector {
    * @return whether the i-th bit has been locked successfully
    */
   bool try_lock(size_type i) {
-    auto p = data_array_.begin() + i / kBitsPerWord;
-    word_type old_value = p->v.load(std::memory_order_acquire);
-    while (!((old_value >> i % kBitsPerWord) & 1)) {
-      word_type new_value = old_value | (word_type(1) << (i % kBitsPerWord));
-      if (p->v.compare_exchange_weak(old_value,
-                                     new_value,
-                                     std::memory_order_release)) {
-        return true;
-      }
-    }
-    return false;
+    word_type mask = word_type(1) << (i % kBitsPerWord);
+    word_type old_val = data_array_[i / kBitsPerWord].v.fetch_or(mask, std::memory_order_acquire);
+    return !(old_val & mask);
   }
 
   /*!
@@ -126,7 +119,10 @@ class AtomicBitVector {
    * @param i the index of the bits
    */
   void unlock(size_type i) {
-    unset(i);
+    auto mask = word_type(1) << (i % kBitsPerWord);
+    auto old_val = data_array_[i / kBitsPerWord].v.fetch_and(~mask, std::memory_order_release);
+    assert(old_val & mask);
+    (void)(old_val);
   }
 
   /*!

@@ -24,11 +24,12 @@ class AsyncSequenceReader {
 
  protected:
   void AsyncReadNextBatch() {
+    auto& pkg = packages_[batch_index_];
     next_pkg_ = std::async(
         std::launch::async,
-        [this]() -> package_type & {
-          ReadOneBatch(&packages_[batch_index_]);
-          return packages_[batch_index_];
+        [this, &pkg]() -> package_type & {
+          ReadOneBatch(&pkg);
+          return pkg;
         });
     batch_index_ ^= 1;
   }

@@ -157,9 +157,10 @@ static void ReadContigsAndBuildIndex(const Option &opt, const std::string &file_
     if (contig_pkg.size() == 0) {
       break;
     }
+    xinfo("Read %lu contigs\n", contig_pkg.size());
     index->FeedBatchContigs(contig_pkg, mul);
+    xinfo("Number of flank kmers: %lu\n", index->size());
   }
-  xinfo("Number of flank kmers: %lu\n", index->size());
 }
 
 template<class KmerType>
