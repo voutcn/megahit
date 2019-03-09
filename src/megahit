@@ -100,7 +100,6 @@ Other Arguments:
                                             please set the output directory correctly when using this option.
     -h/--help                               print the usage message
     -v/--version                            print version
-    --verbose                               verbose mode
 '''
 
 if sys.version > '3':
@@ -143,7 +142,6 @@ class Options:
         self.last_cp = -1
         self.out_prefix = ""
         self.kmin_1pass = False
-        self.verbose = False
         self.pe1 = []
         self.pe2 = []
         self.pe12 = []
@@ -217,7 +215,6 @@ def parse_opt(argv):
                                     "continue",
                                     "version",
                                     "out-prefix=",
-                                    "verbose",
                                     "presets=",
                                     "force"
                                     "graph-only",
@@ -292,8 +289,6 @@ def parse_opt(argv):
         elif option in ("-v", "--version"):
             print(megahit_version_str)
             exit(0)
-        elif option == "--verbose":
-            opt.verbose = True
         elif option == "--continue":
             if opt.continue_mode == 0:  # avoid check again again again...
                 need_continue = True
@@ -334,7 +329,8 @@ def parse_opt(argv):
         prepare_continue()
     elif opt.continue_mode == 0 and not opt.force_overwrite and os.path.exists(opt.out_dir):
         raise Usage(
-            "Output directory " + opt.out_dir + " already exists, please change the parameter -o to another value to avoid overwriting.")
+            "Output directory " + opt.out_dir +
+            " already exists, please change the parameter -o to another value to avoid overwriting.")
 
 
 def check_opt():
@@ -477,11 +473,13 @@ def prepare_continue():
 
     with open(opt_file_name(), "r") as f:
         argv = []
+        temp_dir = None
         for line in f:
             if line.startswith("MEGAHIT_TEMP_DIR: "):
                 temp_dir = line.strip()[18:]
             else:
                 argv.append(line.strip())
+        assert temp_dir is not None
         print("Continue with options: " + " ".join(argv), file=sys.stderr)
         t_dir = opt.out_dir
         opt = Options()
@@ -502,9 +500,8 @@ def prepare_continue():
 
 
 def check_bin():
-    for subprogram in ["megahit_asm_core", "megahit_toolkit", "megahit_sdbg_build"]:
-        if not os.path.exists(opt.bin_dir + subprogram):
-            raise Usage("Cannot find sub-program \"" + subprogram + "\", please recompile.")
+    if not os.path.exists(opt.bin_dir + "megahit_core"):
+        raise Usage("Cannot find megahit_core, please recompile.")
 
 
 def get_version():
@@ -512,12 +509,10 @@ def get_version():
     global usage_message
     global max_k_allowed
     megahit_version_str = "MEGAHIT " + \
-                          subprocess.Popen([opt.bin_dir + "megahit_asm_core", "dumpversion"],
+                          subprocess.Popen([opt.bin_dir + "megahit_core", "dumpversion"],
                                            stdout=subprocess.PIPE).communicate()[0].rstrip().decode('utf-8')
-
-    max_k_allowed = int(subprocess.Popen([opt.bin_dir + "megahit_asm_core", "kmax"],
+    max_k_allowed = int(subprocess.Popen([opt.bin_dir + "megahit_core", "kmax"],
                                          stdout=subprocess.PIPE).communicate()[0].rstrip().decode('utf-8'))
-
     usage_message = usage_message % (max_k_allowed, max_k_allowed, max_k_allowed)
 
 
@@ -617,7 +612,7 @@ def write_lib():
 def build_lib():
     global cp
     if (not opt.continue_mode) or (cp > opt.last_cp):
-        build_lib_cmd = [opt.bin_dir + "megahit_asm_core", "buildlib",
+        build_lib_cmd = [opt.bin_dir + "megahit_core", "buildlib",
                          opt.lib,
                          opt.lib]
 
@@ -649,7 +644,7 @@ def build_lib():
                     fifos.append(opt.temp_dir + "inpipe.se." + str(i))
 
             logging.info("--- [%s] Converting reads to binaries ---" % datetime.now().strftime("%c"))
-            logging.debug("%s" % (" ").join(build_lib_cmd))
+            logging.debug("%s" % " ".join(build_lib_cmd))
 
             if opt.input_cmd != "":
                 logging.debug("input cmd: " + opt.input_cmd)
@@ -698,7 +693,8 @@ def build_lib():
 
             if ret_code != 0:
                 logging.error(
-                    "Error occurs when running \"megahit_asm_core buildlib\"; please refer to %s for detail" % log_file_name())
+                    "Error occurs when running \"megahit_core buildlib\";"
+                    "please refer to %s for detail" % log_file_name())
                 logging.error("[Exit code %d]" % ret_code)
                 exit(ret_code)
 
@@ -709,10 +705,6 @@ def build_lib():
                     logging.error("Error occurs when reading inputs")
                     exit(pp_ret)
 
-        except OSError as o:
-            if o.errno == errno.ENOTDIR or o.errno == errno.ENOENT:
-                logging.error("Error: sub-program megahit_asm_core not found, please recompile MEGAHIT")
-            exit(1)
         except KeyboardInterrupt:
             p.terminate()
             exit(1)
@@ -766,11 +758,11 @@ def build_first_graph():
                      "--read_lib_file", opt.lib]
 
         if opt.kmin_1pass:
-            cmd = [opt.bin_dir + "megahit_sdbg_build", "read2sdbg"] + count_opt
+            cmd = [opt.bin_dir + "megahit_core", "read2sdbg"] + count_opt
             if not opt.no_mercy:
                 cmd.append("--need_mercy")
         else:
-            cmd = [opt.bin_dir + "megahit_sdbg_build", "count"] + count_opt
+            cmd = [opt.bin_dir + "megahit_core", "count"] + count_opt
 
         try:
             if opt.kmin_1pass:
@@ -793,14 +785,11 @@ def build_first_graph():
 
             if ret_code != 0:
                 logging.error(
-                    "Error occurs when running \"sdbg_builder count/read2sdbg\", please refer to %s for detail" % log_file_name())
+                    "Error occurs when running \"sdbg_builder count/read2sdbg\","
+                    "please refer to %s for detail" % log_file_name())
                 logging.error("[Exit code %d] " % ret_code)
                 exit(ret_code)
 
-        except OSError as o:
-            if o.errno == errno.ENOTDIR or o.errno == errno.ENOENT:
-                logging.error("Error: sub-program sdbg_builder not found, please recompile MEGAHIT")
-            exit(1)
         except KeyboardInterrupt:
             p.terminate()
             exit(1)
@@ -823,7 +812,7 @@ def build_graph(kmer_k, kmer_from, num_edge_files):
                           "--kmer_from", str(kmer_from),
                           "--num_edge_files", str(num_edge_files)]
 
-        build_cmd = [opt.bin_dir + "megahit_sdbg_build", "seq2sdbg"] + build_comm_opt
+        build_cmd = [opt.bin_dir + "megahit_core", "seq2sdbg"] + build_comm_opt
 
         file_size = 0
 
@@ -855,7 +844,7 @@ def build_graph(kmer_k, kmer_from, num_edge_files):
 
         try:
             logging.info("--- [%s] Building graph for k = %d ---" % (datetime.now().strftime("%c"), kmer_k))
-            logging.debug("%s" % (" ").join(build_cmd))
+            logging.debug("%s" % " ".join(build_cmd))
 
             p = subprocess.Popen(build_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 
@@ -874,10 +863,6 @@ def build_graph(kmer_k, kmer_from, num_edge_files):
                 logging.error("[Exit code %d]" % ret_code)
                 exit(ret_code)
 
-        except OSError as o:
-            if o.errno == errno.ENOTDIR or o.errno == errno.ENOENT:
-                logging.error("Error: sub-program builder not found, please recompile MEGAHIT")
-            exit(1)
         except KeyboardInterrupt:
             p.terminate()
             exit(1)
@@ -893,7 +878,7 @@ def iterate(cur_k, step):
     if (not opt.continue_mode) or (cp > opt.last_cp):
         next_k = cur_k + step
 
-        iterate_cmd = [opt.bin_dir + "megahit_asm_core", "iterate",
+        iterate_cmd = [opt.bin_dir + "megahit_core", "iterate",
                        "-c", contig_prefix(cur_k) + ".contigs.fa",
                        "-b", contig_prefix(cur_k) + ".bubble_seq.fa",
                        "-t", str(opt.num_cpu_threads),
@@ -924,9 +909,8 @@ def iterate(cur_k, step):
                 logging.error("[Exit code %d]" % ret_code)
                 exit(ret_code)
 
-        except OSError as o:
-            if o.errno == errno.ENOTDIR or o.errno == errno.ENOENT:
-                logging.error("Error: sub-program megahit_iter not found, please recompile MEGAHIT")
+        except KeyboardInterrupt:
+            p.terminate()
             exit(1)
 
     write_cp()
@@ -941,7 +925,7 @@ def assemble(cur_k):
         if opt.max_tip_len >= 0:
             min_standalone = max(opt.max_tip_len + opt.k_max - 1, opt.min_contig_len)
 
-        assembly_cmd = [opt.bin_dir + "megahit_asm_core", "assemble",
+        assembly_cmd = [opt.bin_dir + "megahit_core", "assemble",
                         "-s", graph_prefix(cur_k),
                         "-o", contig_prefix(cur_k),
                         "-t", str(opt.num_cpu_threads),
@@ -987,11 +971,6 @@ def assemble(cur_k):
                     cur_k, log_file_name()))
                 logging.error("[Exit code %d]" % ret_code)
                 exit(ret_code)
-
-        except OSError as o:
-            if o.errno == errno.ENOTDIR or o.errno == errno.ENOENT:
-                logging.error("Error: sub-program megahit_assemble not found, please recompile MEGAHIT")
-            exit(1)
         except KeyboardInterrupt:
             p.terminate()
             exit(1)
@@ -1004,7 +983,7 @@ def assemble(cur_k):
 def local_assemble(cur_k, kmer_to):
     global cp
     if (not opt.continue_mode) or (cp > opt.last_cp):
-        la_cmd = [opt.bin_dir + "megahit_asm_core", "local",
+        la_cmd = [opt.bin_dir + "megahit_core", "local",
                   "-c", contig_prefix(cur_k) + ".contigs.fa",
                   "-l", opt.lib,
                   "-t", str(opt.num_cpu_threads),
@@ -1030,11 +1009,6 @@ def local_assemble(cur_k, kmer_to):
                         cur_k, min(cur_k + opt.k_step, opt.k_max), log_file_name()))
                 logging.error("[Exit code %d]" % ret_code)
                 exit(ret_code)
-
-        except OSError as o:
-            if o.errno == errno.ENOTDIR or o.errno == errno.ENOENT:
-                logging.error("Error: sub-program megahit_local_asm not found, please recompile MEGAHIT")
-            exit(1)
         except KeyboardInterrupt:
             p.terminate()
             exit(1)
@@ -1051,8 +1025,9 @@ def merge_final():
             final_contig_name = opt.out_dir + opt.out_prefix + ".contigs.fa"
 
         with open(final_contig_name, "w") as final_contigs:
-            merge_cmd = "cat " + opt.contig_dir + "*.final.contigs.fa " + contig_prefix(opt.k_max) + ".contigs.fa | " + \
-                        opt.bin_dir + "megahit_toolkit filterbylen " + str(opt.min_contig_len)
+            merge_cmd = "cat " + opt.contig_dir + "*.final.contigs.fa " + \
+                        contig_prefix(opt.k_max) + ".contigs.fa | " + \
+                        opt.bin_dir + "megahit_core filterbylen " + str(opt.min_contig_len)
             p = subprocess.Popen(merge_cmd, shell=True, stdout=final_contigs, stderr=subprocess.PIPE)
 
             while True:
@@ -1092,8 +1067,6 @@ def main(argv=None):
 
         console = logging.StreamHandler()
         console.setLevel(logging.INFO)
-        if opt.verbose:
-            console.setLevel(logging.NOTSET)
 
         formatter = logging.Formatter('%(message)s')
         console.setFormatter(formatter)

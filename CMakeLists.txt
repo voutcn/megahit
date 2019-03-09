@@ -16,11 +16,12 @@ FILE(GLOB_RECURSE CX1_SOURCE "src/cx1/*.cpp")
 FILE(GLOB_RECURSE TOOLKIT_SOURCE "src/tools/*.cpp")
 
 LIST(APPEND OTHER_SOURCE
-        src/main_asm_core_entry.cpp
+        src/main.cpp
         src/main_assemble.cpp
         src/main_buildlib.cpp
         src/main_iterate.cpp
         src/main_local_assemble.cpp
+        src/main_sdbg_build.cpp
         src/options_description.cpp
         src/sequence_manager.cpp
         )
@@ -37,29 +38,22 @@ set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fprefetch-loop-arrays -funroll-loops -f
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -D__XFILE__='\"$(subst ${CMAKE_SOURCE_DIR}/,,$(abspath $<))\"'")
 
 
-if(USE_POPCNT)
+if (USE_POPCNT)
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -mpopcnt")
-endif(USE_POPCNT)
+endif (USE_POPCNT)
 
-if(USE_BMI2)
+if (USE_BMI2)
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -mbmi2 -DUSE_BMI2")
-endif(USE_BMI2)
+endif (USE_BMI2)
 
 set(CMAKE_CXX_FLAGS_DEBUG "-g -ggdb -O1")
 
 
 message(STATUS "Build type: ${CMAKE_BUILD_TYPE}: ${CMAKE_CXX_FLAGS}")
 
-add_executable(megahit_asm_core ${OTHER_SOURCE} ${ASMBL_SOURCE} ${IDBA_SOURCE} ${SDBG_SOURCE} ${LCASM_SOURCE})
-target_link_libraries(megahit_asm_core ${ZLIB_LIBRARIES} ${OpenMP_CXX_LIBRARIES})
-
-add_executable(megahit_sdbg_build ${SDBG_SOURCE} ${CX1_SOURCE}
-        src/main_sdbg_build.cpp src/options_description.cpp
-        src/sequence_manager.cpp)
-target_link_libraries(megahit_sdbg_build ${ZLIB_LIBRARIES} ${OpenMP_CXX_LIBRARIES})
-
-add_executable(megahit_toolkit ${TOOLKIT_SOURCE})
-target_link_libraries(megahit_toolkit ${ZLIB_LIBRARIES} ${OpenMP_CXX_LIBRARIES})
+add_executable(megahit_core ${OTHER_SOURCE} ${ASMBL_SOURCE} ${IDBA_SOURCE} ${SDBG_SOURCE} ${LCASM_SOURCE}
+        ${CX1_SOURCE} ${TOOLKIT_SOURCE})
+target_link_libraries(megahit_core ${ZLIB_LIBRARIES} ${OpenMP_CXX_LIBRARIES})
 
 add_custom_target(
         megahit
@@ -76,9 +70,9 @@ add_custom_target(
         COMMAND ./megahit --12 ${TEST_DATA}/r1.il.fa.gz,${TEST_DATA}/r2.il.fa.bz2,${TEST_DATA}/r3.il.fa -o megahit_out2 -t 2 --keep-tmp-files --kmin-1pass
 )
 
-add_dependencies(megahit megahit_asm_core megahit_toolkit megahit_sdbg_build)
+add_dependencies(megahit megahit_core)
 add_dependencies(simple_test megahit)
 
-install(TARGETS megahit_asm_core megahit_toolkit megahit_sdbg_build DESTINATION bin)
+install(TARGETS megahit_core DESTINATION bin)
 install(PROGRAMS src/megahit DESTINATION bin)
 install(DIRECTORY test_data DESTINATION share/${PROJECT_NAME})

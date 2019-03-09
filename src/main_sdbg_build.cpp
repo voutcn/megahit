@@ -282,37 +282,3 @@ int main_seq2sdbg(int argc, char **argv) {
     globals.cx1.run();
     return 0;
 }
-
-void DisplayHelp(char *program_name) {
-    fprintf(stderr, "Usage: \n");
-    fprintf(stderr, "       %s count          kmer counting\n", program_name);
-    fprintf(stderr, "       %s read2sdbg      build sdbg from reads\n", program_name);
-    fprintf(stderr, "       %s seq2sdbg       build sdbg from megahit contigs + edges\n", program_name);
-    fprintf(stderr, "       %s dumpversion       dump version\n", program_name);
-}
-
-int main(int argc, char **argv) {
-    if (argc < 2) {
-        DisplayHelp(argv[0]);
-        exit(1);
-    }
-
-    if (std::string(argv[1]) == "count")
-        return main_kmer_count(argc - 1, argv + 1);
-
-    if (std::string(argv[1]) == "read2sdbg")
-        return main_read2sdbg(argc - 1, argv + 1);
-
-    if (std::string(argv[1]) == "seq2sdbg")
-        return main_seq2sdbg(argc - 1, argv + 1);
-    else if (strcmp(argv[1], "dumpversion") == 0) {
-        printf("%s\n", PACKAGE_VERSION);
-        return 0;
-    }
-    else {
-        DisplayHelp(argv[0]);
-        exit(1);
-    }
-
-    return 0;
-}
