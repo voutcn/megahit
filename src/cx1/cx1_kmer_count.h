@@ -65,13 +65,7 @@ static const int kNumBuckets = 65536; // pow(4, 8)
 static const int64_t kDefaultLv1ScanTime = 8;
 static const int64_t kMaxLv1ScanTime = 64;
 static const int kSentinelValue = 4;
-
-#define LONG_READS
-#ifdef LONG_READS
-    static const uint32_t kSentinelOffset = 4294967295U;
-#else
-    static const uint32_t kSentinelOffset = 255;
-#endif
+static const uint32_t kSentinelOffset = 4294967295U;
 
 struct count_global_t {
     CX1<count_global_t, kNumBuckets> cx1;
@@ -90,10 +84,8 @@ struct count_global_t {
 
     int words_per_edge; // number of (32-bit) words needed to represent a (k+1)-mer
     int64_t words_per_substring; // substrings to be sorted by GPU
-    int offset_num_bits; // the number of bits needed to store the offset of a base in the read/(k+1)-mer (i.e. log(read_length))
     int64_t max_bucket_size;
     int64_t tot_bucket_size;
-    int read_length_mask;
     int64_t num_reads; // total number of reads
 
     // big arrays
@@ -102,18 +94,9 @@ struct count_global_t {
 
     // lv1 new sorting scheme
     int64_t max_sorting_items;
-    int64_t mem_sorting_items;
 
-    uint32_t *substr_all;
-    int64_t *readinfo_all;
-
-#ifndef LONG_READS
-    uint8_t *first_0_out;
-    uint8_t *last_0_in; // first potential 0-out-degree k-mer and last potential 0-in-degree k-mer
-#else
     uint32_t *first_0_out;
     uint32_t *last_0_in;
-#endif
     int32_t *lv1_items; // each item is an offset (read ID and position) in differential representation
     std::mutex lv1_items_scanning_lock;
 

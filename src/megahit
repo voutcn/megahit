@@ -620,13 +620,13 @@ def build_lib():
         pipes = list()
         try:
             # create inpipe
-            for i in range(0, len(opt.pe12)):
+            for i in range(len(opt.pe12)):
                 if inpipe_cmd(opt.pe12[i]) != "":
                     delect_file_if_exist(opt.temp_dir + "inpipe.pe12." + str(i))
                     os.mkfifo(opt.temp_dir + "inpipe.pe12." + str(i))
                     fifos.append(opt.temp_dir + "inpipe.pe12." + str(i))
 
-            for i in range(0, len(opt.pe1)):
+            for i in range(len(opt.pe1)):
                 if inpipe_cmd(opt.pe1[i]) != "":
                     delect_file_if_exist(opt.temp_dir + "inpipe.pe1." + str(i))
                     os.mkfifo(opt.temp_dir + "inpipe.pe1." + str(i))
@@ -637,13 +637,13 @@ def build_lib():
                     os.mkfifo(opt.temp_dir + "inpipe.pe2." + str(i))
                     fifos.append(opt.temp_dir + "inpipe.pe2." + str(i))
 
-            for i in range(0, len(opt.se)):
+            for i in range(len(opt.se)):
                 if inpipe_cmd(opt.se[i]) != "":
                     delect_file_if_exist(opt.temp_dir + "inpipe.se." + str(i))
                     os.mkfifo(opt.temp_dir + "inpipe.se." + str(i))
                     fifos.append(opt.temp_dir + "inpipe.se." + str(i))
 
-            logging.info("--- [%s] Converting reads to binaries ---" % datetime.now().strftime("%c"))
+            logging.info("--- [%s] Converting reads to binary library ---" % datetime.now().strftime("%c"))
             logging.debug("%s" % " ".join(build_lib_cmd))
 
             if opt.input_cmd != "":
@@ -656,14 +656,14 @@ def build_lib():
 
             # output to inpipe
 
-            for i in range(0, len(opt.pe12)):
+            for i in range(len(opt.pe12)):
                 if inpipe_cmd(opt.pe12[i]) != "":
                     ip_thread12 = subprocess.Popen(
                         inpipe_cmd(opt.pe12[i]) + " > " + opt.temp_dir + "inpipe.pe12." + str(i), shell=True,
                         preexec_fn=os.setsid)
                     pipes.append(ip_thread12)
 
-            for i in range(0, len(opt.pe1)):
+            for i in range(len(opt.pe1)):
                 if inpipe_cmd(opt.pe1[i]) != "":
                     ip_thread1 = subprocess.Popen(
                         inpipe_cmd(opt.pe1[i]) + " > " + opt.temp_dir + "inpipe.pe1." + str(i), shell=True,
@@ -676,7 +676,7 @@ def build_lib():
                         preexec_fn=os.setsid)
                     pipes.append(ip_thread2)
 
-            for i in range(0, len(opt.se)):
+            for i in range(len(opt.se)):
                 if inpipe_cmd(opt.se[i]) != "":
                     ip_thread_se = subprocess.Popen(
                         inpipe_cmd(opt.se[i]) + " > " + opt.temp_dir + "inpipe.se." + str(i), shell=True,
@@ -796,12 +796,12 @@ def build_first_graph():
 
     write_cp()
     if not opt.kmin_1pass:
-        build_graph(opt.k_min, 0, phase1_out_threads)
+        build_graph(opt.k_min, 0)
     elif not opt.keep_tmp_files:
         delete_tmp_after_build(opt.k_min)
 
 
-def build_graph(kmer_k, kmer_from, num_edge_files):
+def build_graph(kmer_k, kmer_from):
     global cp
     if (not opt.continue_mode) or (cp > opt.last_cp):
         build_comm_opt = ["--host_mem", str(opt.host_mem),
@@ -809,8 +809,7 @@ def build_graph(kmer_k, kmer_from, num_edge_files):
                           "--output_prefix", graph_prefix(kmer_k),
                           "--num_cpu_threads", str(opt.num_cpu_threads),
                           "-k", str(kmer_k),
-                          "--kmer_from", str(kmer_from),
-                          "--num_edge_files", str(num_edge_files)]
+                          "--kmer_from", str(kmer_from)]
 
         build_cmd = [opt.bin_dir + "megahit_core", "seq2sdbg"] + build_comm_opt
 
@@ -1107,7 +1106,7 @@ def main(argv=None):
 
                 iterate(cur_k, k_step)
 
-                if not build_graph(next_k, cur_k, 1):
+                if not build_graph(next_k, cur_k):
                     opt.k_max = cur_k  # for merging cur_k.contigs.fa to final
                     break
 

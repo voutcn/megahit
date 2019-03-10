@@ -314,7 +314,7 @@ void s1_init_global_and_set_cx1(read2sdbg_global_t &globals) {
     globals.cx1.bytes_per_sorting_item_ = lv2_bytes_per_item;
 
     globals.lv1_items = (int *) xmalloc(
-        globals.cx1.max_mem_remain_ + globals.num_cpu_threads * sizeof(uint64_t) * 65536, __FILE__, __LINE__);
+        globals.cx1.max_mem_remain_ + globals.num_cpu_threads * sizeof(uint64_t) * 65536);
 
     if (cx1_t::kCX1Verbose >= 2) {
         xinfo("Memory for reads: %lld\n", globals.mem_packed_reads);
@@ -337,10 +337,8 @@ void s1_init_global_and_set_cx1(read2sdbg_global_t &globals) {
     }
 
     // --- initialize stat ---
-    globals.edge_counting = (int64_t *) xmalloc((kMaxMul + 1) * sizeof(int64_t), __FILE__, __LINE__);
-    globals.thread_edge_counting = (int64_t *) xmalloc((kMaxMul + 1) * globals.num_output_threads * sizeof(int64_t),
-                                                       __FILE__,
-                                                       __LINE__);
+    globals.edge_counting = (int64_t *) xmalloc((kMaxMul + 1) * sizeof(int64_t));
+    globals.thread_edge_counting = (int64_t *) xmalloc((kMaxMul + 1) * globals.num_output_threads * sizeof(int64_t));
     memset(globals.edge_counting, 0, (kMaxMul + 1) * sizeof(int64_t));
     memset(globals.thread_edge_counting, 0, sizeof(int64_t) * (kMaxMul + 1) * globals.num_output_threads);
 }
@@ -348,9 +346,7 @@ void s1_init_global_and_set_cx1(read2sdbg_global_t &globals) {
 void *s1_lv1_fill_offset(void *_data) {
     readpartition_data_t &rp = *((readpartition_data_t *) _data);
     read2sdbg_global_t &globals = *(rp.globals);
-    int64_t *prev_full_offsets = (int64_t *) xmalloc(kNumBuckets * sizeof(int64_t), __FILE__, __LINE__); // temporary array for computing differentials
-    assert(prev_full_offsets != NULL);
-
+    int64_t *prev_full_offsets = (int64_t *) xmalloc(kNumBuckets * sizeof(int64_t)); // temporary array for computing differentials
     for (int b = globals.cx1.lv1_start_bucket_; b < globals.cx1.lv1_end_bucket_; ++b)
         prev_full_offsets[b] = rp.rp_lv1_differential_base;
 

@@ -174,7 +174,7 @@ static void *MercyInputThread(void *seq_manager) {
 }
 
 void GenMercyEdges(seq2sdbg_global_t &globals) {
-    int64_t *edge_lookup = (int64_t *) xmalloc(kLookUpSize * 2 * sizeof(int64_t), __FILE__, __LINE__);
+    int64_t *edge_lookup = (int64_t *) xmalloc(kLookUpSize * 2 * sizeof(int64_t));
     InitLookupTable(edge_lookup, globals.package);
 
     std::vector<GenericKmer> mercy_edges;
@@ -656,7 +656,7 @@ void init_global_and_set_cx1(seq2sdbg_global_t &globals) {
     globals.cx1.bytes_per_sorting_item_ = lv2_bytes_per_item;
 
     globals.lv1_items = (int32_t *) xmalloc(
-        globals.cx1.max_mem_remain_ + globals.num_cpu_threads * sizeof(uint64_t) * 65536, __FILE__, __LINE__);
+        globals.cx1.max_mem_remain_ + globals.num_cpu_threads * sizeof(uint64_t) * 65536);
 
     if (cx1_t::kCX1Verbose >= 2) {
         xinfo("Memory for sequence: %lld\n", globals.mem_packed_seq);
