@@ -75,13 +75,10 @@ static const int kLookUpPrefixLength = 12;
 static const int kLookUpShift = 32 - kLookUpPrefixLength * 2;
 static const int kLookUpSize = 1 << (2 * kLookUpPrefixLength);
 
-static const int64_t kMaxDummyEdges = 4294967294LL;
-
 static const int64_t kDefaultLv1ScanTime = 8;
 static const int64_t kMaxLv1ScanTime = 64;
 static const int kSentinelValue = 4;
 static const int kBWTCharNumBits = 3;
-static const int kTopCharShift = kBitsPerEdgeWord - kBitsPerEdgeChar;
 
 struct seq2sdbg_global_t {
     CX1<seq2sdbg_global_t, kNumBuckets> cx1;
@@ -101,15 +98,12 @@ struct seq2sdbg_global_t {
     std::string local_contig;
     std::string input_prefix;
     std::string output_prefix;
-    int num_edge_files;
 
     int64_t num_seq;
     int64_t words_per_substring; // substrings to be sorted by GPU
     int64_t max_bucket_size;
     int64_t tot_bucket_size;
     int words_per_dummy_node;
-
-    int bits_for_offset; // the number of bits needed to store the position in a contig
 
     // big arrays
     SeqPackage package;
@@ -118,7 +112,6 @@ struct seq2sdbg_global_t {
     int32_t *lv1_items; // each item is an offset (read ID and position) in differential representation
 
     int64_t max_sorting_items;
-    int64_t mem_sorting_items;
 
     std::mutex lv1_items_scanning_lock;
     // memory usage

@@ -123,25 +123,15 @@ void read_input_prepare(count_global_t &globals) { // num_items_, num_cpu_thread
         bool append_to_package = true;
         bool trimN = false;
 
-        seq_manager.ReadShortReads(1LL << 60, 1LL << 60, append_to_package, reverse_read, trimN);
+        seq_manager.ReadShortReads(1ULL << 60, 1ULL << 60, append_to_package, reverse_read, trimN);
         seq_manager.clear();
     }
 
-  globals.package.BuildIndex();
+    globals.package.BuildIndex();
     globals.max_read_length = globals.package.MaxSequenceLength();
     globals.num_reads = globals.package.size();
 
     xinfo("%ld reads, %d max read length\n", globals.num_reads, globals.max_read_length);
-
-    // calc words_per_xxx
-    int bits_read_length = 1; // bit needed to store read_length
-
-    while ((1 << bits_read_length) - 1 < globals.max_read_length) {
-        ++bits_read_length;
-    }
-
-    globals.offset_num_bits = bits_read_length;
-    globals.read_length_mask = (1 << bits_read_length) - 1;
 
     globals.mem_packed_reads = globals.package.SizeInByte();
 
@@ -152,7 +142,8 @@ void read_input_prepare(count_global_t &globals) { // num_items_, num_cpu_thread
     mem_low_bound *= 1.05;
 
     if (mem_low_bound > globals.host_mem) {
-        xfatal("%lld bytes is not enough for CX1 sorting, please set -m parameter to at least %lld\n", globals.host_mem, mem_low_bound);
+        xfatal("%lld bytes is not enough for CX1 sorting, please set -m parameter to at least %lld\n",
+               globals.host_mem, mem_low_bound);
     }
 
     // set cx1 param
@@ -290,7 +281,7 @@ void init_global_and_set_cx1(count_global_t &globals) {
     xinfo("%lld, %lld %lld %lld\n", globals.cx1.max_lv1_items_, globals.max_sorting_items, globals.cx1.max_mem_remain_, mem_remained);
     globals.cx1.bytes_per_sorting_item_ = lv2_bytes_per_item;
     globals.lv1_items = (int32_t *) xmalloc(
-        globals.cx1.max_mem_remain_ + globals.num_cpu_threads * sizeof(uint64_t) * 65536, __FILE__, __LINE__);
+        globals.cx1.max_mem_remain_ + globals.num_cpu_threads * sizeof(uint64_t) * 65536);
 
     if (cx1_t::kCX1Verbose >= 2) {
         xinfo("Memory for reads: %lld\n", globals.mem_packed_reads);
@@ -302,10 +293,8 @@ void init_global_and_set_cx1(count_global_t &globals) {
     globals.last_0_in = std::vector<AtomicWrapper<uint32_t>>(globals.num_reads, 0xFFFFFFFFU);
 
     // --- initialize stat ---
-    globals.edge_counting = (int64_t *) xmalloc((kMaxMul + 1) * sizeof(int64_t), __FILE__, __LINE__);
-    globals.thread_edge_counting = (int64_t *) xmalloc((kMaxMul + 1) * globals.num_output_threads * sizeof(int64_t),
-                                                       __FILE__,
-                                                       __LINE__);
+    globals.edge_counting = (int64_t *) xmalloc((kMaxMul + 1) * sizeof(int64_t));
+    globals.thread_edge_counting = (int64_t *) xmalloc((kMaxMul + 1) * globals.num_output_threads * sizeof(int64_t));
     memset(globals.edge_counting, 0, (kMaxMul + 1) * sizeof(int64_t));
 
     // --- initialize writer ---
