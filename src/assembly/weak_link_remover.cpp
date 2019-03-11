@@ -27,8 +27,8 @@ uint32_t DisconnectWeakLinks(UnitigGraph &graph, double local_ratio = 0.1) {
       }
       for (int j = 0; j < degree; ++j) {
         if (depths[j] <= local_ratio * total_depth) {
-          num_disconnected += !nexts[j].is_to_disconnect();
-          nexts[j].MarkToDisconnect();
+          num_disconnected++;
+          nexts[j].set_to_disconnect();
         }
       }
     }

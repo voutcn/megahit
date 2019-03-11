@@ -7,17 +7,6 @@
 #include <mutex>
 #include "utils.h"
 
-#ifndef NDEBUG
-std::atomic<uint64_t> UnitigGraph::count_cache_hitted_(0);
-std::atomic<uint64_t> UnitigGraph::count_cache_missed_(0);
-
-UnitigGraph::~UnitigGraph() {
-  xinfo("Cache called/missed: %lu/%lu\n", count_cache_hitted_.load(), count_cache_missed_.load());
-}
-#else
-UnitigGraph::~UnitigGraph() {}
-#endif
-
 UnitigGraph::UnitigGraph(SDBG *sdbg)
     : sdbg_(sdbg), adapter_impl_(this), sudo_adapter_impl_(this) {
   id_map_.clear();
@@ -155,7 +144,7 @@ void UnitigGraph::RefreshDisconnected() {
     }
 
     if (adapter.length() <= to_disconnect + rc_to_disconnect) {
-      adapter.MarkToDelete();
+      adapter.set_to_delete();
       continue;
     }
 
@@ -171,9 +160,6 @@ void UnitigGraph::RefreshDisconnected() {
       assert(new_start != SDBG::kNullID && new_rc_end != SDBG::kNullID);
       sdbg_->SetInvalidEdge(old_start);
       sdbg_->SetInvalidEdge(old_rc_end);
-      adapter.ReverseComplement();
-      adapter.set_cached_outdegree(0);
-      adapter.ReverseComplement();
     } else {
       new_start = old_start;
       new_rc_end = old_rc_end;
@@ -185,7 +171,6 @@ void UnitigGraph::RefreshDisconnected() {
       assert(new_rc_start != SDBG::kNullID && new_end != SDBG::kNullID);
       sdbg_->SetInvalidEdge(old_rc_start);
       sdbg_->SetInvalidEdge(old_end);
-      adapter.set_cached_outdegree(0);
     } else {
       new_rc_start = old_rc_start;
       new_end = old_end;
@@ -237,10 +222,6 @@ void UnitigGraph::Refresh(bool set_changed) {
         break;
       }
     }
-  }
-#pragma omp parallel for
-  for (size_type i = 0; i < vertices_.size(); ++i) {
-    MakeSudoAdapter(i).clear_cache();
   }
 
   locks_.reset();
