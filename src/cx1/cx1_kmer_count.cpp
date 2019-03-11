@@ -298,15 +298,8 @@ void init_global_and_set_cx1(count_global_t &globals) {
     }
 
     // --- malloc read first_in / last_out ---
-#ifdef LONG_READS
-    globals.first_0_out = (uint32_t *) xmalloc(globals.num_reads * sizeof(uint32_t), __FILE__, __LINE__);
-    globals.last_0_in = (uint32_t *) xmalloc(globals.num_reads * sizeof(uint32_t), __FILE__, __LINE__);
-#else
-    globals.first_0_out = (uint8_t *) MallocAndCheck(globals.num_reads * sizeof(uint8_t), __FILE__, __LINE__);
-    globals.last_0_in = (uint8_t *) MallocAndCheck(globals.num_reads * sizeof(uint8_t), __FILE__, __LINE__);
-#endif
-    memset(globals.first_0_out, 0xFF, globals.num_reads * sizeof(globals.first_0_out[0]));
-    memset(globals.last_0_in, 0xFF, globals.num_reads * sizeof(globals.last_0_in[0]));
+    globals.first_0_out = std::vector<AtomicWrapper<uint32_t>>(globals.num_reads, 0xFFFFFFFFU);
+    globals.last_0_in = std::vector<AtomicWrapper<uint32_t>>(globals.num_reads, 0xFFFFFFFFU);
 
     // --- initialize stat ---
     globals.edge_counting = (int64_t *) xmalloc((kMaxMul + 1) * sizeof(int64_t), __FILE__, __LINE__);
@@ -521,32 +514,23 @@ void lv2_output_(int64_t start_index, int64_t end_index, int thread_id, count_gl
 
                 if (strand == 0) {
                     // update last
-                    while (true) {
-                        auto old_value = globals.last_0_in[read_id];
+                    uint32_t old_value = globals.last_0_in[read_id].v.load(std::memory_order::memory_order_acquire);
+                    while ((old_value == kSentinelOffset || old_value < offset) &&
+                        !globals.last_0_in[read_id].v.compare_exchange_weak(
+                            old_value, offset, std::memory_order::memory_order_release,
+                            std::memory_order::memory_order_relaxed)) {
 
-                        if (old_value != kSentinelOffset && old_value >= offset) {
-                            break;
-                        }
-
-                        if (__sync_bool_compare_and_swap(globals.last_0_in + read_id, old_value, offset)) {
-                            break;
-                        }
                     }
                 }
                 else {
                     // update first
                     offset++;
+                    uint32_t old_value = globals.first_0_out[read_id].v.load(std::memory_order::memory_order_acquire);
+                    while (old_value > offset &&
+                        !globals.first_0_out[read_id].v.compare_exchange_weak(
+                            old_value, offset, std::memory_order::memory_order_release,
+                            std::memory_order::memory_order_relaxed)) {
 
-                    while (true) {
-                        auto old_value = globals.first_0_out[read_id];
-
-                        if (old_value <= offset) {
-                            break;
-                        }
-
-                        if (__sync_bool_compare_and_swap(globals.first_0_out + read_id, old_value, offset)) {
-                            break;
-                        }
                     }
                 }
             }
@@ -564,31 +548,22 @@ void lv2_output_(int64_t start_index, int64_t end_index, int thread_id, count_gl
                 if (strand == 0) {
                     // update first
                     offset++;
+                    uint32_t old_value = globals.first_0_out[read_id].v.load(std::memory_order::memory_order_acquire);
+                    while (old_value > offset &&
+                        !globals.first_0_out[read_id].v.compare_exchange_weak(
+                            old_value, offset, std::memory_order::memory_order_release,
+                            std::memory_order::memory_order_relaxed)) {
 
-                    while (true) {
-                        auto old_value = globals.first_0_out[read_id];
-
-                        if (old_value <= offset) {
-                            break;
-                        }
-
-                        if (__sync_bool_compare_and_swap(globals.first_0_out + read_id, old_value, offset)) {
-                            break;
-                        }
                     }
                 }
                 else {
                     // update last
-                    while (true) {
-                        auto old_value = globals.last_0_in[read_id];
+                    uint32_t old_value = globals.last_0_in[read_id].v.load(std::memory_order::memory_order_acquire);
+                    while ((old_value == kSentinelOffset || old_value < offset) &&
+                        !globals.last_0_in[read_id].v.compare_exchange_weak(
+                            old_value, offset, std::memory_order::memory_order_release,
+                            std::memory_order::memory_order_relaxed)) {
 
-                        if (old_value != kSentinelOffset && old_value >= offset) {
-                            break;
-                        }
-
-                        if (__sync_bool_compare_and_swap(globals.last_0_in + read_id, old_value, offset)) {
-                            break;
-                        }
                     }
                 }
             }
@@ -668,8 +643,8 @@ void post_proc(count_global_t &globals) {
     SequenceManager seq_manager(&globals.package);
 
     for (int64_t i = 0; i < globals.num_reads; ++i) {
-        auto first = globals.first_0_out[i];
-        auto last = globals.last_0_in[i];
+        auto first = globals.first_0_out[i].v.load(std::memory_order::memory_order_acquire);
+        auto last = globals.last_0_in[i].v.load(std::memory_order::memory_order_acquire);
 
         if (first != kSentinelOffset && last != kSentinelOffset) {
             ++num_has_tips;
@@ -709,8 +684,6 @@ void post_proc(count_global_t &globals) {
 
     // --- cleaning ---
     free(globals.lv1_items);
-    free(globals.first_0_out);
-    free(globals.last_0_in);
     free(globals.edge_counting);
     free(globals.thread_edge_counting);
     globals.edge_writer.destroy();

@@ -59,7 +59,7 @@ int BaseBubbleRemover::SearchAndPopBubble(UnitigGraph &graph, UnitigGraph::Verte
   if (degree <= 1) { return 0; }
 
   for (int j = 0; j < degree; ++j) {
-    if (middle[j].is_to_delete() || middle[j].length() > max_len) {
+    if (middle[j].length() > max_len) {
       return 0;
     }
   }
@@ -92,7 +92,7 @@ int BaseBubbleRemover::SearchAndPopBubble(UnitigGraph &graph, UnitigGraph::Verte
 
   bool careful_merged = false;
   for (int j = 1; j < degree; ++j) {
-    middle[j].MarkToDelete();
+    middle[j].set_to_delete();
     if (hist_ && bubble_file_ && middle[j].avg_depth() >= middle[0].avg_depth() * careful_threshold_) {
       std::string label = graph.VertexToDNAString(middle[j]);
       WriteContig(label, graph.k(), 0, 0, middle[j].avg_depth(), bubble_file_);

@@ -25,7 +25,7 @@ class UnitigGraph {
   explicit UnitigGraph(SDBG *sdbg);
   UnitigGraph(const UnitigGraph &) = delete;
   UnitigGraph(const UnitigGraph &&) = delete;
-  ~UnitigGraph();
+  ~UnitigGraph() = default;
   size_type size() const { return vertices_.size(); }
   size_t k() const { return sdbg_->k(); }
 
@@ -100,9 +100,6 @@ class UnitigGraph {
           out[i] = MakeVertexAdapterWithSdbgId(next_starts[i]);
         }
       }
-      if (adapter.cached_out_degree() == Vertex::kUnknownDegree) {
-        graph_->MakeSudoAdapter(adapter.id(), adapter.strand()).set_cached_outdegree(degree);
-      }
       return degree;
     }
     int GetPrevAdapters(AdapterType &adapter, AdapterType *out) {
@@ -115,15 +112,6 @@ class UnitigGraph {
       return degree;
     }
     int OutDegree(AdapterType &adapter) {
-      if (adapter.cached_out_degree() != Vertex::kUnknownDegree) {
-#ifndef NDEBUG
-        count_cache_hitted_++;
-#endif
-        return adapter.cached_out_degree();
-      }
-#ifndef NDEBUG
-      count_cache_missed_++;
-#endif
       return GetNextAdapters(adapter, nullptr);
     }
     int InDegree(AdapterType &adapter) {
@@ -166,12 +154,6 @@ class UnitigGraph {
   kmlib::AtomicBitVector<> locks_;
   AdapterImpl<VertexAdapter> adapter_impl_;
   AdapterImpl<SudoVertexAdapter> sudo_adapter_impl_;
-
-#ifndef NDEBUG
- private:
-  static std::atomic<uint64_t> count_cache_hitted_;
-  static std::atomic<uint64_t> count_cache_missed_;
-#endif
 };
 
 #endif //MEGAHIT_UNITIG_GRAPH_H

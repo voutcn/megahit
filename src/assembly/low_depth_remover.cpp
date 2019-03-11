@@ -69,7 +69,7 @@ bool RemoveLocalLowDepth(UnitigGraph &graph, double min_depth, uint32_t max_len,
       if (depth < threshold) {
         is_changed = true;
         need_refresh = true;
-        adapter.MarkToDelete();
+        adapter.set_to_delete();
         ++removed;
       }
     }
@@ -101,7 +101,7 @@ uint32_t RemoveLowDepth(UnitigGraph &graph, double min_depth) {
   for (UnitigGraph::size_type i = 0; i < graph.size(); ++i) {
     auto adapter = graph.MakeVertexAdapter(i);
     if (adapter.avg_depth() < min_depth) {
-      adapter.MarkToDelete();
+      adapter.set_to_delete();
       ++num_removed;
     }
   }

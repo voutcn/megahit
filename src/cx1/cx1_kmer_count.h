@@ -30,6 +30,7 @@
 #include "edge_io.h"
 #include "sequence/sequence_package.h"
 #include "lib_info.h"
+#include "utils/atomic_wrapper.h"
 
 struct count_opt_t {
     int kmer_k;
@@ -107,13 +108,8 @@ struct count_global_t {
     uint32_t *substr_all;
     int64_t *readinfo_all;
 
-#ifndef LONG_READS
-    uint8_t *first_0_out;
-    uint8_t *last_0_in; // first potential 0-out-degree k-mer and last potential 0-in-degree k-mer
-#else
-    uint32_t *first_0_out;
-    uint32_t *last_0_in;
-#endif
+    std::vector<AtomicWrapper<uint32_t>> first_0_out;
+    std::vector<AtomicWrapper<uint32_t>> last_0_in;
     int32_t *lv1_items; // each item is an offset (read ID and position) in differential representation
     std::mutex lv1_items_scanning_lock;
 
