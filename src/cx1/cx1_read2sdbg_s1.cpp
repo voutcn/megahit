@@ -243,15 +243,10 @@ void s1_init_global_and_set_cx1(read2sdbg_global_t &globals) {
     // bS has in coming: for some a, num of abS >= threshold
     // Sc has outgoing: for some a, num of Scd >= threshold
     globals.words_per_substring = DivCeiling((globals.kmer_k - 1) * kBitsPerEdgeChar + 2 * kBWTCharNumBits, kBitsPerEdgeWord);
-
-    if (cx1_t::kCX1Verbose >= 2) {
-        xinfo("%d words per substring\n", globals.words_per_substring);
-    }
+    xinfo("%d words per substring\n", globals.words_per_substring);
 
     // lv2 bytes: substring, readinfo
     int64_t lv2_bytes_per_item = (globals.words_per_substring) * sizeof(uint32_t) + sizeof(uint64_t);
-
-    globals.cx1.lv1_just_go_ = true;
     globals.num_output_threads = globals.num_cpu_threads;
     num_non_empty = std::max(1, num_non_empty);
 
@@ -279,8 +274,8 @@ void s1_init_global_and_set_cx1(read2sdbg_global_t &globals) {
         int64_t mem_needed = globals.cx1.max_lv1_items_ * cx1_t::kLv1BytePerItem + globals.max_sorting_items * lv2_bytes_per_item;
 
         if (mem_needed > mem_remained) {
-            globals.cx1.adjust_mem_just_go(mem_remained, lv2_bytes_per_item, min_lv1_items, globals.max_bucket_size,
-                                           globals.max_sorting_items, globals.cx1.max_lv1_items_, globals.max_sorting_items);
+          globals.cx1.adjust_mem(mem_remained, lv2_bytes_per_item, min_lv1_items, globals.max_bucket_size,
+                                 globals.max_sorting_items, globals.cx1.max_lv1_items_, globals.max_sorting_items);
         }
 
     }
@@ -291,19 +286,19 @@ void s1_init_global_and_set_cx1(read2sdbg_global_t &globals) {
         int64_t mem_needed = globals.cx1.max_lv1_items_ * cx1_t::kLv1BytePerItem + globals.max_sorting_items * lv2_bytes_per_item;
 
         if (mem_needed > mem_remained) {
-            globals.cx1.adjust_mem_just_go(mem_remained, lv2_bytes_per_item, min_lv1_items, globals.max_bucket_size,
-                                           globals.max_sorting_items, globals.cx1.max_lv1_items_, globals.max_sorting_items);
+          globals.cx1.adjust_mem(mem_remained, lv2_bytes_per_item, min_lv1_items, globals.max_bucket_size,
+                                 globals.max_sorting_items, globals.cx1.max_lv1_items_, globals.max_sorting_items);
         }
         else {
-            globals.cx1.adjust_mem_just_go(mem_needed, lv2_bytes_per_item, min_lv1_items, globals.max_bucket_size,
-                                           globals.max_sorting_items, globals.cx1.max_lv1_items_, globals.max_sorting_items);
+          globals.cx1.adjust_mem(mem_needed, lv2_bytes_per_item, min_lv1_items, globals.max_bucket_size,
+                                 globals.max_sorting_items, globals.cx1.max_lv1_items_, globals.max_sorting_items);
         }
 
     }
     else {
         // use all
-        globals.cx1.adjust_mem_just_go(mem_remained, lv2_bytes_per_item, min_lv1_items, globals.max_bucket_size,
-                                       globals.max_sorting_items, globals.cx1.max_lv1_items_, globals.max_sorting_items);
+      globals.cx1.adjust_mem(mem_remained, lv2_bytes_per_item, min_lv1_items, globals.max_bucket_size,
+                             globals.max_sorting_items, globals.cx1.max_lv1_items_, globals.max_sorting_items);
     }
 
     if (globals.cx1.max_lv1_items_ < min_lv1_items) {
@@ -316,10 +311,8 @@ void s1_init_global_and_set_cx1(read2sdbg_global_t &globals) {
     globals.lv1_items = (int *) xmalloc(
         globals.cx1.max_mem_remain_ + globals.num_cpu_threads * sizeof(uint64_t) * 65536);
 
-    if (cx1_t::kCX1Verbose >= 2) {
-        xinfo("Memory for reads: %lld\n", globals.mem_packed_reads);
-        xinfo("max # lv.1 items = %lld\n", globals.cx1.max_lv1_items_);
-    }
+    xinfo("Memory for reads: %lld\n", globals.mem_packed_reads);
+    xinfo("max # lv.1 items = %lld\n", globals.cx1.max_lv1_items_);
 
     // --- initialize output mercy files ---
     globals.num_mercy_files = 1;
@@ -328,9 +321,7 @@ void s1_init_global_and_set_cx1(read2sdbg_global_t &globals) {
         globals.num_mercy_files <<= 1;
     }
 
-    if (cx1_t::kCX1Verbose >= 3) {
-        xinfo("Number of files for mercy candidate reads: %d\n", globals.num_mercy_files);
-    }
+    xinfo("Number of files for mercy candidate reads: %d\n", globals.num_mercy_files);
 
     for (int i = 0; i < globals.num_mercy_files; ++i) {
         globals.mercy_files.push_back(xfopen(FormatString("%s.mercy_cand.%d", globals.output_prefix.c_str(), i), "wb"));
@@ -755,9 +746,7 @@ void s1_post_proc(read2sdbg_global_t &globals) {
         num_solid_edges += globals.edge_counting[i];
     }
 
-    if (cx1_t::kCX1Verbose >= 2) {
-        xinfo("Total number of solid edges: %llu\n", num_solid_edges);
-    }
+    xinfo("Total number of solid edges: %llu\n", num_solid_edges);
 
     FILE *counting_file = xfopen((std::string(globals.output_prefix) + ".counting").c_str(), "w");
 

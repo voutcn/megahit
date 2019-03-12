@@ -100,11 +100,9 @@ void s2_read_mercy_prepare(read2sdbg_global_t &globals) {
 
     SimpleTimer timer;
 
-    if (cx1_t::kCX1Verbose >= 3) {
-        timer.reset();
-        timer.start();
-        xinfo("Adding mercy edges...\n");
-    }
+    timer.reset();
+    timer.start();
+    xinfo("Adding mercy edges...\n");
 
     std::vector<uint64_t> mercy_cand;
     uint64_t num_mercy = 0;
@@ -121,10 +119,7 @@ void s2_read_mercy_prepare(read2sdbg_global_t &globals) {
         while ((num_read = fread(buf, sizeof(uint64_t), 4096, fp)) > 0) {
             mercy_cand.insert(mercy_cand.end(), buf, buf + num_read);
         }
-
-        if (cx1_t::kCX1Verbose >= 4) {
-            xinfo("Mercy file: %s, %lu\n", FormatString("%s.mercy_cand.%d", globals.output_prefix.c_str(), fid), mercy_cand.size());
-        }
+        xinfo("Mercy file: %s, %lu\n", FormatString("%s.mercy_cand.%d", globals.output_prefix.c_str(), fid), mercy_cand.size());
 
         omp_set_num_threads(globals.num_cpu_threads);
         __gnu_parallel::sort(mercy_cand.begin(), mercy_cand.end());
@@ -229,11 +224,9 @@ void s2_read_mercy_prepare(read2sdbg_global_t &globals) {
         fclose(fp);
     }
 
-    if (cx1_t::kCX1Verbose >= 3) {
-        timer.stop();
-        xinfo("Adding mercy Done. Time elapsed: %.4lf\n", timer.elapsed());
-        xinfo("Number mercy: %llu\n", (unsigned long long)num_mercy);
-    }
+    timer.stop();
+    xinfo("Adding mercy Done. Time elapsed: %.4lf\n", timer.elapsed());
+    xinfo("Number mercy: %llu\n", (unsigned long long)num_mercy);
 
     // set cx1 param
     globals.cx1.num_cpu_threads_ = globals.num_cpu_threads;
@@ -322,9 +315,7 @@ void s2_init_global_and_set_cx1(read2sdbg_global_t &globals) {
     globals.words_per_substring = DivCeiling(globals.kmer_k * kBitsPerEdgeChar + kBWTCharNumBits + 1, kBitsPerEdgeWord);
     globals.words_per_dummy_node = DivCeiling(globals.kmer_k * kBitsPerEdgeChar, kBitsPerEdgeWord);
 
-    if (cx1_t::kCX1Verbose >= 2) {
-        xinfo("%d words per substring, words per dummy node ($v): %d\n", globals.words_per_substring, globals.words_per_dummy_node);
-    }
+    xinfo("%d words per substring, words per dummy node ($v): %d\n", globals.words_per_substring, globals.words_per_dummy_node);
 
     // --- calculate lv2 memory ---
 
@@ -333,7 +324,6 @@ void s2_init_global_and_set_cx1(read2sdbg_global_t &globals) {
     int64_t lv2_bytes_per_item = globals.words_per_substring * sizeof(uint32_t);
 
     globals.max_sorting_items = std::max(globals.tot_bucket_size * globals.num_cpu_threads / num_non_empty, globals.max_bucket_size);
-    globals.cx1.lv1_just_go_ = true;
     globals.num_output_threads = globals.num_cpu_threads;
 
     int64_t mem_remained = globals.host_mem
@@ -349,8 +339,8 @@ void s2_init_global_and_set_cx1(read2sdbg_global_t &globals) {
         int64_t mem_needed = globals.cx1.max_lv1_items_ * cx1_t::kLv1BytePerItem + globals.max_sorting_items * lv2_bytes_per_item;
 
         if (mem_needed > mem_remained) {
-            globals.cx1.adjust_mem_just_go(mem_remained, lv2_bytes_per_item, min_lv1_items, globals.max_bucket_size,
-                                           globals.max_sorting_items, globals.cx1.max_lv1_items_, globals.max_sorting_items);
+          globals.cx1.adjust_mem(mem_remained, lv2_bytes_per_item, min_lv1_items, globals.max_bucket_size,
+                                 globals.max_sorting_items, globals.cx1.max_lv1_items_, globals.max_sorting_items);
         }
 
     }
@@ -361,19 +351,19 @@ void s2_init_global_and_set_cx1(read2sdbg_global_t &globals) {
         int64_t mem_needed = globals.cx1.max_lv1_items_ * cx1_t::kLv1BytePerItem + globals.max_sorting_items * lv2_bytes_per_item;
 
         if (mem_needed > mem_remained) {
-            globals.cx1.adjust_mem_just_go(mem_remained, lv2_bytes_per_item, min_lv1_items, globals.max_bucket_size,
-                                           globals.max_sorting_items, globals.cx1.max_lv1_items_, globals.max_sorting_items);
+          globals.cx1.adjust_mem(mem_remained, lv2_bytes_per_item, min_lv1_items, globals.max_bucket_size,
+                                 globals.max_sorting_items, globals.cx1.max_lv1_items_, globals.max_sorting_items);
         }
         else {
-            globals.cx1.adjust_mem_just_go(mem_needed, lv2_bytes_per_item, min_lv1_items, globals.max_bucket_size,
-                                           globals.max_sorting_items, globals.cx1.max_lv1_items_, globals.max_sorting_items);
+          globals.cx1.adjust_mem(mem_needed, lv2_bytes_per_item, min_lv1_items, globals.max_bucket_size,
+                                 globals.max_sorting_items, globals.cx1.max_lv1_items_, globals.max_sorting_items);
         }
 
     }
     else {
         // use all
-        globals.cx1.adjust_mem_just_go(mem_remained, lv2_bytes_per_item, min_lv1_items, globals.max_bucket_size,
-                                       globals.max_sorting_items, globals.cx1.max_lv1_items_, globals.max_sorting_items);
+      globals.cx1.adjust_mem(mem_remained, lv2_bytes_per_item, min_lv1_items, globals.max_bucket_size,
+                             globals.max_sorting_items, globals.cx1.max_lv1_items_, globals.max_sorting_items);
     }
 
     if (globals.cx1.max_lv1_items_ < min_lv1_items) {
@@ -387,10 +377,8 @@ void s2_init_global_and_set_cx1(read2sdbg_global_t &globals) {
         globals.cx1.max_mem_remain_ + globals.num_cpu_threads * sizeof(uint64_t) * 65536);
 
 
-    if (cx1_t::kCX1Verbose >= 2) {
-        xinfo("Memory for sequence: %lld\n", globals.mem_packed_reads);
-        xinfo("max # lv.1 items = %lld\n", globals.cx1.max_lv1_items_);
-    }
+    xinfo("Memory for sequence: %lld\n", globals.mem_packed_reads);
+    xinfo("max # lv.1 items = %lld\n", globals.cx1.max_lv1_items_);
     // --- init output ---
     globals.sdbg_writer.set_num_threads(globals.num_output_threads);
     globals.sdbg_writer.set_kmer_size(globals.kmer_k);
@@ -756,19 +744,15 @@ void s2_lv1_direct_sort_and_proc(read2sdbg_global_t &globals) {
 
 void s2_post_proc(read2sdbg_global_t &globals) {
     globals.sdbg_writer.Finalize();
-    if (cx1_t::kCX1Verbose >= 2) {
-        xinfo("Number of $ A C G T A- C- G- T-:\n");
-    }
+    xinfo("Number of $ A C G T A- C- G- T-:\n");
     xinfo("");
     for (int i = 0; i < 9; ++i) {
         xinfoc("%lld ", (long long)globals.sdbg_writer.final_meta().w_count(i));
     }
     xinfoc("\n");
-    if (cx1_t::kCX1Verbose >= 2) {
-        xinfo("Total number of edges: %lld\n", (long long) globals.sdbg_writer.final_meta().item_count());
-        xinfo("Total number of ONEs: %lld\n", (long long)globals.sdbg_writer.final_meta().ones_in_last());
-        xinfo("Total number of $v edges: %lld\n", (long long)globals.sdbg_writer.final_meta().tip_count());
-    }
+    xinfo("Total number of edges: %lld\n", (long long) globals.sdbg_writer.final_meta().item_count());
+    xinfo("Total number of ONEs: %lld\n", (long long)globals.sdbg_writer.final_meta().ones_in_last());
+    xinfo("Total number of $v edges: %lld\n", (long long)globals.sdbg_writer.final_meta().tip_count());
     // --- clean ---
     free(globals.lv1_items);
 }

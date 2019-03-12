@@ -119,8 +119,8 @@ inline void CopySubstringRC(uint32_t *dest, const uint32_t *src_read, int offset
     for (i = 0; i < words_per_substring - 1 && i < which_word; ++i) {
       w = (src_read[which_word - i] >> bit_offset) |
           (src_read[which_word - i - 1] << (kBitsPerEdgeWord - bit_offset));
+      w = kmlib::bit::ReverseComplement<2>(w);
       *dest_p = w;
-      *dest_p = kmlib::bit::ReverseComplement<2>(*dest_p);
       dest_p += spacing;
     }
 

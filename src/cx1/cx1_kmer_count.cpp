@@ -209,21 +209,11 @@ void init_global_and_set_cx1(count_global_t &globals) {
 
     globals.words_per_substring = DivCeiling((globals.kmer_k + 1) * kBitsPerEdgeChar, kBitsPerEdgeWord);
     globals.words_per_edge = DivCeiling((globals.kmer_k + 1) * kBitsPerEdgeChar + kBitsPerMul, kBitsPerEdgeWord);
+    xinfo("%d words per substring, %d words per edge\n", globals.words_per_substring, globals.words_per_edge);
 
-    if (cx1_t::kCX1Verbose >= 2) {
-        xinfo("%d words per substring, %d words per edge\n", globals.words_per_substring, globals.words_per_edge);
-    }
-
-    globals.cx1.lv1_just_go_ = true;
     globals.num_output_threads = globals.num_cpu_threads;
 
     num_non_empty = std::max(1, num_non_empty);
-
-    for (int i = 0; i < kNumBuckets; ++i) {
-        if (globals.cx1.bucket_sizes_[i] > 2 * globals.tot_bucket_size / num_non_empty) {
-            // xinfo("Bucket %d size = %lld > %lld = 2 * avg\n", i, (long long)globals.cx1.bucket_sizes_[i], (long long)2 * globals.tot_bucket_size / num_non_empty);
-        }
-    }
 
     globals.max_sorting_items = std::max(3 * globals.tot_bucket_size / num_non_empty * globals.num_cpu_threads, globals.max_bucket_size);
 
@@ -246,8 +236,8 @@ void init_global_and_set_cx1(count_global_t &globals) {
         int64_t mem_needed = globals.cx1.max_lv1_items_ * cx1_t::kLv1BytePerItem + globals.max_sorting_items * lv2_bytes_per_item;
         xinfo("Set: %lld, %lld\n", mem_needed, mem_remained);
         if (mem_needed > mem_remained) {
-            globals.cx1.adjust_mem_just_go(mem_remained, lv2_bytes_per_item, min_lv1_items, globals.max_bucket_size,
-                                           globals.max_sorting_items, globals.cx1.max_lv1_items_, globals.max_sorting_items);
+          globals.cx1.adjust_mem(mem_remained, lv2_bytes_per_item, min_lv1_items, globals.max_bucket_size,
+                                 globals.max_sorting_items, globals.cx1.max_lv1_items_, globals.max_sorting_items);
         }
 
     }
@@ -258,19 +248,19 @@ void init_global_and_set_cx1(count_global_t &globals) {
         int64_t mem_needed = globals.cx1.max_lv1_items_ * cx1_t::kLv1BytePerItem + globals.max_sorting_items * lv2_bytes_per_item;
 
         if (mem_needed > mem_remained) {
-            globals.cx1.adjust_mem_just_go(mem_remained, lv2_bytes_per_item, min_lv1_items, globals.max_bucket_size,
-                                           globals.max_sorting_items, globals.cx1.max_lv1_items_, globals.max_sorting_items);
+          globals.cx1.adjust_mem(mem_remained, lv2_bytes_per_item, min_lv1_items, globals.max_bucket_size,
+                                 globals.max_sorting_items, globals.cx1.max_lv1_items_, globals.max_sorting_items);
         }
         else {
-            globals.cx1.adjust_mem_just_go(mem_needed, lv2_bytes_per_item, min_lv1_items, globals.max_bucket_size,
-                                           globals.max_sorting_items, globals.cx1.max_lv1_items_, globals.max_sorting_items);
+          globals.cx1.adjust_mem(mem_needed, lv2_bytes_per_item, min_lv1_items, globals.max_bucket_size,
+                                 globals.max_sorting_items, globals.cx1.max_lv1_items_, globals.max_sorting_items);
         }
 
     }
     else {
         // use all
-        globals.cx1.adjust_mem_just_go(mem_remained, lv2_bytes_per_item, min_lv1_items, globals.max_bucket_size,
-                                       globals.max_sorting_items, globals.cx1.max_lv1_items_, globals.max_sorting_items);
+      globals.cx1.adjust_mem(mem_remained, lv2_bytes_per_item, min_lv1_items, globals.max_bucket_size,
+                             globals.max_sorting_items, globals.cx1.max_lv1_items_, globals.max_sorting_items);
     }
 
     if (globals.cx1.max_lv1_items_ < min_lv1_items) {
@@ -282,11 +272,8 @@ void init_global_and_set_cx1(count_global_t &globals) {
     globals.cx1.bytes_per_sorting_item_ = lv2_bytes_per_item;
     globals.lv1_items = (int32_t *) xmalloc(
         globals.cx1.max_mem_remain_ + globals.num_cpu_threads * sizeof(uint64_t) * 65536);
-
-    if (cx1_t::kCX1Verbose >= 2) {
-        xinfo("Memory for reads: %lld\n", globals.mem_packed_reads);
-        xinfo("max # lv.1 items = %lld\n", globals.cx1.max_lv1_items_);
-    }
+    xinfo("Memory for reads: %lld\n", globals.mem_packed_reads);
+    xinfo("max # lv.1 items = %lld\n", globals.cx1.max_lv1_items_);
 
     // --- malloc read first_in / last_out ---
     globals.first_0_out = std::vector<AtomicWrapper<uint32_t>>(globals.num_reads, 0xFFFFFFFFU);
@@ -647,9 +634,7 @@ void post_proc(count_global_t &globals) {
 
     fclose(candidate_file);
 
-    if (cx1_t::kCX1Verbose >= 2) {
-        xinfo("Total number of candidate reads: %lld(%lld)\n", num_candidate_reads, num_has_tips);
-    }
+    xinfo("Total number of candidate reads: %lld(%lld)\n", num_candidate_reads, num_has_tips);
 
     // --- stat ---
     int64_t num_solid_edges = 0;
@@ -657,10 +642,7 @@ void post_proc(count_global_t &globals) {
     for (int i = globals.kmer_freq_threshold; i <= kMaxMul; ++i) {
         num_solid_edges += globals.edge_counting[i];
     }
-
-    if (cx1_t::kCX1Verbose >= 2) {
-        xinfo("Total number of solid edges: %llu\n", num_solid_edges);
-    }
+    xinfo("Total number of solid edges: %llu\n", num_solid_edges);
 
     FILE *counting_file = xfopen((globals.output_prefix + ".counting").c_str(), "w");
 

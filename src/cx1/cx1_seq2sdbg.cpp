@@ -350,10 +350,7 @@ void GenMercyEdges(seq2sdbg_global_t &globals) {
     free(edge_lookup);
 
     globals.multiplicity.insert(globals.multiplicity.end(), num_mercy_edges, 1);
-
-    if (cx1_t::kCX1Verbose >= 2) {
-        xinfo("Number of reads: %ld, Number of mercy edges: %ld\n", num_mercy_reads, num_mercy_edges);
-    }
+    xinfo("Number of reads: %ld, Number of mercy edges: %ld\n", num_mercy_reads, num_mercy_edges);
 }
 
 void read_seq_and_prepare(seq2sdbg_global_t &globals) {
@@ -436,19 +433,13 @@ void read_seq_and_prepare(seq2sdbg_global_t &globals) {
 
     if (globals.need_mercy) {
         SimpleTimer timer;
-
-        if (cx1_t::kCX1Verbose >= 3) {
-            timer.reset();
-            timer.start();
-            xinfo("Adding mercy edges...\n");
-        }
+        timer.reset();
+        timer.start();
+        xinfo("Adding mercy edges...\n");
 
         GenMercyEdges(globals);
-
-        if (cx1_t::kCX1Verbose >= 3) {
-            timer.stop();
-            xinfo("Done. Time elapsed: %.4lf\n", timer.elapsed());
-        }
+        timer.stop();
+        xinfo("Done. Time elapsed: %.4lf\n", timer.elapsed());
     }
 
     if (globals.contig != "") {
@@ -596,16 +587,9 @@ void init_global_and_set_cx1(seq2sdbg_global_t &globals) {
 
     num_non_empty = std::max(1, num_non_empty);
 
-    for (int i = 0; i < kNumBuckets; ++i) {
-        if (globals.cx1.bucket_sizes_[i] > 2 * globals.tot_bucket_size / num_non_empty) {
-            // xinfo("Bucket %d size = %lld > %lld = 2 * avg\n", i, (long long)globals.cx1.bucket_sizes_[i], (long long)2 * globals.tot_bucket_size / num_non_empty);
-        }
-    }
-
     int64_t lv2_bytes_per_item = globals.words_per_substring * sizeof(uint32_t);
 
     globals.max_sorting_items = std::max(3 * globals.tot_bucket_size * globals.num_cpu_threads / num_non_empty, globals.max_bucket_size);
-    globals.cx1.lv1_just_go_ = true;
     globals.num_output_threads = globals.num_cpu_threads;
 
     int64_t mem_remained = globals.host_mem
@@ -621,8 +605,8 @@ void init_global_and_set_cx1(seq2sdbg_global_t &globals) {
         int64_t mem_needed = globals.cx1.max_lv1_items_ * cx1_t::kLv1BytePerItem + globals.max_sorting_items * lv2_bytes_per_item;
 
         if (mem_needed > mem_remained) {
-            globals.cx1.adjust_mem_just_go(mem_remained, lv2_bytes_per_item, min_lv1_items, globals.max_bucket_size,
-                                           globals.max_sorting_items, globals.cx1.max_lv1_items_, globals.max_sorting_items);
+            globals.cx1.adjust_mem(mem_remained, lv2_bytes_per_item, min_lv1_items, globals.max_bucket_size,
+                                   globals.max_sorting_items, globals.cx1.max_lv1_items_, globals.max_sorting_items);
         }
 
     }
@@ -633,19 +617,19 @@ void init_global_and_set_cx1(seq2sdbg_global_t &globals) {
         int64_t mem_needed = globals.cx1.max_lv1_items_ * cx1_t::kLv1BytePerItem + globals.max_sorting_items * lv2_bytes_per_item;
 
         if (mem_needed > mem_remained) {
-            globals.cx1.adjust_mem_just_go(mem_remained, lv2_bytes_per_item, min_lv1_items, globals.max_bucket_size,
-                                           globals.max_sorting_items, globals.cx1.max_lv1_items_, globals.max_sorting_items);
+            globals.cx1.adjust_mem(mem_remained, lv2_bytes_per_item, min_lv1_items, globals.max_bucket_size,
+                                   globals.max_sorting_items, globals.cx1.max_lv1_items_, globals.max_sorting_items);
         }
         else {
-            globals.cx1.adjust_mem_just_go(mem_needed, lv2_bytes_per_item, min_lv1_items, globals.max_bucket_size,
-                                           globals.max_sorting_items, globals.cx1.max_lv1_items_, globals.max_sorting_items);
+            globals.cx1.adjust_mem(mem_needed, lv2_bytes_per_item, min_lv1_items, globals.max_bucket_size,
+                                   globals.max_sorting_items, globals.cx1.max_lv1_items_, globals.max_sorting_items);
         }
 
     }
     else {
         // use all
-        globals.cx1.adjust_mem_just_go(mem_remained, lv2_bytes_per_item, min_lv1_items, globals.max_bucket_size,
-                                       globals.max_sorting_items, globals.cx1.max_lv1_items_, globals.max_sorting_items);
+        globals.cx1.adjust_mem(mem_remained, lv2_bytes_per_item, min_lv1_items, globals.max_bucket_size,
+                               globals.max_sorting_items, globals.cx1.max_lv1_items_, globals.max_sorting_items);
     }
 
     if (globals.cx1.max_lv1_items_ < min_lv1_items) {
@@ -658,10 +642,8 @@ void init_global_and_set_cx1(seq2sdbg_global_t &globals) {
     globals.lv1_items = (int32_t *) xmalloc(
         globals.cx1.max_mem_remain_ + globals.num_cpu_threads * sizeof(uint64_t) * 65536);
 
-    if (cx1_t::kCX1Verbose >= 2) {
-        xinfo("Memory for sequence: %lld\n", globals.mem_packed_seq);
-        xinfo("max # lv.1 items = %lld\n", globals.cx1.max_lv1_items_);
-    }
+    xinfo("Memory for sequence: %lld\n", globals.mem_packed_seq);
+    xinfo("max # lv.1 items = %lld\n", globals.cx1.max_lv1_items_);
 
     // --- init output ---
     globals.sdbg_writer.set_num_threads(globals.num_output_threads);
@@ -988,21 +970,16 @@ void lv1_direct_sort_and_proc(seq2sdbg_global_t &globals) {
 
 void post_proc(seq2sdbg_global_t &globals) {
     globals.sdbg_writer.Finalize();
-    if (cx1_t::kCX1Verbose >= 2) {
-        xinfo("Number of $ A C G T A- C- G- T-:\n");
-    }
+    xinfo("Number of $ A C G T A- C- G- T-:\n");
     xinfo("");
     for (int i = 0; i < 9; ++i) {
         xinfoc("%lld ", (long long)globals.sdbg_writer.final_meta().w_count(i));
     }
 
     xinfoc("\n");
-
-    if (cx1_t::kCX1Verbose >= 2) {
-        xinfo("Total number of edges: %lld\n", (long long) globals.sdbg_writer.final_meta().item_count());
-        xinfo("Total number of ONEs: %lld\n", (long long)globals.sdbg_writer.final_meta().ones_in_last());
-        xinfo("Total number of $v edges: %lld\n", (long long)globals.sdbg_writer.final_meta().tip_count());
-    }
+    xinfo("Total number of edges: %lld\n", (long long) globals.sdbg_writer.final_meta().item_count());
+    xinfo("Total number of ONEs: %lld\n", (long long)globals.sdbg_writer.final_meta().ones_in_last());
+    xinfo("Total number of $v edges: %lld\n", (long long)globals.sdbg_writer.final_meta().tip_count());
 
     // --- cleaning ---
     free(globals.lv1_items);

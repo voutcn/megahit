@@ -36,81 +36,6 @@
 #include "sequence/sequence_package.h"
 #include "safe_alloc_open-inl.h"
 
-inline void ReadMultipleLibs(const std::string &lib_file, SeqPackage &package,
-                             std::vector<lib_info_t> &lib_info, bool is_reverse) {
-    std::ifstream lib_config(lib_file);
-
-    if (!lib_config.is_open()) {
-        xfatal("File to open read_lib file: %s\n", lib_file.c_str());
-    }
-
-    std::string metadata;
-    std::string type;
-    std::string file_name1;
-    std::string file_name2;
-
-    bool append_to_package = true;
-    bool trimN = true;
-    SequenceManager seq_manager(&package);
-    package.clear();
-    lib_info.clear();
-
-    while (std::getline(lib_config, metadata)) {
-        lib_config >> type;
-        if (type == "pe") {
-            lib_config >> file_name1 >> file_name2;
-            seq_manager.set_readlib_type(SequenceManager::kPaired);
-            seq_manager.set_file_type(SequenceManager::kFastxReads);
-            seq_manager.set_pe_files(file_name1, file_name2);
-
-        }
-        else if (type == "se") {
-            lib_config >> file_name1;
-            seq_manager.set_readlib_type(SequenceManager::kSingle);
-            seq_manager.set_file_type(SequenceManager::kFastxReads);
-            seq_manager.set_file(file_name1);
-
-        }
-        else if (type == "interleaved") {
-            lib_config >> file_name1;
-            seq_manager.set_readlib_type(SequenceManager::kInterleaved);
-            seq_manager.set_file_type(SequenceManager::kFastxReads);
-            seq_manager.set_file(file_name1);
-
-        }
-        else {
-            xerr("Cannot identify read library type %s\n", type.c_str());
-            xfatal("Valid types: pe, se, interleaved\n");
-        }
-
-        int64_t start = package.size();
-        seq_manager.ReadShortReads(1LL << 60, 1LL << 60, append_to_package, is_reverse, trimN, metadata);
-        seq_manager.clear();
-        int64_t end = package.size() - 1;
-
-        int max_read_len = 0;
-
-        for (int64_t i = start; i <= end; ++i) {
-            if (max_read_len < (int) package.SequenceLength(i)) {
-                max_read_len = package.SequenceLength(i);
-            }
-        }
-
-        if (type == "pe" && (end - start + 1) % 2 != 0) {
-            xerr("PE library number of reads is odd: %lld!\n", end - start + 1);
-            xfatal("File(s): %s\n", metadata.c_str())
-        }
-
-        if (type == "interleaved" && (end - start + 1) % 2 != 0) {
-            xerr("PE library number of reads is odd: %lld!\n", end - start + 1);
-            xfatal("File(s): %s\n", metadata.c_str())
-        }
-
-        lib_info.push_back(lib_info_t(&package, start, end, max_read_len, type != "se", metadata));
-        std::getline(lib_config, metadata); // eliminate the "\n"
-    }
-}
-
 inline void ReadAndWriteMultipleLibs(const std::string &lib_file, bool is_reverse,
                                      const std::string &out_prefix, bool verbose) {
     std::ifstream lib_config(lib_file);
@@ -197,17 +122,17 @@ inline void ReadAndWriteMultipleLibs(const std::string &lib_file, bool is_revers
                  lib_info.size(), metadata.c_str(), type.c_str(), total_reads - start, max_read_len);
         }
 
-        lib_info.push_back(lib_info_t(&package, start, total_reads - 1, max_read_len, type != "se", metadata));
+        lib_info.emplace_back(&package, start, total_reads - 1, max_read_len, type != "se", metadata);
         std::getline(lib_config, metadata); // eliminate the "\n"
     }
 
     FILE *lib_info_file = xfopen(FormatString("%s.lib_info", out_prefix.c_str()), "w");
     fprintf(lib_info_file, "%zu %zu\n", total_bases, total_reads);
 
-    for (unsigned i = 0; i < lib_info.size(); ++i) {
-        fprintf(lib_info_file, "%s\n", lib_info[i].metadata.c_str());
-        fprintf(lib_info_file, "%" PRId64 " %" PRId64 " %d %s\n", lib_info[i].from, lib_info[i].to,
-                lib_info[i].max_read_len, lib_info[i].is_pe ? "pe" : "se");
+    for (auto &i : lib_info) {
+        fprintf(lib_info_file, "%s\n", i.metadata.c_str());
+        fprintf(lib_info_file, "%" PRId64 " %" PRId64 " %d %s\n", i.from, i.to,
+                i.max_read_len, i.is_pe ? "pe" : "se");
     }
 
     fclose(lib_info_file);
@@ -231,7 +156,7 @@ inline void ReadBinaryLibs(const std::string &file_prefix, SeqPackage &package, 
 
     while (std::getline(lib_info_file, metadata)) {
         lib_info_file >> start >> end >> max_read_len >> pe_or_se;
-        lib_info.push_back(lib_info_t(&package, start, end, max_read_len, pe_or_se == "pe", metadata));
+        lib_info.emplace_back(&package, start, end, max_read_len, pe_or_se == "pe", metadata);
         std::getline(lib_info_file, metadata); // eliminate the "\n"
     }
 
@@ -245,28 +170,8 @@ inline void ReadBinaryLibs(const std::string &file_prefix, SeqPackage &package, 
     seq_manager.set_file(FormatString("%s.bin", file_prefix.c_str()));
 
     xinfo("Before reading, sizeof seq_package: %lld\n", package.SizeInByte());
-
     seq_manager.ReadShortReads(1LL << 60, 1LL << 60, append_to_package, is_reverse);
-
     xinfo("After reading, sizeof seq_package: %lld\n", package.SizeInByte());
-}
-
-inline void WriteMultipleLibs(SeqPackage &package, std::vector<lib_info_t> &lib_info, const std::string &file_prefix, bool is_reverse) {
-    SequenceManager seq_manager(&package);
-    FILE *bin_file = xfopen(FormatString("%s.bin", file_prefix.c_str()), "wb");
-    seq_manager.WriteBinarySequences(bin_file, is_reverse);
-    fclose(bin_file);
-
-    FILE *lib_info_file = xfopen(FormatString("%s.lib_info", file_prefix.c_str()), "w");
-    fprintf(lib_info_file, "%zu %zu\n", package.BaseCount(), package.size());
-
-    for (unsigned i = 0; i < lib_info.size(); ++i) {
-        fprintf(lib_info_file, "%s\n", lib_info[i].metadata.c_str());
-        fprintf(lib_info_file, "%" PRId64 " %" PRId64 " %d %s\n", lib_info[i].from, lib_info[i].to,
-                lib_info[i].max_read_len, lib_info[i].is_pe ? "pe" : "se");
-    }
-
-    fclose(lib_info_file);
 }
 
 #endif

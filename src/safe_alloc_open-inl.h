@@ -33,7 +33,7 @@ inline FILE *xfopen(const char *filename, const char *mode) {
   return fp;
 }
 
-inline void *xmalloc(size_t size_in_byte,
+inline void *__xmalloc(size_t size_in_byte,
                      const char *malloc_from_which_file = __FILE__,
                      int malloc_from_which_line = __LINE__) {
   void *ptr = malloc(size_in_byte);
@@ -51,24 +51,8 @@ inline void *xmalloc(size_t size_in_byte,
   return ptr;
 }
 
-inline void *xrealloc(void *ptr,
-                      size_t size_in_byte,
-                      const char *realloc_from_which_file = __FILE__,
-                      int realloc_from_which_line = __LINE__) {
-  void *new_ptr = realloc(ptr, size_in_byte);
 
-  if (size_in_byte != 0 && new_ptr == nullptr) {
-    fprintf(stderr, "[ERROR] Ran out of memory while re-applying %llubytes\n", (unsigned long long) size_in_byte);
-    fprintf(stderr, "In file: %s, line %d\n", realloc_from_which_file, realloc_from_which_line);
-    fprintf(stderr, "There may be errors as follows:\n");
-    fprintf(stderr, "1) Not enough memory.\n");
-    fprintf(stderr, "2) The ARRAY may be overrode.\n");
-    fprintf(stderr, "3) The wild pointers.\n");
-    free(ptr);
-    exit(-1);
-  }
+#define xmalloc(sz) __xmalloc(sz, __FILE__, __LINE__)
 
-  return new_ptr;
-}
 
 #endif // SAFE_ALLOC_OPEN_INL_H
