@@ -1,7 +1,7 @@
 dist: xenial
 language: python
-apt:
-  packages: lcov
+install:
+  - apt install lcov
 python:
   - "2.7"
   - "3.4"
