@@ -1,6 +1,17 @@
 dist: xenial
-language: python
+compiler:
+  - clang
+  - gcc
 python:
   - "2.7"
   - "3.4"
-script: git submodule update --init && mkdir build && cd build && cmake .. -DCMAKE_BUILD_TYPE=Debug && make simple_test
+script: git submodule update --init && mkdir build && cd build && cmake .. -DCMAKE_BUILD_TYPE=Debug -DCOVERAGE=ON && make -j2 simple_test
+after_success:
+  # Create lcov report
+  - lcov --capture --directory . --output-file coverage.info
+  - lcov --remove coverage.info '/usr/*' --output-file coverage.info # filter system-files
+  - lcov --remove coverage.info '*xxhash/*' --output-file coverage.info # filter xxhash-files
+  - lcov --remove coverage.info '*sparsepp/*' --output-file coverage.info # filter sparsepp-files
+  - lcov --list coverage.info # debug info
+  # Uploading report to CodeCov
+  - bash <(curl -s https://codecov.io/bash) -f coverage.info || echo "Codecov did not collect coverage reports"
