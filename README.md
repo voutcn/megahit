@@ -58,7 +58,12 @@ If you need to install Megahit to your PATH, run `make install` in the build dir
 
 To run MEGAHIT with default parameters:
 ```bash
-/PATH/TO/MEGAHIT/build/megahit -1 YOUR_PE_READ_1.fq.gz -2 YOUR_PE_READ_2.fq.gz -r YOUR_SE_READ.fq.gz -o YOUR_OUTPUT_DIR
+megahit -1 YOUR_PE_READ_1.fq.gz -2 YOUR_PE_READ_2.fq.gz -r YOUR_SE_READ.fq.gz -o YOUR_OUTPUT_DIR
+```
+
+If you did not install Megahit to your PATH, just run Megahit with full-path, e.g.
+```bash
+/PATH/TO/MEGAHIT/build/megahit
 ```
 
 To see the full manual of Megahit, run the program without parameters or with `-h`.
