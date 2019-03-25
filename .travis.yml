@@ -1,7 +1,7 @@
 dist: xenial
-compiler:
-  - clang
-  - gcc
+language: python
+apt:
+  packages: lcov
 python:
   - "2.7"
   - "3.4"
