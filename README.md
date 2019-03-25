@@ -1,5 +1,6 @@
 *If you are using MEGAHIT v1.0.4-beta or v1.0.5, please be advised to update it to the latest version.*
 
+[![Codacy Badge](https://api.codacy.com/project/badge/Grade/6f8bc1692a67443a8ae8f0e24f5b0640)](https://app.codacy.com/app/voutcn/megahit?utm_source=github.com&utm_medium=referral&utm_content=voutcn/megahit&utm_campaign=Badge_Grade_Dashboard)
 [![BioConda Install](https://img.shields.io/conda/dn/bioconda/megahit.svg?style=flag&label=BioConda%20install)](https://anaconda.org/bioconda/megahit)
 [![GitHub Downloads](https://img.shields.io/github/downloads/voutcn/megahit/total.svg?style=social&logo=github&label=Download)](https://github.com/voutcn/megahit/releases)
 [![Build Status](https://travis-ci.org/voutcn/megahit.svg?branch=master)](https://travis-ci.org/voutcn/megahit)
