@@ -1,4 +1,4 @@
-### 1.2.0-beta / 2019-02-17
+### 1.2.0-beta / 2019-03-24 PST
 
 Heavily refactored the whole project:
 
