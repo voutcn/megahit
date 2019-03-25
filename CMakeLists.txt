@@ -5,6 +5,7 @@ set(CMAKE_CXX_STANDARD 11)
 
 option(USE_POPCNT "Use popcnt hardware instructions" ON)
 option(USE_BMI2 "Use bmi2 hardware instructions" ON)
+option(COVERAGE "Generate coverage report" OFF)
 
 include_directories(src)
 include_directories(src/sparsepp)
@@ -46,6 +47,10 @@ if (USE_BMI2)
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -mbmi2 -DUSE_BMI2")
 endif (USE_BMI2)
 
+if (COVERAGE)
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} --coverage")
+endif(COVERAGE)
+
 set(CMAKE_CXX_FLAGS_DEBUG "-g -ggdb -O1")
 
 
@@ -65,9 +70,9 @@ set(TEST_DATA ${CMAKE_SOURCE_DIR}/test_data)
 add_custom_target(
         simple_test
         COMMAND rm -rf megahit_out*
-        COMMAND ./megahit --12 ${TEST_DATA}/r1.il.fa.gz,${TEST_DATA}/r2.il.fa.bz2,${TEST_DATA}/r3.il.fa -o megahit_out1 -t 2 --keep-tmp-files
+        COMMAND ./megahit --12 ${TEST_DATA}/r1.il.fa.gz,${TEST_DATA}/r2.il.fa.bz2 -1 ${TEST_DATA}/r3_1.fa -2 ${TEST_DATA}/r3_2.fa -r ${TEST_DATA}/r4.fa -o megahit_out1 -t 2 --keep-tmp-files
         COMMAND rm -rf megahit_out*
-        COMMAND ./megahit --12 ${TEST_DATA}/r1.il.fa.gz,${TEST_DATA}/r2.il.fa.bz2,${TEST_DATA}/r3.il.fa -o megahit_out2 -t 2 --keep-tmp-files --kmin-1pass
+        COMMAND ./megahit --12 ${TEST_DATA}/r1.il.fa.gz,${TEST_DATA}/r2.il.fa.bz2 -1 ${TEST_DATA}/r3_1.fa -2 ${TEST_DATA}/r3_2.fa -r ${TEST_DATA}/r4.fa -o megahit_out2 -t 2 --keep-tmp-files --kmin-1pass
 )
 
 add_dependencies(megahit megahit_core)
