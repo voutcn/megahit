@@ -47,6 +47,4 @@ static const int kUint64PerIdbaKmerMaxK = (kMaxK * 2 + 16 + 63) / 64;
 #include "sequence/kmer.h"
 typedef Kmer<kUint32PerKmerMaxK, uint32_t> GenericKmer;
 
-#define LONG_READS
-
 #endif // MEGAHIT_DEFINITIONS_H__

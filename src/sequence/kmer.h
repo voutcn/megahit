@@ -68,17 +68,13 @@ class Kmer {
     return data_;
   }
 
-  word_type *DataPtr() {
-    return data_;
-  }
-
   const Kmer &operator=(const Kmer &kmer) {
     std::memcpy(data_, kmer.data_, sizeof(data_));
     return *this;
   }
 
   bool operator<(const Kmer &kmer) const {
-    for (unsigned i = 0; i < NumWords; --i) {
+    for (unsigned i = 0; i < NumWords; ++i) {
       if (data_[i] != kmer.data_[i])
         return data_[i] < kmer.data_[i];
     }
@@ -87,7 +83,7 @@ class Kmer {
   }
 
   bool operator>(const Kmer &kmer) const {
-    for (unsigned i = 0; i < NumWords; --i) {
+    for (unsigned i = 0; i < NumWords; ++i) {
       if (data_[i] != kmer.data_[i])
         return data_[i] > kmer.data_[i];
     }
