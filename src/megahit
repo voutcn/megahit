@@ -214,7 +214,7 @@ def parse_opt(argv):
                                     "version",
                                     "out-prefix=",
                                     "presets=",
-                                    "force"
+                                    "force",
                                     "graph-only",
                                     # deprecated
                                     "max-read-len=",
