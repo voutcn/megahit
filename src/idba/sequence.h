@@ -72,7 +72,6 @@ public:
     const Sequence &ReverseComplement();
     bool IsValid() const; 
     bool IsPalindrome() const;
-    void TrimN();
 
     IdbaKmer GetIdbaKmer(uint32_t offset, uint32_t kmer_size) const;
 
@@ -107,11 +106,7 @@ template <> inline void swap(Sequence &seq1, Sequence &seq2)
 { seq1.swap(seq2); }
 }
 
-std::istream &ReadFasta(std::istream &is, Sequence &seq, std::string &comment);
 std::ostream &WriteFasta(std::ostream &os, const Sequence &seq, const std::string &comment);
-
-std::istream &ReadFastq(std::istream &is, Sequence &seq, std::string &comment, std::string &quality);
-std::ostream &WriteFastq(std::ostream &os, const Sequence &seq, const std::string &comment, const std::string &quality);
 
 
 #endif

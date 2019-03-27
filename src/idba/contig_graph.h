@@ -34,33 +34,10 @@ public:
     explicit ContigGraph(uint32_t kmer_size = 0)
         : num_edges_(0), kmer_size_(kmer_size)
     {}
-    explicit ContigGraph(uint32_t kmer_size, const std::deque<Sequence> &contigs)
-        : num_edges_(0), kmer_size_(kmer_size)
-    { Initialize(contigs); }
-
-    explicit ContigGraph(uint32_t kmer_size, const std::deque<Sequence> &contigs,
-            const std::deque<ContigInfo> &contig_infos)
-        : num_edges_(0), kmer_size_(kmer_size)
-    { Initialize(contigs, contig_infos); }
 
     ~ContigGraph() { clear(); }
 
-    double Binormial(int n, int m);
-    void InitializeTable();
-    double Threshold(double k, double mean, double sd, double p_false);
-
-    void Initialize(const std::deque<Sequence> &contigs)
-    {
-        std::deque<ContigInfo> contig_infos(contigs.size());
-        Initialize(contigs, contig_infos);
-    }
-
     void Initialize(const std::deque<Sequence> &contigs, const std::deque<ContigInfo> &contig_infos);
-
-    void BuildEdgeCountTable();
-
-    HashGraph &edge_count_table() { return edge_count_table_; }
-    const HashGraph &edge_count_table() const { return edge_count_table_; }
 
     void Refresh();
     void RefreshVertices();
@@ -83,31 +60,21 @@ public:
         next.out_edges().Remove(3 - current.contig()[0]);
     }
 
-    void AddAllEdges();
-    void RemoveAllEdges();
     void ClearStatus();
 
     void MergeSimplePaths();
-    void MergeSimilarPath();
 
-    int64_t Prune(int min_length);
     int64_t Trim(int min_length);
     int64_t Trim(int min_length, double min_cover);
 
-    int64_t RemoveStandAlone(int min_length);
     int64_t RemoveDeadEnd(int min_length);
-    int64_t RemoveDeadEnd(int min_length, double min_cover);
     int64_t RemoveBubble();
     
     double IterateCoverage(int min_length, double min_cover, double max_cover, double factor = 1.1);
-    double IterateLocalCoverage(int min_length, double ratio, double min_cover, double max_cover, double factor = 1.1);
-    double IterateComponentCoverage(int min_length, double ratio, double min_cover, double max_cover, double factor = 1.1, int max_component_size = 30);
-    double IterateComponentCoverage2(int min_length, double ratio, double min_cover, double max_cover, double factor = 1.1, int max_component_size = 30);
 
     bool RemoveLowCoverage(double min_cover, int min_length);
     bool RemoveLocalLowCoverage(double min_cover, int min_length, double ratio);
     bool RemoveComponentLowCoverage(double min_cover, int min_length, double ratio, int max_component_size);
-    bool RemoveComponentLowCoverage2(double min_cover, int min_length, double ratio, int max_component_size);
 
     double LocalCoverage(ContigGraphVertexAdaptor current, int region_length);
     double LocalCoverageSingle(ContigGraphVertexAdaptor current, int region_length, double &num_count, int &num_kmer);
@@ -133,16 +100,7 @@ public:
 
     bool IsConverged(ContigGraphVertexAdaptor current);
     int64_t SplitBranches();
-    void Decomposite();
     void GetComponents(std::deque<std::deque<ContigGraphVertexAdaptor> > &components, std::deque<std::string> &component_strings);
-    void GetConsensus(std::deque<Sequence> &consensus);
-
-    bool FindPath(ContigGraphVertexAdaptor from, ContigGraphVertexAdaptor to, ContigGraphPath &path);
-
-    void SortVertices()
-    { std::sort(vertices_.begin(), vertices_.end(), CompareContigLength); Refresh(); }
-
-    void GetContigs(std::deque<Sequence> &contigs, std::deque<ContigInfo> &contig_infos);
 
     std::deque<ContigGraphVertex> &vertices() { return vertices_; }
     const std::deque<ContigGraphVertex> &vertices() const { return vertices_; }
@@ -260,7 +218,6 @@ private:
     void TopSort(std::deque<ContigGraphVertexAdaptor> &component, std::deque<ContigGraphVertexAdaptor> &order);
     void TopSortDFS(std::deque<ContigGraphVertexAdaptor> &order, ContigGraphVertexAdaptor current, std::map<int, int> &status);
     int GetDepth(ContigGraphVertexAdaptor current, int length, int &maximum, int min_length);
-    double FindSimilarPath(ContigGraphVertexAdaptor target, ContigGraphVertexAdaptor start);
     double FindSimilarPath(ContigGraphVertexAdaptor target, ContigGraphPath &path, int &time);
 
     HashMap<IdbaKmer, uint32_t> begin_kmer_map_;
@@ -269,7 +226,6 @@ private:
     uint32_t kmer_size_;
 
     HashMap<IdbaKmer, uint32_t> in_kmer_count_table_;
-    HashGraph edge_count_table_;
 };
 
 #endif
