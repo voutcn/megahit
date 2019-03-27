@@ -22,17 +22,6 @@
 using namespace std;
 
 
-double ContigGraph::Binormial(int n, int m)
-{
-    double product = 1;
-    for (int i = 1; i <= n; ++i)
-        product *= i;
-    for (int i = 1; i <= m; ++i)
-        product /= i;
-    return product;
-}
-
-
 void ContigGraph::Initialize(const deque<Sequence> &contigs, const deque<ContigInfo> &contig_infos)
 {
     vertices_.clear();
@@ -106,111 +95,10 @@ void ContigGraph::RefreshEdges()
     num_edges_ = total_degree / 2;
 }
 
-void ContigGraph::AddAllEdges()
-{
-    for (int64_t i = 0; i < (int64_t)vertices_.size(); ++i)
-    {
-        vertices_[i].in_edges() = 15;
-        vertices_[i].out_edges() = 15;
-    }
-    RefreshEdges();
-}
-
-void ContigGraph::RemoveAllEdges()
-{
-    for (int64_t i = 0; i < (int64_t)vertices_.size(); ++i)
-    {
-        vertices_[i].in_edges() = 0;
-        vertices_[i].out_edges() = 0;
-    }
-    RefreshEdges();
-}
-
 void ContigGraph::ClearStatus()
 {
     for (int64_t i = 0; i < (int64_t)vertices_.size(); ++i)
         vertices_[i].status().clear();
-}
-
-void ContigGraph::MergeSimilarPath()
-{
-    for (int64_t i = 0; i < (int64_t)vertices_.size(); ++i)
-    {
-        for (int strand = 0; strand < 2; ++strand)
-        {
-            ContigGraphVertexAdaptor current(&vertices_[i], strand);
-
-            if (current.status().IsDead())
-                continue;
-
-            if (current.out_edges().size() > 1)
-            {
-                deque<ContigGraphVertexAdaptor> neighbors;
-                GetNeighbors(current, neighbors);
-                sort(neighbors.begin(), neighbors.end(), CompareContigCoverage);
-
-                for (unsigned j = 0; j < neighbors.size(); ++j)
-                {
-                    if (neighbors[j].status().IsDead())
-                        continue;
-
-                    for (unsigned k = j+1; k < neighbors.size(); ++k)
-                    {
-                        if (!neighbors[k].status().IsDead()
-                                && neighbors[j].in_edges() == neighbors[k].in_edges() 
-                                && neighbors[j].out_edges() == neighbors[k].out_edges()
-                                && neighbors[j].begin_kmer(kmer_size_-1) == neighbors[k].begin_kmer(kmer_size_-1)
-                                && neighbors[j].end_kmer(kmer_size_-1) == neighbors[k].end_kmer(kmer_size_-1)
-                                && GetSimilarity(neighbors[j], neighbors[k]) > 0.98)
-                        {
-                            neighbors[k].status().SetDeadFlag();
-                        }
-                    }
-                }
-            }
-        }
-    }
-    Refresh();
-    MergeSimplePaths();
-
-}
-
-int64_t ContigGraph::Prune(int min_length)
-{
-    uint64_t old_num_vertices = vertices_.size();
-
-    for (int64_t i = 0; i < (int64_t)vertices_.size(); ++i)
-    {
-        for (int strand = 0; strand < 2; ++strand)
-        {
-            ContigGraphVertexAdaptor current(&vertices_[i], strand);
-
-            if (current.status().IsDead())
-                continue;
-
-            if (current.out_edges().size() <= 1)
-                continue;
-
-            int maximum = 0;
-            int depth = GetDepth(current, kmer_size_ - 1, maximum, min_length + kmer_size_ - 1);
-            if (depth > min_length + (int)kmer_size_ - 1)
-                depth = min_length + (int)kmer_size_ - 1;
-
-            deque<ContigGraphVertexAdaptor> neighbors;
-            GetNeighbors(current, neighbors);
-            for (unsigned j = 0; j < neighbors.size(); ++j)
-            {
-                if (neighbors[j].in_edges().size() == 1 
-                        && neighbors[j].out_edges().size() == 0
-                        && (int)neighbors[j].contig_size() < depth)
-                    neighbors[j].status().SetDeadFlag();
-            }
-        }
-    }
-    Refresh();
-    MergeSimplePaths();
-
-    return old_num_vertices - vertices_.size();
 }
 
 int64_t ContigGraph::Trim(int min_length)
@@ -262,29 +150,6 @@ int64_t ContigGraph::Trim(int min_length, double min_cover)
     return old_num_vertices - vertices_.size();
 }
 
-int64_t ContigGraph::RemoveStandAlone(int min_length)
-{
-    uint64_t old_num_vertices = vertices_.size();
-
-    for (int64_t i = 0; i < (int64_t)vertices_.size(); ++i)
-    {
-        if (vertices_[i].contig().size() == kmer_size_
-                && vertices_[i].contig().IsPalindrome())
-            continue;
-
-        if ((vertices_[i].in_edges().empty() && vertices_[i].out_edges().empty())
-                && vertices_[i].contig().size() < min_length + kmer_size_ - 1
-           )
-        {
-            vertices_[i].status().SetDeadFlag();
-        }
-    }
-    Refresh();
-    MergeSimplePaths();
-
-    return old_num_vertices - vertices_.size();
-}
-
 int64_t ContigGraph::RemoveDeadEnd(int min_length)
 {
     uint64_t num_deadend = 0;
@@ -293,22 +158,6 @@ int64_t ContigGraph::RemoveDeadEnd(int min_length)
     {
         l = min(2*l, min_length);
         num_deadend += Trim(l);
-
-        if (l == min_length)
-            break;
-    }
-    num_deadend += Trim(min_length);
-    return num_deadend;
-}
-
-int64_t ContigGraph::RemoveDeadEnd(int min_length, double min_cover)
-{
-    uint64_t num_deadend = 0;
-    int l = 1;
-    while (true)
-    {
-        l = min(2*l, min_length);
-        num_deadend += Trim(l, min_cover);
 
         if (l == min_length)
             break;
@@ -397,46 +246,6 @@ double ContigGraph::IterateCoverage(int min_length, double min_cover, double max
     return min_cover;
 }
 
-double ContigGraph::IterateLocalCoverage(int min_length, double ratio, double min_cover, double max_cover, double factor)
-{
-    in_kmer_count_table_.reserve(vertices_.size());
-
-    min_cover = min(min_cover, max_cover);
-    while (true)
-    {
-        bool is_changed = RemoveLocalLowCoverage(min_cover, min_length, ratio);
-
-        if (!is_changed)
-            break;
-
-        if (min_cover >= max_cover)
-            break;
-
-        min_cover *= factor;
-    }
-    return min_cover;
-}
-
-double ContigGraph::IterateComponentCoverage(int min_length, double ratio, double min_cover, double max_cover, double factor, int max_component_size)
-{
-    in_kmer_count_table_.reserve(vertices_.size());
-
-    min_cover = min(min_cover, max_cover);
-    while (true)
-    {
-        bool is_changed = RemoveComponentLowCoverage(min_cover, min_length, ratio, max_component_size);
-
-        if (!is_changed)
-            break;
-
-        if (min_cover >= max_cover)
-            break;
-
-        min_cover *= factor;
-    }
-    return min_cover;
-}
-
 bool ContigGraph::RemoveLowCoverage(double min_cover, int min_length)
 {
     bool is_changed = false;
@@ -463,207 +272,6 @@ bool ContigGraph::RemoveLowCoverage(double min_cover, int min_length)
     MergeSimplePaths();
 
     return is_changed;
-}
-
-bool ContigGraph::RemoveLocalLowCoverage(double min_cover, int min_length, double ratio)
-{
-    int region_length = 1000;
-    //int region_length = 100;
-    bool is_changed = false;
-
-    for (int64_t i = 0; i < (int64_t)vertices_.size(); ++i)
-    {
-        ContigGraphVertexAdaptor current(&vertices_[i]);
-
-        if (current.contig_size() < min_length + kmer_size_ - 1
-                && ((current.in_edges().size() <= 1 && current.out_edges().size() <= 1)
-                        || current.in_edges().size() == 0 || current.out_edges().size() == 0)
-           )
-        {
-            if (is_changed && current.coverage() > min_cover)
-                continue;
-
-            double mean = LocalCoverage(current, region_length);
-            double threshold = min_cover;
-            if (min_cover < mean * ratio)
-                is_changed = true;
-            else
-                threshold = mean * ratio;
-
-            if (current.coverage() < threshold)
-            {
-                is_changed = true;
-                current.status().SetDeadFlag();
-            }
-        }
-    }
-
-    Refresh();
-    //Trim(min_length);
-    MergeSimplePaths();
-
-    return is_changed;
-}
-
-bool ContigGraph::RemoveComponentLowCoverage(double min_cover, int min_length, double ratio, int max_component_size)
-{
-    int region_length = 300;
-    deque<deque<ContigGraphVertexAdaptor> > components;
-    deque<string> component_strings;
-    GetComponents(components, component_strings);
-
-    deque<double> average_coverage(components.size());
-    deque<int> component_id_table(vertices_.size());
-
-    for (int64_t i = 0; i < (int64_t)components.size(); ++i)
-    {
-        double total_kmer_count = 0;
-        double total = 0;
-
-        for (unsigned j = 0; j < components[i].size(); ++j)
-        {
-            total_kmer_count += components[i][j].kmer_count();
-            total += components[i][j].contig_size() - kmer_size_ + 1;
-            component_id_table[components[i][j].id()] = i;
-        }
-
-        average_coverage[i] = total_kmer_count / total;
-    }
-
-    bool is_changed = false;
-    //int max_component_size = 30;
-
-    for (int64_t i = 0; i < (int64_t)vertices_.size(); ++i)
-    {
-        ContigGraphVertexAdaptor current(&vertices_[i]);
-        int id = component_id_table[current.id()];
-
-        if (components[id].size() <= 10)
-            continue;
-
-        if (current.contig_size() < min_length + kmer_size_ - 1
-                && (current.in_edges().size() <= 1 && current.out_edges().size() <= 1)
-                        //|| current.in_edges().size() == 0 || current.out_edges().size() == 0)
-           )
-        {
-            if (is_changed && current.coverage() > min_cover)
-                continue;
-
-            double threshold = min_cover;
-            double mean = LocalCoverage(current, region_length);
-            //double mean = average_coverage[id];
-            if (min_cover < ratio * mean || ((int)components[id].size() > max_component_size && min_cover < average_coverage[id]))
-                is_changed = true;
-            else
-                threshold = ratio * mean;
-
-            if (current.coverage() < threshold 
-                    || ((int)components[id].size() > max_component_size && current.coverage() < average_coverage[id]))
-            {
-                is_changed = true;
-                current.status().SetDeadFlag();
-            }
-        }
-    }
-
-    Refresh();
-    MergeSimplePaths();
-
-    return is_changed;
-}
-
-double ContigGraph::LocalCoverage(ContigGraphVertexAdaptor current, int region_length)
-{
-    double num_count = 0;
-    int num_kmer = 0;
-    LocalCoverageSingle(current, region_length, num_count, num_kmer);
-    LocalCoverageSingle(current.ReverseComplement(), region_length, num_count, num_kmer);
-
-    if (num_kmer == 0)
-        //return 1e100;
-        return 0;
-    else
-        return num_count / num_kmer;
-}
-
-double ContigGraph::LocalCoverageSingle(ContigGraphVertexAdaptor current, int region_length, double &total_count, int &total_kmer)
-{
-    map<int, int> visited;
-    deque<ContigGraphVertexAdaptor> qu;
-    qu.push_back(current);
-    visited[current.id()] = 0;
-
-    int index = 0;
-    int num_added = 0;
-    int num_count = 0;
-    int num_kmer = 0;
-    while (index < (int)qu.size())
-    {
-        current = qu[index++];
-
-        if (num_added >= 4 * region_length)
-            break;
-
-        if (visited.size() > 32)
-            break;
-
-        if (visited[current.id()] >= region_length)
-            continue;
-
-        int dist = visited[current.id()];
-
-        for (int x = 0; x < 4; ++x)
-        {
-            if (current.out_edges()[x])
-            {
-                ContigGraphVertexAdaptor next = GetNeighbor(current, x);
-                if (visited.find(next.id()) == visited.end())
-                {
-                    visited[next.id()] = dist + next.num_kmer();
-                    qu.push_back(next);
-
-                    if ((int)next.num_kmer() + dist > region_length)
-                    {
-                        if ((int)next.num_kmer() < region_length)
-                        {
-                            num_count += (int64_t)next.kmer_count() * (region_length - dist) / next.num_kmer();
-                            num_kmer += region_length - dist;
-                            num_added += region_length - dist;
-                        }
-                        else
-                        {
-                            IdbaKmer begin = next.begin_kmer(kmer_size_);
-                            if (in_kmer_count_table_.find(begin) == in_kmer_count_table_.end())
-                            {
-                                int in_kmer_count = 0;
-                                for (int i = 0; i < region_length; ++i)
-                                    in_kmer_count += next.get_count(i);
-                                in_kmer_count_table_[begin] = in_kmer_count;
-                            }
-
-                            num_count += (int64_t)in_kmer_count_table_[begin] * (region_length - dist) / region_length;
-                            num_kmer += region_length - dist;
-                            num_added += region_length - dist;
-                        }
-                    }
-                    else
-                    {
-                        num_count += next.kmer_count();
-                        num_kmer += next.num_kmer();
-                        num_added += next.num_kmer();
-                    }
-                }
-            }
-        }
-    }
-
-    total_count += num_count;
-    total_kmer += num_kmer;
-
-    if (num_kmer == 0)
-        return 0;
-    else
-        return num_count * 1.0 / num_kmer;
 }
 
 void ContigGraph::MergeSimplePaths()
@@ -698,8 +306,6 @@ int64_t ContigGraph::Assemble(deque<Sequence> &contigs, deque<ContigInfo> &conti
             contig_infos.push_back(contig_info);
         }
     }
-
-    //cout << "palindrome " << contigs.size() << endl;
 
     for (int64_t i = 0; i < (int64_t)vertices_.size(); ++i)
     {
@@ -787,7 +393,6 @@ bool ContigGraph::IsConverged(ContigGraphVertexAdaptor current)
 
         reachable[search_node.node] |= (1 << search_node.label);
         
-        //cout << (reachable[search_node.node] == current.out_edges()) << " " << reachable[search_node.node] << " " << (int)current.out_edges() << endl;
         if (reachable[search_node.node] == (int)current.out_edges())
         {
             return true;
@@ -886,20 +491,6 @@ int64_t ContigGraph::SplitBranches()
     return count;
 }
 
-void ContigGraph::Decomposite()
-{
-    int64_t last = 0;
-    for (int i = 0; i < 100; ++i)
-    {
-        int64_t split = SplitBranches();
-        //cout << split << " " << 2*vertices_.size() << endl;
-
-        if (last == split)
-            break;
-        last = split;
-    }
-}
-
 void ContigGraph::GetComponents(deque<deque<ContigGraphVertexAdaptor> > &components, deque<string> &component_strings)
 {
     components.clear();
@@ -958,98 +549,6 @@ void ContigGraph::GetComponents(deque<deque<ContigGraphVertexAdaptor> > &compone
     }
 
     ClearStatus();
-}
-
-void ContigGraph::GetConsensus(deque<Sequence> &contigs)
-{
-    deque<deque<ContigGraphVertexAdaptor> > components;
-    deque<string> component_strings;
-
-    GetComponents(components, component_strings);
-    for (unsigned i = 0; i < components.size(); ++i)
-    {
-        ContigGraphVertexAdaptor begin = GetBeginVertexAdaptor(components[i]);
-        ContigGraphVertexAdaptor end = GetEndVertexAdaptor(components[i]);
-
-        if (begin.is_null() || end.is_null() || !IsValid(components[i]))
-        {
-            for (unsigned j = 0; j < components[i].size(); ++j)
-                contigs.push_back(components[i][j].contig());
-        }
-        else
-        {
-            ContigGraphPath path;
-            FindLongestPath(components[i], path);
-            Sequence contig;
-            ContigInfo contig_info;
-            path.Assemble(contig, contig_info);
-            contigs.push_back(contig);
-        }
-    }
-}
-
-bool ContigGraph::FindPath(ContigGraphVertexAdaptor from, ContigGraphVertexAdaptor to, ContigGraphPath &path)
-{
-    path.clear();
-    map<int, int> is_used;
-    map<ContigGraphVertexAdaptor, ContigGraphVertexAdaptor> prev;
-    deque<ContigGraphVertexAdaptor> qu;
-    qu.push_back(from);
-    prev[from] = ContigGraphVertexAdaptor(NULL);
-    is_used[from.id()] = true;
-
-    int time = 0;
-    while (!qu.empty())
-    {
-        if (++time >= 100)
-            break;
-
-        if (prev.find(to) != prev.end())
-            break;
-
-        ContigGraphVertexAdaptor current = qu.front();
-        qu.pop_front();
-
-        deque<ContigGraphVertexAdaptor> neighbors;
-        GetNeighbors(current, neighbors);
-        for (unsigned i = 0; i < neighbors.size(); ++i)
-        {
-            ContigGraphVertexAdaptor next = neighbors[i];
-            //if (prev.find(next) == prev.end())
-            if (!is_used[next.id()])
-            {
-                is_used[next.id()] = true;
-                prev[next] = current;
-                qu.push_back(next);
-            }
-        }
-    }
-
-    if (prev.find(to) != prev.end())
-    {
-        deque<ContigGraphVertexAdaptor> tmp;
-        tmp.push_back(to);
-        while (!prev[tmp.back()].is_null())
-            tmp.push_back(prev[tmp.back()]);
-        reverse(tmp.begin(), tmp.end());
-        for (unsigned i = 0; i < tmp.size(); ++i)
-            path.Append(tmp[i], -kmer_size_ + 1);
-        return true;
-    }
-    else
-        return false;
-}
-
-void ContigGraph::GetContigs(deque<Sequence> &contigs, deque<ContigInfo> &contig_infos)
-{
-    contigs.resize(vertices_.size());
-    contig_infos.resize(vertices_.size());
-
-    for (int64_t i = 0; i < (int64_t)vertices_.size(); ++i)
-    {
-        contigs[i] = vertices_[i].contig();
-        contig_infos[i] = vertices_[i].contig_info();
-    }
 }
 
 double ContigGraph::GetSimilarity(const Sequence &a, const Sequence &b)
@@ -1123,81 +622,6 @@ bool ContigGraph::CycleDetect(ContigGraphVertexAdaptor current, map<int, int> &s
         return false;
 }
 
-bool ContigGraph::IsValid(deque<ContigGraphVertexAdaptor> &component)
-{
-    ContigGraphVertexAdaptor begin = GetBeginVertexAdaptor(component);
-    ContigGraphVertexAdaptor end = GetEndVertexAdaptor(component);
-
-    map<int, int> status;
-    if (CycleDetect(begin, status))
-        return false;
-
-    if (status.size() != component.size())
-        return false;
-
-    status.clear();
-    end.ReverseComplement();
-    if (CycleDetect(end, status))
-        return false;
-
-    if (status.size() != component.size())
-        return false;
-
-    return true;
-}
-
-void ContigGraph::FindLongestPath(deque<ContigGraphVertexAdaptor> &component, ContigGraphPath &path)
-{
-    ContigGraphVertexAdaptor begin = GetBeginVertexAdaptor(component);
-    ContigGraphVertexAdaptor end = GetEndVertexAdaptor(component);
-
-    deque<ContigGraphVertexAdaptor> order;
-    TopSort(component, order);
-
-    map<ContigGraphVertexAdaptor, int> dist;
-    map<ContigGraphVertexAdaptor, ContigGraphVertexAdaptor> prev;
-    dist[begin] = 0;
-    prev[begin] = ContigGraphVertexAdaptor(NULL);
-
-    for (unsigned i = 0; i < order.size(); ++i)
-    {
-        ContigGraphVertexAdaptor current = order[i];
-        for (int x = 0; x < 4; ++x)
-        {
-            if (current.out_edges()[x])
-            {
-                ContigGraphVertexAdaptor next = GetNeighbor(current, x);
-                int tmp = dist[current] + (int)current.contig_size() - (int)kmer_size_ + 1;
-                if (current.id() != next.id() && tmp > dist[next])
-                {
-                    dist[next] = tmp;
-                    prev[next] = current;
-                }
-            }
-        }
-    }
-
-    deque<ContigGraphVertexAdaptor> v;
-    v.push_back(end);
-
-    while (!prev[v.back()].is_null())
-        v.push_back(prev[v.back()]);
-    reverse(v.begin(), v.end());
-
-    path.clear();
-    for (unsigned i = 0; i < v.size(); ++i)
-        path.Append(v[i], -(int)kmer_size_ + 1);
-}
-
-void ContigGraph::TopSort(deque<ContigGraphVertexAdaptor> &component, deque<ContigGraphVertexAdaptor> &order)
-{
-    ContigGraphVertexAdaptor begin = GetBeginVertexAdaptor(component);
-
-    map<int, int> status;
-    TopSortDFS(order, begin, status);
-    reverse(order.begin(), order.end());
-}
-
 void ContigGraph::TopSortDFS(deque<ContigGraphVertexAdaptor> &order, ContigGraphVertexAdaptor current, map<int, int> &status)
 {
     if (status[current.id()] == 0)
@@ -1231,20 +655,6 @@ int ContigGraph::GetDepth(ContigGraphVertexAdaptor current, int depth, int &maxi
     }
 
     return min(maximum, min_length);
-}
-
-double ContigGraph::FindSimilarPath(ContigGraphVertexAdaptor target, ContigGraphVertexAdaptor start)
-{
-    if (start.status().IsDead()
-            || target.begin_kmer(kmer_size_-1) != start.begin_kmer(kmer_size_-1)
-            || target.in_edges() != start.in_edges())
-        return 0;
-
-    ContigGraphPath path;
-    path.Append(start, 0);
-
-    int time = 0;
-    return FindSimilarPath(target, path, time);
 }
 
 double ContigGraph::FindSimilarPath(ContigGraphVertexAdaptor target, ContigGraphPath &path, int &time)

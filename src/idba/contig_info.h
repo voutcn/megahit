@@ -30,9 +30,7 @@ class ContigBuilder;
  */
 class ContigInfo
 {
-    friend class ContigBuilder; 
-    friend std::istream &operator >>(std::istream &is, ContigInfo &contig_info);
-    friend std::ostream &operator <<(std::ostream &os, const ContigInfo &contig_info);
+    friend class ContigBuilder;
 
 public:
     ContigInfo()
@@ -102,12 +100,6 @@ namespace std
 {
 template <> inline void swap(ContigInfo &x, ContigInfo &y) { x.swap(y); }
 }
-
-std::istream &operator >>(std::istream &is, ContigInfo &contig_info);
-std::ostream &operator <<(std::ostream &os, const ContigInfo &contig_info);
-
-void ReadContigInfo(const std::string &filename, std::deque<ContigInfo> &contig_infos);
-void WriteContigInfo(const std::string &filename, const std::deque<ContigInfo> &contig_infos);
 
 #endif
 

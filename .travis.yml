@@ -1,7 +1,8 @@
 dist: xenial
+before_install:
+  - sudo apt-get update
+  - sudo apt-get install lcov
 language: python
-apt:
-  packages: lcov
 python:
   - "2.7"
   - "3.4"
