@@ -40,7 +40,7 @@ bool RemoveLocalLowDepth(UnitigGraph &graph, double min_depth, uint32_t max_len,
                          bool permanent_rm, uint32_t *num_removed) {
   bool is_changed = false;
   bool need_refresh = false;
-  auto &removed = *num_removed;
+  uint32_t removed = 0;
 
 #pragma omp parallel for reduction(+: removed)
   for (UnitigGraph::size_type i = 0; i < graph.size(); ++i) {
@@ -79,6 +79,7 @@ bool RemoveLocalLowDepth(UnitigGraph &graph, double min_depth, uint32_t max_len,
     bool set_changed = !permanent_rm;
     graph.Refresh(set_changed);
   }
+  *num_removed = removed;
   return is_changed;
 }
 

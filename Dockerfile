@@ -9,3 +9,5 @@ WORKDIR build
 RUN cmake -DCMAKE_BUILD_TYPE=Release ..
 RUN make -j4
 RUN make install
+RUN megahit --test --no-hw-accel
+RUN megahit --test --no-hw-accel --kmin-1pass

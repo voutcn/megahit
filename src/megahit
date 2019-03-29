@@ -85,6 +85,7 @@ Optional Arguments:
     --mem-flag               <int>          SdBG builder memory mode
                                             0: minimum; 1: moderate; others: use all memory specified by '-m/--memory' [1]
     -t/--num-cpu-threads     <int>          number of CPU threads [# of logical processors]
+    --no-hw-accel                           run MEGAHIT without BMI2 and POPCNT hardware instructions
 
   Output options:
     -o/--out-dir             <string>       output directory [./megahit_out]
@@ -96,6 +97,7 @@ Optional Arguments:
 Other Arguments:
     --continue                              continue a MEGAHIT run from its last available check point.
                                             please set the output directory correctly when using this option.
+    --test                                  run MEGAHIT on a toy test dataset
     -h/--help                               print the usage message
     -v/--version                            print version
 '''
@@ -121,7 +123,7 @@ class Options:
         self.auto_k = True
         self.set_list_by_min_max_step = False
         self.min_count = 2
-        self.bin_dir = sys.path[0] + "/"
+        self.megahit_core = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'megahit_core')
         self.max_tip_len = -1
         self.no_mercy = False
         self.no_local = False
@@ -149,6 +151,7 @@ class Options:
         self.graph_only = False
         self.force_overwrite = False
         self.lib = None
+        self.test = False
 
 
 opt = Options()
@@ -157,13 +160,13 @@ cp = 0
 
 def log_file_name():
     if opt.out_prefix == "":
-        return opt.out_dir + "log"
+        return os.path.join(opt.out_dir, "log")
     else:
-        return opt.out_dir + opt.out_prefix + ".log"
+        return os.path.join(opt.out_dir, opt.out_prefix + ".log")
 
 
 def opt_file_name():
-    return opt.out_dir + "opts.txt"
+    return os.path.join(opt.out_dir, "opts.txt")
 
 
 def make_out_dir():
@@ -171,11 +174,11 @@ def make_out_dir():
         os.mkdir(opt.out_dir)
 
     if not opt.continue_mode:
-        if opt.temp_dir == opt.out_dir + "tmp/":
+        if opt.temp_dir == os.path.join(opt.out_dir, "tmp"):
             if not os.path.exists(opt.temp_dir):
                 os.mkdir(opt.temp_dir)
         else:
-            opt.temp_dir = tempfile.mkdtemp(dir=opt.temp_dir, prefix='megahit_tmp_') + "/"
+            opt.temp_dir = tempfile.mkdtemp(dir=opt.temp_dir, prefix='megahit_tmp_')
 
     if not os.path.exists(opt.contig_dir):
         os.mkdir(opt.contig_dir)
@@ -214,9 +217,11 @@ def parse_opt(argv):
                                     "version",
                                     "out-prefix=",
                                     "presets=",
+                                    "test",
+                                    "no-hw-accel",
                                     "force",
-                                    "graph-only",
                                     # deprecated
+                                    "graph-only",
                                     "max-read-len=",
                                     "no-low-local",
                                     "cpu-only",
@@ -235,7 +240,7 @@ def parse_opt(argv):
             exit(0)
         elif option in ("-o", "--out-dir"):
             if opt.continue_mode == 0:
-                opt.out_dir = value + "/"
+                opt.out_dir = value
         elif option in ("-m", "--memory"):
             opt.host_mem = float(value)
         elif option == "--min-contig-len":
@@ -294,7 +299,7 @@ def parse_opt(argv):
             opt.out_prefix = value
         elif option == "--tmp-dir":
             if opt.continue_mode == 0:
-                opt.temp_dir = value + "/"
+                opt.temp_dir = value
         elif option in ("--cpu-only", "-l", "--max-read-len", "--no-low-local",
                         "--use-gpu", "--gpu-mem"):
             print("option {} is deprecated!".format(option), file=sys.stderr)
@@ -315,13 +320,24 @@ def parse_opt(argv):
             opt.graph_only = True
         elif option in ("-f", "--force"):
             opt.force_overwrite = True
-
+        elif option == "--test":
+            opt.test = True
+        elif option == "--no-hw-accel":
+            opt.megahit_core = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'megahit_core_no_hw_accel')
         else:
             raise Usage("Invalid option {}".format(option))
 
+    if opt.test:
+        test_data_dir = find_test_data_path()
+        opt.pe12 = [os.path.join(test_data_dir, "r1.il.fa.gz"), os.path.join(test_data_dir, "r2.il.fa.bz2")]
+        opt.pe1 = [os.path.join(test_data_dir, "r3_1.fa")]
+        opt.pe2 = [os.path.join(test_data_dir, "r3_2.fa")]
+        opt.se = [os.path.join(test_data_dir, "r4.fa")]
+        opt.out_dir = os.path.join(tempfile.mkdtemp(prefix='megahit_test'), 'out')
+
     if opt.temp_dir == "":
-        opt.temp_dir = opt.out_dir + "tmp/"
-    opt.contig_dir = opt.out_dir + "intermediate_contigs/"
+        opt.temp_dir = os.path.join(opt.out_dir, "tmp")
+    opt.contig_dir = os.path.join(opt.out_dir, "intermediate_contigs")
 
     if need_continue:
         prepare_continue()
@@ -422,6 +438,16 @@ def check_opt():
         opt.bubble_level = 2
 
 
+def find_test_data_path():
+    script_path = os.path.dirname(os.path.realpath(__file__))
+    for path in [os.path.join(script_path, '..'), os.path.join(script_path, '../share/megahit')]:
+        test_data_dir = os.path.join(path, 'test_data')
+        if os.path.isdir(test_data_dir) and all(
+                f in os.listdir(test_data_dir) for f in ["r1.il.fa.gz", "r2.il.fa.bz2", "r3_1.fa", "r3_2.fa", "r4.fa"]):
+            return test_data_dir
+    raise Usage("Test data not found! Script path = {}".format(script_path))
+
+
 def check_reads():
     # reads
     global cp
@@ -462,7 +488,7 @@ def write_opt(argv):
 def prepare_continue():
     global opt  # out_dir is already set
     if not os.path.exists(opt_file_name()):
-        print("Cannot find " + opt.out_dir + "opts.txt", file=sys.stderr)
+        print("Cannot find " + opt_file_name(), file=sys.stderr)
         print("Please check whether the output directory is correctly set by \"-o\"", file=sys.stderr)
         print("Now switching to normal mode.", file=sys.stderr)
         return
@@ -487,8 +513,8 @@ def prepare_continue():
         parse_opt(argv)
 
     opt.last_cp = -1
-    if os.path.exists(opt.temp_dir + "cp.txt"):
-        with open(opt.temp_dir + "cp.txt", "r") as cpf:
+    if os.path.exists(os.path.join(opt.temp_dir, "cp.txt")):
+        with open(os.path.join(opt.temp_dir, "cp.txt"), "r") as cpf:
             for line in cpf:
                 a = line.strip().split()
                 if len(a) == 2 and a[1] == "done":
@@ -498,7 +524,7 @@ def prepare_continue():
 
 
 def check_bin():
-    if not os.path.exists(opt.bin_dir + "megahit_core"):
+    if not os.path.exists(opt.megahit_core):
         raise Usage("Cannot find megahit_core, please recompile.")
 
 
@@ -507,21 +533,21 @@ def get_version():
     global usage_message
     global max_k_allowed
     megahit_version_str = "MEGAHIT " + \
-                          subprocess.Popen([opt.bin_dir + "megahit_core", "dumpversion"],
+                          subprocess.Popen([opt.megahit_core, "dumpversion"],
                                            stdout=subprocess.PIPE).communicate()[0].rstrip().decode('utf-8')
-    max_k_allowed = int(subprocess.Popen([opt.bin_dir + "megahit_core", "kmax"],
+    max_k_allowed = int(subprocess.Popen([opt.megahit_core, "kmax"],
                                          stdout=subprocess.PIPE).communicate()[0].rstrip().decode('utf-8'))
     usage_message = usage_message % (max_k_allowed, max_k_allowed, max_k_allowed)
 
 
 def graph_prefix(kmer_k):
-    if not os.path.exists(opt.temp_dir + "k" + str(kmer_k)):
-        os.mkdir(opt.temp_dir + "k" + str(kmer_k))
-    return opt.temp_dir + "k" + str(kmer_k) + "/" + str(kmer_k)
+    if not os.path.exists(os.path.join(opt.temp_dir, "k" + str(kmer_k))):
+        os.mkdir(os.path.join(opt.temp_dir, "k" + str(kmer_k)))
+    return os.path.join(opt.temp_dir, "k" + str(kmer_k), str(kmer_k))
 
 
 def contig_prefix(kmer_k):
-    return opt.contig_dir + "k" + str(kmer_k)
+    return os.path.join(opt.contig_dir, "k" + str(kmer_k))
 
 
 def delect_file_if_exist(file_name):
@@ -552,7 +578,7 @@ def delete_tmp_after_iter(kmer_k):
 
 def write_cp():
     global cp
-    cpf = open(opt.temp_dir + "cp.txt", "a")
+    cpf = open(os.path.join(opt.temp_dir, "cp.txt"), "a")
     print(str(cp) + "\t" + "done", file=cpf)
     cp = cp + 1
     cpf.close()
@@ -568,24 +594,24 @@ def inpipe_cmd(file_name):
 
 
 def write_lib():
-    opt.lib = opt.temp_dir + "reads.lib"
+    opt.lib = os.path.join(opt.temp_dir, "reads.lib")
     lib = open(opt.lib, "w")
     for i in range(0, len(opt.pe12)):
         print(opt.pe12[i], file=lib)
 
         if inpipe_cmd(opt.pe12[i]) != "":
-            print("interleaved " + opt.temp_dir + "inpipe.pe12." + str(i), file=lib)
+            print("interleaved " + os.path.join(opt.temp_dir, "inpipe.pe12." + str(i)), file=lib)
         else:
             print("interleaved " + opt.pe12[i], file=lib)
 
     for i in range(0, len(opt.pe1)):
         if inpipe_cmd(opt.pe1[i]) != "":
-            f1 = opt.temp_dir + "inpipe.pe1." + str(i)
+            f1 = os.path.join(opt.temp_dir, "inpipe.pe1." + str(i))
         else:
             f1 = opt.pe1[i]
 
         if inpipe_cmd(opt.pe2[i]) != "":
-            f2 = opt.temp_dir + "inpipe.pe2." + str(i)
+            f2 = os.path.join(opt.temp_dir, "inpipe.pe2." + str(i))
         else:
             f2 = opt.pe2[i]
 
@@ -596,7 +622,7 @@ def write_lib():
         print(opt.se[i], file=lib)
 
         if inpipe_cmd(opt.se[i]) != "":
-            print("se " + opt.temp_dir + "inpipe.se." + str(i), file=lib)
+            print("se " + os.path.join(opt.temp_dir, "inpipe.se." + str(i)), file=lib)
         else:
             print("se " + opt.se[i], file=lib)
 
@@ -610,7 +636,7 @@ def write_lib():
 def build_lib():
     global cp
     if (not opt.continue_mode) or (cp > opt.last_cp):
-        build_lib_cmd = [opt.bin_dir + "megahit_core", "buildlib",
+        build_lib_cmd = [opt.megahit_core, "buildlib",
                          opt.lib,
                          opt.lib]
 
@@ -620,26 +646,26 @@ def build_lib():
             # create inpipe
             for i in range(len(opt.pe12)):
                 if inpipe_cmd(opt.pe12[i]) != "":
-                    delect_file_if_exist(opt.temp_dir + "inpipe.pe12." + str(i))
-                    os.mkfifo(opt.temp_dir + "inpipe.pe12." + str(i))
-                    fifos.append(opt.temp_dir + "inpipe.pe12." + str(i))
+                    delect_file_if_exist(os.path.join(opt.temp_dir, "inpipe.pe12." + str(i)))
+                    os.mkfifo(os.path.join(opt.temp_dir, "inpipe.pe12." + str(i)))
+                    fifos.append(os.path.join(opt.temp_dir, "inpipe.pe12." + str(i)))
 
             for i in range(len(opt.pe1)):
                 if inpipe_cmd(opt.pe1[i]) != "":
-                    delect_file_if_exist(opt.temp_dir + "inpipe.pe1." + str(i))
-                    os.mkfifo(opt.temp_dir + "inpipe.pe1." + str(i))
-                    fifos.append(opt.temp_dir + "inpipe.pe1." + str(i))
+                    delect_file_if_exist(os.path.join(opt.temp_dir, "inpipe.pe1." + str(i)))
+                    os.mkfifo(os.path.join(opt.temp_dir, "inpipe.pe1." + str(i)))
+                    fifos.append(os.path.join(opt.temp_dir, "inpipe.pe1." + str(i)))
 
                 if inpipe_cmd(opt.pe2[i]) != "":
-                    delect_file_if_exist(opt.temp_dir + "inpipe.pe2." + str(i))
-                    os.mkfifo(opt.temp_dir + "inpipe.pe2." + str(i))
-                    fifos.append(opt.temp_dir + "inpipe.pe2." + str(i))
+                    delect_file_if_exist(os.path.join(opt.temp_dir, "inpipe.pe2." + str(i)))
+                    os.mkfifo(os.path.join(opt.temp_dir, "inpipe.pe2." + str(i)))
+                    fifos.append(os.path.join(opt.temp_dir, "inpipe.pe2." + str(i)))
 
             for i in range(len(opt.se)):
                 if inpipe_cmd(opt.se[i]) != "":
-                    delect_file_if_exist(opt.temp_dir + "inpipe.se." + str(i))
-                    os.mkfifo(opt.temp_dir + "inpipe.se." + str(i))
-                    fifos.append(opt.temp_dir + "inpipe.se." + str(i))
+                    delect_file_if_exist(os.path.join(opt.temp_dir, "inpipe.se." + str(i)))
+                    os.mkfifo(os.path.join(opt.temp_dir, "inpipe.se." + str(i)))
+                    fifos.append(os.path.join(opt.temp_dir, "inpipe.se." + str(i)))
 
             logging.info("--- [%s] Converting reads to binary library ---" % datetime.now().strftime("%c"))
             logging.debug("%s" % " ".join(build_lib_cmd))
@@ -657,27 +683,28 @@ def build_lib():
             for i in range(len(opt.pe12)):
                 if inpipe_cmd(opt.pe12[i]) != "":
                     ip_thread12 = subprocess.Popen(
-                        inpipe_cmd(opt.pe12[i]) + " > " + opt.temp_dir + "inpipe.pe12." + str(i), shell=True,
+                        inpipe_cmd(opt.pe12[i]) + " > " + os.path.join(opt.temp_dir, "inpipe.pe12." + str(i)),
+                        shell=True,
                         preexec_fn=os.setsid)
                     pipes.append(ip_thread12)
 
             for i in range(len(opt.pe1)):
                 if inpipe_cmd(opt.pe1[i]) != "":
                     ip_thread1 = subprocess.Popen(
-                        inpipe_cmd(opt.pe1[i]) + " > " + opt.temp_dir + "inpipe.pe1." + str(i), shell=True,
+                        inpipe_cmd(opt.pe1[i]) + " > " + os.path.join(opt.temp_dir, "inpipe.pe1." + str(i)), shell=True,
                         preexec_fn=os.setsid)
                     pipes.append(ip_thread1)
 
                 if inpipe_cmd(opt.pe2[i]) != "":
                     ip_thread2 = subprocess.Popen(
-                        inpipe_cmd(opt.pe2[i]) + " > " + opt.temp_dir + "inpipe.pe2." + str(i), shell=True,
+                        inpipe_cmd(opt.pe2[i]) + " > " + os.path.join(opt.temp_dir, "inpipe.pe2." + str(i)), shell=True,
                         preexec_fn=os.setsid)
                     pipes.append(ip_thread2)
 
             for i in range(len(opt.se)):
                 if inpipe_cmd(opt.se[i]) != "":
                     ip_thread_se = subprocess.Popen(
-                        inpipe_cmd(opt.se[i]) + " > " + opt.temp_dir + "inpipe.se." + str(i), shell=True,
+                        inpipe_cmd(opt.se[i]) + " > " + os.path.join(opt.temp_dir, "inpipe.se." + str(i)), shell=True,
                         preexec_fn=os.setsid)
                     pipes.append(ip_thread_se)
 
@@ -756,11 +783,11 @@ def build_first_graph():
                      "--read_lib_file", opt.lib]
 
         if opt.kmin_1pass:
-            cmd = [opt.bin_dir + "megahit_core", "read2sdbg"] + count_opt
+            cmd = [opt.megahit_core, "read2sdbg"] + count_opt
             if not opt.no_mercy:
                 cmd.append("--need_mercy")
         else:
-            cmd = [opt.bin_dir + "megahit_core", "count"] + count_opt
+            cmd = [opt.megahit_core, "count"] + count_opt
 
         try:
             if opt.kmin_1pass:
@@ -809,7 +836,7 @@ def build_graph(kmer_k, kmer_from):
                           "-k", str(kmer_k),
                           "--kmer_from", str(kmer_from)]
 
-        build_cmd = [opt.bin_dir + "megahit_core", "seq2sdbg"] + build_comm_opt
+        build_cmd = [opt.megahit_core, "seq2sdbg"] + build_comm_opt
 
         file_size = 0
 
@@ -875,7 +902,7 @@ def iterate(cur_k, step):
     if (not opt.continue_mode) or (cp > opt.last_cp):
         next_k = cur_k + step
 
-        iterate_cmd = [opt.bin_dir + "megahit_core", "iterate",
+        iterate_cmd = [opt.megahit_core, "iterate",
                        "-c", contig_prefix(cur_k) + ".contigs.fa",
                        "-b", contig_prefix(cur_k) + ".bubble_seq.fa",
                        "-t", str(opt.num_cpu_threads),
@@ -922,7 +949,7 @@ def assemble(cur_k):
         if opt.max_tip_len >= 0:
             min_standalone = max(opt.max_tip_len + opt.k_max - 1, opt.min_contig_len)
 
-        assembly_cmd = [opt.bin_dir + "megahit_core", "assemble",
+        assembly_cmd = [opt.megahit_core, "assemble",
                         "-s", graph_prefix(cur_k),
                         "-o", contig_prefix(cur_k),
                         "-t", str(opt.num_cpu_threads),
@@ -980,7 +1007,7 @@ def assemble(cur_k):
 def local_assemble(cur_k, kmer_to):
     global cp
     if (not opt.continue_mode) or (cp > opt.last_cp):
-        la_cmd = [opt.bin_dir + "megahit_core", "local",
+        la_cmd = [opt.megahit_core, "local",
                   "-c", contig_prefix(cur_k) + ".contigs.fa",
                   "-l", opt.lib,
                   "-t", str(opt.num_cpu_threads),
@@ -1017,14 +1044,14 @@ def merge_final():
     global cp
     if (not opt.continue_mode) or (cp > opt.last_cp):
         logging.info("--- [%s] Merging to output final contigs ---" % (datetime.now().strftime("%c")))
-        final_contig_name = opt.out_dir + "final.contigs.fa"
+        final_contig_name = os.path.join(opt.out_dir, "final.contigs.fa")
         if opt.out_prefix != "":
-            final_contig_name = opt.out_dir + opt.out_prefix + ".contigs.fa"
+            final_contig_name = os.path.join(opt.out_dir, opt.out_prefix + ".contigs.fa")
 
         with open(final_contig_name, "w") as final_contigs:
-            merge_cmd = "cat " + opt.contig_dir + "*.final.contigs.fa " + \
+            merge_cmd = "cat " + opt.contig_dir + "/*.final.contigs.fa " + \
                         contig_prefix(opt.k_max) + ".contigs.fa | " + \
-                        opt.bin_dir + "megahit_core filterbylen " + str(opt.min_contig_len)
+                        opt.megahit_core + " filterbylen " + str(opt.min_contig_len)
             p = subprocess.Popen(merge_cmd, shell=True, stdout=final_contigs, stderr=subprocess.PIPE)
 
             while True:
@@ -1117,7 +1144,10 @@ def main(argv=None):
             if not opt.keep_tmp_files and os.path.exists(opt.temp_dir):
                 shutil.rmtree(opt.temp_dir)
 
-            open(opt.out_dir + "done", "w").close()
+            open(os.path.join(opt.out_dir, "done"), "w").close()
+
+            if not opt.keep_tmp_files and opt.test:
+                shutil.rmtree(opt.out_dir)
 
         logging.info("--- [%s] ALL DONE. Time elapsed: %f seconds ---" % (
             datetime.now().strftime("%c"), time.time() - start_time))
