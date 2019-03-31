@@ -1,3 +1,8 @@
+### 1.2.1-beta / 2019-03-30 PST
+-   Added `--no-hw-accel` option for users whose CPUs do not support BMI2/POPCNT
+-   Added `--test` option for testing
+-   Compilable with CMake 2.8 and g++4.8
+
 ### 1.2.0-beta / 2019-03-24 PST
 
 Heavily refactored the whole project:

@@ -1,97 +1,76 @@
 MEGAHIT
 =======
 
-[![BioConda Install](https://img.shields.io/conda/dn/bioconda/megahit.svg?style=flag&label=BioConda%20install)](https://anaconda.org/bioconda/megahit)
-[![Build Status](https://travis-ci.org/voutcn/megahit.svg?branch=master)](https://travis-ci.org/voutcn/megahit)
-[![codecov](https://codecov.io/gh/voutcn/megahit/branch/master/graph/badge.svg)](https://codecov.io/gh/voutcn/megahit)
+[![BioConda Install](https://img.shields.io/conda/dn/bioconda/megahit.svg?style=flag&label=BioConda%20install)](https://anaconda.org/bioconda/megahit) [![Build Status](https://travis-ci.org/voutcn/megahit.svg?branch=master)](https://travis-ci.org/voutcn/megahit) [![codecov](https://codecov.io/gh/voutcn/megahit/branch/master/graph/badge.svg)](https://codecov.io/gh/voutcn/megahit)
 
 MEGAHIT is an ultra-fast and memory-efficient NGS assembler. It is optimized for metagenomes, but also works well on generic single genome assembly (small or mammalian size) and single-cell assembly.
 
-*News*
+*News: try v1.2.x!*
 ------
 
-MEGAHIT v1.2.0-beta is released. Main changes include
+MEGAHIT v1.2.x (beta) is released. Compared to v1.1.x, its changes include
 
 -   faster and more memory-efficient than before, by using [BMI2 instructions](https://en.wikipedia.org/wiki/Bit_Manipulation_Instruction_Sets), [sparsepp](https://github.com/greg7mdp/sparsepp) and [xxhash](https://github.com/Cyan4973/xxHash)
 -   refactored with C++11 features
 -   use CMake to build the project
 -   removal of GPU support
 
-It is highly recommended to use v1.2.0-beta. Past versions can be found at the [release](https://github.com/voutcn/megahit/releases) page.
+Please follow the instructions in [Getting Started](#gst) to try this new version.
+Past versions can be found at the [release](https://github.com/voutcn/megahit/releases) page.
 
-Getting Started
+<a name="gst"></a>Getting Started
 ---------------
 
-### Run with docker (recommended)
+### Running with Linux binaries or docker images (recommended)
 
-``` bash
+``` sh
+https://github.com/voutcn/megahit/releases/download/v1.2.1-beta/MEGAHIT-1.2.1-beta-Linux-static.tar.gz
+tar zvxf MEGAHIT-1.2.1-beta-Linux-static
+cd MEGAHIT-1.2.1-beta-Linux-static/bin/
+./megahit --test  # run on a toy dataset
+./megahit -1 YOUR_PE_READ_1.gz -2 YOUR_PE_READ_2.fq.gz -o YOUR_OUTPUT_DIR
+```
+
+If your CPU does not support BMI2 and/or POPCNT, you may see "exit code -4". In this case, run MEGAHIT with `--no-hw-accel` option.
+
+You can also run MEGAHIT with its docker images.
+
+``` sh
 # in the directory with your input reads
 docker run -v $(pwd):/workspace -w /workspace --user $(id -u):$(id -g) vout/megahit \
   megahit -1 YOUR_PE_READ_1.gz -2 YOUR_PE_READ_2.fq.gz -o YOUR_OUTPUT_DIR
 ```
 
-If your CPU does not support BMI2 or POPCNT instructions (typically you will see exit code -4), please use the docker images from `vout/megahit-no-popcnt-bmi2`. i.e.
-
-``` bash
-# in the directory with your input reads
-docker run -v $(pwd):/workspace -w /workspace --user $(id -u):$(id -g) vout/megahit-no-popcnt-bmi2 \
-  megahit -1 YOUR_PE_READ_1.gz -2 YOUR_PE_READ_2.fq.gz -o YOUR_OUTPUT_DIR
-```
-
-### Build from source
+### Building from source
 
 #### Prerequisites
 
--   For building: zlib, cmake, gcc/g++ &gt;= 5
+-   For building: zlib, cmake &gt;= 2.8, g++ &gt;= 4.8.4
 -   For running: gzip and bzip2
 
-#### Build and test
-
-1.  Obtain the source code
-
-    ``` bash
-    git clone https://github.com/voutcn/megahit.git
-    cd megahit
-    git submodule update --init
-    ```
-
-2.  Create the build directory
-
-    ``` bash
-    mkdir build && cd build
-    ```
-
-3.  Run cmake
-
-    ``` bash
-    cmake -DCMAKE_BUILD_TYPE=release ..
-    ```
-
-    If your CPU does not support BMI2 instructions (uncommon), run the following command instead
-
-        cmake -DUSE_BMI2=OFF -DCMAKE_BUILD_TYPE=release ..
-
-4.  Compile & test
-
-    ``` bash
-    make -j4
-    make simple_test  # will test MEGAHIT with a toy dataset
-    ```
-
-    If you need to install Megahit to your PATH, run `make install` in the build directory.
+``` sh
+git clone https://github.com/voutcn/megahit.git
+cd megahit
+git submodule update --init
+mkdir build && cd build
+cmake .. -DCMAKE_BUILD_TYPE=Release  # add -DCMAKE_INSTALL_PREFIX=YOUR_PREFIX if needed
+make -j4
+make simple_test  # will test MEGAHIT with a toy dataset
+# make install if needed
+```
 
 Usage
 -----
 
 To run MEGAHIT with default parameters:
 
-``` bash
+``` sh
 megahit -1 YOUR_PE_READ_1.fq.gz -2 YOUR_PE_READ_2.fq.gz -r YOUR_SE_READ.fq.gz -o YOUR_OUTPUT_DIR
 ```
 
 If you did not install Megahit to your PATH, just run Megahit with full-path, e.g.
 
-``` bash
+``` sh
 /PATH/TO/MEGAHIT/build/megahit
 ```
 

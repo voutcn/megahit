@@ -51,7 +51,7 @@ public:
     iterator end() { return vertex_table_.end(); }
 
     HashGraphVertex *InsertVertex(const IdbaKmer &kmer, int count = 1)
-    { 
+    {
         IdbaKmer key = kmer.unique_format();
         HashGraphVertex &vertex = vertex_table_.find_or_insert(HashGraphVertex(key));
         vertex.count() += count;
@@ -93,11 +93,6 @@ public:
     int64_t InsertKmers(const Sequence &seq) { return InsertKmersWithPrefix(seq, 0, 0); }
     int64_t InsertKmersWithPrefix(const Sequence &seq, uint64_t prefix, uint64_t umask);
     int64_t InsertUncountKmers(const Sequence &seq);
-    int64_t InsertInternalKmers(const Sequence &seq, int min_count = 0);
-    int64_t InsertEdges(const Sequence &seq);
-    int64_t InsertExistKmers(const Sequence &seq);
-
-    int64_t RemoveKmers(const Sequence &seq);
     void RemoveEdge(HashGraphVertexAdaptor &node, int x)
     {
         node.out_edges().Remove(x);
@@ -136,27 +131,20 @@ public:
     void SetCountCap(int cap)
     { SetCountCapFunc func(cap); vertex_table_.for_each(func); }
 
-    void Refresh(int min_count = 0) 
+    void Refresh(int min_count = 0)
     { RefreshVertices(min_count); RefreshEdges(); }
     int64_t RefreshVertices(int min_count = 0)
     { RefreshVerticesFunc func(min_count); return vertex_table_.remove_if(func); }
     void RefreshEdges()
     { RefreshEdgesFunc func(this); vertex_table_.for_each(func); num_edges_ = func.num_edges(); }
 
-    int64_t ErodeEnd(int min_cover);
-    int64_t Trim(int min_length);
-    int64_t RemoveDeadEnd(int min_length);
-    int64_t RemoveLowCoverage(double min_cover, int min_contig = (1 << 20));
-    int64_t RemoveBubble();
+    int64_t Assemble(std::deque<Sequence> &contigs, std::deque<ContigInfo> &contig_infos);
 
-    int64_t Assemble(std::deque<Sequence> &contigs);
-    int64_t Assemble(std::deque<Sequence> &contigs, std::deque<ContigInfo> &contig_infos); 
-    
 //    int64_t TrimSequentially(int min_length);
 //    int64_t RemoveDeadEndSequentially(int min_length);
 //    int64_t RemoveLowCoverageSequentially(double min_cover);
 //    int64_t AssembleSequentially(std::deque<Sequence> &contigs);
-//    int64_t AssembleSequentially(std::deque<Sequence> &contigs, std::deque<ContigInfo> &contig_infos); 
+//    int64_t AssembleSequentially(std::deque<Sequence> &contigs, std::deque<ContigInfo> &contig_infos);
 
     void reserve(uint64_t capacity) { vertex_table_.reserve(capacity); }
 
@@ -221,7 +209,7 @@ private:
         IdbaKmer rev_comp = kmer;
         rev_comp.ReverseComplement();
 
-        return contig.GetIdbaKmer(contig.size() - kmer_size_, kmer_size_) == rev_comp;   
+        return contig.GetIdbaKmer(contig.size() - kmer_size_, kmer_size_) == rev_comp;
     }
 
     class BackupEdgesFunc
@@ -349,49 +337,6 @@ private:
         uint64_t total_degree_;
     };
 
-    class ErodeFunc
-    {
-    public:
-        ErodeFunc(HashGraph *hash_graph, int min_cover)
-        { hash_graph_ = hash_graph; min_cover_ = min_cover; }
-
-        void operator ()(HashGraphVertex &vertex);
-
-    private:
-        HashGraph *hash_graph_;
-        int min_cover_;
-    };
-
-    class TrimFunc
-    {
-    public:
-        TrimFunc(HashGraph *hash_graph, int min_length)
-        { hash_graph_ = hash_graph; min_length_ = min_length; }
-
-        void operator ()(HashGraphVertex &vertex);
-
-    private:
-        HashGraph *hash_graph_;
-        int min_length_;
-    };
-
-    class BubbleFunc
-    {
-    public:
-        BubbleFunc(HashGraph *hash_graph)
-        { hash_graph_ = hash_graph; }
-        ~BubbleFunc()
-        { }
-
-        void operator ()(HashGraphVertex &vertex);
-
-        std::deque<HashGraphVertexAdaptor> &candidates() { return candidates_; }
-
-    private:
-        HashGraph *hash_graph_;
-        std::deque<HashGraphVertexAdaptor> candidates_;
-    };
-
     class AssembleFunc
     {
     public:
@@ -400,7 +345,7 @@ private:
         { }
         ~AssembleFunc()
         { }
-            
+
         void operator ()(HashGraphVertex &vertex);
 
         std::deque<Sequence> &contigs() { return contigs_; }

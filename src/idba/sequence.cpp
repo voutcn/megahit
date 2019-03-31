@@ -116,14 +116,6 @@ bool Sequence::IsPalindrome() const
     return true;
 }
 
-void Sequence::TrimN()
-{
-    int len = size();
-    while (len > 0 && !IsValid(bases_[len-1]))
-        --len;
-    bases_.resize(len);
-}
-
 IdbaKmer Sequence::GetIdbaKmer(uint32_t offset, uint32_t kmer_size) const
 {
     IdbaKmer kmer(kmer_size);
@@ -203,49 +195,10 @@ void Sequence::Decode()
     }
 }
 
-istream &ReadFasta(istream &is, Sequence &seq, string &comment)
-{
-    string line;
-    getline(is, line);
-
-    if (!is)
-        return is;
-
-    comment = line.substr(1);
-
-    return is >> seq;
-}
 
 ostream &WriteFasta(ostream &os, const Sequence &seq, const string &comment)
 {
     return os << ">" << comment << "\n" << seq << "\n";
 }
 
-istream &ReadFastq(istream &is, Sequence &seq, string &comment, string &quality)
-{
-    string line;
-    getline(is, line);
-    if (!is)
-        return is;
-
-    comment = line.substr(1);
-
-    comment = line.substr(1);
-    is >> seq;
-    getline(is, line);
-
-    quality = "";
-    getline(is, line);
-    quality = line;
-//    while (is && is.peek() != '@' && getline(is, line))
-//        quality += line;
-    is.clear();
-
-    return is;
-}
-
-ostream &WriteFastq(ostream &os, const Sequence &seq, const string &comment, const string &quality)
-{
-    return os << "@" << comment << "\n" << seq << "\n" << "+" << "\n" << quality << "\n";
-}
 
