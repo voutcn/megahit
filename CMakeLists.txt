@@ -52,7 +52,7 @@ if (COVERAGE)
 endif (COVERAGE)
 
 set(CMAKE_CXX_FLAGS_RELEASE "-O2 -DNDEBUG")
-set(CMAKE_CXX_FLAGS_DEBUG "-g -ggdb -O0")
+set(CMAKE_CXX_FLAGS_DEBUG "-g -ggdb -O1")
 
 
 message(STATUS "Build type: ${CMAKE_BUILD_TYPE}: ${CMAKE_CXX_FLAGS}")
