@@ -5,25 +5,26 @@ MEGAHIT
 
 MEGAHIT is an ultra-fast and memory-efficient NGS assembler. It is optimized for metagenomes, but also works well on generic single genome assembly (small or mammalian size) and single-cell assembly.
 
-*News*
+*News: try v1.2.x!*
 ------
 
-MEGAHIT v1.2.1-beta is released. Compared to v1.1.x, its changes include
+MEGAHIT v1.2.x (beta) is released. Compared to v1.1.x, its changes include
 
 -   faster and more memory-efficient than before, by using [BMI2 instructions](https://en.wikipedia.org/wiki/Bit_Manipulation_Instruction_Sets), [sparsepp](https://github.com/greg7mdp/sparsepp) and [xxhash](https://github.com/Cyan4973/xxHash)
 -   refactored with C++11 features
 -   use CMake to build the project
 -   removal of GPU support
 
-It is highly recommended to use v1.2.1-beta. Past versions can be found at the [release](https://github.com/voutcn/megahit/releases) page.
+Please follow the instructions in [Getting Started](#gst) to try this new version.
+Past versions can be found at the [release](https://github.com/voutcn/megahit/releases) page.
 
-Getting Started
+<a name="gst"></a>Getting Started
 ---------------
 
 ### Running with Linux binaries or docker images (recommended)
 
-``` bash
-https://github.com/voutcn/megahit/releases/download/v1.2.0-beta/MEGAHIT-1.2.0-beta-Linux-static.tar.gz
+``` sh
+https://github.com/voutcn/megahit/releases/download/v1.2.1-beta/MEGAHIT-1.2.1-beta-Linux-static.tar.gz
 tar zvxf MEGAHIT-1.2.1-beta-Linux-static
 cd MEGAHIT-1.2.1-beta-Linux-static/bin/
 ./megahit --test  # run on a toy dataset
@@ -34,7 +35,7 @@ If your CPU does not support BMI2 and/or POPCNT, you may see "exit code -4". In 
 
 You can also run MEGAHIT with its docker images.
 
-``` bash
+``` sh
 # in the directory with your input reads
 docker run -v $(pwd):/workspace -w /workspace --user $(id -u):$(id -g) vout/megahit \
   megahit -1 YOUR_PE_READ_1.gz -2 YOUR_PE_READ_2.fq.gz -o YOUR_OUTPUT_DIR
@@ -47,7 +48,7 @@ docker run -v $(pwd):/workspace -w /workspace --user $(id -u):$(id -g) vout/mega
 -   For building: zlib, cmake &gt;= 2.8, g++ &gt;= 4.8.4
 -   For running: gzip and bzip2
 
-``` bash
+``` sh
 git clone https://github.com/voutcn/megahit.git
 cd megahit
 git submodule update --init
@@ -63,13 +64,13 @@ Usage
 
 To run MEGAHIT with default parameters:
 
-``` bash
+``` sh
 megahit -1 YOUR_PE_READ_1.fq.gz -2 YOUR_PE_READ_2.fq.gz -r YOUR_SE_READ.fq.gz -o YOUR_OUTPUT_DIR
 ```
 
 If you did not install Megahit to your PATH, just run Megahit with full-path, e.g.
 
-``` bash
+``` sh
 /PATH/TO/MEGAHIT/build/megahit
 ```
 

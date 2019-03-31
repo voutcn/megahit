@@ -66,8 +66,8 @@ set_target_properties(megahit_core PROPERTIES COMPILE_FLAGS "-mbmi2 -DUSE_BMI2 -
 if (STATIC_BUILD)
     # TODO too dirty
     set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -Wl,--whole-archive -lpthread -Wl,--no-whole-archive -static")
-    set_target_properties(PROPERTIES LINK_SEARCH_START_STATIC ON)
-    set_target_properties(PROPERTIES LINK_SEARCH_END_STATIC ON)
+    set_target_properties(megahit_core megahit_core_no_hw_accel PROPERTIES LINK_SEARCH_START_STATIC ON)
+    set_target_properties(megahit_core megahit_core_no_hw_accel PROPERTIES LINK_SEARCH_END_STATIC ON)
 endif (STATIC_BUILD)
 
 target_link_libraries(megahit_core ${ZLIB_LIBRARIES})

@@ -459,6 +459,10 @@ def check_reads():
                 raise Usage("Cannot find file " + r)
         if opt.input_cmd == "" and len(opt.pe1 + opt.pe2 + opt.se + opt.pe12) == 0:
             raise Usage("No input files or input command!")
+    opt.pe1 = [os.path.abspath(f) for f in opt.pe1]
+    opt.pe2 = [os.path.abspath(f) for f in opt.pe2]
+    opt.pe12 = [os.path.abspath(f) for f in opt.pe12]
+    opt.se = [os.path.abspath(f) for f in opt.se]
     write_cp()
 
 

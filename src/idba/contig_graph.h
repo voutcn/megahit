@@ -65,7 +65,6 @@ public:
     void MergeSimplePaths();
 
     int64_t Trim(int min_length);
-    int64_t Trim(int min_length, double min_cover);
 
     int64_t RemoveDeadEnd(int min_length);
     int64_t RemoveBubble();
@@ -73,11 +72,6 @@ public:
     double IterateCoverage(int min_length, double min_cover, double max_cover, double factor = 1.1);
 
     bool RemoveLowCoverage(double min_cover, int min_length);
-    bool RemoveLocalLowCoverage(double min_cover, int min_length, double ratio);
-    bool RemoveComponentLowCoverage(double min_cover, int min_length, double ratio, int max_component_size);
-
-    double LocalCoverage(ContigGraphVertexAdaptor current, int region_length);
-    double LocalCoverageSingle(ContigGraphVertexAdaptor current, int region_length, double &num_count, int &num_kmer);
 
     int64_t Assemble(std::deque<Sequence> &contigs, std::deque<ContigInfo> &contig_infos);
 
@@ -97,10 +91,6 @@ public:
                 neighbors.push_back(GetNeighbor(current, x));
         }
     }
-
-    bool IsConverged(ContigGraphVertexAdaptor current);
-    int64_t SplitBranches();
-    void GetComponents(std::deque<std::deque<ContigGraphVertexAdaptor> > &components, std::deque<std::string> &component_strings);
 
     std::deque<ContigGraphVertex> &vertices() { return vertices_; }
     const std::deque<ContigGraphVertex> &vertices() const { return vertices_; }
@@ -130,20 +120,6 @@ public:
 private:
     ContigGraph(const ContigGraph &);
     const ContigGraph &operator =(const ContigGraph &);
-
-    static bool CompareContigLength(const ContigGraphVertex &x, const ContigGraphVertex &y)
-    { return x.contig_size() > y.contig_size(); }
-
-    static bool CompareContigCoverage(const ContigGraphVertexAdaptor &x, const ContigGraphVertexAdaptor &y)
-    { return x.coverage() > y.coverage(); }
-
-    static double GetSimilarity(ContigGraphVertexAdaptor &x, ContigGraphVertexAdaptor &y)
-    {
-        Sequence a = x.contig();
-        Sequence b = y.contig();
-        return GetSimilarity(a, b);
-    }
-    static double GetSimilarity(const Sequence &x, const Sequence &y);
 
     void BuildBeginIdbaKmerMap();
 
@@ -180,45 +156,9 @@ private:
         return ContigGraphVertexAdaptor();
     }
 
-    ContigGraphVertexAdaptor GetBeginVertexAdaptor(std::deque<ContigGraphVertexAdaptor> &component)
-    {
-        ContigGraphVertexAdaptor begin;
-        for (unsigned i = 0; i < component.size(); ++i)
-        {
-            if (component[i].in_edges() == 0)
-            {
-                if (begin.is_null())
-                    begin = component[i];
-                else
-                    return ContigGraphVertexAdaptor(NULL);
-            }
-        }
-        return begin;
-    }
-
-    ContigGraphVertexAdaptor GetEndVertexAdaptor(std::deque<ContigGraphVertexAdaptor> &component)
-    {
-        ContigGraphVertexAdaptor end;
-        for (unsigned i = 0; i < component.size(); ++i)
-        {
-            if (component[i].out_edges() == 0)
-            {
-                if (end.is_null())
-                    end = component[i];
-                else
-                    return ContigGraphVertexAdaptor(NULL);
-            }
-        }
-        return end;
-    }
-
-    bool IsValid(std::deque<ContigGraphVertexAdaptor> &component);
     bool CycleDetect(ContigGraphVertexAdaptor current, std::map<int, int> &status);
-    void FindLongestPath(std::deque<ContigGraphVertexAdaptor> &component, ContigGraphPath &path);
-    void TopSort(std::deque<ContigGraphVertexAdaptor> &component, std::deque<ContigGraphVertexAdaptor> &order);
     void TopSortDFS(std::deque<ContigGraphVertexAdaptor> &order, ContigGraphVertexAdaptor current, std::map<int, int> &status);
     int GetDepth(ContigGraphVertexAdaptor current, int length, int &maximum, int min_length);
-    double FindSimilarPath(ContigGraphVertexAdaptor target, ContigGraphPath &path, int &time);
 
     HashMap<IdbaKmer, uint32_t> begin_kmer_map_;
     std::deque<ContigGraphVertex> vertices_;

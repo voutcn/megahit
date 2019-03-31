@@ -6,12 +6,15 @@ language: python
 python:
   - "2.7"
   - "3.4"
-script: git submodule update --init && mkdir build && cd build && cmake .. -DCMAKE_BUILD_TYPE=Debug -DCOVERAGE=ON && make -j2 simple_test
+script: git submodule update --init && mkdir build && cd build && \
+  cmake .. -DCMAKE_BUILD_TYPE=Debug -DCOVERAGE=ON && make -j2 simple_test && \
+  sudo make install && megahit --test && megahit --test --kmin-1pass && \
+  megahit --test --no-hw-accel
 after_success:
   # Create lcov report
   - lcov --capture --directory . --output-file coverage.info
   - lcov --remove coverage.info '/usr/*' --output-file coverage.info # filter system-files
-  - lcov --remove coverage.info '*xxhash/*' --output-file coverage.info # filter xxhash-files
+  - lcov --remove coverage.info '*xxHash/*' --output-file coverage.info # filter xxhash-files
   - lcov --remove coverage.info '*sparsepp/*' --output-file coverage.info # filter sparsepp-files
   - lcov --list coverage.info # debug info
   # Uploading report to CodeCov
