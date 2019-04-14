@@ -24,14 +24,12 @@ Past versions can be found at the [release](https://github.com/voutcn/megahit/re
 ### Running with Linux binaries or docker images (recommended)
 
 ``` sh
-https://github.com/voutcn/megahit/releases/download/v1.2.1-beta/MEGAHIT-1.2.1-beta-Linux-static.tar.gz
-tar zvxf MEGAHIT-1.2.1-beta-Linux-static
-cd MEGAHIT-1.2.1-beta-Linux-static/bin/
+https://github.com/voutcn/megahit/releases/download/v1.2.2-beta/MEGAHIT-1.2.2-beta-Linux-static.tar.gz
+tar zvxf MEGAHIT-1.2.2-beta-Linux-static
+cd MEGAHIT-1.2.2-beta-Linux-static/bin/
 ./megahit --test  # run on a toy dataset
 ./megahit -1 YOUR_PE_READ_1.gz -2 YOUR_PE_READ_2.fq.gz -o YOUR_OUTPUT_DIR
 ```
-
-If your CPU does not support BMI2 and/or POPCNT, you may see "exit code -4". In this case, run MEGAHIT with `--no-hw-accel` option.
 
 You can also run MEGAHIT with its docker images.
 
