@@ -1,3 +1,6 @@
+### 1.2.2-beta / 2019-04-16 PST
+-   Automatically detect POPCNT/BMI2 and select the correct megahit_core binary
+
 ### 1.2.1-beta / 2019-03-30 PST
 -   Added `--no-hw-accel` option for users whose CPUs do not support BMI2/POPCNT
 -   Added `--test` option for testing

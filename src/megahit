@@ -527,6 +527,21 @@ def prepare_continue():
     print("Continue from check point " + str(opt.last_cp), file=sys.stderr)
 
 
+def cpu_dispatch():
+    if opt.megahit_core.endswith("megahit_core_no_hw_accel"):
+        logging.info("--- [%s] Using megahit_core without POPCNT and BMI2 support, "
+                     "because --no-hw-accel option manually specified" % (datetime.now().strftime("%c")))
+    else:
+        has_hw_accel = subprocess.Popen([opt.megahit_core, "checkcpu"],
+                                        stdout=subprocess.PIPE).communicate()[0].rstrip().decode('utf-8')
+        if has_hw_accel == '1':
+            logging.info("--- [%s] Using megahit_core with POPCNT and BMI2 support" % (datetime.now().strftime("%c")))
+        else:
+            logging.info("--- [%s] Using megahit_core without POPCNT and BMI2 support, "
+                         "because the features not detected by CPUID " % (datetime.now().strftime("%c")))
+            opt.megahit_core = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'megahit_core_no_hw_accel')
+
+
 def check_bin():
     if not os.path.exists(opt.megahit_core):
         raise Usage("Cannot find megahit_core, please recompile.")
@@ -671,7 +686,7 @@ def build_lib():
                     os.mkfifo(os.path.join(opt.temp_dir, "inpipe.se." + str(i)))
                     fifos.append(os.path.join(opt.temp_dir, "inpipe.se." + str(i)))
 
-            logging.info("--- [%s] Converting reads to binary library ---" % datetime.now().strftime("%c"))
+            logging.info("--- [%s] Converting reads to binary library " % datetime.now().strftime("%c"))
             logging.debug("%s" % " ".join(build_lib_cmd))
 
             if opt.input_cmd != "":
@@ -795,11 +810,11 @@ def build_first_graph():
 
         try:
             if opt.kmin_1pass:
-                logging.info("--- [%s] Extracting solid (k+1)-mers and building sdbg for k = %d ---" % (
+                logging.info("--- [%s] Extracting solid (k+1)-mers and building sdbg for k = %d " % (
                     datetime.now().strftime("%c"), opt.k_min))
             else:
                 logging.info(
-                    "--- [%s] Extracting solid (k+1)-mers for k = %d ---" % (datetime.now().strftime("%c"), opt.k_min))
+                    "--- [%s] Extracting solid (k+1)-mers for k = %d " % (datetime.now().strftime("%c"), opt.k_min))
 
             logging.debug("cmd: %s" % " ".join(cmd))
             p = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
@@ -871,7 +886,7 @@ def build_graph(kmer_k, kmer_from):
             build_cmd.append("--need_mercy")
 
         try:
-            logging.info("--- [%s] Building graph for k = %d ---" % (datetime.now().strftime("%c"), kmer_k))
+            logging.info("--- [%s] Building graph for k = %d " % (datetime.now().strftime("%c"), kmer_k))
             logging.debug("%s" % " ".join(build_cmd))
 
             p = subprocess.Popen(build_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
@@ -916,7 +931,7 @@ def iterate(cur_k, step):
                        "-r", opt.lib + ".bin"]
 
         try:
-            logging.info("--- [%s] Extracting iterative edges from k = %d to %d ---" % (
+            logging.info("--- [%s] Extracting iterative edges from k = %d to %d " % (
                 datetime.now().strftime("%c"), cur_k, next_k))
             logging.debug("cmd: %s" % " ".join(iterate_cmd))
 
@@ -981,7 +996,7 @@ def assemble(cur_k):
 
         try:
             logging.info(
-                "--- [%s] Assembling contigs from SdBG for k = %d ---" % (datetime.now().strftime("%c"), cur_k))
+                "--- [%s] Assembling contigs from SdBG for k = %d " % (datetime.now().strftime("%c"), cur_k))
             logging.debug("cmd: %s" % " ".join(assembly_cmd))
 
             p = subprocess.Popen(assembly_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
@@ -1018,7 +1033,7 @@ def local_assemble(cur_k, kmer_to):
                   "-o", contig_prefix(cur_k) + ".local.fa",
                   "--kmax", str(kmer_to)]
         try:
-            logging.info("--- [%s] Local assembling k = %d ---" % (datetime.now().strftime("%c"), cur_k))
+            logging.info("--- [%s] Local assembling k = %d " % (datetime.now().strftime("%c"), cur_k))
             logging.debug("cmd: %s" % " ".join(la_cmd))
 
             p = subprocess.Popen(la_cmd, stderr=subprocess.PIPE)
@@ -1047,7 +1062,7 @@ def local_assemble(cur_k, kmer_to):
 def merge_final():
     global cp
     if (not opt.continue_mode) or (cp > opt.last_cp):
-        logging.info("--- [%s] Merging to output final contigs ---" % (datetime.now().strftime("%c")))
+        logging.info("--- [%s] Merging to output final contigs " % (datetime.now().strftime("%c")))
         final_contig_name = os.path.join(opt.out_dir, "final.contigs.fa")
         if opt.out_prefix != "":
             final_contig_name = os.path.join(opt.out_dir, opt.out_prefix + ".contigs.fa")
@@ -1101,10 +1116,12 @@ def main(argv=None):
         logging.getLogger('').addHandler(console)
 
         logging.info(megahit_version_str)
-        logging.info("--- [%s] Start assembly. Number of CPU threads %d ---" % (
+        logging.info("--- [%s] Start assembly. Number of CPU threads %d " % (
             datetime.now().strftime("%c"), opt.num_cpu_threads))
         logging.info("--- [%s] Available memory: %d, used: %d" % (
             datetime.now().strftime("%c"), detect_available_mem(), opt.host_mem))
+
+        cpu_dispatch()
 
         if not opt.continue_mode:
             write_opt(argv[1:])  # for --continue
@@ -1113,9 +1130,9 @@ def main(argv=None):
         build_lib()
 
         if set_max_k_by_lib():
-            logging.info("--- [%s] k-max reset to: %d ---" % (datetime.now().strftime("%c"), opt.k_max))
+            logging.info("--- [%s] k-max reset to: %d " % (datetime.now().strftime("%c"), opt.k_max))
 
-        logging.info("--- [%s] k list: %s ---" % (datetime.now().strftime("%c"), ','.join(map(str, opt.k_list))))
+        logging.info("--- [%s] k list: %s " % (datetime.now().strftime("%c"), ','.join(map(str, opt.k_list))))
 
         build_first_graph()
 
@@ -1153,7 +1170,7 @@ def main(argv=None):
             if not opt.keep_tmp_files and opt.test:
                 shutil.rmtree(opt.out_dir)
 
-        logging.info("--- [%s] ALL DONE. Time elapsed: %f seconds ---" % (
+        logging.info("--- [%s] ALL DONE. Time elapsed: %f seconds " % (
             datetime.now().strftime("%c"), time.time() - start_time))
 
     except Usage as err:

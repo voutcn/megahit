@@ -31,8 +31,6 @@ cd MEGAHIT-1.2.1-beta-Linux-static/bin/
 ./megahit -1 YOUR_PE_READ_1.gz -2 YOUR_PE_READ_2.fq.gz -o YOUR_OUTPUT_DIR
 ```
 
-If your CPU does not support BMI2 and/or POPCNT, you may see "exit code -4". In this case, run MEGAHIT with `--no-hw-accel` option.
-
 You can also run MEGAHIT with its docker images.
 
 ``` sh
