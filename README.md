@@ -24,8 +24,8 @@ Past versions can be found at the [release](https://github.com/voutcn/megahit/re
 ### Running with Linux binaries or docker images (recommended)
 
 ``` sh
-https://github.com/voutcn/megahit/releases/download/v1.2.2-beta/MEGAHIT-1.2.2-beta-Linux-static.tar.gz
-tar zvxf MEGAHIT-1.2.2-beta-Linux-static
+wget https://github.com/voutcn/megahit/releases/download/v1.2.2-beta/MEGAHIT-1.2.2-beta-Linux-static.tar.gz
+tar zvxf MEGAHIT-1.2.2-beta-Linux-static.tar.gz
 cd MEGAHIT-1.2.2-beta-Linux-static/bin/
 ./megahit --test  # run on a toy dataset
 ./megahit -1 YOUR_PE_READ_1.gz -2 YOUR_PE_READ_2.fq.gz -o YOUR_OUTPUT_DIR
