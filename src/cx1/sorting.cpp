@@ -5,6 +5,7 @@
 #include "sorting.h"
 
 #include <cassert>
+#include <definitions.h>
 #include "kmlib/kmsort.h"
 
 namespace {
@@ -45,5 +46,5 @@ inline void SortSubstrHelper(uint32_t *substr, int words_per_substr, int64_t n, 
 }
 
 void SortSubStr(uint32_t *substr, int words_per_substr, int64_t n, int extra_words) {
-  SortSubstrHelper<12, 2>(substr, words_per_substr, n, extra_words);
+  SortSubstrHelper<kUint32PerKmerMaxK, 2>(substr, words_per_substr, n, extra_words);
 }

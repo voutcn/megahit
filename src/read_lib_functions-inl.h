@@ -109,12 +109,12 @@ inline void ReadAndWriteMultipleLibs(const std::string &lib_file, bool is_revers
 
         if (type == "pe" && (total_reads - start) % 2 != 0) {
             xerr("PE library number of reads is odd: %lld!\n", total_reads - start);
-            xfatal("File(s): %s\n", metadata.c_str())
+            xfatal("File(s): %s\n", metadata.c_str());
         }
 
         if (type == "interleaved" && (total_reads - start) % 2 != 0) {
             xerr("PE library number of reads is odd: %lld!\n", total_reads - start);
-            xfatal("File(s): %s\n", metadata.c_str())
+            xfatal("File(s): %s\n", metadata.c_str());
         }
 
         if (verbose) {
