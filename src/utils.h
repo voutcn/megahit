@@ -50,7 +50,7 @@ inline void megahit_log__(const char *format, ...) {
 #define xinfo(str, args...)  megahit_log__("    [INFO  %-25s%4d]   " str, __XFILE__, __LINE__, ##args);
 #define xerr(str, args...)   megahit_log__("    [ERROR %-25s%4d]   " str, __XFILE__, __LINE__, ##args);
 #define xwarn(str, args...)  megahit_log__("    [WARN  %-25s%4d]   " str, __XFILE__, __LINE__, ##args);
-#define xfatal(str, args...) megahit_log__("    [FATAL %-25s%4d]   " str, __XFILE__, __LINE__, ##args); exit(1);
+#define xfatal(str, args...) megahit_log__("    [FATAL %-25s%4d]   " str, __XFILE__, __LINE__, ##args); exit(1)
 
 #ifdef __GNUC__
 #define LIKELY(x) __builtin_expect((x),1)
