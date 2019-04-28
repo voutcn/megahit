@@ -43,14 +43,31 @@ inline void megahit_log__(const char *format, ...) {
 }
 
 #ifndef __XFILE__
-#define __XFILE__ __FILE__
+#include <cstring>
+#ifdef __XROOT__
+inline const char* GetFile(const char* filename, const char* rootname) {
+  if (strstr(filename, rootname) == filename) {
+    return filename + strlen(rootname) + 1;
+  } else {
+    return filename;
+  }
+}
+#define __XFILE__ GetFile(__FILE__, __XROOT__)
+#else
+#define __XFILE__ (strrchr(__FILE__, '/') ? strrchr(__FILE__, '/') + 1 : __FILE__)
+#endif
 #endif
 
-#define xinfoc(str, args...) megahit_log__(str, ##args);
-#define xinfo(str, args...)  megahit_log__("    [INFO  %-25s%4d]   " str, __XFILE__, __LINE__, ##args);
-#define xerr(str, args...)   megahit_log__("    [ERROR %-25s%4d]   " str, __XFILE__, __LINE__, ##args);
-#define xwarn(str, args...)  megahit_log__("    [WARN  %-25s%4d]   " str, __XFILE__, __LINE__, ##args);
-#define xfatal(str, args...) megahit_log__("    [FATAL %-25s%4d]   " str, __XFILE__, __LINE__, ##args); exit(1)
+#define xinfoc(str, args...) \
+do { megahit_log__(str, ##args); } while (0)
+#define xinfo(str, args...)  \
+do { megahit_log__("    [INFO  %-25s%4d]   " str, __XFILE__, __LINE__, ##args); } while (0)
+#define xerr(str, args...)   \
+do { megahit_log__("    [ERROR %-25s%4d]   " str, __XFILE__, __LINE__, ##args); } while (0)
+#define xwarn(str, args...)  \
+do { megahit_log__("    [WARN  %-25s%4d]   " str, __XFILE__, __LINE__, ##args); } while (0)
+#define xfatal(str, args...) \
+do { megahit_log__("    [FATAL %-25s%4d]   " str, __XFILE__, __LINE__, ##args); exit(1); } while (0)
 
 #ifdef __GNUC__
 #define LIKELY(x) __builtin_expect((x),1)
