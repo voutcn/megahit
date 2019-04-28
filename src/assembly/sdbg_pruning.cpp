@@ -31,8 +31,8 @@
 #include <queue>
 
 #include "kmlib/kmbitvector.h"
-#include "utils.h"
-#include "histgram.h"
+#include "utils/utils.h"
+#include "utils/histgram.h"
 
 using std::vector;
 using std::string;

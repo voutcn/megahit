@@ -22,7 +22,7 @@
 #include <stdlib.h>
 #include <zlib.h>
 #include <algorithm>
-#include "histgram.h"
+#include "utils/histgram.h"
 #include "sequence/kseq.h"
 
 

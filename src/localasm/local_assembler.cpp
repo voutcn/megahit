@@ -34,11 +34,11 @@
 #include "idba/contig_graph.h"
 #include "kmlib/kmbit.h"
 
-#include "utils.h"
-#include "safe_alloc_open-inl.h"
-#include "histgram.h"
-#include "sequence_manager.h"
-#include "read_lib_functions-inl.h"
+#include "utils/utils.h"
+#include "utils/safe_alloc_open-inl.h"
+#include "utils/histgram.h"
+#include "sequence/sequence_manager.h"
+#include "sequence/read_lib_functions-inl.h"
 
 void LocalAssembler::ReadContigs(const std::string &contig_file_name) {
   SequenceManager seq_manager;

@@ -7,7 +7,7 @@
 
 #include <mutex>
 #include <sdbg/sdbg_def.h>
-#include <utils.h>
+#include <utils/utils.h>
 #include "sequence/kmer_plus.h"
 #include "sparsepp/spp.h"
 #include "sequence/sequence_package.h"

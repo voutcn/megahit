@@ -28,7 +28,7 @@
 #include <mutex>
 #include "cx1.h"
 #include "sdbg/sdbg_writer.h"
-#include "sequence_manager.h"
+#include "sequence/sequence_manager.h"
 
 struct seq2sdbg_opt_t {
     double host_mem;

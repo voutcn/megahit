@@ -22,7 +22,7 @@
 #include <cassert>
 
 #include "sequence/kseq.h"
-#include "utils.h"
+#include "utils/utils.h"
 
 using namespace std;
 

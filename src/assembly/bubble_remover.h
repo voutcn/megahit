@@ -6,7 +6,7 @@
 #define MEGAHIT_BUBBLE_REMOVER_H
 
 #include <cstdint>
-#include "histgram.h"
+#include "utils/histgram.h"
 #include "unitig_graph.h"
 #include "contig_writer.h"
 

@@ -30,10 +30,10 @@
 #include <stdexcept>
 
 #include "definitions.h"
-#include "iterate/async_sequence_reader.h"
+#include "sequence/async_sequence_reader.h"
 #include "iterate/kmer_collector.h"
 #include "iterate/contig_flank_index.h"
-#include "options_description.h"
+#include "utils/options_description.h"
 
 using std::string;
 using std::vector;

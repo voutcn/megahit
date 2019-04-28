@@ -27,9 +27,9 @@
 #include <mutex>
 #include "definitions.h"
 #include "cx1.h"
-#include "edge_io.h"
+#include "sequence/edge_io.h"
 #include "sequence/sequence_package.h"
-#include "lib_info.h"
+#include "sequence/lib_info.h"
 #include "utils/atomic_wrapper.h"
 
 struct count_opt_t {

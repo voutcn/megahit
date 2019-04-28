@@ -26,10 +26,10 @@
 #include <vector>
 #include <mutex>
 
-#include "utils.h"
-#include "packed_reads.h"
+#include "utils/utils.h"
+#include "sequence/packed_reads.h"
 #include "sequence/kmer.h"
-#include "iterate/async_sequence_reader.h"
+#include "sequence/async_sequence_reader.h"
 
 #include "sorting.h"
 

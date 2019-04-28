@@ -12,8 +12,8 @@
 #include <vector>
 
 #include "definitions.h"
-#include "safe_alloc_open-inl.h"
-#include "utils.h"
+#include "utils/safe_alloc_open-inl.h"
+#include "utils/utils.h"
 
 struct PartitionRecord {
   int thread_id;

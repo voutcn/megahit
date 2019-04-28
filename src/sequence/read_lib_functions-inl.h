@@ -30,11 +30,11 @@
 #include <string>
 #include <vector>
 
-#include "utils.h"
+#include "utils/utils.h"
 #include "lib_info.h"
 #include "sequence_manager.h"
 #include "sequence/sequence_package.h"
-#include "safe_alloc_open-inl.h"
+#include "utils/safe_alloc_open-inl.h"
 
 inline void ReadAndWriteMultipleLibs(const std::string &lib_file, bool is_reverse,
                                      const std::string &out_prefix, bool verbose) {

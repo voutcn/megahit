@@ -26,13 +26,13 @@
 #include <omp.h>
 #include <mutex>
 
-#include "safe_alloc_open-inl.h"
+#include "utils/safe_alloc_open-inl.h"
 #include "sequence/kseq.h"
-#include "utils.h"
+#include "utils/utils.h"
 #include "sequence/kmer.h"
-#include "packed_reads.h"
+#include "sequence/packed_reads.h"
 #include "sequence/sequence_package.h"
-#include "read_lib_functions-inl.h"
+#include "sequence/read_lib_functions-inl.h"
 
 #include "sorting.h"
 // helping functions

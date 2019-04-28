@@ -1,5 +1,5 @@
-#include "read_lib_functions-inl.h"
-#include "utils.h"
+#include "sequence/read_lib_functions-inl.h"
+#include "utils/utils.h"
 
 void DisplayHelp(const char *program) {
     fprintf(stderr, "Usage %s <read_lib_file> <out_prefix>\n", program);

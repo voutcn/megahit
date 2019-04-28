@@ -26,7 +26,7 @@
 #include <vector>
 #include "kmlib/kmbit.h"
 #include "kmlib/kmcompactvector.h"
-#include "utils.h"
+#include "utils/utils.h"
 
 /**
  * @brief hold a set of sequences

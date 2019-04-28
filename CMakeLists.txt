@@ -27,8 +27,8 @@ LIST(APPEND OTHER_SOURCE
         src/main_iterate.cpp
         src/main_local_assemble.cpp
         src/main_sdbg_build.cpp
-        src/options_description.cpp
-        src/sequence_manager.cpp
+        src/utils/options_description.cpp
+        src/sequence/sequence_manager.cpp
         )
 
 if (STATIC_BUILD)

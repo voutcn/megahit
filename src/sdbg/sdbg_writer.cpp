@@ -6,7 +6,7 @@
 
 #include <cassert>
 #include <algorithm>
-#include <utils.h>
+#include <utils/utils.h>
 #include "sdbg_item.h"
 
 void SdbgWriter::InitFiles() {

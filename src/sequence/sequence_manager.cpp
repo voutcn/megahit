@@ -24,7 +24,7 @@
 #include <zlib.h>
 #include <string>
 
-#include "utils.h"
+#include "utils/utils.h"
 #include "kmlib/kmbit.h"
 
 void SequenceManager::set_file(const std::string &file_name) {
@@ -208,43 +208,6 @@ int64_t SequenceManager::ReadShortReads(int64_t max_num,
       if (read_len >= max_num_bases && i % 2 == 1) {
         return i + 1;
       }
-    }
-
-    return max_num;
-  }
-
-  assert(false);
-}
-
-int64_t SequenceManager::ReadEdges(int64_t max_num, bool append) {
-  if (!append) {
-    multi_->clear();
-    package_->clear();
-  }
-
-  if (f_type == kMegahitEdges) {
-    for (int64_t i = 0; i < max_num; ++i) {
-      uint32_t *next_edge = edge_reader_.NextUnsortedEdge();
-
-      if (next_edge == NULL) {
-        return i;
-      }
-
-      package_->AppendCompactSequence(next_edge, edge_reader_.kmer_size() + 1);
-      multi_->push_back(next_edge[edge_reader_.words_per_edge() - 1] & kMaxMul);
-    }
-
-    return max_num;
-  } else if (f_type == kSortedEdges) {
-    for (int64_t i = 0; i < max_num; ++i) {
-      uint32_t *next_edge = edge_reader_.NextSortedEdge();
-
-      if (next_edge == NULL) {
-        return i;
-      }
-
-      package_->AppendCompactSequence(next_edge, edge_reader_.kmer_size() + 1);
-      multi_->push_back(next_edge[edge_reader_.words_per_edge() - 1] & kMaxMul);
     }
 
     return max_num;
