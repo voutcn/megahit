@@ -29,6 +29,8 @@
 #include <fstream>
 #include <string>
 #include <vector>
+#include <memory>
+#include <sequence/readers/fastx_reader.h>
 
 #include "utils/utils.h"
 #include "lib_info.h"
@@ -36,8 +38,25 @@
 #include "sequence/sequence_package.h"
 #include "utils/safe_alloc_open-inl.h"
 
-inline void ReadAndWriteMultipleLibs(const std::string &lib_file, bool is_reverse,
-                                     const std::string &out_prefix, bool verbose) {
+
+inline void WriteBinarySequences(const SeqPackage & pkg, FILE *file, int64_t from = 0, int64_t to = -1) {
+  if (to == -1) {
+    to = pkg.size() - 1;
+  }
+
+  uint32_t len;
+  std::vector<uint32_t> s;
+
+  for (int64_t i = from; i <= to; ++i) {
+    len = pkg.SequenceLength(i);
+    pkg.FetchSequence(i, &s);
+    fwrite(&len, sizeof(uint32_t), 1, file);
+    fwrite(&s[0], sizeof(uint32_t), s.size(), file);
+  }
+}
+
+inline void ReadAndWriteMultipleLibs(const std::string &lib_file,
+                                     const std::string &out_prefix) {
     std::ifstream lib_config(lib_file);
 
     if (!lib_config.is_open()) {
@@ -46,7 +65,7 @@ inline void ReadAndWriteMultipleLibs(const std::string &lib_file, bool is_revers
 
     FILE *bin_file = xfopen(FormatString("%s.bin", out_prefix.c_str()), "wb");
 
-    SeqPackage package;
+    SeqPackage seq_batch;
     std::vector<lib_info_t> lib_info;
 
     std::string metadata;
@@ -56,56 +75,45 @@ inline void ReadAndWriteMultipleLibs(const std::string &lib_file, bool is_revers
 
     int64_t total_reads = 0;
     int64_t total_bases = 0;
-    bool trimN = true;
-    SequenceManager seq_manager(&package);
-    package.clear();
+    seq_batch.clear();
     lib_info.clear();
 
     while (std::getline(lib_config, metadata)) {
         lib_config >> type;
+        std::unique_ptr<FastxReader> reader;
         if (type == "pe") {
             lib_config >> file_name1 >> file_name2;
-            seq_manager.set_readlib_type(SequenceManager::kPaired);
-            seq_manager.set_file_type(SequenceManager::kFastxReads);
-            seq_manager.set_pe_files(file_name1, file_name2);
-        }
-        else if (type == "se") {
+            reader.reset(new PairEndFastxReader({file_name1, file_name2}));
+        } else if (type == "se") {
             lib_config >> file_name1;
-            seq_manager.set_readlib_type(SequenceManager::kSingle);
-            seq_manager.set_file_type(SequenceManager::kFastxReads);
-            seq_manager.set_file(file_name1);
-        }
-        else if (type == "interleaved") {
+            reader.reset(new FastxReader({file_name1}));
+        } else if (type == "interleaved") {
             lib_config >> file_name1;
-            seq_manager.set_readlib_type(SequenceManager::kInterleaved);
-            seq_manager.set_file_type(SequenceManager::kFastxReads);
-            seq_manager.set_file(file_name1);
-        }
-        else {
+            reader.reset(new FastxReader({file_name1}));
+        } else {
             xerr("Cannot identify read library type %s\n", type.c_str());
             xfatal("Valid types: pe, se, interleaved\n");
         }
 
         int64_t start = total_reads;
-        int64_t reads_this_batch = 0;
-        int reads_per_bach = 1 << 22;
-        int bases_per_bach = 1 << 28;
+        int64_t num_read = 0;
+        int reads_per_batch = 1 << 22;
+        int bases_per_batch = 1 << 28;
         int max_read_len = 0;
 
         while (true) {
-            reads_this_batch = seq_manager.ReadShortReads(reads_per_bach, bases_per_bach, false, is_reverse, trimN, metadata);
+            num_read = reader->Read(&seq_batch, reads_per_batch, bases_per_batch, false, true);
 
-            if (reads_this_batch == 0) {
+            if (num_read == 0) {
                 break;
             }
 
-            total_reads += reads_this_batch;
-            total_bases += package.BaseCount();
-            seq_manager.WriteBinarySequences(bin_file, is_reverse);
-            max_read_len = std::max(max_read_len, (int) package.MaxSequenceLength());
+            total_reads += num_read;
+            total_bases += seq_batch.BaseCount();
+            WriteBinarySequences(seq_batch, bin_file);
+            max_read_len = std::max(max_read_len, (int) seq_batch.MaxSequenceLength());
+            seq_batch.clear();
         }
-
-        seq_manager.clear();
 
         if (type == "pe" && (total_reads - start) % 2 != 0) {
             xerr("PE library number of reads is odd: %lld!\n", total_reads - start);
@@ -117,12 +125,10 @@ inline void ReadAndWriteMultipleLibs(const std::string &lib_file, bool is_revers
             xfatal("File(s): %s\n", metadata.c_str());
         }
 
-        if (verbose) {
-            xinfo("Lib %d (%s): %s, %lld reads, %d max length\n",
-                 lib_info.size(), metadata.c_str(), type.c_str(), total_reads - start, max_read_len);
-        }
+        xinfo("Lib %d (%s): %s, %lld reads, %d max length\n",
+            lib_info.size(), metadata.c_str(), type.c_str(), total_reads - start, max_read_len);
 
-        lib_info.emplace_back(&package, start, total_reads - 1, max_read_len, type != "se", metadata);
+        lib_info.emplace_back(&seq_batch, start, total_reads - 1, max_read_len, type != "se", metadata);
         std::getline(lib_config, metadata); // eliminate the "\n"
     }
 

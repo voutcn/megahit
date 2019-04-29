@@ -27,7 +27,7 @@
 #include <zlib.h>
 
 #include "definitions.h"
-#include "sequence/kseq.h"
+#include "sequence/readers/kseq.h"
 #include "sequence/sequence_package.h"
 #include "edge_io.h"
 
@@ -52,9 +52,7 @@ struct SequenceManager {
 
   enum ReadLibType {
     kPaired,
-    kInterleaved,
     kSingle,
-    kOthers,
   } r_type;
 
   SeqPackage *package_;
@@ -122,7 +120,6 @@ struct SequenceManager {
   }
 
   void set_file(const std::string &file_name);
-  void set_pe_files(const std::string &file_name1, const std::string &file_name2);
   void set_edge_files(const std::string &file_prefix);
   void set_kmer_size(int kmer_from, int kmer_to) {
     k_from_ = kmer_from;    // only apply to reading megahit contigs
@@ -141,7 +138,6 @@ struct SequenceManager {
   int64_t ReadEdgesWithFixedLen(int64_t max_num, bool append);
   int64_t ReadMegahitContigs(int64_t max_num, int64_t max_num_bases, bool append, bool reverse,
                              int discard_flag, bool extend_loop, bool calc_depth);
-  void WriteBinarySequences(FILE *file, bool reverse, int64_t from = 0, int64_t to = -1);
 };
 
 #endif

@@ -23,7 +23,7 @@
 #include <zlib.h>
 #include <algorithm>
 #include "utils/histgram.h"
-#include "sequence/kseq.h"
+#include "sequence/readers/kseq.h"
 
 
 #ifndef KSEQ_INITED

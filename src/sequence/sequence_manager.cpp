@@ -43,27 +43,6 @@ void SequenceManager::set_file(const std::string &file_name) {
   }
 }
 
-void SequenceManager::set_pe_files(const std::string &file_name1, const std::string &file_name2) {
-  assert(f_type == kFastxReads && r_type == kPaired);
-  assert(files_.size() == 0);
-  assert(kseq_readers_.size() == 0);
-
-  files_.resize(2);
-
-  files_[0] = file_name1 == "-" ? gzdopen(fileno(stdin), "r") : gzopen(file_name1.c_str(), "r");
-  files_[1] = file_name2 == "-" ? gzdopen(fileno(stdin), "r") : gzopen(file_name2.c_str(), "r");
-
-  assert(files_[0] != NULL);
-
-  if (f_type == kFastxReads || f_type == kMegahitContigs) {
-    kseq_readers_.resize(2);
-    for (int i = 0; i < 2; ++i) {
-      kseq_readers_[i] = kseq_init(files_[i]);
-      assert(kseq_readers_[i] != NULL);
-    }
-  }
-}
-
 void SequenceManager::set_edge_files(const std::string &file_prefix) {
   assert(f_type == kSortedEdges || f_type == kMegahitEdges);
   assert(files_.size() == 0);
@@ -327,41 +306,5 @@ int64_t SequenceManager::ReadMegahitContigs(int64_t max_num, int64_t max_num_bas
   }
 
   return max_num;
-}
-
-void SequenceManager::WriteBinarySequences(FILE *file, bool reverse, int64_t from, int64_t to) {
-  if (to == -1) {
-    to = package_->size() - 1;
-  }
-
-  uint32_t len;
-  std::vector<uint32_t> s;
-
-  for (int64_t i = from; i <= to; ++i) {
-    len = package_->SequenceLength(i);
-    package_->FetchSequence(i, &s);
-
-    if (reverse) {
-      for (int j = 0; j < (int) s.size(); ++j) {
-        s[j] = kmlib::bit::Reverse<2>(s[j]);
-      }
-
-      for (int j = 0, k = s.size() - 1; j < k; ++j, --k) {
-        std::swap(s[j], s[k]);
-      }
-
-      int shift = (16 - len % 16) * 2;
-
-      if (shift != 32) {
-        for (int j = 0; j < (int) s.size() - 1; ++j) {
-          s[j] = (s[j] << shift) | (s[j + 1] >> (32 - shift));
-        }
-
-        s.back() <<= shift;
-      }
-    }
-    fwrite(&len, sizeof(uint32_t), 1, file);
-    fwrite(&s[0], sizeof(uint32_t), s.size(), file);
-  }
 }
 

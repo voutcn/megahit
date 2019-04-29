@@ -28,7 +28,7 @@
 #include <mutex>
 
 #include "utils/safe_alloc_open-inl.h"
-#include "sequence/kseq.h"
+#include "sequence/readers/kseq.h"
 #include "utils/utils.h"
 #include "sequence/kmer.h"
 #include "sequence/packed_reads.h"
@@ -627,7 +627,7 @@ void post_proc(count_global_t &globals) {
 
             if (last > first) {
                 ++num_candidate_reads;
-                seq_manager.WriteBinarySequences(candidate_file, false, i, i);
+                WriteBinarySequences(globals.package, candidate_file, i, i);
             }
         }
     }

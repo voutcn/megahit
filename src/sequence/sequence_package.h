@@ -164,7 +164,7 @@ class SequencePackage {
     AppendCompactSequence(s, len, true);
   }
 
-  void FetchSequence(size_t seq_id, std::vector<word_type> *s) {
+  void FetchSequence(size_t seq_id, std::vector<word_type> *s) const {
     vector_type cvec(s);
     auto ptr_and_offset = WordPtrAndOffset(seq_id);
     auto ptr = ptr_and_offset.first;

@@ -27,7 +27,7 @@
 #include <mutex>
 
 #include "utils/safe_alloc_open-inl.h"
-#include "sequence/kseq.h"
+#include "sequence/readers/kseq.h"
 #include "utils/utils.h"
 #include "sequence/kmer.h"
 #include "sequence/packed_reads.h"

@@ -18,6 +18,7 @@ FILE(GLOB_RECURSE LCASM_SOURCE "src/localasm/*.cpp")
 FILE(GLOB_RECURSE IDBA_SOURCE "src/idba/*.cpp")
 FILE(GLOB_RECURSE SDBG_SOURCE "src/sdbg/*.cpp")
 FILE(GLOB_RECURSE CX1_SOURCE "src/cx1/*.cpp")
+FILE(GLOB_RECURSE SEQ_SOURCE "src/sequence/*.cpp")
 FILE(GLOB_RECURSE TOOLKIT_SOURCE "src/tools/*.cpp")
 
 LIST(APPEND OTHER_SOURCE
@@ -28,7 +29,6 @@ LIST(APPEND OTHER_SOURCE
         src/main_local_assemble.cpp
         src/main_sdbg_build.cpp
         src/utils/options_description.cpp
-        src/sequence/sequence_manager.cpp
         )
 
 if (STATIC_BUILD)
@@ -58,10 +58,10 @@ set(CMAKE_CXX_FLAGS_DEBUG "-g -ggdb -O1")
 
 message(STATUS "Build type: ${CMAKE_BUILD_TYPE}: ${CMAKE_CXX_FLAGS}")
 
-add_executable(megahit_core ${OTHER_SOURCE} ${ASMBL_SOURCE} ${IDBA_SOURCE} ${SDBG_SOURCE} ${LCASM_SOURCE}
+add_executable(megahit_core ${OTHER_SOURCE} ${ASMBL_SOURCE} ${IDBA_SOURCE} ${SDBG_SOURCE} ${LCASM_SOURCE} ${SEQ_SOURCE}
         ${CX1_SOURCE} ${TOOLKIT_SOURCE})
 add_executable(megahit_core_no_hw_accel ${OTHER_SOURCE} ${ASMBL_SOURCE} ${IDBA_SOURCE} ${SDBG_SOURCE} ${LCASM_SOURCE}
-        ${CX1_SOURCE} ${TOOLKIT_SOURCE})
+        ${SEQ_SOURCE} ${CX1_SOURCE} ${TOOLKIT_SOURCE})
 set_target_properties(megahit_core PROPERTIES COMPILE_FLAGS "-mbmi2 -DUSE_BMI2 -mpopcnt")
 
 if (STATIC_BUILD)
