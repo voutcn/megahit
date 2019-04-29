@@ -118,21 +118,11 @@ void s1_read_input_prepare(read2sdbg_global_t &globals) {
     globals.max_read_length = globals.package.MaxSequenceLength();
 
     if (globals.assist_seq_file != "") {
-        SequenceManager seq_manager;
-        seq_manager.set_readlib_type(SequenceManager::kSingle);
-        seq_manager.set_file_type(SequenceManager::kFastxReads);
-        seq_manager.set_file(globals.assist_seq_file);
-        seq_manager.set_package(&globals.package);
-
-        bool reverse_read = true;
-        bool append_to_package = true;
-        bool trimN = false;
-
-        seq_manager.ReadShortReads(1LL << 60, 1LL << 60, append_to_package, reverse_read, trimN);
-        seq_manager.clear();
+      FastxReader reader({globals.assist_seq_file});
+      reader.Read(&globals.package, 1ULL << 60, 1ULL << 60, is_reverse, false);
     }
 
-  globals.package.BuildIndex();
+    globals.package.BuildIndex();
     globals.num_reads = globals.package.size();
 
     xinfo("%ld reads, %d max read length, %lld total bases\n", globals.num_reads, globals.max_read_length,

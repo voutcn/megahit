@@ -7,6 +7,7 @@
 
 #include <future>
 #include <string>
+#include <sequence/readers/megahit_contig_reader.h>
 #include "sequence/sequence_package.h"
 #include "sequence_manager.h"
 
@@ -45,9 +46,9 @@ class AsyncSequenceReader {
 
 class AsyncContigReader : public AsyncSequenceReader<std::pair<SeqPackage, std::vector<float>>> {
  public:
-  explicit AsyncContigReader(const std::string &file_name) {
-    seq_manager_.set_file_type(SequenceManager::kMegahitContigs);
-    seq_manager_.set_file(file_name);
+  explicit AsyncContigReader(const std::string &file_name):
+    reader_({file_name}) {
+    reader_.SetDiscardFlag(contig_flag::kLoop | contig_flag::kStandalone);
     AsyncReadNextBatch();
   }
   ~AsyncContigReader() override {
@@ -56,21 +57,16 @@ class AsyncContigReader : public AsyncSequenceReader<std::pair<SeqPackage, std::
 
  protected:
   void ReadOneBatch(package_type *pkg) override {
-    seq_manager_.set_package(&pkg->first);
-    seq_manager_.set_float_multiplicity_vector(&pkg->second);
-    int64_t kMaxNumContigs = 1 << 22;
-    int64_t kMaxNumBases = 1 << 28;
-    bool append = false;
-    bool reverse = false;
-    int discard_flag = contig_flag::kLoop | contig_flag::kStandalone;
-    bool extend_loop = false;
-    bool calc_depth = false;
-    seq_manager_.ReadMegahitContigs(
-        kMaxNumContigs, kMaxNumBases, append, reverse, discard_flag, extend_loop, calc_depth);
+    pkg->first.clear();
+    pkg->second.clear();
+    const int64_t kMaxNumContigs = 1 << 22;
+    const int64_t kMaxNumBases = 1 << 28;
+    const bool reverse = false;
+    reader_.ReadWithMultiplicity(&pkg->first, &pkg->second, kMaxNumContigs, kMaxNumBases, reverse);
   }
 
  private:
-  SequenceManager seq_manager_;
+  MegahitContigReader reader_;
 };
 
 class AsyncReadReader : public AsyncSequenceReader<SeqPackage> {

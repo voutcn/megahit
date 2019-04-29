@@ -12,6 +12,7 @@
 #include <assert.h>
 #include <stdexcept>
 #include <sequence/sequence_package.h>
+#include "definitions.h"
 
 #ifndef KSEQ_INITED
 #define KSEQ_INITED
@@ -22,7 +23,7 @@ class FastxReader {
  public:
   FastxReader(const std::vector<std::string> &file_names);
 
-  ~FastxReader() {
+  virtual ~FastxReader() {
     Clear();
   }
 
@@ -43,7 +44,7 @@ class FastxReader {
     return cur_reader_;
   }
 
-  virtual void ParseFastxComment(const char* comment) {}
+  virtual void ParseFastxComment(const char *comment) {}
   static void TrimN(const char *s, int len, int *out_bpos, int *out_epos);
 
   unsigned file_idx_{0};

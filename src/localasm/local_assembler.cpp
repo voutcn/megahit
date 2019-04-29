@@ -37,24 +37,15 @@
 #include "utils/utils.h"
 #include "utils/safe_alloc_open-inl.h"
 #include "utils/histgram.h"
-#include "sequence/sequence_manager.h"
 #include "sequence/read_lib_functions-inl.h"
+#include "sequence/readers/megahit_contig_reader.h"
 
 void LocalAssembler::ReadContigs(const std::string &contig_file_name) {
-  SequenceManager seq_manager;
-  seq_manager.set_file_type(SequenceManager::kMegahitContigs);
-  seq_manager.set_file(contig_file_name);
-  seq_manager.set_min_len(min_contig_len_);
-
-  seq_manager.set_package(&contigs_);
+  MegahitContigReader reader({contig_file_name});
+  reader.SetMinLen(min_contig_len_)->SetDiscardFlag(contig_flag::kLoop);
+  contigs_.clear();
   bool contig_reverse = false;
-  bool append_to_package = false;
-  int discard_flag = contig_flag::kLoop;
-  bool extend_loop = false;
-  bool calc_depth = false;
-
-  seq_manager.ReadMegahitContigs(1LL << 60, 1LL << 60, append_to_package, contig_reverse,
-                                 discard_flag, extend_loop, calc_depth);
+  reader.Read(&contigs_, 1LL << 60, 1LL << 60, contig_reverse);
 }
 
 void LocalAssembler::BuildHashMapper(bool show_stat) {

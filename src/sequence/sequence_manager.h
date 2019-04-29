@@ -43,7 +43,6 @@ KSEQ_INIT(gzFile, gzread)
  */
 struct SequenceManager {
   enum FileType {
-    kFastxReads,
     kBinaryReads,
     kMegahitContigs,
     kMegahitEdges,
@@ -51,7 +50,6 @@ struct SequenceManager {
   } f_type;
 
   enum ReadLibType {
-    kPaired,
     kSingle,
   } r_type;
 
@@ -115,20 +113,9 @@ struct SequenceManager {
   void set_multiplicity_vector(std::vector<mul_t> *v) {
     multi_ = v;
   }
-  void set_float_multiplicity_vector(std::vector<float> *v) {
-    float_multi_ = v;
-  }
 
   void set_file(const std::string &file_name);
   void set_edge_files(const std::string &file_prefix);
-  void set_kmer_size(int kmer_from, int kmer_to) {
-    k_from_ = kmer_from;    // only apply to reading megahit contigs
-    k_to_ = kmer_to;
-  }
-  void set_min_len(int min_len) {
-    min_len_ = min_len;    // only apply to megahit contigs
-  }
-
   int64_t ReadShortReads(int64_t max_num,
                          int64_t max_num_bases,
                          bool append,
@@ -136,8 +123,6 @@ struct SequenceManager {
                          bool trimN = false,
                          std::string file_name = "");
   int64_t ReadEdgesWithFixedLen(int64_t max_num, bool append);
-  int64_t ReadMegahitContigs(int64_t max_num, int64_t max_num_bases, bool append, bool reverse,
-                             int discard_flag, bool extend_loop, bool calc_depth);
 };
 
 #endif

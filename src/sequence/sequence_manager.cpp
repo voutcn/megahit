@@ -36,7 +36,7 @@ void SequenceManager::set_file(const std::string &file_name) {
   files_[0] = file_name == "-" ? gzdopen(fileno(stdin), "r") : gzopen(file_name.c_str(), "r");
   assert(files_[0] != NULL);
 
-  if (f_type == kFastxReads || f_type == kMegahitContigs) {
+  if (f_type == kMegahitContigs) {
     kseq_readers_.resize(1);
     kseq_readers_[0] = kseq_init(files_[0]);
     assert(kseq_readers_[0] != NULL);
@@ -62,137 +62,50 @@ void SequenceManager::set_edge_files(const std::string &file_prefix) {
   edge_reader_inited_ = true;
 }
 
-inline void trimN(const char *s, int len, int &out_bpos, int &out_epos) {
-  out_bpos = len;
-  out_epos = len;
-
-  int i;
-
-  for (i = 0; i < len; ++i) {
-    if (s[i] == 'N' || s[i] == 'n') {
-      if (out_bpos < len) {
-        break;
-      }
-    } else {
-      if (out_bpos == len) {
-        out_bpos = i;
-      }
-    }
-  }
-
-  out_epos = i;
-}
-
 int64_t SequenceManager::ReadShortReads(int64_t max_num,
                                         int64_t max_num_bases,
                                         bool append,
                                         bool reverse,
                                         bool trimN,
                                         std::string file_name) {
+
+  assert(f_type == kBinaryReads);
   if (!append) {
     package_->clear();
   }
 
   max_num = (max_num + 1) / 2 * 2;
   int64_t num_bases = 0;
+  uint32_t read_len;
 
-  if (f_type == kFastxReads) {
-    if (r_type == kPaired) {
-      for (int64_t i = 0; i < max_num; i += 2) {
-        if (kseq_read(kseq_readers_[0]) >= 0) {
-          if (kseq_read(kseq_readers_[1]) < 0) {
-            xfatal("File(s) %s: Number of sequences not the same in paired files. Abort.\n", file_name.c_str());
-          }
+  for (int64_t i = 0; i < max_num; ++i) {
+    if (gzread(files_[0], &read_len, sizeof(read_len)) == 0) {
+      return i;
+    }
 
-          int b0 = 0, e0 = kseq_readers_[0]->seq.l;
-          int b1 = 0, e1 = kseq_readers_[1]->seq.l;
+    int num_words = DivCeiling(read_len, 16);
 
-          if (trimN) {
-            ::trimN(kseq_readers_[0]->seq.s, kseq_readers_[0]->seq.l, b0, e0);
-            ::trimN(kseq_readers_[1]->seq.s, kseq_readers_[1]->seq.l, b1, e1);
-          }
+    if (buf_.size() < (unsigned) num_words) {
+      buf_.resize(num_words);
+    }
 
-          if (reverse) {
-            package_->AppendReversedStringSequence(kseq_readers_[0]->seq.s + b0, e0 - b0);
-            package_->AppendReversedStringSequence(kseq_readers_[1]->seq.s + b1, e1 - b1);
-          } else {
-            package_->AppendStringSequence(kseq_readers_[0]->seq.s + b0, e0 - b0);
-            package_->AppendStringSequence(kseq_readers_[1]->seq.s + b1, e1 - b1);
-          }
+    auto n_read = gzread(files_[0], &buf_[0], sizeof(uint32_t) * num_words);
+    assert(static_cast<size_t>(n_read) == num_words * sizeof(uint32_t));
 
-          num_bases += e0 - b0 + e1 - b1;
-
-          if (num_bases >= max_num_bases) {
-            return i + 2;
-          }
-        } else {
-          if (kseq_read(kseq_readers_[1]) >= 0) {
-            xfatal("File(s) %s: Number of sequences not the same in paired files. Abort.\n", file_name.c_str());
-          }
-          return i;
-        }
-      }
+    if (!reverse) {
+      package_->AppendCompactSequence(&buf_[0], read_len);
     } else {
-      for (int64_t i = 0; i < max_num; ++i) {
-        if (kseq_read(kseq_readers_[0]) >= 0) {
-          int b = 0, e = kseq_readers_[0]->seq.l;
-
-          if (trimN) {
-            ::trimN(kseq_readers_[0]->seq.s, kseq_readers_[0]->seq.l, b, e);
-          }
-
-          if (reverse) {
-            package_->AppendReversedStringSequence(kseq_readers_[0]->seq.s + b, e - b);
-          } else {
-            package_->AppendStringSequence(kseq_readers_[0]->seq.s + b, e - b);
-          }
-
-          num_bases += e - b;
-
-          if (num_bases >= max_num_bases && i % 2 == 1) {
-            return i + 1;
-          }
-        } else {
-          return i;
-        }
-      }
+      package_->AppendReversedCompactSequence(&buf_[0], read_len);
     }
 
-    return max_num;
-  } else if (f_type == kBinaryReads) {
-    uint32_t read_len;
+    num_bases += read_len;
 
-    for (int64_t i = 0; i < max_num; ++i) {
-      if (gzread(files_[0], &read_len, sizeof(read_len)) == 0) {
-        return i;
-      }
-
-      int num_words = DivCeiling(read_len, 16);
-
-      if (buf_.size() < (unsigned) num_words) {
-        buf_.resize(num_words);
-      }
-
-      auto n_read = gzread(files_[0], &buf_[0], sizeof(uint32_t) * num_words);
-      assert(static_cast<size_t>(n_read) == num_words * sizeof(uint32_t));
-
-      if (!reverse) {
-        package_->AppendCompactSequence(&buf_[0], read_len);
-      } else {
-        package_->AppendReversedCompactSequence(&buf_[0], read_len);
-      }
-
-      num_bases += read_len;
-
-      if (read_len >= max_num_bases && i % 2 == 1) {
-        return i + 1;
-      }
+    if (read_len >= max_num_bases && i % 2 == 1) {
+      return i + 1;
     }
-
-    return max_num;
   }
 
-  assert(false);
+  return max_num;
 }
 
 int64_t SequenceManager::ReadEdgesWithFixedLen(int64_t max_num, bool append) {
@@ -231,80 +144,3 @@ int64_t SequenceManager::ReadEdgesWithFixedLen(int64_t max_num, bool append) {
 
   assert(false);
 }
-
-int64_t SequenceManager::ReadMegahitContigs(int64_t max_num, int64_t max_num_bases, bool append, bool reverse,
-                                            int discard_flag, bool extend_loop, bool calc_depth) {
-  assert(f_type == kMegahitContigs);
-  assert(!(calc_depth && multi_ == NULL));
-  assert(!((discard_flag & (contig_flag::kLoop | contig_flag::kStandalone)) && extend_loop)); // loop must be isolated
-
-  if (!append) {
-    if (multi_ != NULL) {
-      multi_->clear();
-    }
-
-    package_->clear();
-  }
-
-  int64_t num_bases = 0;
-
-  for (int64_t i = 0; i < max_num; ++i) {
-    if (kseq_read(kseq_readers_[0]) >= 0) {
-      if ((int) kseq_readers_[0]->seq.l < min_len_) {
-        --i;
-        continue;
-      }
-
-      // comment = "flag=x multi=xx.xxxx"
-      if (discard_flag & (kseq_readers_[0]->comment.s[5] - '0')) {
-        --i;
-        continue;
-      }
-
-      if (extend_loop && ((kseq_readers_[0]->comment.s[5] - '0') & contig_flag::kLoop)) {
-        if (kseq_readers_[0]->seq.l < k_to_ + 1U) {
-          continue;
-        }
-
-        std::string ss(kseq_readers_[0]->seq.s);
-
-        for (int i = 0; i < k_to_ - k_from_; ++i) {
-          ss.push_back(ss[i + k_from_]);
-        }
-
-        if (reverse) {
-          package_->AppendReversedStringSequence(ss.c_str(), ss.length());
-        } else {
-          package_->AppendStringSequence(ss.c_str(), ss.length());
-        }
-      } else {
-        if (reverse) {
-          package_->AppendReversedStringSequence(kseq_readers_[0]->seq.s, kseq_readers_[0]->seq.l);
-        } else {
-          package_->AppendStringSequence(kseq_readers_[0]->seq.s, kseq_readers_[0]->seq.l);
-        }
-      }
-
-      float mul = atof(kseq_readers_[0]->comment.s + 13);
-
-      if (multi_ != NULL) {
-        multi_->push_back(std::min(kMaxMul, (int) (mul + 0.5)));
-      }
-
-      if (float_multi_ != NULL) {
-        float_multi_->push_back(mul);
-      }
-
-      num_bases += kseq_readers_[0]->seq.l;
-
-      if (num_bases >= max_num_bases) {
-        return i + 1;
-      }
-    } else {
-      return i;
-    }
-  }
-
-  return max_num;
-}
-

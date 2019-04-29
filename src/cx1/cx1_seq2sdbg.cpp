@@ -443,66 +443,29 @@ void read_seq_and_prepare(seq2sdbg_global_t &globals) {
     }
 
     if (globals.contig != "") {
-        seq_manager.set_file_type(SequenceManager::kMegahitContigs);
-        seq_manager.set_file(globals.contig);
-        seq_manager.set_kmer_size(globals.kmer_from, globals.kmer_k);
-        seq_manager.set_min_len(globals.kmer_k + 1);
-
+        MegahitContigReader reader({globals.contig});
+        reader.SetExtendLoop(globals.kmer_from, globals.kmer_k)->SetMinLen(globals.kmer_k + 1);
         bool contig_reverse = true;
-        bool append_to_package = true;
-        int discard_flag = 0;
-        bool extend_loop = true;
-        bool calc_depth = false;
-
-        seq_manager.ReadMegahitContigs(1LL << 60, 1LL << 60, append_to_package, contig_reverse, discard_flag, extend_loop, calc_depth);
-        seq_manager.clear();
+        reader.ReadWithMultiplicity(&globals.package, &globals.multiplicity, 1LL << 60, 1LL << 60, contig_reverse);
 
         // read bubble
-        seq_manager.set_file_type(SequenceManager::kMegahitContigs);
-        seq_manager.set_file(globals.bubble_seq);
-        seq_manager.set_kmer_size(globals.kmer_from, globals.kmer_k);
-        seq_manager.set_min_len(globals.kmer_k + 1);
-
-        contig_reverse = true;
-        append_to_package = true;
-        discard_flag = 0;
-        extend_loop = true;
-        calc_depth = false;
-
-        seq_manager.ReadMegahitContigs(1LL << 60, 1LL << 60, append_to_package, contig_reverse, discard_flag, extend_loop, calc_depth);
-        seq_manager.clear();
+        MegahitContigReader bubble_reader({globals.bubble_seq});
+        bubble_reader.SetExtendLoop(globals.kmer_from, globals.kmer_k)->SetMinLen(globals.kmer_k + 1);
+        bubble_reader.ReadWithMultiplicity(&globals.package, &globals.multiplicity, 1LL << 60, 1LL << 60, contig_reverse);
     }
 
     if (globals.addi_contig != "") {
-        seq_manager.set_file_type(SequenceManager::kMegahitContigs);
-        seq_manager.set_file(globals.addi_contig);
-        seq_manager.set_kmer_size(globals.kmer_from, globals.kmer_k);
-        seq_manager.set_min_len(globals.kmer_k + 1);
-
+        MegahitContigReader reader({globals.addi_contig});
+        reader.SetExtendLoop(globals.kmer_from, globals.kmer_k)->SetMinLen(globals.kmer_k + 1);
         bool contig_reverse = true;
-        bool append_to_package = true;
-        int discard_flag = 0;
-        bool extend_loop = true;
-        bool calc_depth = false;
-
-        seq_manager.ReadMegahitContigs(1LL << 60, 1LL << 60, append_to_package, contig_reverse, discard_flag, extend_loop, calc_depth);
-        seq_manager.clear();
+        reader.ReadWithMultiplicity(&globals.package, &globals.multiplicity, 1LL << 60, 1LL << 60, contig_reverse);
     }
 
     if (globals.local_contig != "") {
-        seq_manager.set_file_type(SequenceManager::kMegahitContigs);
-        seq_manager.set_file(globals.local_contig);
-        seq_manager.set_kmer_size(globals.kmer_from, globals.kmer_k);
-        seq_manager.set_min_len(globals.kmer_k + 1);
-
+        MegahitContigReader reader({globals.local_contig});
+        reader.SetExtendLoop(globals.kmer_from, globals.kmer_k)->SetMinLen(globals.kmer_k + 1);
         bool contig_reverse = true;
-        bool append_to_package = true;
-        int discard_flag = 0;
-        bool extend_loop = true;
-        bool calc_depth = false;
-
-        seq_manager.ReadMegahitContigs(1LL << 60, 1LL << 60, append_to_package, contig_reverse, discard_flag, extend_loop, calc_depth);
-        seq_manager.clear();
+        reader.ReadWithMultiplicity(&globals.package, &globals.multiplicity, 1LL << 60, 1LL << 60, contig_reverse);
     }
 
     xinfo("After reading, sizeof seq_package: %lld, multiplicity vector: %lld\n",

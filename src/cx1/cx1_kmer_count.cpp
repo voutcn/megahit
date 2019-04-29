@@ -109,22 +109,14 @@ void read_input_prepare(count_global_t &globals) { // num_items_, num_cpu_thread
         num_reads += num_ass_seq;
     }
 
-  globals.package.ReserveSequences(num_reads);
-  globals.package.ReserveBases(num_bases);
+    globals.package.ReserveSequences(num_reads);
+    globals.package.ReserveBases(num_bases);
 
     ReadBinaryLibs(globals.read_lib_file, globals.package, globals.lib_info, is_reverse);
 
     if (globals.assist_seq_file != "") {
-        SequenceManager seq_manager;
-        seq_manager.set_file_type(SequenceManager::kFastxReads);
-        seq_manager.set_file(globals.assist_seq_file);
-
-        bool reverse_read = true;
-        bool append_to_package = true;
-        bool trimN = false;
-
-        seq_manager.ReadShortReads(1ULL << 60, 1ULL << 60, append_to_package, reverse_read, trimN);
-        seq_manager.clear();
+      FastxReader reader({globals.assist_seq_file});
+      reader.Read(&globals.package, 1ULL << 60, 1ULL << 60, is_reverse, false);
     }
 
     globals.package.BuildIndex();

@@ -38,8 +38,6 @@ int64_t FastxReader::Read(SeqPackage *pkg, int64_t max_num, int64_t max_num_base
   for (int64_t i = 0; i < max_num; ++i) {
     auto record = ReadNext();
     if (record) {
-      ParseFastxComment(record->comment.s);
-
       int b = 0, e = record->seq.l;
       if (trim_n) {
         TrimN(record->seq.s, record->seq.l, &b, &e);
@@ -52,7 +50,6 @@ int64_t FastxReader::Read(SeqPackage *pkg, int64_t max_num, int64_t max_num_base
       }
 
       num_bases += e - b;
-
       if (num_bases >= max_num_bases && i % 2 == 1) {
         return i + 1;
       }
