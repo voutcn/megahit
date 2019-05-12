@@ -6,6 +6,7 @@
 
 #include <cassert>
 #include <definitions.h>
+#include <utils/utils.h>
 #include "kmlib/kmsort.h"
 
 namespace {
@@ -43,8 +44,11 @@ inline void SortSubstrHelper(uint32_t *substr, int words_per_substr, int64_t n, 
   auto ptr = reinterpret_cast<Substr<NWords, NExtraWords>*>(substr);
   kmlib::kmsort(ptr, ptr + n);
 }
+
+constexpr int kMaxWords = (kMaxK * kBitsPerEdgeChar + 3 + 1 + kBitsPerMul + kBitsPerEdgeWord - 1) / kBitsPerEdgeWord;
+
 }
 
 void SortSubStr(uint32_t *substr, int words_per_substr, int64_t n, int extra_words) {
-  SortSubstrHelper<kUint32PerKmerMaxK, 2>(substr, words_per_substr, n, extra_words);
+  SortSubstrHelper<kMaxWords, 2>(substr, words_per_substr, n, extra_words);
 }

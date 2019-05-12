@@ -26,7 +26,7 @@ class SdbgWriter {
     friend class SdbgWriter;
   };
 
-  SdbgWriter() {}
+  SdbgWriter() = default;
   ~SdbgWriter() {
     Finalize();
   }
@@ -56,16 +56,16 @@ class SdbgWriter {
 
  private:
   std::string file_prefix_;
-  size_t num_threads_;
-  size_t num_buckets_;
+  size_t num_threads_{};
+  size_t num_buckets_{};
 
   std::vector<std::unique_ptr<std::ofstream>> files_;
   std::vector<uint64_t> cur_thread_offset_;    // offset in BYTE
   std::vector<SdbgBucketRecord> bucket_rec_;
 
-  bool is_opened_;
-  unsigned k_;
-  size_t words_per_tip_label_;
+  bool is_opened_{};
+  unsigned k_{};
+  size_t words_per_tip_label_{};
   SdbgMeta final_meta_;
 };
 

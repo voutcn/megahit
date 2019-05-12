@@ -83,9 +83,10 @@ set(TEST_DATA ${CMAKE_SOURCE_DIR}/test_data)
 
 add_custom_target(
         simple_test
-        COMMAND ./megahit --test -t 2 --keep-tmp-files
-        COMMAND ./megahit --test -t 2 --keep-tmp-files --no-hw-accel
-        COMMAND ./megahit --test -t 2 --keep-tmp-files --kmin-1pass
+        COMMAND ./megahit --test -t 2
+        COMMAND ./megahit --test -t 2 --no-hw-accel
+        COMMAND ./megahit --test -t 2 --kmin-1pass
+        COMMAND rm -rf test-random && python3 ../test_data/generate_random_fasta.py > random.fa && ./megahit -r random.fa --k-list 255 --min-count 1 -o test-random
 )
 
 add_dependencies(megahit megahit_core megahit_core_no_hw_accel)

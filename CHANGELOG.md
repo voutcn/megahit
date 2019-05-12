@@ -1,3 +1,7 @@
+### 1.2.3-beta / 2019-05-12 PST
+-   Refactored sequence readers
+-   Fixed a bug in SDBG building of large k-mer sizes
+
 ### 1.2.2-beta / 2019-04-16 PST
 -   Automatically detect POPCNT/BMI2 and select the correct megahit_core binary
 

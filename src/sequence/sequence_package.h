@@ -189,6 +189,7 @@ class SequencePackage {
   bool IsFixedLength() const {
     return start_pos_.size() == 1;
   }
+
   void UpdateLength(unsigned len) {
     if (num_fixed_len_ == 0) {
       num_fixed_len_ = 1;
