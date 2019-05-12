@@ -30,18 +30,19 @@
 #include <string>
 #include <vector>
 #include <memory>
-#include <sequence/readers/fastx_reader.h>
+#include <sequence/readers/binary_reader.h>
 
 #include "utils/utils.h"
 #include "lib_info.h"
-#include "sequence_manager.h"
 #include "sequence/sequence_package.h"
+#include "sequence/readers/fastx_reader.h"
+#include "sequence/readers/pair_end_fastx_reader.h"
 #include "utils/safe_alloc_open-inl.h"
 
 
 inline void WriteBinarySequences(const SeqPackage & pkg, FILE *file, int64_t from = 0, int64_t to = -1) {
   if (to == -1) {
-    to = pkg.size() - 1;
+    to = pkg.Size() - 1;
   }
 
   uint32_t len;
@@ -75,21 +76,21 @@ inline void ReadAndWriteMultipleLibs(const std::string &lib_file,
 
     int64_t total_reads = 0;
     int64_t total_bases = 0;
-    seq_batch.clear();
+  seq_batch.Clear();
     lib_info.clear();
 
     while (std::getline(lib_config, metadata)) {
         lib_config >> type;
-        std::unique_ptr<FastxReader> reader;
+        std::unique_ptr<BaseSequenceReader> reader;
         if (type == "pe") {
             lib_config >> file_name1 >> file_name2;
-            reader.reset(new PairEndFastxReader({file_name1, file_name2}));
+            reader.reset(new PairEndFastxReader(file_name1, file_name2));
         } else if (type == "se") {
             lib_config >> file_name1;
-            reader.reset(new FastxReader({file_name1}));
+            reader.reset(new FastxReader(file_name1));
         } else if (type == "interleaved") {
             lib_config >> file_name1;
-            reader.reset(new FastxReader({file_name1}));
+            reader.reset(new FastxReader(file_name1));
         } else {
             xerr("Cannot identify read library type %s\n", type.c_str());
             xfatal("Valid types: pe, se, interleaved\n");
@@ -97,8 +98,8 @@ inline void ReadAndWriteMultipleLibs(const std::string &lib_file,
 
         int64_t start = total_reads;
         int64_t num_read = 0;
-        int reads_per_batch = 1 << 22;
-        int bases_per_batch = 1 << 28;
+        int reads_per_batch = 1u << 22;
+        int bases_per_batch = 1u << 28;
         int max_read_len = 0;
 
         while (true) {
@@ -112,7 +113,7 @@ inline void ReadAndWriteMultipleLibs(const std::string &lib_file,
             total_bases += seq_batch.BaseCount();
             WriteBinarySequences(seq_batch, bin_file);
             max_read_len = std::max(max_read_len, (int) seq_batch.MaxSequenceLength());
-            seq_batch.clear();
+          seq_batch.Clear();
         }
 
         if (type == "pe" && (total_reads - start) % 2 != 0) {
@@ -150,7 +151,7 @@ inline void GetBinaryLibSize(const std::string &file_prefix, int64_t &total_base
 }
 
 inline void ReadBinaryLibs(const std::string &file_prefix, SeqPackage &package, std::vector<lib_info_t> &lib_info,
-                           bool is_reverse = false, bool append_to_package = false) {
+                           bool is_reverse = false) {
     std::ifstream lib_info_file(file_prefix + ".lib_info");
     int64_t start, end;
     int max_read_len;
@@ -171,12 +172,10 @@ inline void ReadBinaryLibs(const std::string &file_prefix, SeqPackage &package, 
 
     package.ReserveSequences(num_reads);
     package.ReserveBases(total_bases);
-    SequenceManager seq_manager(&package);
-    seq_manager.set_file_type(SequenceManager::kBinaryReads);
-    seq_manager.set_file(FormatString("%s.bin", file_prefix.c_str()));
-
+    BinaryReader reader(file_prefix + ".bin");
     xinfo("Before reading, sizeof seq_package: %lld\n", package.SizeInByte());
-    seq_manager.ReadShortReads(1LL << 60, 1LL << 60, append_to_package, is_reverse);
+  package.Clear();
+    reader.ReadAll(&package, is_reverse);
     xinfo("After reading, sizeof seq_package: %lld\n", package.SizeInByte());
 }
 

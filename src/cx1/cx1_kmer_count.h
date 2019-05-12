@@ -27,7 +27,7 @@
 #include <mutex>
 #include "definitions.h"
 #include "cx1.h"
-#include "sequence/edge_io.h"
+#include "sequence/readers/edge_io.h"
 #include "sequence/sequence_package.h"
 #include "sequence/lib_info.h"
 #include "utils/atomic_wrapper.h"

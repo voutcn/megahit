@@ -12,7 +12,6 @@
 #include <vector>
 
 #include "definitions.h"
-#include "utils/safe_alloc_open-inl.h"
 #include "utils/utils.h"
 
 struct PartitionRecord {
@@ -171,7 +170,7 @@ class EdgeWriter {
   }
 };
 
-class EdgeReader {
+class MegahitEdgeReader {
  private:
   int kmer_size_;
   int words_per_edge_;
@@ -198,9 +197,9 @@ class EdgeReader {
   bool is_opened_;
 
  public:
-  EdgeReader() : is_opened_(false) {
+  MegahitEdgeReader() : is_opened_(false) {
   }
-  ~EdgeReader() {
+  ~MegahitEdgeReader() {
     destroy();
   }
 

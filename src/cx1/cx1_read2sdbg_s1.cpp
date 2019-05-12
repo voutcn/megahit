@@ -123,7 +123,7 @@ void s1_read_input_prepare(read2sdbg_global_t &globals) {
     }
 
     globals.package.BuildIndex();
-    globals.num_reads = globals.package.size();
+    globals.num_reads = globals.package.Size();
 
     xinfo("%ld reads, %d max read length, %lld total bases\n", globals.num_reads, globals.max_read_length,
           globals.package.BaseCount());

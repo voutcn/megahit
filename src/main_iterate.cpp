@@ -30,7 +30,7 @@
 #include <stdexcept>
 
 #include "definitions.h"
-#include "sequence/async_sequence_reader.h"
+#include "sequence/readers/async_sequence_reader.h"
 #include "iterate/kmer_collector.h"
 #include "iterate/contig_flank_index.h"
 #include "utils/options_description.h"
@@ -117,14 +117,14 @@ static bool ReadReadsAndProcessKernel(const Option &opt, IndexType &index) {
 
   while (true) {
     auto read_pkg = reader.Next();
-    if (read_pkg.size() == 0) {
+    if (read_pkg.Size() == 0) {
       break;
     }
 #pragma omp parallel for reduction(+: num_aligned_reads)
-    for (unsigned i = 0; i < read_pkg.size(); ++i) {
+    for (unsigned i = 0; i < read_pkg.Size(); ++i) {
       num_aligned_reads += index.FindNextKmersFromRead(read_pkg, i, &collector) > 0;
     }
-    num_total_reads += read_pkg.size();
+    num_total_reads += read_pkg.Size();
     xinfo("Processed: %lld, aligned: %lld. Iterative edges: %llu\n",
           num_total_reads, num_aligned_reads, collector.collection().size());
   }
@@ -154,10 +154,10 @@ static void ReadContigsAndBuildIndex(const Option &opt, const std::string &file_
     auto &pkg = reader.Next();
     auto &contig_pkg = pkg.first;
     auto &mul = pkg.second;
-    if (contig_pkg.size() == 0) {
+    if (contig_pkg.Size() == 0) {
       break;
     }
-    xinfo("Read %lu contigs\n", contig_pkg.size());
+    xinfo("Read %lu contigs\n", contig_pkg.Size());
     index->FeedBatchContigs(contig_pkg, mul);
     xinfo("Number of flank kmers: %lu\n", index->size());
   }

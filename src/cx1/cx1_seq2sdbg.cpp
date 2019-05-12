@@ -25,11 +25,13 @@
 #include <string>
 #include <vector>
 #include <mutex>
+#include <sequence/readers/edge_io.h>
 
 #include "utils/utils.h"
 #include "sequence/packed_reads.h"
 #include "sequence/kmer.h"
-#include "sequence/async_sequence_reader.h"
+#include "sequence/readers/async_sequence_reader.h"
+#include "sequence/readers/edge_reader.h"
 
 #include "sorting.h"
 
@@ -92,7 +94,7 @@ inline int ExtractCounting(uint32_t *item, int num_words, int64_t spacing) {
 
 // cx1 core functions
 int64_t encode_lv1_diff_base(int64_t read_id, seq2sdbg_global_t &g) {
-    assert(read_id < (int64_t)g.package.size());
+    assert(read_id < (int64_t) g.package.Size());
     return EncodeEdgeOffset(read_id, 0, 0, g.package);
 }
 
@@ -102,7 +104,7 @@ int64_t encode_lv1_diff_base(int64_t read_id, seq2sdbg_global_t &g) {
 void InitLookupTable(int64_t *lookup_table, SeqPackage &p) {
     memset(lookup_table, 0xFF, sizeof(int64_t) * kLookUpSize * 2);
 
-    if (p.size() == 0) {
+    if (p.Size() == 0) {
         return;
     }
 
@@ -112,7 +114,7 @@ void InitLookupTable(int64_t *lookup_table, SeqPackage &p) {
     uint32_t cur_prefix = kmer.data()[0] >> kLookUpShift;
     lookup_table[cur_prefix * 2] = 0;
 
-    for (int64_t i = 1, num_edges = p.size(); i < num_edges; ++i) {
+    for (int64_t i = 1, num_edges = p.Size(); i < num_edges; ++i) {
         auto ptr_and_offset = p.WordPtrAndOffset(i);
         kmer.InitFromPtr(ptr_and_offset.first, ptr_and_offset.second, 16);
 
@@ -126,7 +128,7 @@ void InitLookupTable(int64_t *lookup_table, SeqPackage &p) {
         }
     }
 
-    lookup_table[cur_prefix * 2 + 1] = p.size() - 1;
+    lookup_table[cur_prefix * 2 + 1] = p.Size() - 1;
 }
 
 /**
@@ -163,16 +165,6 @@ int64_t BinarySearchKmer(GenericKmer &kmer, int64_t *lookup_table, SeqPackage &p
     return -1;
 }
 
-static void *MercyInputThread(void *seq_manager) {
-    SequenceManager *sm = (SequenceManager *)seq_manager;
-    int64_t kMaxReads = 1 << 22;
-    int64_t kMaxBases = 1 << 28;
-    bool append = false;
-    bool reverse = false;
-    sm->ReadShortReads(kMaxReads, kMaxBases, append, reverse);
-    return nullptr;
-}
-
 void GenMercyEdges(seq2sdbg_global_t &globals) {
     int64_t *edge_lookup = (int64_t *) xmalloc(kLookUpSize * 2 * sizeof(int64_t));
     InitLookupTable(edge_lookup, globals.package);
@@ -190,15 +182,15 @@ void GenMercyEdges(seq2sdbg_global_t &globals) {
 
     while (true) {
         SeqPackage &rp = reader.Next();
-
-        if (rp.size() == 0) {
+        if (rp.Size() == 0) {
             break;
         }
+        xinfo("Read %u reads to search for mercy k-mers\n", rp.Size());
 
-        num_mercy_reads += rp.size();
+        num_mercy_reads += rp.Size();
         mercy_edges.clear();
         #pragma omp parallel for reduction(+:num_mercy_edges)
-        for (unsigned read_id = 0; read_id < rp.size(); ++read_id) {
+        for (unsigned read_id = 0; read_id < rp.Size(); ++read_id) {
 
             int read_len = rp.SequenceLength(read_id);
 
@@ -354,10 +346,6 @@ void GenMercyEdges(seq2sdbg_global_t &globals) {
 }
 
 void read_seq_and_prepare(seq2sdbg_global_t &globals) {
-    // --- init reader ---
-    SequenceManager seq_manager(&globals.package);
-    seq_manager.set_multiplicity_vector(&globals.multiplicity);
-
     // reserve space
     {
         long long bases_to_reserve = 0;
@@ -365,7 +353,7 @@ void read_seq_and_prepare(seq2sdbg_global_t &globals) {
         long long num_multiplicities_to_reserve = 0;
 
         if (globals.input_prefix != "") {
-            EdgeReader edge_reader;
+            MegahitEdgeReader edge_reader;
             edge_reader.set_file_prefix(globals.input_prefix);
             edge_reader.read_info();
             int64_t num_edges = edge_reader.num_edges();
@@ -425,10 +413,12 @@ void read_seq_and_prepare(seq2sdbg_global_t &globals) {
           globals.package.SizeInByte(), globals.multiplicity.capacity());
 
     if (globals.input_prefix != "") {
-        seq_manager.set_file_type(globals.need_mercy ? SequenceManager::kSortedEdges : SequenceManager::kMegahitEdges);
-        seq_manager.set_edge_files(globals.input_prefix);
-        seq_manager.ReadEdgesWithFixedLen(1LL << 60, true);
-        seq_manager.clear();
+      EdgeReader reader(globals.input_prefix);
+      if (globals.need_mercy) {
+        reader.ReadSorted(&globals.package, &globals.multiplicity, 1LL << 60);
+      } else {
+        reader.ReadUnsorted(&globals.package, &globals.multiplicity, 1LL << 60);
+      }
     }
 
     if (globals.need_mercy) {
@@ -443,36 +433,36 @@ void read_seq_and_prepare(seq2sdbg_global_t &globals) {
     }
 
     if (globals.contig != "") {
-        MegahitContigReader reader({globals.contig});
+        ContigReader reader(globals.contig);
         reader.SetExtendLoop(globals.kmer_from, globals.kmer_k)->SetMinLen(globals.kmer_k + 1);
         bool contig_reverse = true;
-        reader.ReadWithMultiplicity(&globals.package, &globals.multiplicity, 1LL << 60, 1LL << 60, contig_reverse);
+        reader.ReadAllWithMultiplicity(&globals.package, &globals.multiplicity, contig_reverse);
 
         // read bubble
-        MegahitContigReader bubble_reader({globals.bubble_seq});
+        ContigReader bubble_reader({globals.bubble_seq});
         bubble_reader.SetExtendLoop(globals.kmer_from, globals.kmer_k)->SetMinLen(globals.kmer_k + 1);
-        bubble_reader.ReadWithMultiplicity(&globals.package, &globals.multiplicity, 1LL << 60, 1LL << 60, contig_reverse);
+        bubble_reader.ReadAllWithMultiplicity(&globals.package, &globals.multiplicity, contig_reverse);
     }
 
     if (globals.addi_contig != "") {
-        MegahitContigReader reader({globals.addi_contig});
+        ContigReader reader({globals.addi_contig});
         reader.SetExtendLoop(globals.kmer_from, globals.kmer_k)->SetMinLen(globals.kmer_k + 1);
         bool contig_reverse = true;
-        reader.ReadWithMultiplicity(&globals.package, &globals.multiplicity, 1LL << 60, 1LL << 60, contig_reverse);
+        reader.ReadAllWithMultiplicity(&globals.package, &globals.multiplicity, contig_reverse);
     }
 
     if (globals.local_contig != "") {
-        MegahitContigReader reader({globals.local_contig});
+        ContigReader reader({globals.local_contig});
         reader.SetExtendLoop(globals.kmer_from, globals.kmer_k)->SetMinLen(globals.kmer_k + 1);
         bool contig_reverse = true;
-        reader.ReadWithMultiplicity(&globals.package, &globals.multiplicity, 1LL << 60, 1LL << 60, contig_reverse);
+        reader.ReadAllWithMultiplicity(&globals.package, &globals.multiplicity, contig_reverse);
     }
 
     xinfo("After reading, sizeof seq_package: %lld, multiplicity vector: %lld\n",
           globals.package.SizeInByte(), globals.multiplicity.capacity());
 
     globals.package.BuildIndex();
-    globals.num_seq = globals.package.size();
+    globals.num_seq = globals.package.Size();
 
     globals.mem_packed_seq = globals.package.SizeInByte() + globals.multiplicity.size() * sizeof(mul_t);
     int64_t mem_low_bound = globals.mem_packed_seq

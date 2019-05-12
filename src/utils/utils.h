@@ -78,7 +78,7 @@ do { megahit_log__("    [FATAL %-25s%4d]   " str, __XFILE__, __LINE__, ##args); 
 #endif
 
 inline char *FormatString(const char *fmt, ...) {
-  static char buffer[1 << 20];
+  static char buffer[1u << 20];
   va_list args;
   va_start(args, fmt);
   vsprintf(buffer, fmt, args);
@@ -87,7 +87,7 @@ inline char *FormatString(const char *fmt, ...) {
 }
 
 struct SimpleTimer {
-  struct timeval tv1, tv2;
+  timeval tv1, tv2;
   long long time_elapsed;
 
   SimpleTimer() {
@@ -101,7 +101,7 @@ struct SimpleTimer {
   }
   void stop() {
     gettimeofday(&tv2, nullptr);
-    time_elapsed += (long long) (tv2.tv_sec - tv1.tv_sec) * 1000000 + tv2.tv_usec - tv1.tv_usec;
+    time_elapsed += static_cast<long long>(tv2.tv_sec - tv1.tv_sec) * 1000000 + tv2.tv_usec - tv1.tv_usec;
   }
   double elapsed() {
     return time_elapsed / 1000000.0;
@@ -109,10 +109,10 @@ struct SimpleTimer {
 };
 
 struct AutoMaxRssRecorder {
-  struct timeval tv1, tv2;
+  struct timeval tv1{}, tv2{};
 
   AutoMaxRssRecorder() {
-    gettimeofday(&tv1, NULL);
+    gettimeofday(&tv1, nullptr);
   }
 
   ~AutoMaxRssRecorder() {
@@ -122,8 +122,8 @@ struct AutoMaxRssRecorder {
   void watch() {
 #define TURN_ON_MAX_RSS_LOG
 #ifdef TURN_ON_MAX_RSS_LOG
-    gettimeofday(&tv2, NULL);
-    struct rusage usage;
+    gettimeofday(&tv2, nullptr);
+    rusage usage;
 
     if (getrusage(RUSAGE_SELF, &usage)) {
       xwarn("Fail to getrusage()\n");
@@ -132,7 +132,7 @@ struct AutoMaxRssRecorder {
     double utime = 1e-6 * usage.ru_utime.tv_usec + usage.ru_utime.tv_sec;
     double stime = 1e-6 * usage.ru_stime.tv_usec + usage.ru_stime.tv_sec;
 
-    long long real_time = (long long) (tv2.tv_sec - tv1.tv_sec) * 1000000 + tv2.tv_usec - tv1.tv_usec;
+    long long real_time = static_cast<long long>(tv2.tv_sec - tv1.tv_sec) * 1000000 + tv2.tv_usec - tv1.tv_usec;
     xinfo("Real: %.4lf", real_time / 1000000.0);
     xinfoc("\tuser: %.4lf\tsys: %.4lf\tmaxrss: %ld\n", utime, stime, usage.ru_maxrss);
 #endif

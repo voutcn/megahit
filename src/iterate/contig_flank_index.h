@@ -29,7 +29,7 @@ class ContigFlankIndex {
   void FeedBatchContigs(SeqPackage &seq_pkg, const std::vector<float> &mul) {
     std::mutex lock;
 #pragma omp parallel for
-    for (size_t i = 0; i < seq_pkg.size(); ++i) {
+    for (size_t i = 0; i < seq_pkg.Size(); ++i) {
       size_t seq_len = seq_pkg.SequenceLength(i);
       if (seq_len < k_ + 1) {
         continue;

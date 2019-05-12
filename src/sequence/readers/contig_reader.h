@@ -2,31 +2,36 @@
 // Created by vout on 4/28/19.
 //
 
-#ifndef MEGAHIT_MEGAHIT_CONTIG_READER_H
-#define MEGAHIT_MEGAHIT_CONTIG_READER_H
+#ifndef MEGAHIT_CONTIG_READER_H
+#define MEGAHIT_CONTIG_READER_H
 
 #include "fastx_reader.h"
 
 
-class MegahitContigReader : public FastxReader {
+class ContigReader : public FastxReader {
  public:
-  MegahitContigReader(const std::vector<std::string> &file_names) : FastxReader(file_names) {}
-  MegahitContigReader* SetMinLen(unsigned min_len) {
+  explicit ContigReader(const std::string &file_name) : FastxReader(file_name) {}
+  ContigReader* SetMinLen(unsigned min_len) {
     min_len_ = min_len;
     return this;
   }
-  MegahitContigReader* SetExtendLoop(unsigned k_from, unsigned k_to) {
+  ContigReader* SetExtendLoop(unsigned k_from, unsigned k_to) {
     k_from_ = k_from;
     k_to_ = k_to;
     return this;
   }
-  MegahitContigReader* SetDiscardFlag(unsigned flag) {
+  ContigReader* SetDiscardFlag(unsigned flag) {
     discard_flag_ = flag;
     return this;
   }
 
   int64_t Read(SeqPackage *pkg, int64_t max_num, int64_t max_num_bases, bool reverse, bool trim_n = false) override {
     return ReadWithMultiplicity<float>(pkg, nullptr, max_num, max_num_bases, reverse);
+  }
+
+  template<typename TMul>
+  int64_t ReadAllWithMultiplicity(SeqPackage *pkg, std::vector<TMul> *mul, bool reverse) {
+    return ReadWithMultiplicity(pkg, mul, kMaxNumSeq, kMaxNumBases, reverse);
   }
 
   template<typename TMul>
@@ -42,10 +47,8 @@ class MegahitContigReader : public FastxReader {
           --ri;
           continue;
         }
-
         // comment = "flag=x multi=xx.xxxx"
         unsigned flag = record->comment.s[5] - '0';
-
         if (discard_flag_ & flag) {
           --ri;
           continue;
@@ -55,9 +58,7 @@ class MegahitContigReader : public FastxReader {
           if (record->seq.l < k_to_ + 1U) {
             continue;
           }
-
           std::string ss(record->seq.s);
-
           for (unsigned i = k_from_; i < k_to_; ++i) {
             ss.push_back(ss[i]);
           }
@@ -80,7 +81,6 @@ class MegahitContigReader : public FastxReader {
         }
 
         num_bases += record->seq.l;
-
         if (num_bases >= max_num_bases) {
           return ri + 1;
         }
@@ -108,4 +108,4 @@ class MegahitContigReader : public FastxReader {
   unsigned discard_flag_{0};
 };
 
-#endif //MEGAHIT_MEGAHIT_CONTIG_READER_H
+#endif //MEGAHIT_CONTIG_READER_H

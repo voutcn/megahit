@@ -121,7 +121,7 @@ void read_input_prepare(count_global_t &globals) { // num_items_, num_cpu_thread
 
     globals.package.BuildIndex();
     globals.max_read_length = globals.package.MaxSequenceLength();
-    globals.num_reads = globals.package.size();
+    globals.num_reads = globals.package.Size();
 
     xinfo("%ld reads, %d max read length\n", globals.num_reads, globals.max_read_length);
 
@@ -608,7 +608,6 @@ void post_proc(count_global_t &globals) {
     int64_t num_candidate_reads = 0;
     int64_t num_has_tips = 0;
     FILE *candidate_file = xfopen((globals.output_prefix + ".cand").c_str(), "wb");
-    SequenceManager seq_manager(&globals.package);
 
     for (int64_t i = 0; i < globals.num_reads; ++i) {
         auto first = globals.first_0_out[i].v.load(std::memory_order::memory_order_acquire);

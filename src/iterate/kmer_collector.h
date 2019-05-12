@@ -10,7 +10,7 @@
 #include "sdbg/sdbg_def.h"
 #include "sequence/kmer_plus.h"
 #include "sparsepp/spp.h"
-#include "sequence/edge_io.h"
+#include "sequence/readers/edge_io.h"
 
 template<class KmerType>
 class KmerCollector {
