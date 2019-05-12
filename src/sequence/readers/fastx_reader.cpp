@@ -20,13 +20,13 @@ FastxReader::~FastxReader() {
   if (fp_) { gzclose(fp_); }
 }
 
-int64_t FastxReader::Read(SeqPackage *pkg, int64_t max_num, int64_t max_num_bases, bool reverse, bool trim_n) {
+int64_t FastxReader::Read(SeqPackage *pkg, int64_t max_num, int64_t max_num_bases, bool reverse) {
   int64_t num_bases = 0;
   for (int64_t i = 0; i < max_num; ++i) {
     auto record = ReadNext();
     if (record) {
       int b = 0, e = record->seq.l;
-      if (trim_n) {
+      if (trim_n_) {
         TrimN(record->seq.s, record->seq.l, &b, &e);
       }
 

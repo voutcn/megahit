@@ -12,6 +12,7 @@
 #include <vector>
 
 #include "definitions.h"
+#include "utils/safe_alloc_open-inl.h"
 #include "utils/utils.h"
 
 struct PartitionRecord {

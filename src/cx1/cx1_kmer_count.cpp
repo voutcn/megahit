@@ -116,7 +116,7 @@ void read_input_prepare(count_global_t &globals) { // num_items_, num_cpu_thread
 
     if (globals.assist_seq_file != "") {
       FastxReader reader({globals.assist_seq_file});
-      reader.Read(&globals.package, 1ULL << 60, 1ULL << 60, is_reverse, false);
+      reader.ReadAll(&globals.package, is_reverse);
     }
 
     globals.package.BuildIndex();

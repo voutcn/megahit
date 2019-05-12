@@ -4,7 +4,7 @@
 
 #include "pair_end_fastx_reader.h"
 
-int64_t PairEndFastxReader::Read(SeqPackage *pkg, int64_t max_num, int64_t max_num_bases, bool reverse, bool trim_n) {
+int64_t PairEndFastxReader::Read(SeqPackage *pkg, int64_t max_num, int64_t max_num_bases, bool reverse) {
   int64_t num_bases = 0;
   for (int64_t i = 0; i < max_num; i += 2) {
     auto r0 = readers_[0]->ReadNext();
@@ -13,7 +13,7 @@ int64_t PairEndFastxReader::Read(SeqPackage *pkg, int64_t max_num, int64_t max_n
       int b0 = 0, e0 = r0->seq.l;
       int b1 = 0, e1 = r1->seq.l;
 
-      if (trim_n) {
+      if (trim_n_) {
         FastxReader::TrimN(r0->seq.s, r0->seq.l, &b0, &e0);
         FastxReader::TrimN(r1->seq.s, r1->seq.l, &b1, &e1);
       }

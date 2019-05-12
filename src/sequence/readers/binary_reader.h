@@ -19,7 +19,7 @@ class BinaryReader : public BaseSequenceReader {
     reader_.reset(&is_);
   }
 
-  int64_t Read(SeqPackage *pkg, int64_t max_num, int64_t max_num_bases, bool reverse, bool trim_n = false) override {
+  int64_t Read(SeqPackage *pkg, int64_t max_num, int64_t max_num_bases, bool reverse) override {
     max_num = (max_num + 1) / 2 * 2;
     int64_t num_bases = 0;
     uint32_t read_len;

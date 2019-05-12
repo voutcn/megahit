@@ -45,7 +45,7 @@ class EdgeReader : public BaseSequenceReader {
   }
 
   int64_t Read(SeqPackage *pkg, int64_t max_num, int64_t max_num_bases,
-                       bool reverse = false, bool trim_n = false) override {
+                       bool reverse = false) override {
     if (edge_reader_.is_unsorted()) {
       return ReadSorted(pkg, mul_, max_num);
     } else {

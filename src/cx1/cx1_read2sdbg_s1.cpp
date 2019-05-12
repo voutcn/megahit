@@ -119,7 +119,7 @@ void s1_read_input_prepare(read2sdbg_global_t &globals) {
 
     if (globals.assist_seq_file != "") {
       FastxReader reader({globals.assist_seq_file});
-      reader.Read(&globals.package, 1ULL << 60, 1ULL << 60, is_reverse, false);
+      reader.ReadAll(&globals.package, is_reverse);
     }
 
     globals.package.BuildIndex();

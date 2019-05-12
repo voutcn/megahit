@@ -25,7 +25,7 @@ class ContigReader : public FastxReader {
     return this;
   }
 
-  int64_t Read(SeqPackage *pkg, int64_t max_num, int64_t max_num_bases, bool reverse, bool trim_n = false) override {
+  int64_t Read(SeqPackage *pkg, int64_t max_num, int64_t max_num_bases, bool reverse) override {
     return ReadWithMultiplicity<float>(pkg, nullptr, max_num, max_num_bases, reverse);
   }
 
