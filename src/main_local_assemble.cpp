@@ -22,9 +22,9 @@
 #include <iostream>
 #include <omp.h>
 
-#include "options_description.h"
+#include "utils/options_description.h"
 #include "localasm/local_assembler.h"
-#include "utils.h"
+#include "utils/utils.h"
 
 namespace {
 struct Option {

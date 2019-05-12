@@ -22,8 +22,8 @@
 #include <stdlib.h>
 #include <zlib.h>
 #include <algorithm>
-#include "histgram.h"
-#include "sequence/kseq.h"
+#include "utils/histgram.h"
+#include "sequence/readers/kseq.h"
 
 
 #ifndef KSEQ_INITED

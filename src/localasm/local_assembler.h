@@ -31,7 +31,7 @@
 #include "sparsepp/sparsepp/spp.h"
 #include "sequence/sequence_package.h"
 #include "sequence/kmer_plus.h"
-#include "lib_info.h"
+#include "sequence/lib_info.h"
 
 struct LocalAssembler {
   static const int kMaxLocalRange = 650;

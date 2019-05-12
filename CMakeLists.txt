@@ -18,6 +18,7 @@ FILE(GLOB_RECURSE LCASM_SOURCE "src/localasm/*.cpp")
 FILE(GLOB_RECURSE IDBA_SOURCE "src/idba/*.cpp")
 FILE(GLOB_RECURSE SDBG_SOURCE "src/sdbg/*.cpp")
 FILE(GLOB_RECURSE CX1_SOURCE "src/cx1/*.cpp")
+FILE(GLOB_RECURSE SEQ_SOURCE "src/sequence/*.cpp")
 FILE(GLOB_RECURSE TOOLKIT_SOURCE "src/tools/*.cpp")
 
 LIST(APPEND OTHER_SOURCE
@@ -27,8 +28,7 @@ LIST(APPEND OTHER_SOURCE
         src/main_iterate.cpp
         src/main_local_assemble.cpp
         src/main_sdbg_build.cpp
-        src/options_description.cpp
-        src/sequence_manager.cpp
+        src/utils/options_description.cpp
         )
 
 if (STATIC_BUILD)
@@ -42,7 +42,8 @@ set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${OpenMP_CXX_FLAGS}")
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -DXXH_INLINE_ALL -D__STDC_FORMAT_MACROS")
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Wno-unused-function")
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fprefetch-loop-arrays -funroll-loops")
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -D__XFILE__='\"$(subst ${CMAKE_SOURCE_DIR}/,,$(abspath $<))\"'")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -D__XROOT__='\"${CMAKE_SOURCE_DIR}/src\"'")
+#set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -D__XFILE__='\"$(subst ${CMAKE_SOURCE_DIR}/,,$(abspath $<))\"'")
 
 set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} ${ZLIB_EXE_LINKER_FLAGS} ${OpenMP_EXE_LINKER_FLAGS}")
 
@@ -57,10 +58,10 @@ set(CMAKE_CXX_FLAGS_DEBUG "-g -ggdb -O1")
 
 message(STATUS "Build type: ${CMAKE_BUILD_TYPE}: ${CMAKE_CXX_FLAGS}")
 
-add_executable(megahit_core ${OTHER_SOURCE} ${ASMBL_SOURCE} ${IDBA_SOURCE} ${SDBG_SOURCE} ${LCASM_SOURCE}
+add_executable(megahit_core ${OTHER_SOURCE} ${ASMBL_SOURCE} ${IDBA_SOURCE} ${SDBG_SOURCE} ${LCASM_SOURCE} ${SEQ_SOURCE}
         ${CX1_SOURCE} ${TOOLKIT_SOURCE})
 add_executable(megahit_core_no_hw_accel ${OTHER_SOURCE} ${ASMBL_SOURCE} ${IDBA_SOURCE} ${SDBG_SOURCE} ${LCASM_SOURCE}
-        ${CX1_SOURCE} ${TOOLKIT_SOURCE})
+        ${SEQ_SOURCE} ${CX1_SOURCE} ${TOOLKIT_SOURCE})
 set_target_properties(megahit_core PROPERTIES COMPILE_FLAGS "-mbmi2 -DUSE_BMI2 -mpopcnt")
 
 if (STATIC_BUILD)
@@ -82,9 +83,10 @@ set(TEST_DATA ${CMAKE_SOURCE_DIR}/test_data)
 
 add_custom_target(
         simple_test
-        COMMAND ./megahit --test -t 2 --keep-tmp-files
-        COMMAND ./megahit --test -t 2 --keep-tmp-files --no-hw-accel
-        COMMAND ./megahit --test -t 2 --keep-tmp-files --kmin-1pass
+        COMMAND ./megahit --test -t 2
+        COMMAND ./megahit --test -t 2 --no-hw-accel
+        COMMAND ./megahit --test -t 2 --kmin-1pass
+        COMMAND rm -rf test-random && python3 ../test_data/generate_random_fasta.py > random.fa && ./megahit -r random.fa --k-list 255 --min-count 1 -o test-random
 )
 
 add_dependencies(megahit megahit_core megahit_core_no_hw_accel)

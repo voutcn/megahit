@@ -34,31 +34,22 @@
 #include "idba/contig_graph.h"
 #include "kmlib/kmbit.h"
 
-#include "utils.h"
-#include "safe_alloc_open-inl.h"
-#include "histgram.h"
-#include "sequence_manager.h"
-#include "read_lib_functions-inl.h"
+#include "utils/utils.h"
+#include "utils/safe_alloc_open-inl.h"
+#include "utils/histgram.h"
+#include "sequence/read_lib_functions-inl.h"
+#include "sequence/readers/contig_reader.h"
 
 void LocalAssembler::ReadContigs(const std::string &contig_file_name) {
-  SequenceManager seq_manager;
-  seq_manager.set_file_type(SequenceManager::kMegahitContigs);
-  seq_manager.set_file(contig_file_name);
-  seq_manager.set_min_len(min_contig_len_);
-
-  seq_manager.set_package(&contigs_);
+  ContigReader reader(contig_file_name);
+  reader.SetMinLen(min_contig_len_)->SetDiscardFlag(contig_flag::kLoop);
+  contigs_.Clear();
   bool contig_reverse = false;
-  bool append_to_package = false;
-  int discard_flag = contig_flag::kLoop;
-  bool extend_loop = false;
-  bool calc_depth = false;
-
-  seq_manager.ReadMegahitContigs(1LL << 60, 1LL << 60, append_to_package, contig_reverse,
-                                 discard_flag, extend_loop, calc_depth);
+  reader.ReadAll(&contigs_, contig_reverse);
 }
 
 void LocalAssembler::BuildHashMapper(bool show_stat) {
-  size_t sz = contigs_.size();
+  size_t sz = contigs_.Size();
   size_t estimate_num_kmer = 0;
 
 #pragma omp parallel for reduction(+: estimate_num_kmer)
@@ -74,7 +65,7 @@ void LocalAssembler::BuildHashMapper(bool show_stat) {
   }
 
   if (show_stat) {
-    xinfo("Number of contigs: %lu, Mapper size: %lu\n", contigs_.size(), mapper_.size());
+    xinfo("Number of contigs: %lu, Mapper size: %lu\n", contigs_.Size(), mapper_.size());
   }
 }
 
@@ -199,7 +190,7 @@ bool LocalAssembler::MapToHashMapper(const mapper_t &mapper, size_t read_id, Map
     }
 
     DecodeContigOffset(iter->second, contig_id, contig_offset, contig_strand);
-    assert(contig_id < contigs_.size());
+    assert(contig_id < contigs_.Size());
     assert(contig_offset < contigs_.SequenceLength(contig_id));
 
     bool mapping_strand = contig_strand ^query_strand;
@@ -333,8 +324,8 @@ inline uint64_t PackMappingResult(uint64_t contig_offset, uint64_t is_mate, uint
 }
 
 int LocalAssembler::AddToMappingDeque(size_t read_id, const MappingRecord &rec, int local_range) {
-  assert(read_id < reads_.size());
-  assert(rec.contig_id < contigs_.size());
+  assert(read_id < reads_.Size());
+  assert(rec.contig_id < contigs_.Size());
 
   int contig_len = contigs_.SequenceLength(rec.contig_id);
   int read_len = reads_.SequenceLength(read_id);
@@ -361,10 +352,10 @@ int LocalAssembler::AddMateToMappingDeque(size_t read_id,
                                           const MappingRecord &rec2,
                                           bool mapped2,
                                           int local_range) {
-  assert(read_id < reads_.size());
-  assert(mate_id < reads_.size());
-  assert(rec1.contig_id < contigs_.size());
-  assert(!mapped2 || rec2.contig_id < contigs_.size());
+  assert(read_id < reads_.Size());
+  assert(mate_id < reads_.Size());
+  assert(rec1.contig_id < contigs_.Size());
+  assert(!mapped2 || rec2.contig_id < contigs_.Size());
 
   if (mapped2 && rec2.contig_id == rec1.contig_id)
     return 0;
@@ -388,9 +379,9 @@ int LocalAssembler::AddMateToMappingDeque(size_t read_id,
 }
 
 void LocalAssembler::MapToContigs() {
-  mapped_f_.resize(contigs_.size());
-  mapped_r_.resize(contigs_.size());
-  locks_.reset(contigs_.size());
+  mapped_f_.resize(contigs_.Size());
+  mapped_r_.resize(contigs_.Size());
+  locks_.reset(contigs_.Size());
 
   max_read_len_ = 1;
   local_range_ = 0;
@@ -508,7 +499,7 @@ void LocalAssembler::LocalAssemble() {
   long long num_contigs = 0;
 
 #pragma omp parallel for private(seq, contig_end, reads, out_contigs, out_contig_infos) schedule(dynamic)
-  for (uint64_t cid = 0; cid < contigs_.size(); ++cid) {
+  for (uint64_t cid = 0; cid < contigs_.Size(); ++cid) {
     int cl = contigs_.SequenceLength(cid);
 
     for (int strand = 0; strand < 2; ++strand) {

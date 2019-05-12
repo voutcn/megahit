@@ -29,12 +29,13 @@ class SDBG {
     rs_is_tip_.Build(content_.tip.data(), content_.meta.item_count());
     rs_w_.Build(content_.w.data(), content_.meta.item_count());
     rs_last_.Build(content_.last.data(), content_.meta.item_count());
-    invalid_ = std::move(kmlib::AtomicBitVector<uint64_t>(content_.tip.data(),
-                                                          content_.tip.data() + content_.tip.word_count()));
+    invalid_ = kmlib::AtomicBitVector<uint64_t>(content_.tip.data(),
+                                                content_.tip.data() + content_.tip.word_count());
     prefix_look_up_.resize(content_.meta.bucket_count());
     std::fill(f_, f_ + kAlphabetSize + 2, 0);
     f_[0] = -1;
-    for (auto it = content_.meta.begin_bucket(); it != content_.meta.end_bucket() && it->bucket_id != it->kNullID; ++it) {
+    for (auto it = content_.meta.begin_bucket(); it != content_.meta.end_bucket() && it->bucket_id != it->kNullID;
+         ++it) {
       f_[it->bucket_id / (content_.meta.bucket_count() / kAlphabetSize) + 2] += it->num_items;
       prefix_look_up_[it->bucket_id].first = it->accumulate_item_count;
       prefix_look_up_[it->bucket_id].second = it->accumulate_item_count + it->num_items - 1;
@@ -71,7 +72,7 @@ class SDBG {
   }
 
   bool IsLastOrTip(uint64_t x) const {
-    return ((content_.last.data()[x / 64] | content_.tip.data()[x / 64]) >> (x % 64)) & 1;
+    return ((content_.last.data()[x / 64] | content_.tip.data()[x / 64]) >> (x % 64)) & 1u;
   }
 
   int64_t GetLastIndex(uint64_t x) const {
@@ -104,7 +105,7 @@ class SDBG {
   }
 
   mul_t EdgeMultiplicity(uint64_t edge_id) const {
-    if (content_.full_mul.size()) {
+    if (!content_.full_mul.empty()) {
       return content_.full_mul[edge_id];
     }
     if (content_.small_mul[edge_id] != kSmallMulSentinel) {
@@ -279,6 +280,7 @@ class SDBG {
           if (indegree == 1) return -1;
         }
         if (flag & kFlagWriteOut) {
+          assert(incomings != nullptr);
           incomings[indegree] = y;
         }
         ++indegree;
@@ -308,6 +310,7 @@ class SDBG {
           if (outdegree == 1) return -1;
         }
         if (flag & kFlagWriteOut) {
+          assert(outgoings != nullptr);
           outgoings[outdegree] = next_edge;
         }
         ++outdegree;

@@ -20,6 +20,9 @@ class BufferedReader {
   }
   template <typename T>
   size_t read(T* dst, size_t size = 1) {
+    if (is_ == nullptr) {
+      return 0;
+    }
     size_t wanted = sizeof(T) * size;
     size_t remained = wanted;
     auto dst_ptr = reinterpret_cast<char*>(dst);
@@ -43,7 +46,7 @@ class BufferedReader {
   size_t refill() {
     head_ = 0;
     is_->read(buffer_, kBufferSize);
-    tail_ = is_ ? kBufferSize : is_->gcount();
+    tail_ = *is_ ? kBufferSize : is_->gcount();
     return tail_;
   }
  private:

@@ -26,7 +26,7 @@
 #include <vector>
 #include "kmlib/kmbit.h"
 #include "kmlib/kmcompactvector.h"
-#include "utils.h"
+#include "utils/utils.h"
 
 /**
  * @brief hold a set of sequences
@@ -40,13 +40,13 @@ class SequencePackage {
 
  public:
   SequencePackage() {
-    clear();
+    Clear();
     for (int i = 0; i < 10; ++i) {
       dna_map_[static_cast<int>("ACGTNacgtn"[i])] = "0123201232"[i] - '0';
     }
   }
 
-  void clear() {
+  void Clear() {
     sequences_.clear();
     start_pos_.clear();
     start_pos_.push_back(0);
@@ -64,7 +64,7 @@ class SequencePackage {
     start_pos_.reserve(num_seq + 1);
   }
 
-  size_t size() const {
+  size_t Size() const {
     return num_fixed_len_ + start_pos_.size() - 1;
   }
 
@@ -114,7 +114,7 @@ class SequencePackage {
     size_t cur_id = num_fixed_len_;
 
     while (abs_offset <= start_pos_.back()) {
-      while (cur_id < size() && start_pos_[cur_id - num_fixed_len_ + 1] <= abs_offset) {
+      while (cur_id < Size() && start_pos_[cur_id - num_fixed_len_ + 1] <= abs_offset) {
         ++cur_id;
       }
 
@@ -122,8 +122,8 @@ class SequencePackage {
       abs_offset += kLookupStep;
     }
 
-    pos_to_id_.push_back(size());
-    pos_to_id_.push_back(size());
+    pos_to_id_.push_back(Size());
+    pos_to_id_.push_back(Size());
   }
 
   uint64_t GetSeqID(size_t full_offset) {
@@ -164,7 +164,7 @@ class SequencePackage {
     AppendCompactSequence(s, len, true);
   }
 
-  void FetchSequence(size_t seq_id, std::vector<word_type> *s) {
+  void FetchSequence(size_t seq_id, std::vector<word_type> *s) const {
     vector_type cvec(s);
     auto ptr_and_offset = WordPtrAndOffset(seq_id);
     auto ptr = ptr_and_offset.first;
@@ -189,6 +189,7 @@ class SequencePackage {
   bool IsFixedLength() const {
     return start_pos_.size() == 1;
   }
+
   void UpdateLength(unsigned len) {
     if (num_fixed_len_ == 0) {
       num_fixed_len_ = 1;

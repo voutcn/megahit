@@ -42,6 +42,7 @@ void LoadSdbgRawContent(SdbgRawContent *raw_content, const std::string &file_pre
       if (is.is_open()) {
         is.close();
       }
+      assert(in.read<char>(nullptr) == 0);
       file_offset = 0;
       is.open((file_prefix + ".sdbg." + std::to_string(bucket_it->file_id)).c_str());
       in.reset(&is);
@@ -83,4 +84,5 @@ void LoadSdbgRawContent(SdbgRawContent *raw_content, const std::string &file_pre
     assert(tip_label_ptr - raw_content->tip_lables.data() ==
         ptrdiff_t((bucket_it->accumulate_tip_count + bucket_it->num_tips) * metadata.words_per_tip_label()));
   }
+  assert(in.read<char>(nullptr) == 0);
 }

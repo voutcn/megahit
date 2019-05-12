@@ -14,7 +14,7 @@
 
 #include "hash_table.h"
 #include "bit_operation.h"
-#include "histgram.h"
+#include "utils/histgram.h"
 #include "idba/kmer.h"
 #include "idba/contig_builder.h"
 #include "idba/contig_info.h"

@@ -27,12 +27,12 @@
 #include <omp.h>
 #include <mutex>
 
-#include "safe_alloc_open-inl.h"
-#include "sequence/kseq.h"
-#include "utils.h"
+#include "utils/safe_alloc_open-inl.h"
+#include "sequence/readers/kseq.h"
+#include "utils/utils.h"
 #include "sequence/kmer.h"
-#include "packed_reads.h"
-#include "read_lib_functions-inl.h"
+#include "sequence/packed_reads.h"
+#include "sequence/read_lib_functions-inl.h"
 
 #include "sorting.h"
 
@@ -109,27 +109,19 @@ void read_input_prepare(count_global_t &globals) { // num_items_, num_cpu_thread
         num_reads += num_ass_seq;
     }
 
-  globals.package.ReserveSequences(num_reads);
-  globals.package.ReserveBases(num_bases);
+    globals.package.ReserveSequences(num_reads);
+    globals.package.ReserveBases(num_bases);
 
     ReadBinaryLibs(globals.read_lib_file, globals.package, globals.lib_info, is_reverse);
 
     if (globals.assist_seq_file != "") {
-        SequenceManager seq_manager;
-        seq_manager.set_file_type(SequenceManager::kFastxReads);
-        seq_manager.set_file(globals.assist_seq_file);
-
-        bool reverse_read = true;
-        bool append_to_package = true;
-        bool trimN = false;
-
-        seq_manager.ReadShortReads(1ULL << 60, 1ULL << 60, append_to_package, reverse_read, trimN);
-        seq_manager.clear();
+      FastxReader reader({globals.assist_seq_file});
+      reader.ReadAll(&globals.package, is_reverse);
     }
 
     globals.package.BuildIndex();
     globals.max_read_length = globals.package.MaxSequenceLength();
-    globals.num_reads = globals.package.size();
+    globals.num_reads = globals.package.Size();
 
     xinfo("%ld reads, %d max read length\n", globals.num_reads, globals.max_read_length);
 
@@ -616,7 +608,6 @@ void post_proc(count_global_t &globals) {
     int64_t num_candidate_reads = 0;
     int64_t num_has_tips = 0;
     FILE *candidate_file = xfopen((globals.output_prefix + ".cand").c_str(), "wb");
-    SequenceManager seq_manager(&globals.package);
 
     for (int64_t i = 0; i < globals.num_reads; ++i) {
         auto first = globals.first_0_out[i].v.load(std::memory_order::memory_order_acquire);
@@ -627,7 +618,7 @@ void post_proc(count_global_t &globals) {
 
             if (last > first) {
                 ++num_candidate_reads;
-                seq_manager.WriteBinarySequences(candidate_file, false, i, i);
+                WriteBinarySequences(globals.package, candidate_file, i, i);
             }
         }
     }

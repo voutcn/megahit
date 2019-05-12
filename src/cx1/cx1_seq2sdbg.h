@@ -26,9 +26,9 @@
 #include <vector>
 #include <string>
 #include <mutex>
+#include <sequence/sequence_package.h>
 #include "cx1.h"
 #include "sdbg/sdbg_writer.h"
-#include "sequence_manager.h"
 
 struct seq2sdbg_opt_t {
     double host_mem;

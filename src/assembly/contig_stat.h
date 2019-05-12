@@ -6,8 +6,8 @@
 #define MEGAHIT_CONTIG_STAT_H
 
 #include <map>
-#include "utils.h"
-#include "histgram.h"
+#include "utils/utils.h"
+#include "utils/histgram.h"
 #include "unitig_graph.h"
 
 using ContigStat = std::map<std::string, uint64_t>;
@@ -37,7 +37,7 @@ inline ContigStat CalcAndPrintStat(UnitigGraph &graph, bool print = true, bool c
   };
 
   if (print) {
-    xinfo("")
+    xinfo("");
     for (auto &kv: stat) {
       xinfoc("%s: %lu, ", kv.first.c_str(), kv.second);
     }

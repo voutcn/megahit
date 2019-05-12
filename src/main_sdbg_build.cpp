@@ -28,8 +28,8 @@
 #include "cx1/cx1_kmer_count.h"
 #include "cx1/cx1_read2sdbg.h"
 #include "cx1/cx1_seq2sdbg.h"
-#include "options_description.h"
-#include "utils.h"
+#include "utils/options_description.h"
+#include "utils/utils.h"
 #include "definitions.h"
 
 int main_kmer_count(int argc, char **argv) {

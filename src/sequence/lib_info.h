@@ -1,3 +1,5 @@
+#include <utility>
+
 /*
  *  MEGAHIT
  *  Copyright (C) 2014 - 2015 The University of Hong Kong & L3 Bioinformatics Limited
@@ -33,10 +35,10 @@ struct lib_info_t {
     bool is_pe;
     std::string metadata; // raw file names
 
-    lib_info_t(SeqPackage *p = NULL, int64_t from = 0, int64_t to = 0,
-               int max_read_len = 0, bool is_pe = false, const std::string &metadata = ""):
-        p(p), from(from), to(to), max_read_len(max_read_len), is_pe(is_pe), metadata(metadata) { }
-    ~lib_info_t() { }
+    explicit lib_info_t(SeqPackage *p = nullptr, int64_t from = 0, int64_t to = 0,
+               int max_read_len = 0, bool is_pe = false, std::string metadata = ""):
+        p(p), from(from), to(to), max_read_len(max_read_len), is_pe(is_pe), metadata(std::move(metadata)) { }
+    ~lib_info_t() = default;
 };
 
 #endif

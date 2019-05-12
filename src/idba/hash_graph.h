@@ -15,7 +15,7 @@
 #include <ostream>
 
 #include "bit_operation.h"
-#include "histgram.h"
+#include "utils/histgram.h"
 #include "idba/hash_table.h"
 #include "idba/kmer.h"
 #include "idba/contig_info.h"

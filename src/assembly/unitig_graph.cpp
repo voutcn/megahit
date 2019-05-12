@@ -5,7 +5,7 @@
 #include "unitig_graph.h"
 #include <omp.h>
 #include <mutex>
-#include "utils.h"
+#include "utils/utils.h"
 
 UnitigGraph::UnitigGraph(SDBG *sdbg)
     : sdbg_(sdbg), adapter_impl_(this), sudo_adapter_impl_(this) {

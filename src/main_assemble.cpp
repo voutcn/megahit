@@ -25,13 +25,13 @@
 #include <iostream>
 #include <stdexcept>
 
-#include "utils.h"
-#include "options_description.h"
-#include "safe_alloc_open-inl.h"
+#include "utils/utils.h"
+#include "utils/options_description.h"
+#include "utils/safe_alloc_open-inl.h"
 #include "assembly/all_algo.h"
 #include "assembly/contig_writer.h"
 #include "assembly/contig_stat.h"
-#include "histgram.h"
+#include "utils/histgram.h"
 
 using std::string;
 
