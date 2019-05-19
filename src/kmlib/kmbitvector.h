@@ -49,7 +49,7 @@ class AtomicBitVector {
   /*!
    * @brief the move operator
    */
-  AtomicBitVector &operator=(AtomicBitVector &&rhs) {
+  AtomicBitVector &operator=(AtomicBitVector &&rhs) noexcept {
     size_ = rhs.size_;
     data_array_ = std::move(rhs.data_array_);
     return *this;
@@ -69,7 +69,7 @@ class AtomicBitVector {
    */
   void set(size_type i) {
     word_type mask = word_type(1) << (i % kBitsPerWord);
-    data_array_[i / kBitsPerWord].v.fetch_or(mask, std::memory_order_release);
+    data_array_[i / kBitsPerWord].v.fetch_or(mask, std::memory_order_relaxed);
   }
 
   /*!
@@ -78,7 +78,7 @@ class AtomicBitVector {
    */
   void unset(size_type i) {
     word_type mask = ~(word_type(1) << (i % kBitsPerWord));
-    data_array_[i / kBitsPerWord].v.fetch_and(mask, std::memory_order_release);
+    data_array_[i / kBitsPerWord].v.fetch_and(mask, std::memory_order_relaxed);
   }
 
   /*!
@@ -86,7 +86,7 @@ class AtomicBitVector {
    * @return value of the i-th bit
    */
   bool at(size_type i) const {
-    return !!(data_array_[i / kBitsPerWord].v.load(std::memory_order_acquire)
+    return !!(data_array_[i / kBitsPerWord].v.load(std::memory_order_relaxed)
         & (word_type(1) << i % kBitsPerWord));
   }
 
@@ -112,6 +112,7 @@ class AtomicBitVector {
         std::this_thread::yield();
       }
     }
+    assert(at(i));
   }
 
   /*!
@@ -130,9 +131,11 @@ class AtomicBitVector {
    * @param size the new size of the bit vector
    */
   void reset(size_type size) {
-    if (size == size_)
-    data_array_ = std::move(array_type(0)); // clear memory
+    if (size == size_) {
+      reset();
+    } else {}
     size_ = size;
+    data_array_ = std::move(array_type(0));
     data_array_ = std::move(array_type((size + kBitsPerWord - 1) / kBitsPerWord, 0));
   }
 

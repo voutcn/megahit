@@ -45,7 +45,7 @@ inline void megahit_log__(const char *format, ...) {
 #ifndef __XFILE__
 #include <cstring>
 #ifdef __XROOT__
-inline const char* GetFile(const char* filename, const char* rootname) {
+inline const char *GetFile(const char *filename, const char *rootname) {
   if (strstr(filename, rootname) == filename) {
     return filename + strlen(rootname) + 1;
   } else {

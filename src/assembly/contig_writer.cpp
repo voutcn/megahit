@@ -63,18 +63,18 @@ void OutputContigs(UnitigGraph &graph, FILE *contig_file, FILE *final_file,
 #pragma omp parallel for
   for (UnitigGraph::size_type i = 0; i < graph.size(); ++i) {
     auto adapter = graph.MakeVertexAdapter(i);
-    double multi = change_only ? 1 : std::min(static_cast<double>(kMaxMul), adapter.avg_depth());
+    double multi = change_only ? 1 : std::min(static_cast<double>(kMaxMul), adapter.AvgDepth());
     std::string ascii_contig = graph.VertexToDNAString(adapter);
-    if (change_only && !adapter.is_changed()) {
+    if (change_only && !adapter.IsChanged()) {
       continue;
     }
 
-    if (adapter.is_loop()) {
+    if (adapter.IsLoop()) {
       int flag = contig_flag::kLoop | contig_flag::kStandalone;
       FILE *out_file = contig_file;
 
-      if (adapter.is_palindrome()) {
-        FoldPalindrome(ascii_contig, graph.k(), adapter.is_loop());
+      if (adapter.IsPalindrome()) {
+        FoldPalindrome(ascii_contig, graph.k(), adapter.IsLoop());
         flag = contig_flag::kStandalone;
       }
 
@@ -90,9 +90,9 @@ void OutputContigs(UnitigGraph &graph, FILE *contig_file, FILE *final_file,
       FILE *out_file = contig_file;
       int flag = 0;
 
-      if (adapter.forsure_standalone() || (graph.InDegree(adapter) == 0 && graph.OutDegree(adapter) == 0)) {
-        if (adapter.is_palindrome()) {
-          FoldPalindrome(ascii_contig, graph.k(), adapter.is_loop());
+      if (adapter.ForSureStandalone() || (graph.InDegree(adapter) == 0 && graph.OutDegree(adapter) == 0)) {
+        if (adapter.IsPalindrome()) {
+          FoldPalindrome(ascii_contig, graph.k(), adapter.IsLoop());
         }
         flag = contig_flag::kStandalone;
         if (final_file != nullptr) {

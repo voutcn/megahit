@@ -214,7 +214,7 @@ void *s1_lv0_calc_bucket_size(void *_data) {
         bucket_sizes[rev_k_minus1_mer.data()[0] >> (kCharsPerEdgeWord - kBucketPrefixLength) * kBitsPerEdgeChar]++;
     }
 
-    return NULL;
+    return nullptr;
 }
 
 void s1_init_global_and_set_cx1(read2sdbg_global_t &globals) {
@@ -327,7 +327,7 @@ void s1_init_global_and_set_cx1(read2sdbg_global_t &globals) {
 void *s1_lv1_fill_offset(void *_data) {
     readpartition_data_t &rp = *((readpartition_data_t *) _data);
     read2sdbg_global_t &globals = *(rp.globals);
-    int64_t *prev_full_offsets = (int64_t *) xmalloc(kNumBuckets * sizeof(int64_t)); // temporary array for computing differentials
+    std::array<int64_t, kNumBuckets> prev_full_offsets{}; // temporary array for computing differentials
     for (int b = globals.cx1.lv1_start_bucket_; b < globals.cx1.lv1_end_bucket_; ++b)
         prev_full_offsets[b] = rp.rp_lv1_differential_base;
 
@@ -423,9 +423,7 @@ void *s1_lv1_fill_offset(void *_data) {
     }
 
 #undef CHECK_AND_SAVE_OFFSET
-
-    free(prev_full_offsets);
-    return NULL;
+    return nullptr;
 }
 
 void s1_extract_subtstr_(int bp_from, int bp_to, read2sdbg_global_t &globals, uint32_t *substr) {
@@ -749,6 +747,8 @@ void s1_post_proc(read2sdbg_global_t &globals) {
 
     // --- cleaning ---
     free(globals.lv1_items);
+    free(globals.edge_counting);
+    free(globals.thread_edge_counting);
 
     for (int i = 0; i < globals.num_mercy_files; ++i) {
         fclose(globals.mercy_files[i]);

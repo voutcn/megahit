@@ -229,7 +229,12 @@ class MegahitEdgeReader {
                  &p_rec_[i].total_number) != 4) {
         xfatal("Invalid format\n");
       }
-      file_sizes_[p_rec_[i].thread_id] += p_rec_[i].total_number;
+      if (p_rec_[i].thread_id >= num_files_) {
+        xfatal("Record ID %d is greater than number of files %d\n", p_rec_[i].thread_id, num_files_);
+      }
+      if (p_rec_[i].thread_id >= 0) {
+        file_sizes_[p_rec_[i].thread_id] += p_rec_[i].total_number;
+      }
     }
 
     if (num_buckets_ == 0) {

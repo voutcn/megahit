@@ -6,8 +6,10 @@
 #define MEGAHIT_UNITIG_GRAPH_VERTEX_H
 
 #include <cstdint>
+#include <cassert>
 #include <atomic>
 #include <algorithm>
+#include <utils/atomic_wrapper.h>
 
 /**
  * store the metadata of a unitig vertex; the vertex is associate with an SDBG
@@ -19,24 +21,25 @@ class UnitigGraphVertex {
                     uint64_t total_depth, uint32_t length, bool is_loop = false)
       : strand_info{{begin, end}, {rbegin, rend}},
         length(length), total_depth(total_depth), is_looped(is_loop), is_palindrome(begin == rbegin),
-        is_changed(false), to_delete(false), flag(0) {}
+        is_changed(false), flag(0) {}
  private:
   struct StrandInfo {
     StrandInfo(uint64_t begin = 0, uint64_t end = 0) :
-        begin(begin), end(end), to_disconnect(false) {}
+        begin(begin), end(end) {}
     uint64_t begin: 48;
-    uint64_t end: 47;
-    bool to_disconnect: 1;
+    uint64_t end: 48;
   } __attribute__((packed));
   StrandInfo strand_info[2];
-  uint32_t length{};
+  uint32_t length;
   uint64_t total_depth : 52;
   bool is_looped: 1;
   bool is_palindrome: 1;
-  // status
   bool is_changed: 1;
-  bool to_delete: 1;
-  uint8_t flag: 8;
+  // status that can be modified by adapter during traversal and must be atomic
+  AtomicWrapper<uint8_t> flag;  // bit 0-4: any flag; bit 5: marked as to delete; bit 6 & 7: marked as to disconnect
+  static const unsigned kToDeleteBit = 5;
+  static const unsigned kToDisconnectBit = 6;
+  static const uint8_t kFlagMask = (1u << kToDeleteBit) - 1;
 
  public:
   /**
@@ -48,35 +51,42 @@ class UnitigGraphVertex {
     Adapter() = default;
     Adapter(UnitigGraphVertex &vertex, int strand = 0, uint32_t id = static_cast<uint32_t>(-1))
         : vertex_(&vertex), strand_(strand), id_(id) {}
-    void ReverseComplement() { strand_ ^= 1; }
-    uint32_t id() const { return id_; }
-    int strand() const { return strand_; }
-    bool valid() const { return vertex_ != nullptr; }
-    uint32_t length() const { return vertex_->length; }
-    uint64_t total_depth() const { return vertex_->total_depth; }
-    double avg_depth() const { return static_cast<double>(vertex_->total_depth) / vertex_->length; }
-    bool is_loop() const { return vertex_->is_looped; }
-    bool is_palindrome() const { return vertex_->is_palindrome; }
-    bool is_changed() const { return vertex_->is_changed; }
-    uint64_t rep_id() const { return std::min(start(), rstart()); };
-    void to_unique_format() { if (rep_id() != start()) { ReverseComplement(); }}
-    bool forsure_standalone() const {
-      return is_loop();
+    void ReverseComplement() { strand_ ^= 1u; }
+    uint32_t UnitigId() const { return id_; }
+    bool Valid() const { return vertex_ != nullptr; }
+    uint32_t Length() const { return vertex_->length; }
+    uint64_t TotalDepth() const { return vertex_->total_depth; }
+    double AvgDepth() const { return static_cast<double>(vertex_->total_depth) / vertex_->length; }
+    bool IsLoop() const { return vertex_->is_looped; }
+    bool IsPalindrome() const { return vertex_->is_palindrome; }
+    bool IsChanged() const { return vertex_->is_changed; }
+    uint64_t SdbgId() const { return std::min(Begin(), RevBegin()); };
+    void ToUniqueFormat() { if (SdbgId() != Begin()) { ReverseComplement(); }}
+    bool ForSureStandalone() const {
+      return IsLoop();
     }
 
-    void set_to_delete() { vertex_->to_delete = true; }
-    void set_to_disconnect() { strand_info().to_disconnect = true; }
+    bool SetToDelete() {
+      uint8_t mask = 1u << kToDeleteBit;
+      auto old_val = vertex_->flag.v.fetch_or(mask, std::memory_order_relaxed);
+      return !(old_val & mask);
+    }
+    bool SetToDisconnect() {
+      uint8_t mask = 1u << kToDisconnectBit << strand_;
+      auto old_val = vertex_->flag.v.fetch_or(mask, std::memory_order_relaxed);
+      return !(old_val & mask);
+    }
 
-    uint64_t start() const { return strand_info().begin; }
-    uint64_t end() const { return strand_info().end; }
-    uint64_t rstart() const { return strand_info(1).begin; }
-    uint64_t rend() const { return strand_info(1).end; }
+    uint64_t Begin() const { return StrandInfo().begin; }
+    uint64_t End() const { return StrandInfo().end; }
+    uint64_t RevBegin() const { return StrandInfo(1).begin; }
+    uint64_t RevEnd() const { return StrandInfo(1).end; }
 
    protected:
-    UnitigGraphVertex::StrandInfo &strand_info(int relative_strand = 0) {
+    UnitigGraphVertex::StrandInfo &StrandInfo(uint8_t relative_strand = 0) {
       return vertex_->strand_info[strand_ ^ relative_strand];
     }
-    const UnitigGraphVertex::StrandInfo &strand_info(int relative_strand = 0) const {
+    const UnitigGraphVertex::StrandInfo &StrandInfo(uint8_t relative_strand = 0) const {
       return vertex_->strand_info[strand_ ^ relative_strand];
     }
 
@@ -95,28 +105,36 @@ class UnitigGraphVertex {
     SudoAdapter(UnitigGraphVertex &vertex, int strand = 0, uint32_t id = static_cast<uint32_t>(-1))
         : Adapter(vertex, strand, id) {}
    public:
-    bool is_to_delete() const { return vertex_->to_delete; }
-    bool is_to_disconnect() const { return strand_info().to_disconnect; }
-    void set_start_end(uint64_t start, uint64_t end, uint64_t rc_start, uint64_t rc_end) {
-      strand_info(0) = {start, end};
-      strand_info(1) = {rc_start, rc_end};
+    bool IsToDelete() const {
+      return vertex_->flag.v.load(std::memory_order_relaxed) & (1u << kToDeleteBit);
+    }
+    bool IsToDisconnect() const {
+      return vertex_->flag.v.load(std::memory_order_relaxed) & (1u << kToDisconnectBit << strand_);
+    }
+    void SetBeginEnd(uint64_t start, uint64_t end, uint64_t rc_start, uint64_t rc_end) {
+      StrandInfo(0) = {start, end};
+      StrandInfo(1) = {rc_start, rc_end};
       vertex_->is_palindrome = start == rc_start;
+
     };
-    void set_length(uint32_t length) {
+    void SetLength(uint32_t length) {
       vertex_->length = length;
     }
-    void set_total_depth(uint64_t total_depth) {
+    void SetTotalDepth(uint64_t total_depth) {
       vertex_->total_depth = total_depth;
     }
-    void set_looped() {
+    void SetLooped() {
       vertex_->is_looped = true;
     }
-    uint8_t flag() const { return vertex_->flag; }
-    void set_flag(uint8_t flag) { vertex_->flag = flag; }
-    void set_changed() { vertex_->is_changed = true; }
+    void SetChanged() { vertex_->is_changed = true; }
+    uint8_t GetFlag() const { return vertex_->flag.v.load(std::memory_order_relaxed) & kFlagMask; }
+    void SetFlag(uint8_t flag) {
+      assert(flag <= kFlagMask);
+      vertex_->flag.v.store(flag, std::memory_order_relaxed);
+    }
   };
 };
 
-//static_assert(sizeof(UnitigGraphVertex) <= 40, "");
+static_assert(sizeof(UnitigGraphVertex) <= 40, "");
 
 #endif //MEGAHIT_UNITIG_GRAPH_VERTEX_H

@@ -32,9 +32,11 @@ class BufferedReader {
         head_ += remained;
         return wanted;
       } else {
-        memcpy(dst_ptr, buffer_ + head_, tail_ - head_);
-        remained -= tail_ - head_;
-        dst_ptr += tail_ - head_;
+        if (tail_ > head_) {
+          memcpy(dst_ptr, buffer_ + head_, tail_ - head_);
+          remained -= tail_ - head_;
+          dst_ptr += tail_ - head_;
+        }
         if (refill() == 0) {
           return wanted - remained;
         }

@@ -415,6 +415,7 @@ class SDBG {
   uint64_t NextSimplePathEdge(uint64_t edge_id) const {
     uint64_t next_edge = UniqueNextEdge(edge_id);
     if (next_edge != kNullID && UniquePrevEdge(next_edge) != kNullID) {
+      assert(next_edge < size());
       return next_edge;
     } else {
       return kNullID;
@@ -449,6 +450,7 @@ class SDBG {
     do {
       uint8_t edge_label = GetW(rev_node);
       if (edge_label == seq[k_] || edge_label - kAlphabetSize == seq[k_]) {
+        assert(rev_node < size());
         return rev_node;
       }
       --rev_node;

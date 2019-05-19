@@ -2,6 +2,7 @@
 // Created by vout on 11/21/18.
 //
 
+#include <utils/utils.h>
 #include "bubble_remover.h"
 
 namespace { // helper function
@@ -59,7 +60,7 @@ int BaseBubbleRemover::SearchAndPopBubble(UnitigGraph &graph, UnitigGraph::Verte
   if (degree <= 1) { return 0; }
 
   for (int j = 0; j < degree; ++j) {
-    if (middle[j].length() > max_len) {
+    if (middle[j].Length() > max_len) {
       return 0;
     }
   }
@@ -70,11 +71,11 @@ int BaseBubbleRemover::SearchAndPopBubble(UnitigGraph &graph, UnitigGraph::Verte
     }
     if (j == 0) {
       right = possible_right[0];
-      if (right.rep_id() < adapter.rep_id() || graph.InDegree(right) != degree) {
+      if (right.SdbgId() < adapter.SdbgId() || graph.InDegree(right) != degree) {
         return 0;
       }
     } else {
-      if (right.start() != possible_right[0].start()) {
+      if (right.Begin() != possible_right[0].Begin()) {
         return 0;
       }
     }
@@ -82,8 +83,8 @@ int BaseBubbleRemover::SearchAndPopBubble(UnitigGraph &graph, UnitigGraph::Verte
 
   std::sort(middle, middle + degree,
             [](const UnitigGraph::VertexAdapter &a, const UnitigGraph::VertexAdapter &b) {
-              if (a.avg_depth() != b.avg_depth()) return a.avg_depth() > b.avg_depth();
-              return a.rep_id() < b.rep_id();
+              if (a.AvgDepth() != b.AvgDepth()) return a.AvgDepth() > b.AvgDepth();
+              return a.SdbgId() < b.SdbgId();
             });
 
   for (int j = 1; j < degree; ++j) {
@@ -91,11 +92,14 @@ int BaseBubbleRemover::SearchAndPopBubble(UnitigGraph &graph, UnitigGraph::Verte
   }
 
   bool careful_merged = false;
+  int num_removed = 0;
   for (int j = 1; j < degree; ++j) {
-    middle[j].set_to_delete();
-    if (hist_ && bubble_file_ && middle[j].avg_depth() >= middle[0].avg_depth() * careful_threshold_) {
+    bool success = middle[j].SetToDelete();
+    assert(success || adapter.SdbgId() == right.SdbgId() || adapter.IsPalindrome());
+    num_removed += success;
+    if (hist_ && bubble_file_ && middle[j].AvgDepth() >= middle[0].AvgDepth() * careful_threshold_) {
       std::string label = graph.VertexToDNAString(middle[j]);
-      WriteContig(label, graph.k(), 0, 0, middle[j].avg_depth(), bubble_file_);
+      WriteContig(label, graph.k(), 0, 0, middle[j].AvgDepth(), bubble_file_);
       hist_->insert(label.length());
       careful_merged = true;
     }
@@ -104,12 +108,12 @@ int BaseBubbleRemover::SearchAndPopBubble(UnitigGraph &graph, UnitigGraph::Verte
   if (careful_merged) {
     std::string left_label = graph.VertexToDNAString(adapter);
     std::string right_label = graph.VertexToDNAString(right);
-    WriteContig(left_label, graph.k(), 0, 0, adapter.avg_depth(), bubble_file_);
-    WriteContig(right_label, graph.k(), 0, 0, right.avg_depth(), bubble_file_);
+    WriteContig(left_label, graph.k(), 0, 0, adapter.AvgDepth(), bubble_file_);
+    WriteContig(right_label, graph.k(), 0, 0, right.AvgDepth(), bubble_file_);
     hist_->insert(left_label.length());
     hist_->insert(right_label.length());
   }
-  return degree - 1;
+  return num_removed;
 }
 
 size_t BaseBubbleRemover::PopBubbles(UnitigGraph &graph, bool permanent_rm,
@@ -118,7 +122,7 @@ size_t BaseBubbleRemover::PopBubbles(UnitigGraph &graph, bool permanent_rm,
 #pragma omp parallel for reduction(+: num_removed)
   for (UnitigGraph::size_type i = 0; i < graph.size(); ++i) {
     UnitigGraph::VertexAdapter adapter = graph.MakeVertexAdapter(i);
-    if (adapter.forsure_standalone()) {
+    if (adapter.ForSureStandalone()) {
       continue;
     }
     for (int strand = 0; strand < 2; ++strand, adapter.ReverseComplement()) {
@@ -132,15 +136,15 @@ size_t BaseBubbleRemover::PopBubbles(UnitigGraph &graph, bool permanent_rm,
 size_t ComplexBubbleRemover::PopBubbles(UnitigGraph &graph, bool permanent_rm) {
   uint32_t k = graph.k();
   double sim = similarity_;
-  uint32_t max_len = merge_level_ * k / sim + .5;
+  uint32_t max_len = lround(merge_level_ * k / sim);
   if (max_len * (1 - similarity_) < 1) {
     return 0;
   }
 
   auto checker = [&graph, k, sim](
       const UnitigGraph::VertexAdapter &a, const UnitigGraph::VertexAdapter &b) -> bool {
-    return (b.length() + k - 1) * sim <= (a.length() + k - 1) &&
-        (a.length() + k - 1) * sim <= (b.length() + k - 1) &&
+    return (b.Length() + k - 1) * sim <= (a.Length() + k - 1) &&
+        (a.Length() + k - 1) * sim <= (b.Length() + k - 1) &&
         GetSimilarity(graph.VertexToDNAString(a), graph.VertexToDNAString(b), sim) >= sim;
   };
   return BaseBubbleRemover::PopBubbles(graph, permanent_rm, max_len, checker);

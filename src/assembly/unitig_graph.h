@@ -7,7 +7,6 @@
 
 #include <limits>
 #include <deque>
-#include <kmlib/kmbitvector.h>
 #include "unitig_graph_vertex.h"
 #include "sdbg/sdbg.h"
 #include "sparsepp/sparsepp/spp.h"
@@ -94,7 +93,7 @@ class UnitigGraph {
     }
     int GetNextAdapters(AdapterType &adapter, AdapterType *out) {
       uint64_t next_starts[4];
-      int degree = graph_->sdbg_->OutgoingEdges(adapter.end(), next_starts);
+      int degree = graph_->sdbg_->OutgoingEdges(adapter.End(), next_starts);
       if (out) {
         for (int i = 0; i < degree; ++i) {
           out[i] = MakeVertexAdapterWithSdbgId(next_starts[i]);
@@ -121,7 +120,7 @@ class UnitigGraph {
       return degree;
     }
     AdapterType NextSimplePathAdapter(AdapterType &adapter) {
-      uint64_t next_sdbg_id = graph_->sdbg_->NextSimplePathEdge(adapter.end());
+      uint64_t next_sdbg_id = graph_->sdbg_->NextSimplePathEdge(adapter.End());
       if (next_sdbg_id != SDBG::kNullID) {
         return MakeVertexAdapterWithSdbgId(next_sdbg_id);
       } else {
@@ -139,7 +138,7 @@ class UnitigGraph {
     AdapterType MakeVertexAdapterWithSdbgId(uint64_t sdbg_id) {
       uint32_t id = graph_->id_map_.at(sdbg_id);
       AdapterType adapter(graph_->vertices_[id], 0, id);
-      if (adapter.start() != sdbg_id) { adapter.ReverseComplement(); }
+      if (adapter.Begin() != sdbg_id) { adapter.ReverseComplement(); }
       return adapter;
     }
    private:
@@ -151,7 +150,6 @@ class UnitigGraph {
   SDBG *sdbg_{};
   std::deque<UnitigGraphVertex> vertices_;
   spp::sparse_hash_map<uint64_t, size_type> id_map_;
-  kmlib::AtomicBitVector<> locks_;
   AdapterImpl<VertexAdapter> adapter_impl_;
   AdapterImpl<SudoVertexAdapter> sudo_adapter_impl_;
 };

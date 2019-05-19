@@ -104,7 +104,7 @@ inline void radix_sort_entry(RandomIt s, RandomIt e, ValueType *,
   if (e - s <= kmsortconst::kInsertSortThreshold) {
     insert_sort_core<RandomIt, ValueType, RadixTraits>(s, e, radix_traits);
   } else {
-    const int kByteIndexEnd = RadixTraits::n_bytes > 8 ? RadixTraits::n_bytes - 8 : 0;
+    const int kByteIndexEnd = RadixTraits::n_bytes; // > 8 ? RadixTraits::n_bytes - 8 : 0;
     radix_sort_core<RandomIt, ValueType, RadixTraits,
                     RadixTraits::n_bytes - 1, kByteIndexEnd>(s, e, radix_traits, RadixTraits::n_bytes - 1);
   }
