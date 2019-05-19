@@ -5,11 +5,11 @@
 #ifndef MEGAHIT_UNITIG_GRAPH_VERTEX_H
 #define MEGAHIT_UNITIG_GRAPH_VERTEX_H
 
-#include <cstdint>
-#include <cassert>
-#include <atomic>
-#include <algorithm>
 #include <utils/atomic_wrapper.h>
+#include <algorithm>
+#include <atomic>
+#include <cassert>
+#include <cstdint>
 
 /**
  * store the metadata of a unitig vertex; the vertex is associate with an SDBG
@@ -17,24 +17,28 @@
 class UnitigGraphVertex {
  public:
   UnitigGraphVertex() = default;
-  UnitigGraphVertex(uint64_t begin, uint64_t end, uint64_t rbegin, uint64_t rend,
-                    uint64_t total_depth, uint32_t length, bool is_loop = false)
+  UnitigGraphVertex(uint64_t begin, uint64_t end, uint64_t rbegin, uint64_t rend, uint64_t total_depth, uint32_t length,
+                    bool is_loop = false)
       : strand_info{{begin, end}, {rbegin, rend}},
-        length(length), total_depth(total_depth), is_looped(is_loop), is_palindrome(begin == rbegin),
-        is_changed(false), flag(0) {}
+        length(length),
+        total_depth(total_depth),
+        is_looped(is_loop),
+        is_palindrome(begin == rbegin),
+        is_changed(false),
+        flag(0) {}
+
  private:
   struct StrandInfo {
-    StrandInfo(uint64_t begin = 0, uint64_t end = 0) :
-        begin(begin), end(end) {}
-    uint64_t begin: 48;
-    uint64_t end: 48;
+    StrandInfo(uint64_t begin = 0, uint64_t end = 0) : begin(begin), end(end) {}
+    uint64_t begin : 48;
+    uint64_t end : 48;
   } __attribute__((packed));
   StrandInfo strand_info[2];
   uint32_t length;
   uint64_t total_depth : 52;
-  bool is_looped: 1;
-  bool is_palindrome: 1;
-  bool is_changed: 1;
+  bool is_looped : 1;
+  bool is_palindrome : 1;
+  bool is_changed : 1;
   // status that can be modified by adapter during traversal and must be atomic
   AtomicWrapper<uint8_t> flag;  // bit 0-4: any flag; bit 5: marked as to delete; bit 6 & 7: marked as to disconnect
   static const unsigned kToDeleteBit = 5;
@@ -61,10 +65,12 @@ class UnitigGraphVertex {
     bool IsPalindrome() const { return vertex_->is_palindrome; }
     bool IsChanged() const { return vertex_->is_changed; }
     uint64_t SdbgId() const { return std::min(Begin(), RevBegin()); };
-    void ToUniqueFormat() { if (SdbgId() != Begin()) { ReverseComplement(); }}
-    bool ForSureStandalone() const {
-      return IsLoop();
+    void ToUniqueFormat() {
+      if (SdbgId() != Begin()) {
+        ReverseComplement();
+      }
     }
+    bool ForSureStandalone() const { return IsLoop(); }
 
     bool SetToDelete() {
       uint8_t mask = 1u << kToDeleteBit;
@@ -104,10 +110,9 @@ class UnitigGraphVertex {
     SudoAdapter() = default;
     SudoAdapter(UnitigGraphVertex &vertex, int strand = 0, uint32_t id = static_cast<uint32_t>(-1))
         : Adapter(vertex, strand, id) {}
+
    public:
-    bool IsToDelete() const {
-      return vertex_->flag.v.load(std::memory_order_relaxed) & (1u << kToDeleteBit);
-    }
+    bool IsToDelete() const { return vertex_->flag.v.load(std::memory_order_relaxed) & (1u << kToDeleteBit); }
     bool IsToDisconnect() const {
       return vertex_->flag.v.load(std::memory_order_relaxed) & (1u << kToDisconnectBit << strand_);
     }
@@ -115,17 +120,10 @@ class UnitigGraphVertex {
       StrandInfo(0) = {start, end};
       StrandInfo(1) = {rc_start, rc_end};
       vertex_->is_palindrome = start == rc_start;
-
     };
-    void SetLength(uint32_t length) {
-      vertex_->length = length;
-    }
-    void SetTotalDepth(uint64_t total_depth) {
-      vertex_->total_depth = total_depth;
-    }
-    void SetLooped() {
-      vertex_->is_looped = true;
-    }
+    void SetLength(uint32_t length) { vertex_->length = length; }
+    void SetTotalDepth(uint64_t total_depth) { vertex_->total_depth = total_depth; }
+    void SetLooped() { vertex_->is_looped = true; }
     void SetChanged() { vertex_->is_changed = true; }
     uint8_t GetFlag() const { return vertex_->flag.v.load(std::memory_order_relaxed) & kFlagMask; }
     void SetFlag(uint8_t flag) {
@@ -137,4 +135,4 @@ class UnitigGraphVertex {
 
 static_assert(sizeof(UnitigGraphVertex) <= 40, "");
 
-#endif //MEGAHIT_UNITIG_GRAPH_VERTEX_H
+#endif  // MEGAHIT_UNITIG_GRAPH_VERTEX_H

@@ -39,7 +39,7 @@ namespace contig_flag {
 static const unsigned kStandalone = 0x1;
 static const unsigned kLoop = 0x2;
 
-}
+}  // namespace contig_flag
 
 static const int kUint32PerKmerMaxK = (kMaxK + 1 + 15) / 16;
 static const int kUint64PerIdbaKmerMaxK = (kMaxK * 2 + 16 + 63) / 64;
@@ -47,4 +47,4 @@ static const int kUint64PerIdbaKmerMaxK = (kMaxK * 2 + 16 + 63) / 64;
 #include "sequence/kmer.h"
 typedef Kmer<kUint32PerKmerMaxK, uint32_t> GenericKmer;
 
-#endif // MEGAHIT_DEFINITIONS_H__
+#endif  // MEGAHIT_DEFINITIONS_H__

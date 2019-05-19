@@ -20,24 +20,23 @@
 
 #include "sdbg_pruning.h"
 #include <assert.h>
-#include <stdio.h>
 #include <math.h>
 #include <omp.h>
-#include <assert.h>
-#include <vector>
+#include <stdio.h>
 #include <algorithm>
 #include <parallel/algorithm>
-#include <unordered_set>
 #include <queue>
+#include <unordered_set>
+#include <vector>
 
 #include "kmlib/kmbitvector.h"
-#include "utils/utils.h"
 #include "utils/histgram.h"
+#include "utils/utils.h"
 
-using std::vector;
+using std::queue;
 using std::string;
 using std::unordered_set;
-using std::queue;
+using std::vector;
 
 namespace sdbg_pruning {
 
@@ -70,7 +69,7 @@ int64_t Trim(SDBG &dbg, int len, AtomicBitVector &ignored) {
   int64_t number_tips = 0;
   AtomicBitVector to_remove(dbg.size());
 
-#pragma omp parallel for reduction(+:number_tips)
+#pragma omp parallel for reduction(+ : number_tips)
   for (uint64_t id = 0; id < dbg.size(); ++id) {
     if (!ignored.at(id) && dbg.EdgeOutdegreeZero(id)) {
       vector<uint64_t> path = {id};
@@ -105,7 +104,7 @@ int64_t Trim(SDBG &dbg, int len, AtomicBitVector &ignored) {
     }
   }
 
-#pragma omp parallel for reduction(+:number_tips)
+#pragma omp parallel for reduction(+ : number_tips)
   for (uint64_t id = 0; id < dbg.size(); ++id) {
     if (!ignored.at(id) && dbg.EdgeIndegreeZero(id)) {
       vector<uint64_t> path = {id};
@@ -167,7 +166,7 @@ uint64_t RemoveTips(SDBG &dbg, int max_tip_len) {
     timer.start();
     number_tips += Trim(dbg, len, ignored);
     timer.stop();
-    xinfoc("Accumulated tips removed: %lld; time elapsed: %.4f\n", (long long) number_tips, timer.elapsed());
+    xinfoc("Accumulated tips removed: %lld; time elapsed: %.4f\n", (long long)number_tips, timer.elapsed());
   }
 
   xinfo("Removing tips with length less than %d; ", max_tip_len);
@@ -175,9 +174,9 @@ uint64_t RemoveTips(SDBG &dbg, int max_tip_len) {
   timer.start();
   number_tips += Trim(dbg, max_tip_len, ignored);
   timer.stop();
-  xinfoc("Accumulated tips removed: %lld; time elapsed: %.4f\n", (long long) number_tips, timer.elapsed());
+  xinfoc("Accumulated tips removed: %lld; time elapsed: %.4f\n", (long long)number_tips, timer.elapsed());
 
   return number_tips;
 }
 
-} // namespace sdbg_pruning
+}  // namespace sdbg_pruning

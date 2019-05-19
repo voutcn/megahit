@@ -4,24 +4,23 @@
 
 #include "unitig_graph.h"
 #include <omp.h>
-#include <mutex>
 #include <cmath>
+#include <mutex>
 
 #include "kmlib/kmbitvector.h"
 #include "utils/utils.h"
 
-UnitigGraph::UnitigGraph(SDBG *sdbg)
-    : sdbg_(sdbg), adapter_impl_(this), sudo_adapter_impl_(this) {
+UnitigGraph::UnitigGraph(SDBG *sdbg) : sdbg_(sdbg), adapter_impl_(this), sudo_adapter_impl_(this) {
   id_map_.clear();
   vertices_.clear();
   std::mutex path_lock;
   AtomicBitVector locks(sdbg_->size());
   size_t count_palindrome = 0;
   // assemble simple paths
-#pragma omp parallel for reduction(+: count_palindrome)
+#pragma omp parallel for reduction(+ : count_palindrome)
   for (uint64_t edge_idx = 0; edge_idx < sdbg_->size(); ++edge_idx) {
-    if (sdbg_->IsValidEdge(edge_idx) && sdbg_->NextSimplePathEdge(edge_idx) == SDBG::kNullID
-        && locks.try_lock(edge_idx)) {
+    if (sdbg_->IsValidEdge(edge_idx) && sdbg_->NextSimplePathEdge(edge_idx) == SDBG::kNullID &&
+        locks.try_lock(edge_idx)) {
       bool will_be_added = true;
       uint64_t cur_edge = edge_idx;
       uint64_t prev_edge;
@@ -103,18 +102,18 @@ UnitigGraph::UnitigGraph(SDBG *sdbg)
         if (!rc_marked) {
           uint64_t start = sdbg_->NextSimplePathEdge(edge_idx);
           uint64_t end = edge_idx;
-          vertices_.emplace_back(start, end, sdbg_->EdgeReverseComplement(end),
-                                 sdbg_->EdgeReverseComplement(start), depth, length, true);
+          vertices_.emplace_back(start, end, sdbg_->EdgeReverseComplement(end), sdbg_->EdgeReverseComplement(start),
+                                 depth, length, true);
         }
       }
     }
   }
 
   if (vertices_.size() >= kMaxNumVertices) {
-    xfatal("Too many vertices in the unitig graph (%llu >= %llu), "
-           "you may increase the kmer size to remove tons of erroneous kmers.\n",
-           static_cast<unsigned long long>(vertices_.size()),
-           static_cast<unsigned long long>(kMaxNumVertices));
+    xfatal(
+        "Too many vertices in the unitig graph (%llu >= %llu), "
+        "you may increase the kmer size to remove tons of erroneous kmers.\n",
+        static_cast<unsigned long long>(vertices_.size()), static_cast<unsigned long long>(kMaxNumVertices));
   }
 
   sdbg_->FreeMultiplicity();
@@ -264,11 +263,10 @@ void UnitigGraph::Refresh(bool set_changed) {
       auto new_total_depth = adapter.TotalDepth();
       adapter.SetFlag(kVisited);
 
-      for (auto &v: linear_path) {
+      for (auto &v : linear_path) {
         new_length += v.Length();
         new_total_depth += v.TotalDepth();
-        if (v.SdbgId() != adapter.SdbgId())
-          v.SetFlag(kDeleted);
+        if (v.SdbgId() != adapter.SdbgId()) v.SetFlag(kDeleted);
       }
 
       auto new_start = adapter.Begin();
@@ -325,14 +323,12 @@ void UnitigGraph::Refresh(bool set_changed) {
     }
   }
 
-  vertices_.resize(
-      std::remove_if(
-          vertices_.begin(), vertices_.end(),
-          [](UnitigGraphVertex &a) { return SudoVertexAdapter(a).GetFlag() & kDeleted; }
-      ) - vertices_.begin());
+  vertices_.resize(std::remove_if(vertices_.begin(), vertices_.end(),
+                                  [](UnitigGraphVertex &a) { return SudoVertexAdapter(a).GetFlag() & kDeleted; }) -
+                   vertices_.begin());
 
   size_type num_changed = 0;
-#pragma omp parallel for reduction(+: num_changed)
+#pragma omp parallel for reduction(+ : num_changed)
   for (size_type i = 0; i < vertices_.size(); ++i) {
     auto adapter = MakeSudoAdapter(i);
     assert(adapter.ForSureStandalone() || adapter.GetFlag());
@@ -355,15 +351,8 @@ std::string UnitigGraph::VertexToDNAString(VertexAdapter v) {
 
     cur_edge = sdbg_->PrevSimplePathEdge(cur_edge);
     if (cur_edge == SDBG::kNullID) {
-      xfatal("%lld, %lld, %lld, %lld, (%lld, %lld), %d, %d\n",
-             v.Begin(),
-             v.End(),
-             v.RevBegin(),
-             v.RevEnd(),
-             sdbg_->EdgeReverseComplement(v.End()),
-             sdbg_->EdgeReverseComplement(v.Begin()),
-             v.Length(),
-             i);
+      xfatal("%lld, %lld, %lld, %lld, (%lld, %lld), %d, %d\n", v.Begin(), v.End(), v.RevBegin(), v.RevEnd(),
+             sdbg_->EdgeReverseComplement(v.End()), sdbg_->EdgeReverseComplement(v.Begin()), v.Length(), i);
     }
   }
 
@@ -371,14 +360,8 @@ std::string UnitigGraph::VertexToDNAString(VertexAdapter v) {
   label.push_back("ACGT"[cur_char > 4 ? (cur_char - 5) : (cur_char - 1)]);
 
   if (cur_edge != v.Begin()) {
-    xfatal("fwd: %lld, %lld, rev: %lld, %lld, (%lld, %lld) length: %d\n",
-           v.Begin(),
-           v.End(),
-           v.RevBegin(),
-           v.RevEnd(),
-           sdbg_->EdgeReverseComplement(v.End()),
-           sdbg_->EdgeReverseComplement(v.Begin()),
-           v.Length());
+    xfatal("fwd: %lld, %lld, rev: %lld, %lld, (%lld, %lld) length: %d\n", v.Begin(), v.End(), v.RevBegin(), v.RevEnd(),
+           sdbg_->EdgeReverseComplement(v.End()), sdbg_->EdgeReverseComplement(v.Begin()), v.Length());
   }
 
   uint8_t seq[kMaxK];

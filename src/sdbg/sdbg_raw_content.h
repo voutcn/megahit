@@ -5,9 +5,9 @@
 #ifndef MEGAHIT_SDBG_RAW_CONTENT_H
 #define MEGAHIT_SDBG_RAW_CONTENT_H
 
+#include "kmlib/kmcompactvector.h"
 #include "sdbg_def.h"
 #include "sdbg_meta.h"
-#include "kmlib/kmcompactvector.h"
 #include "sparsepp/sparsepp/spp.h"
 
 /**
@@ -25,7 +25,6 @@ struct SdbgRawContent {
   std::vector<mul_t> full_mul;
 };
 
-
 void LoadSdbgRawContent(SdbgRawContent *raw_content, const std::string &file_prefix);
 
-#endif //MEGAHIT_SDBG_RAW_CONTENT_H
+#endif  // MEGAHIT_SDBG_RAW_CONTENT_H

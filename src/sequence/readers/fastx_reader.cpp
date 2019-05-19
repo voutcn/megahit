@@ -2,9 +2,9 @@
 // Created by vout on 4/28/19.
 //
 
+#include "fastx_reader.h"
 #include <cassert>
 #include <stdexcept>
-#include "fastx_reader.h"
 
 FastxReader::FastxReader(const std::string &file_name) {
   fp_ = file_name == "-" ? gzdopen(fileno(stdin), "r") : gzopen(file_name.c_str(), "r");
@@ -16,8 +16,12 @@ FastxReader::FastxReader(const std::string &file_name) {
 }
 
 FastxReader::~FastxReader() {
-  if (kseq_reader_) { kseq_destroy(kseq_reader_); }
-  if (fp_) { gzclose(fp_); }
+  if (kseq_reader_) {
+    kseq_destroy(kseq_reader_);
+  }
+  if (fp_) {
+    gzclose(fp_);
+  }
 }
 
 int64_t FastxReader::Read(SeqPackage *pkg, int64_t max_num, int64_t max_num_bases, bool reverse) {

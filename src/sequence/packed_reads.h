@@ -18,7 +18,6 @@
 
 /* contact: Dinghua Li <dhli@cs.hku.hk> */
 
-
 /**
  * Functions for packed reads or edges (ACGT -> 0123, packed by uint32_t)
  */
@@ -28,9 +27,9 @@
 
 #include <algorithm>
 #include "definitions.h"
+#include "kmlib/kmbit.h"
 #include "sequence/readers/kseq.h"
 #include "utils/safe_alloc_open-inl.h"
-#include "kmlib/kmbit.h"
 
 // 'spacing' is the strip length for read-word "coalescing"
 /**
@@ -41,19 +40,19 @@
  * @param offset
  * @param num_chars_to_copy
  */
-inline void CopySubstring(uint32_t *dest, const uint32_t *src_read, int offset, int num_chars_to_copy,
-                          int64_t spacing, int words_per_read, int words_per_substring) {
+inline void CopySubstring(uint32_t *dest, const uint32_t *src_read, int offset, int num_chars_to_copy, int64_t spacing,
+                          int words_per_read, int words_per_substring) {
   // copy words of the suffix to the suffix pool
   int which_word = offset / kCharsPerEdgeWord;
   int word_offset = offset % kCharsPerEdgeWord;
   const uint32_t *src_p = src_read + which_word;
 
-  if (!word_offset) { // special case (word aligned), easy
+  if (!word_offset) {  // special case (word aligned), easy
     int limit = std::min(words_per_read - which_word, words_per_substring);
     for (int i = 0; i < limit; ++i) {
       dest[i] = src_p[i];
     }
-  } else {   // not word-aligned
+  } else {  // not word-aligned
     int bit_shift = word_offset * kBitsPerEdgeChar;
 
     int limit = std::min(words_per_read - which_word - 1, words_per_substring);
@@ -82,7 +81,7 @@ inline void CopySubstring(uint32_t *dest, const uint32_t *src_read, int offset, 
 
     which_word++;
 
-    while (which_word < words_per_substring) { // fill zero
+    while (which_word < words_per_substring) {  // fill zero
       *(p += spacing) = 0;
       which_word++;
     }
@@ -103,7 +102,7 @@ inline void CopySubstringRC(uint32_t *dest, const uint32_t *src_read, int offset
   int word_offset = (offset + num_chars_to_copy - 1) % kCharsPerEdgeWord;
   uint32_t *dest_p = dest;
 
-  if (word_offset == kCharsPerEdgeWord - 1) { // uint32_t aligned
+  if (word_offset == kCharsPerEdgeWord - 1) {  // uint32_t aligned
     int limit = std::min(words_per_substring, which_word + 1);
     for (int i = 0; i < limit; ++i) {
       dest[i] = src_read[which_word - i];
@@ -117,8 +116,7 @@ inline void CopySubstringRC(uint32_t *dest, const uint32_t *src_read, int offset
     uint32_t w;
 
     for (i = 0; i < words_per_substring - 1 && i < which_word; ++i) {
-      w = (src_read[which_word - i] >> bit_offset) |
-          (src_read[which_word - i - 1] << (kBitsPerEdgeWord - bit_offset));
+      w = (src_read[which_word - i] >> bit_offset) | (src_read[which_word - i - 1] << (kBitsPerEdgeWord - bit_offset));
       w = kmlib::bit::ReverseComplement<2>(w);
       *dest_p = w;
       dest_p += spacing;
@@ -149,11 +147,11 @@ inline void CopySubstringRC(uint32_t *dest, const uint32_t *src_read, int offset
 
     which_word++;
 
-    while (which_word < words_per_substring) { // fill zero
+    while (which_word < words_per_substring) {  // fill zero
       *(p += spacing) = 0;
       which_word++;
     }
   }
 }
 
-#endif // PACKED_READS_H__
+#endif  // PACKED_READS_H__

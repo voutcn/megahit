@@ -33,16 +33,15 @@ double LocalDepth(UnitigGraph &graph, UnitigGraph::VertexAdapter &adapter, uint3
   }
 }
 
-}
+}  // namespace
 
-bool RemoveLocalLowDepth(UnitigGraph &graph, double min_depth, uint32_t max_len,
-                         uint32_t local_width, double local_ratio,
-                         bool permanent_rm, uint32_t *num_removed) {
+bool RemoveLocalLowDepth(UnitigGraph &graph, double min_depth, uint32_t max_len, uint32_t local_width,
+                         double local_ratio, bool permanent_rm, uint32_t *num_removed) {
   bool is_changed = false;
   bool need_refresh = false;
   uint32_t removed = 0;
 
-#pragma omp parallel for reduction(+: removed)
+#pragma omp parallel for reduction(+ : removed)
   for (UnitigGraph::size_type i = 0; i < graph.size(); ++i) {
     auto adapter = graph.MakeVertexAdapter(i);
     if (adapter.ForSureStandalone() || adapter.Length() > max_len) {
@@ -56,8 +55,7 @@ bool RemoveLocalLowDepth(UnitigGraph &graph, double min_depth, uint32_t max_len,
 
     if ((indegree <= 1 && outdegree <= 1) || indegree == 0 || outdegree == 0) {
       double depth = adapter.AvgDepth();
-      if (is_changed && depth > min_depth)
-        continue;
+      if (is_changed && depth > min_depth) continue;
       double mean = LocalDepth(graph, adapter, local_width);
       double threshold = min_depth;
 
@@ -84,13 +82,12 @@ bool RemoveLocalLowDepth(UnitigGraph &graph, double min_depth, uint32_t max_len,
   return is_changed;
 }
 
-uint32_t IterateLocalLowDepth(UnitigGraph &graph, double min_depth, uint32_t min_len,
-                              uint32_t local_width, double local_ratio, bool permanent_rm) {
+uint32_t IterateLocalLowDepth(UnitigGraph &graph, double min_depth, uint32_t min_len, uint32_t local_width,
+                              double local_ratio, bool permanent_rm) {
   uint32_t total_removed = 0;
   while (min_depth < kMaxMul) {
     uint32_t num_removed = 0;
-    if (!RemoveLocalLowDepth(graph, min_depth, min_len, local_width,
-                             local_ratio, permanent_rm, &num_removed)) {
+    if (!RemoveLocalLowDepth(graph, min_depth, min_len, local_width, local_ratio, permanent_rm, &num_removed)) {
       break;
     }
     total_removed += num_removed;
@@ -101,7 +98,7 @@ uint32_t IterateLocalLowDepth(UnitigGraph &graph, double min_depth, uint32_t min
 
 uint32_t RemoveLowDepth(UnitigGraph &graph, double min_depth) {
   uint32_t num_removed = 0;
-#pragma omp parallel for reduction(+: num_removed)
+#pragma omp parallel for reduction(+ : num_removed)
   for (UnitigGraph::size_type i = 0; i < graph.size(); ++i) {
     auto adapter = graph.MakeVertexAdapter(i);
     if (adapter.AvgDepth() < min_depth) {

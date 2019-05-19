@@ -44,8 +44,7 @@ class EdgeReader : public BaseSequenceReader {
     return max_num;
   }
 
-  int64_t Read(SeqPackage *pkg, int64_t max_num, int64_t max_num_bases,
-                       bool reverse = false) override {
+  int64_t Read(SeqPackage *pkg, int64_t max_num, int64_t max_num_bases, bool reverse = false) override {
     if (edge_reader_.is_unsorted()) {
       return ReadSorted(pkg, mul_, max_num);
     } else {
@@ -58,4 +57,4 @@ class EdgeReader : public BaseSequenceReader {
   std::vector<mul_t> *mul_{nullptr};
 };
 
-#endif //MEGAHIT_EDGE_READER_H
+#endif  // MEGAHIT_EDGE_READER_H

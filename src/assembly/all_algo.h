@@ -5,10 +5,10 @@
 #ifndef MEGAHIT_ALL_ALGO_H
 #define MEGAHIT_ALL_ALGO_H
 
+#include "bubble_remover.h"
+#include "low_depth_remover.h"
 #include "sdbg_pruning.h"
 #include "tip_remover.h"
-#include "bubble_remover.h"
 #include "weak_link_remover.h"
-#include "low_depth_remover.h"
 
-#endif //MEGAHIT_ALL_ALGO_H
+#endif  // MEGAHIT_ALL_ALGO_H

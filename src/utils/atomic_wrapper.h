@@ -8,11 +8,11 @@
 #include <atomic>
 
 /*!
-   * @brief a wrapper for std::Atomic. std::Atomic do not support copy and move
-   * constructor, so this wrapper is used to make suitable to std::vector
-   * @tparam T the underlying type of the atomic struct
-   */
-template<typename T>
+ * @brief a wrapper for std::Atomic. std::Atomic do not support copy and move
+ * constructor, so this wrapper is used to make suitable to std::vector
+ * @tparam T the underlying type of the atomic struct
+ */
+template <typename T>
 struct AtomicWrapper {
   std::atomic<T> v;
   AtomicWrapper(T a = T()) : v(a) {}
@@ -23,4 +23,4 @@ struct AtomicWrapper {
   }
 };
 
-#endif //MEGAHIT_ATOMIC_WRAPPER_H
+#endif  // MEGAHIT_ATOMIC_WRAPPER_H

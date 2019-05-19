@@ -11,47 +11,47 @@ namespace bit {
 
 namespace internal {
 
-template<typename T, unsigned MaskSize, unsigned MaskIndex>
+template <typename T, unsigned MaskSize, unsigned MaskIndex>
 struct SubSwapMask {
  private:
   static const T prev = SubSwapMask<T, MaskSize, MaskIndex - MaskSize * 2>::value;
+
  public:
   static const T value = prev ? (prev << MaskSize * 2) | ((T(1) << MaskSize) - 1) : ((T(1) << MaskSize) - 1);
 };
 
-template<typename T, unsigned MaskSize>
+template <typename T, unsigned MaskSize>
 struct SubSwapMask<T, MaskSize, 0> {
   static const T value = T(0);
 };
 
-template<typename T, unsigned MaskSize>
+template <typename T, unsigned MaskSize>
 struct SwapMask {
   static const T value = SubSwapMask<T, MaskSize, sizeof(T) * 8>::value;
 };
 
-template<typename T, unsigned BaseSize, unsigned MaskSize>
+template <typename T, unsigned BaseSize, unsigned MaskSize>
 struct SwapMaskedBitsHelper {
   T operator()(T value) {
-    value = ((value & SwapMask<T, MaskSize>::value) << MaskSize) |
-        ((value & ~SwapMask<T, MaskSize>::value) >> MaskSize);
+    value =
+        ((value & SwapMask<T, MaskSize>::value) << MaskSize) | ((value & ~SwapMask<T, MaskSize>::value) >> MaskSize);
     return SwapMaskedBitsHelper<T, BaseSize, MaskSize / 2>()(value);
   }
 };
 
-template<typename T, unsigned BaseSize>
+template <typename T, unsigned BaseSize>
 struct SwapMaskedBitsHelper<T, BaseSize, BaseSize> {
   T operator()(T value) {
-    return ((value & SwapMask<T, BaseSize>::value) << BaseSize) |
-        ((value & ~SwapMask<T, BaseSize>::value) >> BaseSize);
+    return ((value & SwapMask<T, BaseSize>::value) << BaseSize) | ((value & ~SwapMask<T, BaseSize>::value) >> BaseSize);
   }
 };
 
-template<typename T, unsigned BaseSize, unsigned MaskSize>
+template <typename T, unsigned BaseSize, unsigned MaskSize>
 inline T SwapMaskedBits(T value) {
   return SwapMaskedBitsHelper<T, BaseSize, MaskSize>()(value);
 };
 
-} // namespace internal
+}  // namespace internal
 
 /*!
  * @brief reverse an integer at a resolution base of BaseSize
@@ -63,7 +63,7 @@ inline T SwapMaskedBits(T value) {
  * @param value the value to reverse
  * @return the reversed value
  */
-template<unsigned BaseSize, typename T>
+template <unsigned BaseSize, typename T>
 inline T Reverse(T value) {
   static_assert(std::is_integral<T>::value, "Only intergral types are supported");
   static_assert(sizeof(T) <= 8, "Only intergral types <= 64 bits are supported");
@@ -71,10 +71,9 @@ inline T Reverse(T value) {
   if (BaseSize > 8) {
     return internal::SwapMaskedBits<T, BaseSize, sizeof(T) * 4>(value);
   } else {
-    value = sizeof(T) == 1 ? value :
-            sizeof(T) == 2 ? __builtin_bswap16(value) :
-            sizeof(T) == 4 ? __builtin_bswap32(value) :
-            __builtin_bswap64(value);
+    value = sizeof(T) == 1 ? value
+                           : sizeof(T) == 2 ? __builtin_bswap16(value)
+                                            : sizeof(T) == 4 ? __builtin_bswap32(value) : __builtin_bswap64(value);
     return internal::SwapMaskedBits<T, BaseSize, 4>(value);
   }
 }
@@ -86,7 +85,7 @@ inline T Reverse(T value) {
  * @param value the value to reverse and then complement
  * @return the reverse-complemented value
  */
-template<unsigned BaseSize, typename T>
+template <unsigned BaseSize, typename T>
 inline T ReverseComplement(T value) {
   return ~Reverse<BaseSize>(value);
 }
@@ -95,17 +94,17 @@ inline T ReverseComplement(T value) {
  * the value of floor(log2(x)) for a const integer x
  * @tparam number the number
  */
-template<unsigned number>
+template <unsigned number>
 struct FloorLog2 {
   static const int value = 1 + FloorLog2<(number >> 1)>::value;
 };
 
-template<>
+template <>
 struct FloorLog2<1> {
   static const int value = 0;
 };
 
-} // namespace bit_magic
-} // namespace kmlib
+}  // namespace bit
+}  // namespace kmlib
 
-#endif //KMLIB_BIT_MAGIC_H
+#endif  // KMLIB_BIT_MAGIC_H

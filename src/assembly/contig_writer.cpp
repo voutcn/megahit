@@ -3,9 +3,9 @@
 //
 
 #include "contig_writer.h"
-#include "unitig_graph.h"
-#include "definitions.h"
 #include <cassert>
+#include "definitions.h"
+#include "unitig_graph.h"
 
 namespace {
 
@@ -14,11 +14,16 @@ inline char Complement(char c) {
     return 3 - c;
   }
   switch (c) {
-    case 'A': return 'T';
-    case 'C': return 'G';
-    case 'G': return 'C';
-    case 'T': return 'A';
-    default: assert(false);
+    case 'A':
+      return 'T';
+    case 'C':
+      return 'G';
+    case 'G':
+      return 'C';
+    case 'T':
+      return 'A';
+    default:
+      assert(false);
   }
   return 0;
 }
@@ -34,7 +39,6 @@ inline void ReverseComplement(std::string &s) {
     s[i] = Complement(s[i]);
   }
 }
-
 
 void FoldPalindrome(std::string &s, unsigned kmer_k, bool is_loop) {
   if (is_loop) {
@@ -54,11 +58,10 @@ void FoldPalindrome(std::string &s, unsigned kmer_k, bool is_loop) {
   }
 }
 
-}
+}  // namespace
 
-void OutputContigs(UnitigGraph &graph, FILE *contig_file, FILE *final_file,
-                   bool change_only, uint32_t min_standalone) {
-  assert(!(change_only && final_file != nullptr)); // if output changed contigs, must not output final contigs
+void OutputContigs(UnitigGraph &graph, FILE *contig_file, FILE *final_file, bool change_only, uint32_t min_standalone) {
+  assert(!(change_only && final_file != nullptr));  // if output changed contigs, must not output final contigs
 
 #pragma omp parallel for
   for (UnitigGraph::size_type i = 0; i < graph.size(); ++i) {

@@ -5,12 +5,12 @@
 #ifndef MEGAHIT_FASTX_READER_H
 #define MEGAHIT_FASTX_READER_H
 
-#include <vector>
-#include <string>
-#include "kseq.h"
 #include <zlib.h>
+#include <string>
+#include <vector>
 #include "base_reader.h"
 #include "definitions.h"
+#include "kseq.h"
 
 #ifndef KSEQ_INITED
 #define KSEQ_INITED
@@ -37,4 +37,4 @@ class FastxReader : public BaseSequenceReader {
   bool trim_n_{true};
 };
 
-#endif //MEGAHIT_FASTX_READER_H
+#endif  // MEGAHIT_FASTX_READER_H

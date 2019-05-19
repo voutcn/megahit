@@ -15,24 +15,23 @@ namespace kmlib {
 
 namespace internal {
 
-template<unsigned BaseSize, unsigned Index, typename T>
+template <unsigned BaseSize, unsigned Index, typename T>
 struct SubPopcountMask {
   static_assert(Index % BaseSize == 0, "");
-  static const T value =
-      (SubPopcountMask<BaseSize, Index - BaseSize, T>::value << BaseSize) | 1ULL;
+  static const T value = (SubPopcountMask<BaseSize, Index - BaseSize, T>::value << BaseSize) | 1ULL;
 };
 
-template<unsigned BaseSize, typename T>
+template <unsigned BaseSize, typename T>
 struct SubPopcountMask<BaseSize, 0, T> {
   static const T value = 0;
 };
 
-template<unsigned BaseSize, typename T>
+template <unsigned BaseSize, typename T>
 struct PopcountMask {
   static const T value = SubPopcountMask<BaseSize, sizeof(T) * 8, T>::value;
 };
 
-template<unsigned BaseSize, typename T, unsigned Index = BaseSize / 2>
+template <unsigned BaseSize, typename T, unsigned Index = BaseSize / 2>
 inline T PackToLowestBit(T value) {
   if (Index == 0) {
     return value;
@@ -45,55 +44,41 @@ using U = unsigned int;
 using UL = unsigned long int;
 using ULL = unsigned long long int;
 
-#define CHECK_TYPE(T) \
-static_assert(std::is_integral<T>::value, "only integral types are supported by popcount"); \
-static_assert(sizeof(T) <= sizeof(ULL), "size bigger than unsigned long long not supported"); \
-static_assert(!std::is_same<T, bool>::value, "bool type not supported")
+#define CHECK_TYPE(T)                                                                           \
+  static_assert(std::is_integral<T>::value, "only integral types are supported by popcount");   \
+  static_assert(sizeof(T) <= sizeof(ULL), "size bigger than unsigned long long not supported"); \
+  static_assert(!std::is_same<T, bool>::value, "bool type not supported")
 
-template<typename T>
+template <typename T>
 inline unsigned Popcnt(T val) {
   CHECK_TYPE(T);
-  return sizeof(T) <= sizeof(U) ? __builtin_popcount(val) :
-         sizeof(T) <= sizeof(UL) ? __builtin_popcountl(val) :
-         sizeof(T) <= sizeof(ULL) ? __builtin_popcountll(val) :
-         0;
+  return sizeof(T) <= sizeof(U) ? __builtin_popcount(val)
+                                : sizeof(T) <= sizeof(UL) ? __builtin_popcountl(val)
+                                                          : sizeof(T) <= sizeof(ULL) ? __builtin_popcountll(val) : 0;
 }
 
-template<typename T>
+template <typename T>
 inline unsigned Ctz(T val) {
   CHECK_TYPE(T);
-  return sizeof(T) <= sizeof(U) ? __builtin_ctz(val) :
-         sizeof(T) <= sizeof(UL) ? __builtin_ctzl(val) :
-         sizeof(T) <= sizeof(ULL)? __builtin_ctzll(val) :
-         0;
+  return sizeof(T) <= sizeof(U)
+             ? __builtin_ctz(val)
+             : sizeof(T) <= sizeof(UL) ? __builtin_ctzl(val) : sizeof(T) <= sizeof(ULL) ? __builtin_ctzll(val) : 0;
 }
 
-template<typename Tx, typename Ty>
+template <typename Tx, typename Ty>
 inline Tx Pdep(Tx x, Ty y) {
   CHECK_TYPE(Tx);
-  return sizeof(Tx) <= sizeof(U) ? _pdep_u32(x, y) :
-         sizeof(Tx) <= sizeof(ULL) ? _pdep_u64(x, y) :
-         0;
+  return sizeof(Tx) <= sizeof(U) ? _pdep_u32(x, y) : sizeof(Tx) <= sizeof(ULL) ? _pdep_u64(x, y) : 0;
 }
 
 #undef CHECK_TYPE
-}
+}  // namespace internal
 
-enum rnsmode {
-  kRankOnly,
-  kRandAndSelect
-};
+enum rnsmode { kRankOnly, kRandAndSelect };
 
-template<
-    unsigned BaseSize,
-    unsigned AlphabetSize,
-    unsigned Mode = rnsmode::kRandAndSelect,
-    typename TWord = uint64_t,
-    typename TInterval = uint32_t,
-    unsigned BasePerL2Interval = 65536 / BaseSize,
-    unsigned BasePerL1Interval = 1024 / BaseSize,
-    unsigned SelectSampleSize = 4096
->
+template <unsigned BaseSize, unsigned AlphabetSize, unsigned Mode = rnsmode::kRandAndSelect, typename TWord = uint64_t,
+          typename TInterval = uint32_t, unsigned BasePerL2Interval = 65536 / BaseSize,
+          unsigned BasePerL1Interval = 1024 / BaseSize, unsigned SelectSampleSize = 4096>
 class RankAndSelect {
  public:
   static const unsigned kBitsPerByte = 8;
@@ -112,7 +97,7 @@ class RankAndSelect {
     for (unsigned i = kBitsPerBase == 1 ? 1 : 0; i < kAlphabetSize; ++i) {
       xor_masks_[i] = 0;
       for (unsigned j = 0; j < kBasesPerWord; ++j) {
-        xor_masks_[i] |= (TWord) i << (kBitsPerBase * j);
+        xor_masks_[i] |= (TWord)i << (kBitsPerBase * j);
       }
       xor_masks_[i] = ~xor_masks_[i];
 
@@ -228,9 +213,7 @@ class RankAndSelect {
     return InternalSelect(c, InternalRank(c, pos - 1));
   }
 
-  TSize Succ(TSize pos) const {
-    return Succ(1, pos);
-  }
+  TSize Succ(TSize pos) const { return Succ(1, pos); }
 
   TSize Succ(uint8_t c, TSize pos, int step) const {
     // the first c in [pos, pos+step], return pos+step+1 if not exist
@@ -287,15 +270,15 @@ class RankAndSelect {
     __builtin_prefetch(&l1_occ_[c][i], 0);
   }
 
-  TSize OccValue(uint8_t c, TSize i) const {
-    return l2_occ_[c][i / kL1PerL2] + l1_occ_[c][i];
-  }
+  TSize OccValue(uint8_t c, TSize i) const { return l2_occ_[c][i / kL1PerL2] + l1_occ_[c][i]; }
 
  private:
   TSize InternalRank(uint8_t c, TSize pos) const {
     // the number of c's in [0...pos]
-    if (pos >= size_) return kNullID;
-    else if (pos == size_ - 1) return char_count_[c];
+    if (pos >= size_)
+      return kNullID;
+    else if (pos == size_ - 1)
+      return char_count_[c];
 
     ++pos;
     TSize itv_idx = (pos + kBasesPerL1 / 2 - 1) / kBasesPerL1;
@@ -317,11 +300,12 @@ class RankAndSelect {
   }
 
   TSize InternalSelect(uint8_t c, TSize k) const {
-    static_assert(Mode != rnsmode::kRankOnly,
-                  "cannot select on rank only struct");
+    static_assert(Mode != rnsmode::kRankOnly, "cannot select on rank only struct");
     // return the pos (0-based) of the kth (0-based) c
-    if (k > char_count_[c]) return kNullID;
-    else if (k == char_count_[c]) return size_;
+    if (k > char_count_[c])
+      return kNullID;
+    else if (k == char_count_[c])
+      return size_;
     // first locate which interval Select(c, k) falls
     TSize interval_l = rank2itv_[c][k / kSelectSampleSize];
     TSize interval_r = rank2itv_[c][DivCeiling(k, kSelectSampleSize)];
@@ -337,8 +321,7 @@ class RankAndSelect {
     // refined select
     __builtin_prefetch(packed_array_ + interval_l * kBasesPerL1 / kBasesPerWord);
     unsigned remain = k + 1 - OccValue(c, interval_l);
-    unsigned exceed = (interval_l + 1) * kBasesPerL1 >= size_ ? kBasesPerL1 :
-                      (OccValue(c, interval_l + 1) - (k + 1));
+    unsigned exceed = (interval_l + 1) * kBasesPerL1 >= size_ ? kBasesPerL1 : (OccValue(c, interval_l + 1) - (k + 1));
     if (remain <= exceed * 2) {
       return SelectFwd(c, interval_l, remain);
     } else {
@@ -378,7 +361,8 @@ class RankAndSelect {
     TSize pos = static_cast<TSize>(itv) * kBasesPerL1;
     const TWord *begin = packed_array_ + pos / kBasesPerWord;
     const TWord *p = begin;
-    for (unsigned popcnt; (popcnt = CountCharInWord(c, *p)) < remain; remain -= popcnt, ++p);
+    for (unsigned popcnt; (popcnt = CountCharInWord(c, *p)) < remain; remain -= popcnt, ++p)
+      ;
     return pos + (p - begin) * kBasesPerWord + SelectInWord(c, remain, *p);
   }
 
@@ -387,17 +371,16 @@ class RankAndSelect {
     const TWord *end = packed_array_ + pos / kBasesPerWord - 1;
     const TWord *p = end;
     unsigned popcnt;
-    for (; (popcnt = CountCharInWord(c, *p)) <= exceed; exceed -= popcnt, --p);
-    return pos - kBasesPerWord * (end - p)
-        - (kBasesPerWord - SelectInWord(c, popcnt - exceed, *p));
+    for (; (popcnt = CountCharInWord(c, *p)) <= exceed; exceed -= popcnt, --p)
+      ;
+    return pos - kBasesPerWord * (end - p) - (kBasesPerWord - SelectInWord(c, popcnt - exceed, *p));
   }
 
   uint8_t GetBaseAt(TSize i) const {
-    return (packed_array_[i / kBasesPerWord]
-        >> (i % kBasesPerWord * kBitsPerBase)) & ((1 << kBitsPerBase) - 1);
+    return (packed_array_[i / kBasesPerWord] >> (i % kBasesPerWord * kBitsPerBase)) & ((1 << kBitsPerBase) - 1);
   }
 
-  template<typename T1, typename T2>
+  template <typename T1, typename T2>
   static T1 DivCeiling(T1 x, T2 y) {
     return (x + y - 1) / y;
   };
@@ -417,8 +400,8 @@ class RankAndSelect {
   // contains the (i*kSelectSampleSize)th (0 based) c
   // i.e. OccValue(c, j)<=i*kSelectSampleSize and OccValue(c, j+1)>i*kSelectSampleSize
   std::vector<TInterval> rank2itv_[kAlphabetSize];
-  std::vector<uint16_t> l1_occ_[kAlphabetSize]; // level 1 OCC
-  std::vector<TSize> l2_occ_[kAlphabetSize]; // level 2 OCC
+  std::vector<uint16_t> l1_occ_[kAlphabetSize];  // level 1 OCC
+  std::vector<TSize> l2_occ_[kAlphabetSize];     // level 2 OCC
   TWord xor_masks_[kAlphabetSize];
   uint64_t xor_64masks_[kAlphabetSize]{};
   // e.g. if c = 0110(2), popcount_xorers_[c] = 1001 1001 1001 1001...(2),
@@ -429,10 +412,10 @@ class RankAndSelect {
   static_assert(kBasesPerL2 <= 65536, "");
 };
 
-} // namespace kmlib
+}  // namespace kmlib
 
 using RankAndSelect4Bits = kmlib::RankAndSelect<4, 9>;
 using RankAndSelect1Bit = kmlib::RankAndSelect<1, 2>;
 using Rank1Bit = kmlib::RankAndSelect<1, 2, kmlib::rnsmode::kRankOnly>;
 
-#endif // KMLIB_RNS_H
+#endif  // KMLIB_RNS_H

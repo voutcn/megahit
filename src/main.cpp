@@ -22,8 +22,8 @@
 #include <cstdlib>
 #include <cstring>
 
-#include "utils/cpu_dispatch.h"
 #include "definitions.h"
+#include "utils/cpu_dispatch.h"
 
 int main_assemble(int argc, char **argv);
 int main_local(int argc, char **argv);
@@ -51,7 +51,8 @@ void show_help(const char *program_name) {
           "       count          kmer counting\n"
           "       read2sdbg      build sdbg from reads\n"
           "       seq2sdbg       build sdbg from megahit contigs + edges\n"
-          "       contig2fastg   convert MEGAHIT's k*.contigs.fa to fastg format that can be viewed by Bandage\n"
+          "       contig2fastg   convert MEGAHIT's k*.contigs.fa to fastg format that can be viewed by "
+          "Bandage\n"
           "       readstat       calculate read stats (# of reads, bases, longest, shortest, average)\n"
           "       trim           trim low quality tail of fastq reads\n"
           "       filterbylen    filter contigs by length\n"

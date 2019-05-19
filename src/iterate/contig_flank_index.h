@@ -5,14 +5,14 @@
 #ifndef MEGAHIT_JUNCION_INDEX_H
 #define MEGAHIT_JUNCION_INDEX_H
 
-#include <mutex>
 #include <sdbg/sdbg_def.h>
 #include <utils/utils.h>
+#include <mutex>
 #include "sequence/kmer_plus.h"
-#include "sparsepp/spp.h"
 #include "sequence/sequence_package.h"
+#include "sparsepp/spp.h"
 
-template<class KmerType>
+template <class KmerType>
 class ContigFlankIndex {
  public:
   struct FlankInfo {
@@ -22,6 +22,7 @@ class ContigFlankIndex {
   } __attribute__((packed));
   using Flank = KmerPlus<KmerType, FlankInfo>;
   using HashSet = spp::sparse_hash_set<Flank, KmerHash>;
+
  public:
   ContigFlankIndex(unsigned k, unsigned step) : k_(k), step_(step) {}
   size_t size() const { return hash_index_.size(); }
@@ -74,7 +75,7 @@ class ContigFlankIndex {
     }
   }
 
-  template<class CollectorType>
+  template <class CollectorType>
   size_t FindNextKmersFromRead(SeqPackage &seq_pkg, size_t seq_id, CollectorType *out) const {
     size_t length = seq_pkg.SequenceLength(seq_id);
     if (length < k_ + step_ + 1) {
@@ -185,10 +186,11 @@ class ContigFlankIndex {
     }
     return num_success;
   }
+
  private:
   HashSet hash_index_;
   unsigned k_{};
   unsigned step_{};
 };
 
-#endif //MEGAHIT_JUNCION_INDEX_H
+#endif  // MEGAHIT_JUNCION_INDEX_H

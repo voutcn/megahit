@@ -21,12 +21,12 @@
 #ifndef ASSEMBLY_ALGORITHMS_H_
 #define ASSEMBLY_ALGORITHMS_H_
 
-#include <vector>
 #include <string>
+#include <vector>
 #include "sdbg/sdbg.h"
 
-using std::vector;
 using std::string;
+using std::vector;
 
 namespace sdbg_pruning {
 
@@ -34,6 +34,6 @@ double InferMinDepth(SDBG &dbg);
 
 // tips removal
 uint64_t RemoveTips(SDBG &dbg, int max_tip_len);
-}
+}  // namespace sdbg_pruning
 
-#endif // define ASSEMBLY_ALGORITHMS_H_
+#endif  // define ASSEMBLY_ALGORITHMS_H_

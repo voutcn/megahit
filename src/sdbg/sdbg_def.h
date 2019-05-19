@@ -8,7 +8,7 @@
 #include <cstdint>
 #include <limits>
 
-using mul_t = uint16_t ;
+using mul_t = uint16_t;
 static const int kBitsPerMul = sizeof(mul_t) * 8;
 static const int kMaxMul = std::numeric_limits<mul_t>::max();
 
@@ -26,4 +26,4 @@ static const unsigned kBitsPerWChar = 4;
 using label_word_t = uint32_t;
 static const unsigned kCharsPerLabelWord = sizeof(label_word_t) * 8 / kBitsPerChar;
 
-#endif //MEGAHIT_SDBG_DEF_H
+#endif  // MEGAHIT_SDBG_DEF_H

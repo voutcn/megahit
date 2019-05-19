@@ -22,16 +22,16 @@
 #define LOCAL_ASSEMBLER_H__
 
 #include <stdint.h>
-#include <vector>
-#include <string>
 #include <deque>
+#include <string>
+#include <vector>
 
 #include <mutex>
 #include "kmlib/kmbitvector.h"
-#include "sparsepp/sparsepp/spp.h"
-#include "sequence/sequence_package.h"
 #include "sequence/kmer_plus.h"
 #include "sequence/lib_info.h"
+#include "sequence/sequence_package.h"
+#include "sparsepp/sparsepp/spp.h"
 
 struct LocalAssembler {
   static const int kMaxLocalRange = 650;
@@ -43,14 +43,14 @@ struct LocalAssembler {
     int16_t query_from : 15;
     int16_t query_to : 15;
     bool strand : 1;
-    int mismatch: 9;
+    int mismatch : 9;
   };
 
   struct MappedReadRecord {
     uint64_t read_id : 44;
     uint8_t strand : 1;
     uint8_t mismatch : 4;
-    bool is_mate: 1;
+    bool is_mate : 1;
     uint16_t contig_offset : 14;
     MappedReadRecord() = default;
     MappedReadRecord(uint16_t contig_offset, bool is_mate, uint8_t mismatch, uint8_t strand, uint64_t read_id)
@@ -71,10 +71,10 @@ struct LocalAssembler {
   typedef Kmer<2, uint32_t> kmer_t;
   typedef spp::sparse_hash_map<kmer_t, uint64_t, KmerHash> mapper_t;
 
-  unsigned min_contig_len_;    // only align reads to these contigs
+  unsigned min_contig_len_;  // only align reads to these contigs
   int seed_kmer_;            // kmer size for seeding
   double similarity_;        // similarity threshold for alignment
-  int sparsity_;            // sparsity of hash mapper
+  int sparsity_;             // sparsity of hash mapper
   int min_mapped_len_;
   std::string local_filename_;
   unsigned local_kmin_, local_kmax_, local_step_;
@@ -115,9 +115,7 @@ struct LocalAssembler {
     min_mapped_len_ = mapping_len;
   }
 
-  void set_local_file(const std::string &local_filename) {
-    local_filename_ = local_filename;
-  }
+  void set_local_file(const std::string &local_filename) { local_filename_ = local_filename; }
 
   void ReadContigs(const std::string &file_name);
   void BuildHashMapper(bool show_stat = true);
@@ -130,12 +128,8 @@ struct LocalAssembler {
   int Match(size_t read_id, int query_from, int query_to, size_t contig_id, int ref_from, int ref_to, bool strand);
   int LocalRange(int lib_id);
   int AddToMappingDeque(size_t read_id, const MappingRecord &rec, int local_range);
-  int AddMateToMappingDeque(size_t read_id,
-                            size_t mate_id,
-                            const MappingRecord &rec1,
-                            const MappingRecord &rec2,
-                            bool mapped2,
-                            int local_range);
+  int AddMateToMappingDeque(size_t read_id, size_t mate_id, const MappingRecord &rec1, const MappingRecord &rec2,
+                            bool mapped2, int local_range);
   bool MapToHashMapper(const mapper_t &mapper, size_t read_id, MappingRecord &rec);
 };
 

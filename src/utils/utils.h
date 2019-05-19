@@ -21,16 +21,16 @@
 #ifndef MEGAHIT_UTILS_H__
 #define MEGAHIT_UTILS_H__
 
+#include <fcntl.h>
 #include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <time.h>
-#include <sys/time.h>
 #include <sys/resource.h>
-#include <fcntl.h>
+#include <sys/time.h>
+#include <time.h>
 #include <unistd.h>
 
-template<typename T1, typename T2>
+template <typename T1, typename T2>
 inline T1 DivCeiling(T1 a, T2 b) {
   return (a + b - 1) / b;
 }
@@ -58,20 +58,31 @@ inline const char *GetFile(const char *filename, const char *rootname) {
 #endif
 #endif
 
-#define xinfoc(str, args...) \
-do { megahit_log__(str, ##args); } while (0)
-#define xinfo(str, args...)  \
-do { megahit_log__("    [INFO  %-25s%4d]   " str, __XFILE__, __LINE__, ##args); } while (0)
-#define xerr(str, args...)   \
-do { megahit_log__("    [ERROR %-25s%4d]   " str, __XFILE__, __LINE__, ##args); } while (0)
-#define xwarn(str, args...)  \
-do { megahit_log__("    [WARN  %-25s%4d]   " str, __XFILE__, __LINE__, ##args); } while (0)
-#define xfatal(str, args...) \
-do { megahit_log__("    [FATAL %-25s%4d]   " str, __XFILE__, __LINE__, ##args); exit(1); } while (0)
+#define xinfoc(str, args...)    \
+  do {                          \
+    megahit_log__(str, ##args); \
+  } while (0)
+#define xinfo(str, args...)                                                    \
+  do {                                                                         \
+    megahit_log__("    [INFO  %-25s%4d]   " str, __XFILE__, __LINE__, ##args); \
+  } while (0)
+#define xerr(str, args...)                                                     \
+  do {                                                                         \
+    megahit_log__("    [ERROR %-25s%4d]   " str, __XFILE__, __LINE__, ##args); \
+  } while (0)
+#define xwarn(str, args...)                                                    \
+  do {                                                                         \
+    megahit_log__("    [WARN  %-25s%4d]   " str, __XFILE__, __LINE__, ##args); \
+  } while (0)
+#define xfatal(str, args...)                                                   \
+  do {                                                                         \
+    megahit_log__("    [FATAL %-25s%4d]   " str, __XFILE__, __LINE__, ##args); \
+    exit(1);                                                                   \
+  } while (0)
 
 #ifdef __GNUC__
-#define LIKELY(x) __builtin_expect((x),1)
-#define UNLIKELY(x) __builtin_expect((x),0)
+#define LIKELY(x) __builtin_expect((x), 1)
+#define UNLIKELY(x) __builtin_expect((x), 0)
 #else
 #define LIKELY(x) (x)
 #define UNLIKELY(x) (x)
@@ -90,34 +101,23 @@ struct SimpleTimer {
   timeval tv1, tv2;
   long long time_elapsed;
 
-  SimpleTimer() {
-    reset();
-  }
-  void reset() {
-    time_elapsed = 0;
-  }
-  void start() {
-    gettimeofday(&tv1, nullptr);
-  }
+  SimpleTimer() { reset(); }
+  void reset() { time_elapsed = 0; }
+  void start() { gettimeofday(&tv1, nullptr); }
   void stop() {
     gettimeofday(&tv2, nullptr);
     time_elapsed += static_cast<long long>(tv2.tv_sec - tv1.tv_sec) * 1000000 + tv2.tv_usec - tv1.tv_usec;
   }
-  double elapsed() {
-    return time_elapsed / 1000000.0;
-  }
+  double elapsed() { return time_elapsed / 1000000.0; }
 };
 
 struct AutoMaxRssRecorder {
-  struct timeval tv1{}, tv2{};
+  struct timeval tv1 {
+  }, tv2{};
 
-  AutoMaxRssRecorder() {
-    gettimeofday(&tv1, nullptr);
-  }
+  AutoMaxRssRecorder() { gettimeofday(&tv1, nullptr); }
 
-  ~AutoMaxRssRecorder() {
-    watch();
-  }
+  ~AutoMaxRssRecorder() { watch(); }
 
   void watch() {
 #define TURN_ON_MAX_RSS_LOG
@@ -139,4 +139,4 @@ struct AutoMaxRssRecorder {
   }
 };
 
-#endif // MEGAHIT_UTILS_H__
+#endif  // MEGAHIT_UTILS_H__

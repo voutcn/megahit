@@ -2,11 +2,11 @@
 // Created by vout on 11/9/18.
 //
 
+#include <bitset>
+#include <cassert>
+#include <iostream>
 #include "kmbit.h"
 #include "kmcompactvector.h"
-#include <iostream>
-#include <cassert>
-#include <bitset>
 
 int main() {
   uint32_t a = 24128923;

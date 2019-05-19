@@ -7,8 +7,8 @@
 
 #include <fstream>
 #include "kmlib/kmbit.h"
-#include "utils/buffered_reader.h"
 #include "sdbg_item.h"
+#include "utils/buffered_reader.h"
 
 /**
  * load SDBG raw content from disk
@@ -36,8 +36,7 @@ void LoadSdbgRawContent(SdbgRawContent *raw_content, const std::string &file_pre
   size_t file_offset = 0;
 
   for (auto bucket_it = metadata.begin_bucket();
-       bucket_it != metadata.end_bucket() && bucket_it->bucket_id != bucket_it->kNullID;
-       ++bucket_it) {
+       bucket_it != metadata.end_bucket() && bucket_it->bucket_id != bucket_it->kNullID; ++bucket_it) {
     if (bucket_it->file_id != last_file_id) {
       if (is.is_open()) {
         is.close();
@@ -50,8 +49,8 @@ void LoadSdbgRawContent(SdbgRawContent *raw_content, const std::string &file_pre
     }
     assert(file_offset == bucket_it->starting_offset);
     SdbgItem item;
-    label_word_t *tip_label_ptr = raw_content->tip_lables.data() +
-        bucket_it->accumulate_tip_count * metadata.words_per_tip_label();
+    label_word_t *tip_label_ptr =
+        raw_content->tip_lables.data() + bucket_it->accumulate_tip_count * metadata.words_per_tip_label();
 
     for (size_t i = 0; i < bucket_it->num_items; ++i) {
       size_t index = i + bucket_it->accumulate_item_count;
@@ -82,7 +81,7 @@ void LoadSdbgRawContent(SdbgRawContent *raw_content, const std::string &file_pre
       }
     }
     assert(tip_label_ptr - raw_content->tip_lables.data() ==
-        ptrdiff_t((bucket_it->accumulate_tip_count + bucket_it->num_tips) * metadata.words_per_tip_label()));
+           ptrdiff_t((bucket_it->accumulate_tip_count + bucket_it->num_tips) * metadata.words_per_tip_label()));
   }
   assert(in.read<char>(nullptr) == 0);
 }

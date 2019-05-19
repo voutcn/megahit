@@ -16,10 +16,10 @@
  *  along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include <cstdio>
-#include <string>
-#include <cstdlib>
 #include <cassert>
+#include <cstdio>
+#include <cstdlib>
+#include <string>
 
 #include "sequence/readers/kseq.h"
 #include "utils/utils.h"
@@ -27,44 +27,44 @@
 using namespace std;
 
 int main_binary_edge_to_ascii(int argc, char const *argv[]) {
-    if (argc < 5) {
-        fprintf(stderr, "Usage: %s <edge_file_prefix> <num_files> <has_header=0|1> <kmer_k>\n", argv[0]);
-        exit(1);
+  if (argc < 5) {
+    fprintf(stderr, "Usage: %s <edge_file_prefix> <num_files> <has_header=0|1> <kmer_k>\n", argv[0]);
+    exit(1);
+  }
+
+  const char *file_prefix = argv[1];
+  int num_files = atoi(argv[2]);
+  int has_header = atoi(argv[3]);
+  int kmer_k = atoi(argv[4]);
+  int words_per_edge = ((kmer_k + 1) * 2 + 16 + 31) / 32;
+  unsigned int buf[1024];
+
+  for (int i = 0; i < num_files; ++i) {
+    FILE *cur_file = fopen(FormatString("%s.%d", file_prefix, i), "rb");
+    assert(cur_file != NULL);
+
+    if (has_header && i == 0) {
+      int k, w;
+      fread(&k, sizeof(unsigned int), 1, cur_file);
+      assert(k == kmer_k);
+      fread(&w, sizeof(unsigned int), 1, cur_file);
+      assert(w == words_per_edge);
     }
 
-    const char *file_prefix = argv[1];
-    int num_files = atoi(argv[2]);
-    int has_header = atoi(argv[3]);
-    int kmer_k = atoi(argv[4]);
-    int words_per_edge = ((kmer_k + 1) * 2 + 16 + 31) / 32;
-    unsigned int buf[1024];
+    while (fread(buf, sizeof(unsigned int), words_per_edge, cur_file) == words_per_edge) {
+      for (int k = 0; k < kmer_k + 1; ++k) {
+        printf("%c", "ACGT"[3 - ((buf[k / 16] >> (15 - k % 16) * 2) & 3)]);
+      }
 
-    for (int i = 0; i < num_files; ++i) {
-        FILE *cur_file = fopen(FormatString("%s.%d", file_prefix, i), "rb");
-        assert(cur_file != NULL);
+      puts("");
 
-        if (has_header && i == 0) {
-            int k, w;
-            fread(&k, sizeof(unsigned int), 1, cur_file);
-            assert(k == kmer_k);
-            fread(&w, sizeof(unsigned int), 1, cur_file);
-            assert(w == words_per_edge);
-        }
+      for (int k = kmer_k; k >= 0; --k) {
+        printf("%c", "ACGT"[((buf[k / 16] >> (15 - k % 16) * 2) & 3)]);
+      }
 
-        while (fread(buf, sizeof(unsigned int), words_per_edge, cur_file) == words_per_edge) {
-            for (int k = 0; k < kmer_k + 1; ++k) {
-                printf("%c", "ACGT"[3 - ((buf[k / 16] >> (15 - k % 16) * 2) & 3)]);
-            }
-
-            puts("");
-
-            for (int k = kmer_k; k >= 0; --k) {
-                printf("%c", "ACGT"[((buf[k / 16] >> (15 - k % 16) * 2) & 3)]);
-            }
-
-            puts("");
-        }
+      puts("");
     }
+  }
 
-    return 0;
+  return 0;
 }
