@@ -435,14 +435,14 @@ class SDBG {
   }
 
   /**
-   * free mulitiplicity of all edges to reduce memory
+   * free multiplicity of all edges to reduce memory
    * WARNING: use this with cautions
-   * After that EdgeMultiplicty() are invalid
+   * After that EdgeMultiplicity() is invalid
    */
   void FreeMultiplicity() {
-    content_.large_mul = std::move(spp::sparse_hash_map<uint64_t, mul_t>());
-    content_.small_mul = std::move(std::vector<small_mul_t>());
-    content_.full_mul = std::move(std::vector<mul_t>());
+    content_.large_mul = spp::sparse_hash_map<uint64_t, mul_t>();
+    content_.small_mul = std::vector<small_mul_t>();
+    content_.full_mul = std::vector<mul_t>();
   }
 
  private:

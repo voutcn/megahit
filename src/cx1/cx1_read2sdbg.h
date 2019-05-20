@@ -108,15 +108,14 @@ struct read2sdbg_global_t {
   SeqPackage package;
   std::vector<lib_info_t> lib_info;
   AtomicBitVector is_solid;  // mark <read_id, offset> is solid
-  int32_t *lv1_items;        // each item is an offset (read ID and position) in differential representation
+  std::vector<int32_t> lv1_items;
   std::mutex lv1_items_scanning_lock;
 
   // memory usage
   int64_t mem_packed_reads;
 
   // stat-stage1
-  int64_t *edge_counting;  // count the number of (k+1)mer with occurs i times
-  int64_t *thread_edge_counting;
+  std::vector<std::vector<int64_t>> thread_edge_counting;
 
   // output-stage1
   std::vector<FILE *> mercy_files;

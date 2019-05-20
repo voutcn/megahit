@@ -37,7 +37,7 @@
 #include "sequence/read_lib_functions-inl.h"
 #include "sequence/readers/contig_reader.h"
 #include "utils/histgram.h"
-#include "utils/safe_alloc_open-inl.h"
+#include "utils/safe_open.h"
 #include "utils/utils.h"
 
 void LocalAssembler::ReadContigs(const std::string &contig_file_name) {

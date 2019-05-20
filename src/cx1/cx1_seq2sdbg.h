@@ -107,8 +107,7 @@ struct seq2sdbg_global_t {
   // big arrays
   SeqPackage package;
   std::vector<mul_t> multiplicity;
-
-  int32_t *lv1_items;  // each item is an offset (read ID and position) in differential representation
+  std::vector<int32_t> lv1_items;
 
   int64_t max_sorting_items;
 

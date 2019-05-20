@@ -30,7 +30,7 @@
 #include "assembly/contig_writer.h"
 #include "utils/histgram.h"
 #include "utils/options_description.h"
-#include "utils/safe_alloc_open-inl.h"
+#include "utils/safe_open.h"
 #include "utils/utils.h"
 
 using std::string;

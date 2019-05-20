@@ -30,7 +30,7 @@
 #include "sequence/packed_reads.h"
 #include "sequence/read_lib_functions-inl.h"
 #include "sequence/readers/kseq.h"
-#include "utils/safe_alloc_open-inl.h"
+#include "utils/safe_open.h"
 #include "utils/utils.h"
 
 #include "sorting.h"
@@ -257,7 +257,8 @@ void init_global_and_set_cx1(count_global_t &globals) {
   xinfo("%lld, %lld %lld %lld\n", globals.cx1.max_lv1_items_, globals.max_sorting_items, globals.cx1.max_mem_remain_,
         mem_remained);
   globals.cx1.bytes_per_sorting_item_ = lv2_bytes_per_item;
-  globals.lv1_items.resize(globals.cx1.max_lv1_items_ + globals.max_sorting_items * lv2_bytes_per_item / sizeof(uint32_t));
+  globals.lv1_items.resize(globals.cx1.max_lv1_items_ +
+                           globals.max_sorting_items * lv2_bytes_per_item / sizeof(uint32_t));
   xinfo("Memory for reads: %lld\n", globals.mem_packed_reads);
   xinfo("max # lv.1 items = %lld\n", globals.cx1.max_lv1_items_);
 
@@ -285,7 +286,7 @@ void *lv1_fill_offset(void *_data) {
   count_global_t &globals = *(rp.globals);
   std::array<int64_t, kNumBuckets> prev_full_offsets;
 
-  for (int b = globals.cx1.lv1_start_bucket_; b < globals.cx1.lv1_end_bucket_; ++b)
+  for (auto b = globals.cx1.lv1_start_bucket_; b < globals.cx1.lv1_end_bucket_; ++b)
     prev_full_offsets[b] = rp.rp_lv1_differential_base;
 
   // this loop is VERY similar to that in PreprocessScanToFillBucketSizesThread
@@ -355,7 +356,7 @@ template <typename Iter>
 inline void lv2_extract_substr_(Iter substrings_p, count_global_t &globals, int start_bucket, int end_bucket) {
   auto lv1_p = globals.lv1_items.begin() + globals.cx1.rp_[0].rp_bucket_offsets[start_bucket];
 
-  for (int b = start_bucket; b < end_bucket; ++b) {
+  for (auto b = start_bucket; b < end_bucket; ++b) {
     for (int t = 0; t < globals.num_cpu_threads; ++t) {
       int64_t full_offset = globals.cx1.rp_[t].rp_lv1_differential_base;
       int64_t num = globals.cx1.rp_[t].rp_bucket_sizes[b];
@@ -538,10 +539,8 @@ struct kt_sort_t {
   int seen = 0;
 };
 
-void kt_sort(void *_g, long i, int tid) {
-  kt_sort_t *kg = (kt_sort_t *)_g;
-  int b = kg->globals->cx1.lv1_start_bucket_ + i;
-
+void kt_sort(void *g, long b, int tid) {
+  auto kg = reinterpret_cast<kt_sort_t *>(g);
   if (kg->thread_offset[tid] == -1) {
     std::lock_guard<std::mutex> lk(kg->mutex);
     kg->thread_offset[tid] = kg->acc;
@@ -554,8 +553,9 @@ void kt_sort(void *_g, long i, int tid) {
     return;
   }
 
-  size_t offset = kg->globals->cx1.lv1_num_items_ + kg->thread_offset[tid] * kg->globals->cx1.bytes_per_sorting_item_ / sizeof(uint32_t);
-  auto substr_ptr = reinterpret_cast<uint32_t*>(kg->globals->lv1_items.data() + offset);
+  size_t offset = kg->globals->cx1.lv1_num_items_ +
+                  kg->thread_offset[tid] * kg->globals->cx1.bytes_per_sorting_item_ / sizeof(uint32_t);
+  auto substr_ptr = reinterpret_cast<uint32_t *>(kg->globals->lv1_items.data() + offset);
   lv2_extract_substr_(substr_ptr, *(kg->globals), b, b + 1);
   SortSubStr(substr_ptr, kg->globals->words_per_substring, kg->globals->cx1.bucket_sizes_[b], 2);
   lv2_output_(0, kg->globals->cx1.bucket_sizes_[b], tid, *(kg->globals), substr_ptr);
@@ -569,7 +569,7 @@ void lv1_direct_sort_and_count(count_global_t &globals) {
   kg.rank.resize(globals.num_cpu_threads, 0);
   omp_set_num_threads(globals.num_cpu_threads);
 #pragma omp parallel for schedule(dynamic)
-  for (int i = 0; i < globals.cx1.lv1_end_bucket_ - globals.cx1.lv1_start_bucket_; ++i) {
+  for (auto i = globals.cx1.lv1_start_bucket_; i < globals.cx1.lv1_end_bucket_; ++i) {
     kt_sort(&kg, i, omp_get_thread_num());
   }
 }

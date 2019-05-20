@@ -36,7 +36,7 @@
 #include "sequence/readers/fastx_reader.h"
 #include "sequence/readers/pair_end_fastx_reader.h"
 #include "sequence/sequence_package.h"
-#include "utils/safe_alloc_open-inl.h"
+#include "utils/safe_open.h"
 #include "utils/utils.h"
 
 inline void WriteBinarySequences(const SeqPackage &pkg, FILE *file, int64_t from = 0, int64_t to = -1) {

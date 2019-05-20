@@ -29,7 +29,7 @@
 #include "definitions.h"
 #include "kmlib/kmbit.h"
 #include "sequence/readers/kseq.h"
-#include "utils/safe_alloc_open-inl.h"
+#include "utils/safe_open.h"
 
 // 'spacing' is the strip length for read-word "coalescing"
 /**

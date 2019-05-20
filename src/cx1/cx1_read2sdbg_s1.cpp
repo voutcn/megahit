@@ -31,7 +31,7 @@
 #include "sequence/read_lib_functions-inl.h"
 #include "sequence/readers/kseq.h"
 #include "sequence/sequence_package.h"
-#include "utils/safe_alloc_open-inl.h"
+#include "utils/safe_open.h"
 #include "utils/utils.h"
 
 #include "sorting.h"
@@ -296,8 +296,8 @@ void s1_init_global_and_set_cx1(read2sdbg_global_t &globals) {
   globals.cx1.max_mem_remain_ =
       globals.cx1.max_lv1_items_ * sizeof(int) + globals.max_sorting_items * lv2_bytes_per_item;
   globals.cx1.bytes_per_sorting_item_ = lv2_bytes_per_item;
-
-  globals.lv1_items = (int *)xmalloc(globals.cx1.max_mem_remain_ + globals.num_cpu_threads * sizeof(uint64_t) * 65536);
+  globals.lv1_items.resize(globals.cx1.max_lv1_items_ +
+                           globals.max_sorting_items * lv2_bytes_per_item / sizeof(int32_t));
 
   xinfo("Memory for reads: %lld\n", globals.mem_packed_reads);
   xinfo("max # lv.1 items = %lld\n", globals.cx1.max_lv1_items_);
@@ -316,17 +316,18 @@ void s1_init_global_and_set_cx1(read2sdbg_global_t &globals) {
   }
 
   // --- initialize stat ---
-  globals.edge_counting = (int64_t *)xmalloc((kMaxMul + 1) * sizeof(int64_t));
-  globals.thread_edge_counting = (int64_t *)xmalloc((kMaxMul + 1) * globals.num_output_threads * sizeof(int64_t));
-  memset(globals.edge_counting, 0, (kMaxMul + 1) * sizeof(int64_t));
-  memset(globals.thread_edge_counting, 0, sizeof(int64_t) * (kMaxMul + 1) * globals.num_output_threads);
+  globals.thread_edge_counting.resize(globals.num_output_threads);
+  for (auto &c : globals.thread_edge_counting) {
+    c.resize(kMaxMul + 1);
+    std::fill(c.begin(), c.end(), 0);
+  }
 }
 
 void *s1_lv1_fill_offset(void *_data) {
   readpartition_data_t &rp = *((readpartition_data_t *)_data);
   read2sdbg_global_t &globals = *(rp.globals);
   std::array<int64_t, kNumBuckets> prev_full_offsets{};  // temporary array for computing differentials
-  for (int b = globals.cx1.lv1_start_bucket_; b < globals.cx1.lv1_end_bucket_; ++b)
+  for (auto b = globals.cx1.lv1_start_bucket_; b < globals.cx1.lv1_end_bucket_; ++b)
     prev_full_offsets[b] = rp.rp_lv1_differential_base;
 
   // this loop is VERY similar to that in PreprocessScanToFillBucketSizesThread
@@ -422,9 +423,9 @@ void *s1_lv1_fill_offset(void *_data) {
 }
 
 void s1_extract_subtstr_(int bp_from, int bp_to, read2sdbg_global_t &globals, uint32_t *substr) {
-  int *lv1_p = globals.lv1_items + globals.cx1.rp_[0].rp_bucket_offsets[bp_from];
+  auto lv1_p = globals.lv1_items.begin() + globals.cx1.rp_[0].rp_bucket_offsets[bp_from];
 
-  for (int b = bp_from; b < bp_to; ++b) {
+  for (auto b = bp_from; b < bp_to; ++b) {
     for (int t = 0; t < globals.num_cpu_threads; ++t) {
       int64_t full_offset = globals.cx1.rp_[t].rp_lv1_differential_base;
       int64_t num = globals.cx1.rp_[t].rp_bucket_sizes[b];
@@ -504,7 +505,7 @@ void s1_lv2_output_(int64_t from, int64_t to, int tid, read2sdbg_global_t &globa
   int64_t count_prev_head[5][5];
   int64_t count_tail_next[5][5];
   int64_t count_head_tail[(1 << 2 * kBWTCharNumBits) - 1];
-  int64_t *thread_edge_counting = globals.thread_edge_counting + tid * (kMaxMul + 1);
+  auto &thread_edge_counting = globals.thread_edge_counting[tid];
 
   for (int64_t i = from; i < to; i = end_idx) {
     end_idx = i + 1;
@@ -675,10 +676,8 @@ struct kt_sort_t {
   std::mutex mutex;
 };
 
-void kt_sort(void *_g, long i, int tid) {
-  kt_sort_t *kg = (kt_sort_t *)_g;
-  int b = kg->globals->cx1.lv1_start_bucket_ + i;
-
+void kt_sort(void *g, long b, int tid) {
+  auto kg = reinterpret_cast<kt_sort_t *>(g);
   if (kg->thread_offset[tid] == -1) {
     std::lock_guard<std::mutex> lk(kg->mutex);
     kg->thread_offset[tid] = kg->acc;
@@ -691,12 +690,9 @@ void kt_sort(void *_g, long i, int tid) {
     return;
   }
 
-  size_t offset = kg->globals->cx1.lv1_num_items_ * sizeof(int32_t) +
-                  kg->thread_offset[tid] * kg->globals->cx1.bytes_per_sorting_item_ +
-                  kg->rank[tid] * sizeof(uint64_t) * 65536;
-
-  uint32_t *substr_ptr = (uint32_t *)((char *)kg->globals->lv1_items + offset);
-
+  size_t offset = kg->globals->cx1.lv1_num_items_ +
+                  kg->thread_offset[tid] * kg->globals->cx1.bytes_per_sorting_item_ / sizeof(uint32_t);
+  auto substr_ptr = reinterpret_cast<uint32_t *>(kg->globals->lv1_items.data() + offset);
   s1_extract_subtstr_(b, b + 1, *(kg->globals), substr_ptr);
   SortSubStr(substr_ptr, kg->globals->words_per_substring, kg->globals->cx1.bucket_sizes_[b], 2);
   s1_lv2_output_(0, kg->globals->cx1.bucket_sizes_[b], tid, *(kg->globals), substr_ptr);
@@ -710,15 +706,16 @@ void s1_lv1_direct_sort_and_count(read2sdbg_global_t &globals) {
   kg.rank.resize(globals.num_cpu_threads, 0);
   omp_set_num_threads(globals.num_cpu_threads);
 #pragma omp parallel for schedule(dynamic)
-  for (int i = 0; i < globals.cx1.lv1_end_bucket_ - globals.cx1.lv1_start_bucket_; ++i) {
+  for (auto i = globals.cx1.lv1_start_bucket_; i < globals.cx1.lv1_end_bucket_; ++i) {
     kt_sort(&kg, i, omp_get_thread_num());
   }
 }
 
 void s1_post_proc(read2sdbg_global_t &globals) {
+  std::vector<int64_t> edge_counting(kMaxMul + 1, 0);
   for (int t = 0; t < globals.num_output_threads; ++t) {
     for (int i = 1; i <= kMaxMul; ++i) {
-      globals.edge_counting[i] += globals.thread_edge_counting[t * (kMaxMul + 1) + i];
+      edge_counting[i] += globals.thread_edge_counting[t][i];
     }
   }
 
@@ -726,7 +723,7 @@ void s1_post_proc(read2sdbg_global_t &globals) {
   int64_t num_solid_edges = 0;
 
   for (int i = globals.kmer_freq_threshold; i <= kMaxMul; ++i) {
-    num_solid_edges += globals.edge_counting[i];
+    num_solid_edges += edge_counting[i];
   }
 
   xinfo("Total number of solid edges: %llu\n", num_solid_edges);
@@ -734,17 +731,15 @@ void s1_post_proc(read2sdbg_global_t &globals) {
   FILE *counting_file = xfopen((std::string(globals.output_prefix) + ".counting").c_str(), "w");
 
   for (int64_t i = 1, acc = 0; i <= kMaxMul; ++i) {
-    acc += globals.edge_counting[i];
+    acc += edge_counting[i];
     fprintf(counting_file, "%lld %lld\n", (long long)i, (long long)acc);
   }
 
   fclose(counting_file);
 
   // --- cleaning ---
-  free(globals.lv1_items);
-  free(globals.edge_counting);
-  free(globals.thread_edge_counting);
-
+  globals.lv1_items = std::move(std::vector<int32_t>());
+  globals.thread_edge_counting = std::move(std::vector<std::vector<int64_t>>());
   for (int i = 0; i < globals.num_mercy_files; ++i) {
     fclose(globals.mercy_files[i]);
   }
