@@ -440,7 +440,7 @@ class SDBG {
    * After that EdgeMultiplicity() is invalid
    */
   void FreeMultiplicity() {
-    content_.large_mul = spp::sparse_hash_map<uint64_t, mul_t>();
+    content_.large_mul = phmap::parallel_flat_hash_map<uint64_t, mul_t>();
     content_.small_mul = std::vector<small_mul_t>();
     content_.full_mul = std::vector<mul_t>();
   }
