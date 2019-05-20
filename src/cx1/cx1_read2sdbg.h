@@ -85,23 +85,13 @@ struct read2sdbg_global_t {
   std::string assist_seq_file;
   std::string output_prefix;
 
-  int num_k1_per_read;  // max_read_len - kmer_k
   int num_mercy_files;
-  int words_per_edge;           // number of (32-bit) words needed to represent a (k+1)-mer
   int64_t words_per_substring;  // substrings to be sorted by GPU
   int words_per_dummy_node;
-  int offset_num_bits;  // the number of bits needed to store the offset of a base in the
-                        // read/(k+1)-mer (i.e. log(read_length))
   int64_t max_bucket_size;
   int64_t tot_bucket_size;
-  int words_per_read;  // number of (32-bit) words needed to represent a read in 2-bit-per-char
-                       // format
-  int read_length_mask;
-  int64_t num_reads;             // total number of reads (including assist seq)
-  int64_t num_short_read_bases;  // number of bases in short reads excl assist seq
   int64_t num_short_reads;       // total number of short reads
   // new sorting
-  int64_t max_bucket_size_for_dynamic_sort;
   int64_t max_sorting_items;
 
   // big arrays

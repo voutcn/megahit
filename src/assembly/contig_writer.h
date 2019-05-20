@@ -8,7 +8,6 @@
 #include <cassert>
 #include <cstdint>
 #include <string>
-#include "utils/histgram.h"
 
 class UnitigGraph;
 

@@ -77,7 +77,7 @@ inline bool IsDiffKMinusOneMer(uint32_t *item1, uint32_t *item2, int64_t spacing
   return false;
 }
 
-inline uint8_t ExtractHeadTail(uint32_t *item, int64_t spacing, int words_per_substring) {
+inline uint8_t ExtractHeadTail(const uint32_t *item, int64_t spacing, int words_per_substring) {
   return *(item + spacing * (words_per_substring - 1)) & ((1 << 2 * kBWTCharNumBits) - 1);
 }
 
@@ -95,7 +95,6 @@ void s1_read_input_prepare(read2sdbg_global_t &globals) {
   GetBinaryLibSize(globals.read_lib_file, num_bases, num_reads);
 
   globals.num_short_reads = num_reads;
-  globals.num_short_read_bases = num_bases;
 
   if (globals.assist_seq_file != "") {
     FILE *assist_seq_info = xfopen((globals.assist_seq_file + ".info").c_str(), "r");
@@ -122,9 +121,8 @@ void s1_read_input_prepare(read2sdbg_global_t &globals) {
   }
 
   globals.package.BuildIndex();
-  globals.num_reads = globals.package.Size();
 
-  xinfo("%ld reads, %d max read length, %lld total bases\n", globals.num_reads, globals.max_read_length,
+  xinfo("%lu reads, %d max read length, %lld total bases\n", globals.package.Size(), globals.max_read_length,
         globals.package.BaseCount());
 
   int bits_read_length = 1;  // bit needed to store read_length
@@ -132,12 +130,6 @@ void s1_read_input_prepare(read2sdbg_global_t &globals) {
   while ((1 << bits_read_length) - 1 < globals.max_read_length) {
     ++bits_read_length;
   }
-
-  globals.read_length_mask = (1 << bits_read_length) - 1;
-  globals.offset_num_bits = bits_read_length;
-
-  // --- allocate memory for is_solid bit_vector
-  globals.num_k1_per_read = globals.max_read_length - globals.kmer_k;
 
   if (globals.kmer_freq_threshold == 1) {
     // do not need to count solid kmers
@@ -158,7 +150,7 @@ void s1_read_input_prepare(read2sdbg_global_t &globals) {
 
   // set cx1 param
   globals.cx1.num_cpu_threads_ = globals.num_cpu_threads;
-  globals.cx1.num_items_ = globals.num_reads;
+  globals.cx1.num_items_ = globals.package.Size();
 }
 
 void *s1_lv0_calc_bucket_size(void *_data) {
@@ -476,7 +468,7 @@ void s1_extract_subtstr_(int bp_from, int bp_to, read2sdbg_global_t &globals, ui
         int start_offset = ptr_and_offset.second;
         const uint32_t *read_p = ptr_and_offset.first;
         int words_this_read = DivCeiling(start_offset + read_length, 16);
-        uint64_t *readinfo_ptr = reinterpret_cast<uint64_t *>(substr + globals.words_per_substring);
+        auto readinfo_ptr = reinterpret_cast<uint64_t *>(substr + globals.words_per_substring);
 
         if (strand == 0) {
           CopySubstring(substr, read_p, offset + start_offset, num_chars_to_copy, 1, words_this_read,
@@ -516,7 +508,7 @@ void s1_lv2_output_(int64_t from, int64_t to, int tid, read2sdbg_global_t &globa
     memset(count_head_tail, 0, sizeof(count_head_tail));
 
     {
-      uint64_t *readinfo_ptr = reinterpret_cast<uint64_t *>(first_item + globals.words_per_substring);
+      auto readinfo_ptr = reinterpret_cast<uint64_t *>(first_item + globals.words_per_substring);
       uint8_t prev_and_next = ExtractPrevNext(*readinfo_ptr);
       uint8_t head_and_tail = ExtractHeadTail(first_item, 1, globals.words_per_substring);
       count_prev_head[prev_and_next >> 3][head_and_tail >> 3]++;
@@ -529,7 +521,7 @@ void s1_lv2_output_(int64_t from, int64_t to, int tid, read2sdbg_global_t &globa
         break;
       }
 
-      uint64_t *readinfo_ptr = reinterpret_cast<uint64_t *>(substr + end_idx * (2 + globals.words_per_substring) +
+      auto readinfo_ptr = reinterpret_cast<uint64_t *>(substr + end_idx * (2 + globals.words_per_substring) +
                                                             globals.words_per_substring);
       uint8_t prev_and_next = ExtractPrevNext(*readinfo_ptr);
       uint8_t head_and_tail =
@@ -582,8 +574,8 @@ void s1_lv2_output_(int64_t from, int64_t to, int tid, read2sdbg_global_t &globa
       if (head != kSentinelValue && tail != kSentinelValue &&
           count_head_tail[head_and_tail] >= globals.kmer_freq_threshold) {
         for (int64_t j = 0; j < count_head_tail[head_and_tail]; ++j, ++i) {
-          uint64_t *readinfo_ptr = reinterpret_cast<uint64_t *>(substr + i * (2 + globals.words_per_substring) +
-                                                                globals.words_per_substring);
+          auto readinfo_ptr = reinterpret_cast<uint64_t *>(substr + i * (2 + globals.words_per_substring) +
+              globals.words_per_substring);
           int64_t read_info = *readinfo_ptr >> 6;
           int strand = read_info & 1;
           int64_t read_id = globals.package.GetSeqID(read_info >> 1);
@@ -738,8 +730,8 @@ void s1_post_proc(read2sdbg_global_t &globals) {
   fclose(counting_file);
 
   // --- cleaning ---
-  globals.lv1_items = std::move(std::vector<int32_t>());
-  globals.thread_edge_counting = std::move(std::vector<std::vector<int64_t>>());
+  globals.lv1_items = std::vector<int32_t>();
+  globals.thread_edge_counting = std::vector<std::vector<int64_t>>();
   for (int i = 0; i < globals.num_mercy_files; ++i) {
     fclose(globals.mercy_files[i]);
   }

@@ -227,7 +227,7 @@ void s2_read_mercy_prepare(read2sdbg_global_t &globals) {
 
   // set cx1 param
   globals.cx1.num_cpu_threads_ = globals.num_cpu_threads;
-  globals.cx1.num_items_ = globals.num_reads;
+  globals.cx1.num_items_ = globals.package.Size();
 }
 
 void *s2_lv0_calc_bucket_size(void *_data) {
