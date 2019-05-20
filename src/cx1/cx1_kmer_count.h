@@ -98,15 +98,14 @@ struct count_global_t {
 
   std::vector<AtomicWrapper<uint32_t>> first_0_out;
   std::vector<AtomicWrapper<uint32_t>> last_0_in;
-  int32_t *lv1_items;  // each item is an offset (read ID and position) in differential representation
+  std::vector<int32_t> lv1_items;
   std::mutex lv1_items_scanning_lock;
 
   // memory usage
   int64_t mem_packed_reads;
 
   // stat
-  int64_t *edge_counting;  // count the number of (k+1)mer with occurs i times
-  int64_t *thread_edge_counting;
+  std::vector<std::vector<int64_t>> thread_edge_counting;
 
   // output
   EdgeWriter edge_writer;

@@ -257,8 +257,7 @@ void init_global_and_set_cx1(count_global_t &globals) {
   xinfo("%lld, %lld %lld %lld\n", globals.cx1.max_lv1_items_, globals.max_sorting_items, globals.cx1.max_mem_remain_,
         mem_remained);
   globals.cx1.bytes_per_sorting_item_ = lv2_bytes_per_item;
-  globals.lv1_items =
-      (int32_t *)xmalloc(globals.cx1.max_mem_remain_ + globals.num_cpu_threads * sizeof(uint64_t) * 65536);
+  globals.lv1_items.resize(globals.cx1.max_lv1_items_ + globals.max_sorting_items * lv2_bytes_per_item / sizeof(uint32_t));
   xinfo("Memory for reads: %lld\n", globals.mem_packed_reads);
   xinfo("max # lv.1 items = %lld\n", globals.cx1.max_lv1_items_);
 
@@ -267,9 +266,11 @@ void init_global_and_set_cx1(count_global_t &globals) {
   globals.last_0_in = std::vector<AtomicWrapper<uint32_t>>(globals.num_reads, 0xFFFFFFFFU);
 
   // --- initialize stat ---
-  globals.edge_counting = (int64_t *)xmalloc((kMaxMul + 1) * sizeof(int64_t));
-  globals.thread_edge_counting = (int64_t *)xmalloc((kMaxMul + 1) * globals.num_output_threads * sizeof(int64_t));
-  memset(globals.edge_counting, 0, (kMaxMul + 1) * sizeof(int64_t));
+  globals.thread_edge_counting.resize(globals.num_output_threads);
+  for (auto &c : globals.thread_edge_counting) {
+    c.resize(kMaxMul + 1);
+    std::fill(c.begin(), c.end(), 0);
+  }
 
   // --- initialize writer ---
   globals.edge_writer.set_file_prefix(globals.output_prefix);
@@ -350,8 +351,9 @@ void *lv1_fill_offset(void *_data) {
   return nullptr;
 }
 
-inline void lv2_extract_substr_(uint32_t *substrings_p, count_global_t &globals, int start_bucket, int end_bucket) {
-  int *lv1_p = globals.lv1_items + globals.cx1.rp_[0].rp_bucket_offsets[start_bucket];
+template <typename Iter>
+inline void lv2_extract_substr_(Iter substrings_p, count_global_t &globals, int start_bucket, int end_bucket) {
+  auto lv1_p = globals.lv1_items.begin() + globals.cx1.rp_[0].rp_bucket_offsets[start_bucket];
 
   for (int b = start_bucket; b < end_bucket; ++b) {
     for (int t = 0; t < globals.num_cpu_threads; ++t) {
@@ -410,7 +412,7 @@ inline void lv2_extract_substr_(uint32_t *substrings_p, count_global_t &globals,
 void lv2_output_(int64_t start_index, int64_t end_index, int thread_id, count_global_t &globals, uint32_t *substrings) {
   uint32_t packed_edge[32];
   int64_t count_prev[5], count_next[5];
-  int64_t *thread_edge_counting = globals.thread_edge_counting + thread_id * (kMaxMul + 1);
+  auto &thread_edge_counting = globals.thread_edge_counting[thread_id];
 
   int64_t from_;
   int64_t to_;
@@ -552,11 +554,8 @@ void kt_sort(void *_g, long i, int tid) {
     return;
   }
 
-  size_t offset = kg->globals->cx1.lv1_num_items_ * sizeof(int32_t) +
-                  kg->thread_offset[tid] * kg->globals->cx1.bytes_per_sorting_item_ +
-                  kg->rank[tid] * sizeof(uint64_t) * 65536;
-
-  auto *substr_ptr = reinterpret_cast<uint32_t *>((char *)kg->globals->lv1_items + offset);
+  size_t offset = kg->globals->cx1.lv1_num_items_ + kg->thread_offset[tid] * kg->globals->cx1.bytes_per_sorting_item_ / sizeof(uint32_t);
+  auto substr_ptr = reinterpret_cast<uint32_t*>(kg->globals->lv1_items.data() + offset);
   lv2_extract_substr_(substr_ptr, *(kg->globals), b, b + 1);
   SortSubStr(substr_ptr, kg->globals->words_per_substring, kg->globals->cx1.bucket_sizes_[b], 2);
   lv2_output_(0, kg->globals->cx1.bucket_sizes_[b], tid, *(kg->globals), substr_ptr);
@@ -576,9 +575,10 @@ void lv1_direct_sort_and_count(count_global_t &globals) {
 }
 
 void post_proc(count_global_t &globals) {
+  std::vector<int64_t> edge_counting(kMaxMul + 1, 0);
   for (int t = 0; t < globals.num_output_threads; ++t) {
     for (int i = 1; i <= kMaxMul; ++i) {
-      globals.edge_counting[i] += globals.thread_edge_counting[t * (kMaxMul + 1) + i];
+      edge_counting[i] += globals.thread_edge_counting[t][i];
     }
   }
 
@@ -609,23 +609,20 @@ void post_proc(count_global_t &globals) {
   int64_t num_solid_edges = 0;
 
   for (int i = globals.kmer_freq_threshold; i <= kMaxMul; ++i) {
-    num_solid_edges += globals.edge_counting[i];
+    num_solid_edges += edge_counting[i];
   }
   xinfo("Total number of solid edges: %llu\n", num_solid_edges);
 
   FILE *counting_file = xfopen((globals.output_prefix + ".counting").c_str(), "w");
 
   for (int64_t i = 1, acc = 0; i <= kMaxMul; ++i) {
-    acc += globals.edge_counting[i];
+    acc += edge_counting[i];
     fprintf(counting_file, "%lld %lld\n", (long long)i, (long long)acc);
   }
 
   fclose(counting_file);
 
   // --- cleaning ---
-  free(globals.lv1_items);
-  free(globals.edge_counting);
-  free(globals.thread_edge_counting);
   globals.edge_writer.destroy();
 }
 
