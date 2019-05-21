@@ -16,11 +16,11 @@
 
 #include "bit_operation.h"
 #include "idba/kmer.h"
-#include "idba/hash_map.h"
 #include "idba/contig_graph_path.h"
 #include "idba/contig_graph_vertex.h"
 #include "idba/contig_info.h"
 #include "idba/hash_graph.h"
+#include "idba/hash.h"
 #include "idba/sequence.h"
 
 
@@ -31,6 +31,7 @@
 class ContigGraph
 {
 public:
+    using HashMap = spp::sparse_hash_map<IdbaKmer, uint32_t, Hash<IdbaKmer>>;
     explicit ContigGraph(uint32_t kmer_size = 0)
         : num_edges_(0), kmer_size_(kmer_size)
     {}
@@ -92,9 +93,6 @@ public:
         }
     }
 
-    std::deque<ContigGraphVertex> &vertices() { return vertices_; }
-    const std::deque<ContigGraphVertex> &vertices() const { return vertices_; }
-
     void swap(ContigGraph &contig_graph)
     {
         begin_kmer_map_.swap(contig_graph.begin_kmer_map_);
@@ -105,9 +103,6 @@ public:
 
     uint32_t kmer_size() const { return kmer_size_; }
     void set_kmer_size(uint32_t kmer_size) { kmer_size_ = kmer_size; }
-
-    uint64_t num_vertices() const { return vertices_.size(); }
-    uint64_t num_edges() const { return num_edges_; }
 
     void clear()
     {
@@ -142,7 +137,7 @@ private:
     {
         IdbaKmer key = begin_kmer.unique_format();
 
-        HashMap<IdbaKmer, uint32_t>::iterator iter = begin_kmer_map_.find(key);
+        auto iter = begin_kmer_map_.find(key);
         if (iter != begin_kmer_map_.end())
         {
             ContigGraphVertexAdaptor current(&vertices_[iter->second]);
@@ -160,12 +155,12 @@ private:
     void TopSortDFS(std::deque<ContigGraphVertexAdaptor> &order, ContigGraphVertexAdaptor current, std::map<int, int> &status);
     int GetDepth(ContigGraphVertexAdaptor current, int length, int &maximum, int min_length);
 
-    HashMap<IdbaKmer, uint32_t> begin_kmer_map_;
+    HashMap begin_kmer_map_;
     std::deque<ContigGraphVertex> vertices_;
     uint64_t num_edges_;
     uint32_t kmer_size_;
 
-    HashMap<IdbaKmer, uint32_t> in_kmer_count_table_;
+    HashMap in_kmer_count_table_;
 };
 
 #endif

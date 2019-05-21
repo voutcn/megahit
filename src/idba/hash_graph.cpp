@@ -12,7 +12,6 @@
 #include <deque>
 #include <stdexcept>
 
-#include "hash_table.h"
 #include "bit_operation.h"
 #include "utils/histgram.h"
 #include "idba/kmer.h"
@@ -25,7 +24,7 @@ using namespace std;
 
 #include <iostream>
 
-int64_t HashGraph::InsertKmersWithPrefix(const Sequence &seq, uint64_t prefix, uint64_t mask)
+int64_t HashGraph::InsertKmers(const Sequence &seq)
 {
     if (seq.size() < kmer_size_)
         return 0;
@@ -42,19 +41,16 @@ int64_t HashGraph::InsertKmersWithPrefix(const Sequence &seq, uint64_t prefix, u
             continue;
 
         IdbaKmer key = kmer.unique_format();
-        if ((((key.hash() * 10619863ULL + 17977) % 790738119649411319ULL) & mask) == prefix)
-        {
-            HashGraphVertex &vertex = vertex_table_.find_or_insert(HashGraphVertex(key));
-            vertex.count() += 1;
-            HashGraphVertexAdaptor adaptor(&vertex, kmer != key);
+        HashGraphVertex &vertex = vertex_table_.find_or_insert(HashGraphVertex(key));
+        vertex.count() += 1;
+        HashGraphVertexAdaptor adaptor(&vertex, kmer != key);
 
-            if (length > (int)kmer_size_ && seq[i-kmer_size_] < 4)
-                adaptor.in_edges().Add(3 - seq[i-kmer_size_]);
-            if (i+1 < seq.size() && seq[i+1] < 4)
-                adaptor.out_edges().Add(seq[i+1]);
+        if (length > (int)kmer_size_ && seq[i-kmer_size_] < 4)
+            adaptor.in_edges().Add(3 - seq[i-kmer_size_]);
+        if (i+1 < seq.size() && seq[i+1] < 4)
+            adaptor.out_edges().Add(seq[i+1]);
 
-            ++num_kmers;
-        }
+        ++num_kmers;
     }
 
     return num_kmers;

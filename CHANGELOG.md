@@ -1,3 +1,9 @@
+### 1.2.4-beta / 2019-05-20 PST
+-   Fixed a few memory leak
+-   Use std::vector to replace malloc in SDBG builders
+-   Try to fix potential problem caused by benign data race in unitig graph refreshing
+
+
 ### 1.2.3-beta / 2019-05-12 PST
 -   Refactored sequence readers
 -   Fixed a bug in SDBG building of large k-mer sizes

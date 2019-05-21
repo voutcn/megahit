@@ -97,12 +97,36 @@ int main_local(int argc, char **argv) {
   la.set_mapping_threshold(opt.similarity, opt.min_mapping_len);
   la.set_local_file(opt.output_file);
 
+  SimpleTimer timer;
+  timer.reset();
+  timer.start();
   la.ReadContigs(opt.contig_file);
   la.BuildHashMapper();
-  la.AddReadLib(opt.lib_file_prefix);
-  la.EstimateInsertSize();
-  la.MapToContigs();
-  la.LocalAssemble();
+  timer.stop();
+  xinfo("Hash mapper construction time elapsed: %f\n", timer.elapsed());
 
+  timer.reset();
+  timer.start();
+  la.AddReadLib(opt.lib_file_prefix);
+  timer.stop();
+  xinfo("Read lib time elapsed: %f\n", timer.elapsed());
+
+  timer.reset();
+  timer.start();
+  la.EstimateInsertSize();
+  timer.stop();
+  xinfo("Insert size estimation time elapsed: %f\n", timer.elapsed());
+
+  timer.reset();
+  timer.start();
+  la.MapToContigs();
+  timer.stop();
+  xinfo("Mapping time elapsed: %f\n", timer.elapsed());
+
+  timer.reset();
+  timer.start();
+  la.LocalAssemble();
+  timer.stop();
+  xinfo("Local assembly time elapsed: %f\n", timer.elapsed());
   return 0;
 }

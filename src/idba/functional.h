@@ -46,9 +46,15 @@ struct Select1st {
  */
 template <typename Key, typename Value>
 struct GetKey {
+    typedef const Key &result_type;
     const Key &operator ()(const Value &value) const {
         return value.key();
     }
+};
+
+template<typename Value>
+struct SetKey {
+  inline void operator()(Value *value, const Value &new_key) const { *value = new_key; }
 };
 
 #endif

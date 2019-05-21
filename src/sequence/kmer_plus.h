@@ -30,7 +30,7 @@ struct KmerPlus {
 struct KmerHash {
   template <unsigned NumWords, class WordType>
   size_t operator()(Kmer<NumWords, WordType> const &kmer) const {
-    return XXH64(static_cast<const void *>(kmer.data()), sizeof(WordType) * NumWords, 0);
+    return XXH3_64bits(static_cast<const void *>(kmer.data()), sizeof(WordType) * NumWords);
   }
   template <class KmerType, class Auxiliary>
   size_t operator()(KmerPlus<KmerType, Auxiliary> const &kmer_plus) const {
