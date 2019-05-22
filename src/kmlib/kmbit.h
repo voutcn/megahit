@@ -65,17 +65,10 @@ inline T SwapMaskedBits(T value) {
  */
 template <unsigned BaseSize, typename T>
 inline T Reverse(T value) {
-  static_assert(std::is_integral<T>::value, "Only intergral types are supported");
-  static_assert(sizeof(T) <= 8, "Only intergral types <= 64 bits are supported");
+  static_assert(std::is_integral<T>::value, "Only integral types are supported");
+  static_assert(sizeof(T) <= 8, "Only integral types <= 64 bits are supported");
   static_assert(sizeof(T) * 8 % BaseSize == 0, "Reverse only support base size of power of 2");
-  if (BaseSize > 8) {
-    return internal::SwapMaskedBits<T, BaseSize, sizeof(T) * 4>(value);
-  } else {
-    value = sizeof(T) == 1 ? value
-                           : sizeof(T) == 2 ? __builtin_bswap16(value)
-                                            : sizeof(T) == 4 ? __builtin_bswap32(value) : __builtin_bswap64(value);
-    return internal::SwapMaskedBits<T, BaseSize, 4>(value);
-  }
+  return internal::SwapMaskedBits<T, BaseSize, sizeof(T) * 4>(value);  // this will be optimized to bswap
 }
 
 /*!

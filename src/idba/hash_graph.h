@@ -33,8 +33,7 @@ class HashGraph
 {
 public:
 
-//    typedef SppHashTable<HashGraphVertex, IdbaKmer> vertex_table_type;
-    typedef KHashTable<HashGraphVertex, IdbaKmer> vertex_table_type;
+    typedef SppHashTable<HashGraphVertex, IdbaKmer> vertex_table_type;
 
     explicit HashGraph(uint32_t kmer_size = 0) { set_kmer_size(kmer_size); num_edges_ = 0; }
     ~HashGraph() {}
@@ -42,7 +41,7 @@ public:
     HashGraphVertexAdaptor FindVertexAdaptor(const IdbaKmer &kmer)
     { 
         IdbaKmer key = kmer.unique_format();
-        auto p = vertex_table_.find(HashGraphVertex(key));
+        auto p = vertex_table_.find(key);
         return ((p != vertex_table_.end()) ? 
             HashGraphVertexAdaptor(&*p, kmer != key) : HashGraphVertexAdaptor(NULL));
     }
@@ -60,7 +59,7 @@ public:
     uint32_t kmer_size() const { return kmer_size_; }
     void set_kmer_size(uint32_t kmer_size) { kmer_size_ = kmer_size; }
 
-    Histgram<int> coverage_histgram()
+    Histgram<int, NotAMutex> coverage_histgram()
     {
         CoverageHistgramFunc func;
         vertex_table_.for_each(func);
@@ -154,10 +153,10 @@ private:
         void operator ()(HashGraphVertex &vertex)
         { histgram_.insert(vertex.count()); }
 
-        const Histgram<int> &histgram() { return histgram_; }
+        const Histgram<int, NotAMutex> &histgram() { return histgram_; }
 
     private:
-        Histgram<int> histgram_;
+        Histgram<int, NotAMutex> histgram_;
     };
 
     vertex_table_type vertex_table_;

@@ -88,6 +88,11 @@ public:
     bool empty() const { return bases_.size() == 0; }
 
     void clear() { bases_.clear(); }
+    std::string str() {
+      Sequence tmp = *this;
+      tmp.Decode();
+      return tmp.bases_;
+    }
 
 protected:
     void Encode();

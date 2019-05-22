@@ -416,20 +416,19 @@ void LocalAssembler::MapToContigs() {
   locks_.reset(0);
 }
 
-inline void LaunchIDBA(std::deque<Sequence> &reads, Sequence &contig_end, std::deque<Sequence> &out_contigs,
+inline void LaunchIDBA(HashGraph &hash_graph, ContigGraph &contig_graph,
+    std::deque<Sequence> &reads, Sequence &contig_end, std::deque<Sequence> &out_contigs,
                        std::deque<ContigInfo> &out_contig_infos, int mink, int maxk, int step) {
   int local_range = contig_end.size();
-  HashGraph hash_graph;
-  hash_graph.reserve(4 * local_range);
-
-  ContigGraph contig_graph;
+  hash_graph.clear();
+  contig_graph.clear();
   out_contigs.clear();
   out_contig_infos.clear();
 
   int max_read_len = 0;
 
-  for (unsigned i = 0; i < reads.size(); ++i) {
-    max_read_len = std::max(max_read_len, (int)reads[i].size());
+  for (auto & read : reads) {
+    max_read_len = std::max(max_read_len, (int)read.size());
   }
 
   for (int kmer_size = mink; kmer_size <= std::min(maxk, max_read_len); kmer_size += step) {
@@ -437,15 +436,15 @@ inline void LaunchIDBA(std::deque<Sequence> &reads, Sequence &contig_end, std::d
     hash_graph.set_kmer_size(kmer_size);
     hash_graph.clear();
 
-    for (int64_t i = 0; i < (int64_t)reads.size(); ++i) {
-      if ((int)reads[i].size() < kmer_size) continue;
+    for (auto & read : reads) {
+      if ((int)read.size() < kmer_size) continue;
 
-      Sequence seq(reads[i]);
+      const Sequence& seq(read);
       hash_graph.InsertKmers(seq);
       sum += seq.size() - kmer_size + 1;
     }
 
-    Histgram<int> histgram = hash_graph.coverage_histgram();
+    auto histgram = hash_graph.coverage_histgram();
     double mean = histgram.percentile(1 - 1.0 * local_range / hash_graph.num_vertices());
     double threshold = mean;
 
@@ -474,17 +473,19 @@ void LocalAssembler::LocalAssemble() {
   int min_num_reads = local_range_ / max_read_len_;
 
   Sequence seq, contig_end;
+  HashGraph hash_graph;
+  ContigGraph contig_graph;
   std::deque<Sequence> reads;
   std::deque<Sequence> out_contigs;
   std::deque<ContigInfo> out_contig_infos;
 
-  std::ofstream local_file(local_filename_);
-  std::ofstream local_info(local_filename_ + ".info");
+  auto local_file = xfopen(local_filename_.c_str(), "w");
+  auto local_info = xfopen((local_filename_ + ".info").c_str(), "w");
 
   long long num_bases = 0;
   long long num_contigs = 0;
 
-#pragma omp parallel for private(seq, contig_end, reads, out_contigs, out_contig_infos) schedule(dynamic)
+#pragma omp parallel for private(hash_graph, contig_graph, seq, contig_end, reads, out_contigs, out_contig_infos) schedule(dynamic) reduction(+ : num_contigs, num_bases)
   for (uint64_t cid = 0; cid < contigs_.Size(); ++cid) {
     int cl = contigs_.SequenceLength(cid);
 
@@ -530,13 +531,13 @@ void LocalAssembler::LocalAssemble() {
       }
 
       out_contigs.clear();
-      LaunchIDBA(reads, contig_end, out_contigs, out_contig_infos, local_kmin_, local_kmax_, local_step_);
+      LaunchIDBA(hash_graph, contig_graph, reads, contig_end, out_contigs, out_contig_infos, local_kmin_, local_kmax_, local_step_);
 
       for (uint64_t j = 0; j < out_contigs.size(); ++j) {
         if (out_contigs[j].size() > min_contig_len_ && out_contigs[j].size() > local_kmax_) {
-          std::lock_guard<std::mutex> lk(lock_);
-          WriteFasta(local_file, out_contigs[j],
-                     FormatString("lc_%" PRIu64 "_strand_%d_id_%" PRIu64 " flag=0 multi=1", cid, strand, j));
+          auto str = out_contigs[j].str();
+          fprintf(local_file, ">lc_%llu_strand_%d_id_%llu flag=0 multi=1\n%s\n", static_cast<unsigned long long>(cid),
+                  strand, static_cast<unsigned long long>(j), str.c_str());
           num_contigs++;
           num_bases += out_contigs[j].size();
         }
@@ -544,8 +545,8 @@ void LocalAssembler::LocalAssemble() {
     }
   }
 
-  local_info << num_contigs << ' ' << num_bases << std::endl;
+  fprintf(local_info, "%lld %lld\n", num_contigs, num_bases);
 
-  local_info.close();
-  local_file.close();
+  fclose(local_file);
+  fclose(local_info);
 }
