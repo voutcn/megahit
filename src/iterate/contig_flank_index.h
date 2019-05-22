@@ -10,7 +10,7 @@
 #include <mutex>
 #include "sequence/kmer_plus.h"
 #include "sequence/sequence_package.h"
-#include "sparsepp/spp.h"
+#include "parallel-hashmap/parallel_hashmap/phmap.h"
 
 template <class KmerType>
 class ContigFlankIndex {
@@ -21,7 +21,7 @@ class ContigFlankIndex {
     float mul;
   } __attribute__((packed));
   using Flank = KmerPlus<KmerType, FlankInfo>;
-  using HashSet = spp::sparse_hash_set<Flank, KmerHash>;
+  using HashSet = phmap::flat_hash_set<Flank, KmerHash>;
 
  public:
   ContigFlankIndex(unsigned k, unsigned step) : k_(k), step_(step) {}

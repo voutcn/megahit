@@ -8,7 +8,7 @@
 #include <deque>
 #include <limits>
 #include "sdbg/sdbg.h"
-#include "sparsepp/sparsepp/spp.h"
+#include "parallel-hashmap/parallel_hashmap/phmap.h"
 #include "unitig_graph_vertex.h"
 
 class UnitigGraph {
@@ -143,7 +143,7 @@ class UnitigGraph {
  private:
   SDBG *sdbg_{};
   std::deque<UnitigGraphVertex> vertices_;
-  spp::sparse_hash_map<uint64_t, size_type> id_map_;
+  phmap::parallel_flat_hash_map<uint64_t, size_type> id_map_;
   AdapterImpl<VertexAdapter> adapter_impl_;
   AdapterImpl<SudoVertexAdapter> sudo_adapter_impl_;
 };
