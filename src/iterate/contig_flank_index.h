@@ -10,7 +10,7 @@
 #include <mutex>
 #include "sequence/kmer_plus.h"
 #include "sequence/sequence_package.h"
-#include "parallel-hashmap/parallel_hashmap/phmap.h"
+#include "parallel_hashmap/phmap.h"
 
 template <class KmerType>
 class ContigFlankIndex {

@@ -8,7 +8,7 @@
 #include "kmlib/kmcompactvector.h"
 #include "sdbg_def.h"
 #include "sdbg_meta.h"
-#include "parallel-hashmap/parallel_hashmap/phmap.h"
+#include "parallel_hashmap/phmap.h"
 
 /**
  * The raw (non-indexed) data of a SDBG

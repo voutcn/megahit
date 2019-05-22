@@ -10,14 +10,14 @@
 #include "sdbg/sdbg_def.h"
 #include "sequence/kmer_plus.h"
 #include "sequence/readers/edge_io.h"
-#include "sparsepp/spp.h"
+#include "parallel_hashmap/phmap.h"
 
 template <class KmerType>
 class KmerCollector {
  public:
   using kmer_type = KmerType;
   using kmer_plus = KmerPlus<KmerType, mul_t>;
-  using hash_set = spp::sparse_hash_set<kmer_plus, KmerHash>;
+  using hash_set = phmap::flat_hash_set<kmer_plus, KmerHash>;
 
   KmerCollector(unsigned k, const std::string &out_prefix) : k_(k), output_prefix_(out_prefix) {
     last_shift_ = k_ % 16;

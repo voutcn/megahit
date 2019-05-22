@@ -31,7 +31,7 @@
 #include "sequence/kmer_plus.h"
 #include "sequence/lib_info.h"
 #include "sequence/sequence_package.h"
-#include "parallel-hashmap/parallel_hashmap/phmap.h"
+#include "parallel_hashmap/phmap.h"
 
 struct LocalAssembler {
   static const int kMaxLocalRange = 650;
@@ -69,7 +69,7 @@ struct LocalAssembler {
 
   typedef std::pair<double, double> tlen_t;
   typedef Kmer<2, uint32_t> kmer_t;
-  typedef phmap::parallel_flat_hash_map<kmer_t, uint64_t, KmerHash> mapper_t;
+  typedef phmap::flat_hash_map<kmer_t, uint64_t, KmerHash> mapper_t;
 
   unsigned min_contig_len_;  // only align reads to these contigs
   int seed_kmer_;            // kmer size for seeding

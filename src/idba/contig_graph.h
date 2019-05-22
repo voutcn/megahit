@@ -13,6 +13,7 @@
 #include <algorithm>
 #include <deque>
 #include <map>
+#include "parallel_hashmap/phmap.h"
 
 #include "bit_operation.h"
 #include "idba/kmer.h"
@@ -31,7 +32,7 @@
 class ContigGraph
 {
 public:
-    using HashMap = spp::sparse_hash_map<IdbaKmer, uint32_t, Hash<IdbaKmer>>;
+    using HashMap = phmap::flat_hash_map<IdbaKmer, uint32_t, Hash<IdbaKmer>>;
     explicit ContigGraph(uint32_t kmer_size = 0)
         : num_edges_(0), kmer_size_(kmer_size)
     {}
