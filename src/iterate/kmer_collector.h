@@ -5,19 +5,22 @@
 #ifndef MEGAHIT_SPANNING_KMER_COLLECTOR_H
 #define MEGAHIT_SPANNING_KMER_COLLECTOR_H
 
-#include <omp.h>
 #include <mutex>
 #include "sdbg/sdbg_def.h"
 #include "sequence/kmer_plus.h"
 #include "sequence/readers/edge_io.h"
 #include "parallel_hashmap/phmap.h"
 
+
 template <class KmerType>
 class KmerCollector {
  public:
   using kmer_type = KmerType;
   using kmer_plus = KmerPlus<KmerType, mul_t>;
-  using hash_set = phmap::flat_hash_set<kmer_plus, KmerHash>;
+  using hash_set = phmap::parallel_flat_hash_set<kmer_plus, KmerHash,
+                                                 phmap::container_internal::hash_default_eq<kmer_plus>,
+                                                 phmap::container_internal::Allocator<kmer_plus>,
+                                                 12, std::mutex>;
 
   KmerCollector(unsigned k, const std::string &out_prefix) : k_(k), output_prefix_(out_prefix) {
     last_shift_ = k_ % 16;
@@ -33,21 +36,22 @@ class KmerCollector {
   }
 
   void Insert(const KmerType &kmer, mul_t mul) {
-    std::lock_guard<std::mutex> lk(lock_);
-    collection_.emplace(kmer, mul);
+//    std::lock_guard<std::mutex> lk(lock_);
+    collection_.insert({kmer, mul});
   }
+
   const hash_set &collection() const { return collection_; }
   void FlushToFile() {
-    for (auto &item : collection_) {
+    for (const auto &item : collection_) {
       WriteToFile(item.kmer, item.aux);
     }
   }
 
  private:
   void WriteToFile(const KmerType &kmer, mul_t mul) {
-    uint32_t *start_ptr = buffer_.data();
-    memset(start_ptr, 0, words_per_kmer_ * sizeof(buffer_[0]));
-    auto ptr = start_ptr;
+    std::fill(buffer_.begin(), buffer_.end(), 0);
+
+    auto ptr = buffer_.begin();
     uint32_t w = 0;
 
     for (unsigned j = 0; j < k_; ++j) {
@@ -59,19 +63,18 @@ class KmerCollector {
       }
     }
 
-    assert(ptr - start_ptr < words_per_kmer_);
+    assert(ptr - buffer_.begin() < words_per_kmer_);
     *ptr = (w << last_shift_);
-    assert((start_ptr[words_per_kmer_ - 1] & kMaxMul) == 0);
-    start_ptr[words_per_kmer_ - 1] |= mul;
-    writer_.write_unsorted(start_ptr, 0);
+    assert((buffer_.back() & kMaxMul) == 0);
+    buffer_.back() |= mul;
+    writer_.write_unsorted(buffer_.data(), 0);
   }
 
  private:
   unsigned k_;
   std::string output_prefix_;
-  std::mutex lock_;
   hash_set collection_;
-
+//  std::mutex lock_;
   EdgeWriter writer_;
   unsigned last_shift_;
   unsigned words_per_kmer_;

@@ -6,7 +6,7 @@
 #define MEGAHIT_KMER_PLUS_H
 
 #include "kmer.h"
-#include "xxHash/xxhash.h"
+#include "xxhash/xxh3.h"
 
 /**
  * @brief a kmer plus any annotation

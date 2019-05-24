@@ -21,7 +21,7 @@
 #include "idba/hash_graph_vertex.h"
 #include "idba/hash_graph_path.h"
 #include "idba/sequence.h"
-#include "idba/hashtable_wrapper.h"
+#include "idba/hash_table.h"
 
 class IdbaKmer;
 class Sequence;
@@ -33,7 +33,7 @@ class HashGraph
 {
 public:
 
-    typedef SppHashTable<HashGraphVertex, IdbaKmer> vertex_table_type;
+    typedef HashTableST<HashGraphVertex, IdbaKmer> vertex_table_type;
 
     explicit HashGraph(uint32_t kmer_size = 0) { set_kmer_size(kmer_size); num_edges_ = 0; }
     ~HashGraph() {}

@@ -14,7 +14,7 @@
 
 #include <algorithm>
 #include <cstring>
-#include <xxHash/xxhash.h>
+#include "xxhash/xxh3.h"
 
 #include "definitions.h"
 #include "bit_operation.h"

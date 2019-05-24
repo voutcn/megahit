@@ -13,7 +13,7 @@
 #include <stdint.h>
 
 #include <functional>
-#include "xxHash/xxhash.h"
+#include "xxhash/xxh3.h"
 
 template <typename T>
 struct Hash: public std::unary_function<T, uint64_t> {
