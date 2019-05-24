@@ -39,10 +39,10 @@ public:
     ~HashGraph() {}
 
     HashGraphVertexAdaptor FindVertexAdaptor(const IdbaKmer &kmer)
-    { 
+    {
         IdbaKmer key = kmer.unique_format();
         auto p = vertex_table_.find(key);
-        return ((p != vertex_table_.end()) ? 
+        return ((p != vertex_table_.end()) ?
             HashGraphVertexAdaptor(&*p, kmer != key) : HashGraphVertexAdaptor(NULL));
     }
 

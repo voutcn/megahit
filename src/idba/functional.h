@@ -12,7 +12,6 @@
 
 #include <functional>
 
-
 /**
  * @brief It is a basic functional to return the input itself.
  *
@@ -20,9 +19,7 @@
  */
 template <typename T>
 struct Identity {
-    const T &operator ()(const T &value) const {
-        return value;
-    }
+  const T &operator()(const T &value) const { return value; }
 };
 
 /**
@@ -32,10 +29,8 @@ struct Identity {
  */
 template <typename Pair>
 struct Select1st {
-    typedef typename Pair::first_type value_type;
-    const value_type &operator ()(const Pair &pair) const {
-        return pair.first;
-    }
+  typedef typename Pair::first_type value_type;
+  const value_type &operator()(const Pair &pair) const { return pair.first; }
 };
 
 /**
@@ -46,16 +41,13 @@ struct Select1st {
  */
 template <typename Key, typename Value>
 struct GetKey {
-    typedef const Key &result_type;
-    const Key &operator ()(const Value &value) const {
-        return value.key();
-    }
+  typedef const Key &result_type;
+  const Key &operator()(const Value &value) const { return value.key(); }
 };
 
-template<typename Value>
+template <typename Value>
 struct SetKey {
   inline void operator()(Value *value, const Value &new_key) const { *value = new_key; }
 };
 
 #endif
-

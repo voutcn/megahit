@@ -66,7 +66,7 @@ void OutputContigs(UnitigGraph &graph, FILE *contig_file, FILE *final_file, bool
 #pragma omp parallel for
   for (UnitigGraph::size_type i = 0; i < graph.size(); ++i) {
     auto adapter = graph.MakeVertexAdapter(i);
-    double multi = change_only ? 1 : std::min(static_cast<double>(kMaxMul), adapter.AvgDepth());
+    double multi = change_only ? 1 : std::min(static_cast<double>(kMaxMul), adapter.GetAvgDepth());
     std::string ascii_contig = graph.VertexToDNAString(adapter);
     if (change_only && !adapter.IsChanged()) {
       continue;
@@ -93,7 +93,7 @@ void OutputContigs(UnitigGraph &graph, FILE *contig_file, FILE *final_file, bool
       FILE *out_file = contig_file;
       int flag = 0;
 
-      if (adapter.ForSureStandalone() || (graph.InDegree(adapter) == 0 && graph.OutDegree(adapter) == 0)) {
+      if (adapter.IsStandalone() || (graph.InDegree(adapter) == 0 && graph.OutDegree(adapter) == 0)) {
         if (adapter.IsPalindrome()) {
           FoldPalindrome(ascii_contig, graph.k(), adapter.IsLoop());
         }

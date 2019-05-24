@@ -151,7 +151,7 @@ int main_assemble(int argc, char **argv) {
   FILE *bubble_file = xfopen(opt.bubble_file().c_str(), "w");
   NaiveBubbleRemover naiver_bubble_remover;
   ComplexBubbleRemover complex_bubble_remover;
-  complex_bubble_remover.set_merge_similarity(opt.merge_similar).set_merge_level(opt.merge_len);
+  complex_bubble_remover.SetMergeSimilarity(opt.merge_similar).SetMergeLevel(opt.merge_len);
   Histgram<int64_t> bubble_hist;
   if (opt.careful_bubble) {
     naiver_bubble_remover.set_careful_threshold(0.2).set_bubble_file(bubble_file).set_hist(bubble_hist);

@@ -21,9 +21,9 @@ inline ContigStat CalcAndPrintStat(UnitigGraph &graph, bool print = true, bool c
     if (changed_only && !adapter.IsChanged()) {
       continue;
     }
-    hist.insert(adapter.Length() + graph.k());
+    hist.insert(adapter.GetLength() + graph.k());
     n_looped += adapter.IsLoop();
-    n_isolated += adapter.ForSureStandalone() || (graph.InDegree(adapter) == 0 && graph.OutDegree(adapter) == 0);
+    n_isolated += adapter.IsStandalone() || (graph.InDegree(adapter) == 0 && graph.OutDegree(adapter) == 0);
   }
   uint64_t total_size = hist.sum();
   ContigStat stat = {

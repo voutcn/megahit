@@ -26,7 +26,6 @@ struct KmerPlus {
   aux_type aux;
 };
 
-
 struct KmerHash {
   template <unsigned NumWords, class WordType>
   size_t operator()(const Kmer<NumWords, WordType> &kmer) const {

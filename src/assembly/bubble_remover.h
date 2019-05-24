@@ -55,11 +55,11 @@ class ComplexBubbleRemover : public BaseBubbleRemover {
   double similarity_{0.95};
 
  public:
-  ComplexBubbleRemover &set_merge_level(int merge_level) {
+  ComplexBubbleRemover &SetMergeLevel(int merge_level) {
     merge_level_ = merge_level;
     return *this;
   }
-  ComplexBubbleRemover &set_merge_similarity(double similarity) {
+  ComplexBubbleRemover &SetMergeSimilarity(double similarity) {
     similarity_ = similarity;
     return *this;
   }

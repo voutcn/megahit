@@ -7,15 +7,15 @@
 
 #include <deque>
 #include <limits>
-#include "sdbg/sdbg.h"
 #include "parallel_hashmap/phmap.h"
+#include "sdbg/sdbg.h"
 #include "unitig_graph_vertex.h"
 
 class UnitigGraph {
  public:
-  using size_type = uint32_t;
   using Vertex = UnitigGraphVertex;
   using VertexAdapter = UnitigGraphVertex::Adapter;
+  using size_type = VertexAdapter::size_type;
   static const size_type kMaxNumVertices = std::numeric_limits<size_type>::max() - 1;
   static const size_type kNullVertexID = kMaxNumVertices + 1;
 
@@ -82,7 +82,7 @@ class UnitigGraph {
     AdapterType MakeVertexAdapter(size_type id, int strand = 0) { return {graph_->vertices_[id], strand, id}; }
     int GetNextAdapters(AdapterType &adapter, AdapterType *out) {
       uint64_t next_starts[4];
-      int degree = graph_->sdbg_->OutgoingEdges(adapter.End(), next_starts);
+      int degree = graph_->sdbg_->OutgoingEdges(adapter.e(), next_starts);
       if (out) {
         for (int i = 0; i < degree; ++i) {
           out[i] = MakeVertexAdapterWithSdbgId(next_starts[i]);
@@ -109,7 +109,7 @@ class UnitigGraph {
       return degree;
     }
     AdapterType NextSimplePathAdapter(AdapterType &adapter) {
-      uint64_t next_sdbg_id = graph_->sdbg_->NextSimplePathEdge(adapter.End());
+      uint64_t next_sdbg_id = graph_->sdbg_->NextSimplePathEdge(adapter.e());
       if (next_sdbg_id != SDBG::kNullID) {
         return MakeVertexAdapterWithSdbgId(next_sdbg_id);
       } else {
@@ -128,7 +128,7 @@ class UnitigGraph {
     AdapterType MakeVertexAdapterWithSdbgId(uint64_t sdbg_id) {
       uint32_t id = graph_->id_map_.at(sdbg_id);
       AdapterType adapter(graph_->vertices_[id], 0, id);
-      if (adapter.Begin() != sdbg_id) {
+      if (adapter.b() != sdbg_id) {
         adapter.ReverseComplement();
       }
       return adapter;

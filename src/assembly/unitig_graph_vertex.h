@@ -52,26 +52,25 @@ class UnitigGraphVertex {
    */
   class Adapter {
    public:
+    using size_type = uint32_t;
     Adapter() = default;
-    Adapter(UnitigGraphVertex &vertex, int strand = 0, uint32_t id = static_cast<uint32_t>(-1))
+    Adapter(UnitigGraphVertex &vertex, int strand = 0, size_type id = static_cast<size_type>(-1))
         : vertex_(&vertex), strand_(strand), id_(id) {}
     void ReverseComplement() { strand_ ^= 1u; }
-    uint32_t UnitigId() const { return id_; }
-    bool Valid() const { return vertex_ != nullptr; }
-    uint32_t Length() const { return vertex_->length; }
-    uint64_t TotalDepth() const { return vertex_->total_depth; }
-    double AvgDepth() const { return static_cast<double>(vertex_->total_depth) / vertex_->length; }
+    size_type UnitigId() const { return id_; }
+    bool IsValid() const { return vertex_ != nullptr; }
+    uint32_t GetLength() const { return vertex_->length; }
+    uint64_t GetTotalDepth() const { return vertex_->total_depth; }
+    double GetAvgDepth() const { return static_cast<double>(vertex_->total_depth) / vertex_->length; }
     bool IsLoop() const { return vertex_->is_looped; }
     bool IsPalindrome() const { return vertex_->is_palindrome; }
     bool IsChanged() const { return vertex_->is_changed; }
-    uint64_t SdbgId() const { return std::min(Begin(), RevBegin()); };
     void ToUniqueFormat() {
-      if (SdbgId() != Begin()) {
+      if (canonical_id() != b()) {
         ReverseComplement();
       }
     }
-    bool ForSureStandalone() const { return IsLoop(); }
-
+    bool IsStandalone() const { return IsLoop(); }
     bool SetToDelete() {
       uint8_t mask = 1u << kToDeleteBit;
       auto old_val = vertex_->flag.v.fetch_or(mask, std::memory_order_relaxed);
@@ -83,10 +82,11 @@ class UnitigGraphVertex {
       return !(old_val & mask);
     }
 
-    uint64_t Begin() const { return StrandInfo().begin; }
-    uint64_t End() const { return StrandInfo().end; }
-    uint64_t RevBegin() const { return StrandInfo(1).begin; }
-    uint64_t RevEnd() const { return StrandInfo(1).end; }
+    uint64_t canonical_id() const { return std::min(b(), rb()); };
+    uint64_t b() const { return StrandInfo().begin; }
+    uint64_t e() const { return StrandInfo().end; }
+    uint64_t rb() const { return StrandInfo(1).begin; }
+    uint64_t re() const { return StrandInfo(1).end; }
 
    protected:
     UnitigGraphVertex::StrandInfo &StrandInfo(uint8_t relative_strand = 0) {
@@ -108,7 +108,7 @@ class UnitigGraphVertex {
   class SudoAdapter : public Adapter {
    public:
     SudoAdapter() = default;
-    SudoAdapter(UnitigGraphVertex &vertex, int strand = 0, uint32_t id = static_cast<uint32_t>(-1))
+    SudoAdapter(UnitigGraphVertex &vertex, int strand = 0, size_type id = static_cast<size_type>(-1))
         : Adapter(vertex, strand, id) {}
 
    public:

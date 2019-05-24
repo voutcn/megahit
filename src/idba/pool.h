@@ -52,20 +52,17 @@ class PoolST {
   typedef BufferST<T> buffer_type;
   typedef PoolST<T> pool_type;
 
-//    static const uint32_t kMaxChunkSTSize = (1 << 12);
-//    static const uint32_t kMinChunkSTSize = (1 << 12);
+  //    static const uint32_t kMaxChunkSTSize = (1 << 12);
+  //    static const uint32_t kMinChunkSTSize = (1 << 12);
   static const uint32_t kMaxChunkSTSize = (1 << 20);
   static const uint32_t kMinChunkSTSize = (1 << 8);
-
 
   PoolST() {
     heads_.resize(1, (pointer)0);
     buffers_.resize(1, buffer_type());
     chunk_size_ = kMinChunkSTSize;
   }
-  ~PoolST() {
-    clear();
-  }
+  ~PoolST() { clear(); }
 
   pointer allocate() {
     int thread_id = 0;
@@ -77,8 +74,7 @@ class PoolST {
       buffer_type &buffer = buffers_[thread_id];
       if (buffer.index == buffer.size) {
         uint32_t size = chunk_size_;
-        if (chunk_size_ < kMaxChunkSTSize)
-          chunk_size_ <<= 1;
+        if (chunk_size_ < kMaxChunkSTSize) chunk_size_ <<= 1;
 
         pointer p = alloc_.allocate(size);
 
@@ -101,19 +97,17 @@ class PoolST {
 
   pointer construct() {
     pointer p = allocate();
-    new ((void *)p)value_type();
+    new ((void *)p) value_type();
     return p;
   }
 
   pointer construct(const_reference x) {
     pointer p = allocate();
-    new ((void *)p)value_type(x);
+    new ((void *)p) value_type(x);
     return p;
   }
 
-  void destroy(pointer p) {
-    ((value_type*)p)->~value_type();
-  }
+  void destroy(pointer p) { ((value_type *)p)->~value_type(); }
 
   void swap(PoolST<value_type> &pool) {
     if (this != &pool) {
@@ -126,8 +120,7 @@ class PoolST {
   }
 
   void clear() {
-    for (unsigned i = 0; i < chunks_.size(); ++i)
-      alloc_.deallocate(chunks_[i].address, chunks_[i].size);
+    for (unsigned i = 0; i < chunks_.size(); ++i) alloc_.deallocate(chunks_[i].address, chunks_[i].size);
     chunks_.resize(0);
     fill(heads_.begin(), heads_.end(), (pointer)0);
     fill(buffers_.begin(), buffers_.end(), buffer_type());
@@ -136,7 +129,7 @@ class PoolST {
 
  private:
   PoolST(const pool_type &);
-  const pool_type &operator =(const pool_type &);
+  const pool_type &operator=(const pool_type &);
 
   std::vector<pointer> heads_;
   std::vector<buffer_type> buffers_;
@@ -146,9 +139,10 @@ class PoolST {
 };
 
 namespace std {
-template <typename T> inline void swap(PoolST<T> &x, PoolST<T> &y) {
+template <typename T>
+inline void swap(PoolST<T> &x, PoolST<T> &y) {
   x.swap(y);
 }
-}
+}  // namespace std
 
 #endif
