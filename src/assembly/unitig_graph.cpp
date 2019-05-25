@@ -5,15 +5,15 @@
 #include "unitig_graph.h"
 #include <omp.h>
 #include <cmath>
-#include <mutex>
 
 #include "kmlib/kmbitvector.h"
+#include "utils/spinlock.h"
 #include "utils/utils.h"
 
 UnitigGraph::UnitigGraph(SDBG *sdbg) : sdbg_(sdbg), adapter_impl_(this), sudo_adapter_impl_(this) {
   id_map_.clear();
   vertices_.clear();
-  std::mutex path_lock;
+  SpinLock path_lock;
   AtomicBitVector locks(sdbg_->size());
   size_t count_palindrome = 0;
   // assemble simple paths
@@ -69,7 +69,7 @@ UnitigGraph::UnitigGraph(SDBG *sdbg) : sdbg_(sdbg), adapter_impl_(this), sudo_ad
       }
 
       if (will_be_added) {
-        std::lock_guard<std::mutex> lk(path_lock);
+        std::lock_guard<SpinLock> lk(path_lock);
         vertices_.emplace_back(cur_edge, edge_idx, rc_start, rc_end, depth, length);
         count_palindrome += cur_edge == rc_start;
       }
@@ -78,10 +78,12 @@ UnitigGraph::UnitigGraph(SDBG *sdbg) : sdbg_(sdbg), adapter_impl_(this), sudo_ad
   xinfo("Graph size without loops: %lu, palindrome: %lu\n", vertices_.size(), count_palindrome);
 
   // assemble looped paths
+  std::mutex loop_lock;
+  size_t count_loop = 0;
 #pragma omp parallel for
   for (size_t edge_idx = 0; edge_idx < sdbg_->size(); ++edge_idx) {
     if (!locks.at(edge_idx) && sdbg_->IsValidEdge(edge_idx)) {
-      std::lock_guard<std::mutex> lk(path_lock);
+      std::lock_guard<std::mutex> lk(loop_lock);
       if (!locks.at(edge_idx)) {
         uint64_t cur_edge = edge_idx;
         uint64_t rc_edge = sdbg_->EdgeReverseComplement(edge_idx);
@@ -104,6 +106,7 @@ UnitigGraph::UnitigGraph(SDBG *sdbg) : sdbg_(sdbg), adapter_impl_(this), sudo_ad
           uint64_t end = edge_idx;
           vertices_.emplace_back(start, end, sdbg_->EdgeReverseComplement(end), sdbg_->EdgeReverseComplement(start),
                                  depth, length, true);
+          count_loop += 1;
         }
       }
     }
@@ -117,17 +120,18 @@ UnitigGraph::UnitigGraph(SDBG *sdbg) : sdbg_(sdbg), adapter_impl_(this), sudo_ad
   }
 
   sdbg_->FreeMultiplicity();
-  id_map_.reserve(vertices_.size() * 2);
+  id_map_.reserve(vertices_.size() * 2 - count_palindrome);
 
   for (size_type i = 0; i < vertices_.size(); ++i) {
     VertexAdapter adapter(vertices_[i]);
     id_map_[adapter.b()] = i;
     id_map_[adapter.rb()] = i;
   }
+  assert(vertices_.size() * 2 - count_palindrome >= id_map_.size());
 }
 
 void UnitigGraph::RefreshDisconnected() {
-  std::mutex mutex;
+  SpinLock mutex;
 #pragma omp parallel for
   for (size_type i = 0; i < vertices_.size(); ++i) {
     auto adapter = MakeSudoAdapter(i);
@@ -183,7 +187,7 @@ void UnitigGraph::RefreshDisconnected() {
     adapter.SetLength(new_length);
     adapter.SetTotalDepth(new_total_depth);
 
-    std::lock_guard<std::mutex> lk(mutex);
+    std::lock_guard<SpinLock> lk(mutex);
     if (to_disconnect) {
       id_map_.erase(old_start);
       id_map_[new_start] = i;

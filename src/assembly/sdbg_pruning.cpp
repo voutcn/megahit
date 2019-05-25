@@ -68,14 +68,16 @@ double InferMinDepth(SDBG &dbg) {
 int64_t Trim(SDBG &dbg, int len, AtomicBitVector &ignored) {
   int64_t number_tips = 0;
   AtomicBitVector to_remove(dbg.size());
+  vector<uint64_t> path;
 
-#pragma omp parallel for reduction(+ : number_tips)
+#pragma omp parallel for reduction(+ : number_tips) private(path)
   for (uint64_t id = 0; id < dbg.size(); ++id) {
     if (!ignored.at(id) && dbg.EdgeOutdegreeZero(id)) {
-      vector<uint64_t> path = {id};
       uint64_t prev = SDBG::kNullID;
       uint64_t cur = id;
       bool is_tip = false;
+      path.clear();
+      path.push_back(id);
 
       for (int i = 1; i < len; ++i) {
         prev = dbg.UniquePrevEdge(cur);
@@ -104,13 +106,14 @@ int64_t Trim(SDBG &dbg, int len, AtomicBitVector &ignored) {
     }
   }
 
-#pragma omp parallel for reduction(+ : number_tips)
+#pragma omp parallel for reduction(+ : number_tips) private(path)
   for (uint64_t id = 0; id < dbg.size(); ++id) {
     if (!ignored.at(id) && dbg.EdgeIndegreeZero(id)) {
-      vector<uint64_t> path = {id};
       uint64_t next = SDBG::kNullID;
       uint64_t cur = id;
       bool is_tip = false;
+      path.clear();
+      path.push_back(id);
 
       for (int i = 1; i < len; ++i) {
         next = dbg.UniqueNextEdge(cur);

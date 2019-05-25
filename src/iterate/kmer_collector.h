@@ -5,11 +5,11 @@
 #ifndef MEGAHIT_SPANNING_KMER_COLLECTOR_H
 #define MEGAHIT_SPANNING_KMER_COLLECTOR_H
 
-#include <mutex>
 #include "sdbg/sdbg_def.h"
 #include "sequence/kmer_plus.h"
 #include "sequence/readers/edge_io.h"
 #include "parallel_hashmap/phmap.h"
+#include "utils/spinlock.h"
 
 
 template <class KmerType>
@@ -20,7 +20,7 @@ class KmerCollector {
   using hash_set = phmap::parallel_flat_hash_set<kmer_plus, KmerHash,
                                                  phmap::container_internal::hash_default_eq<kmer_plus>,
                                                  phmap::container_internal::Allocator<kmer_plus>,
-                                                 12, std::mutex>;
+                                                 12, SpinLock>;
 
   KmerCollector(unsigned k, const std::string &out_prefix) : k_(k), output_prefix_(out_prefix) {
     last_shift_ = k_ % 16;
@@ -36,7 +36,6 @@ class KmerCollector {
   }
 
   void Insert(const KmerType &kmer, mul_t mul) {
-//    std::lock_guard<std::mutex> lk(lock_);
     collection_.insert({kmer, mul});
   }
 
@@ -74,7 +73,6 @@ class KmerCollector {
   unsigned k_;
   std::string output_prefix_;
   hash_set collection_;
-//  std::mutex lock_;
   EdgeWriter writer_;
   unsigned last_shift_;
   unsigned words_per_kmer_;

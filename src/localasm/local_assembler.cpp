@@ -92,7 +92,7 @@ void LocalAssembler::AddToHashMapper(mapper_t &mapper, unsigned contig_id, int s
     key.InitFromPtr(ptr_and_offset.first, ptr_and_offset.second, seed_kmer_);
     auto kmer = key.unique_format(seed_kmer_);
     auto offset = EncodeContigOffset(contig_id, i, key != kmer);
-    std::lock_guard<std::mutex> lk(lock_);
+    std::lock_guard<SpinLock> lk(lock_);
     auto res = mapper.emplace(kmer, offset);
     if (!res.second) {
       res.first->second |= 1ULL << 63;

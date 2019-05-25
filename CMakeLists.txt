@@ -13,7 +13,6 @@ option(STATIC_BUILD "Build static executation" OFF)
 option(SANITIZER "Enable santinizers" OFF)
 
 include_directories(src)
-include_directories(src/sparsepp)
 FILE(GLOB_RECURSE ASMBL_SOURCE "src/assembly/*.cpp")
 FILE(GLOB_RECURSE LCASM_SOURCE "src/localasm/*.cpp")
 FILE(GLOB_RECURSE IDBA_SOURCE "src/idba/*.cpp")
