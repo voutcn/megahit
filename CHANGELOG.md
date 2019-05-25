@@ -1,8 +1,8 @@
-### 1.2.4-beta / 2019-05-20 PST
--   Fixed a few memory leak
+### 1.2.4-beta / 2019-05-25 PST
+-   Fixed a few memory leaks
 -   Use std::vector to replace malloc in SDBG builders
 -   Try to fix potential problem caused by benign data race in unitig graph refreshing
-
+-   Faster by using phmap and xxh3
 
 ### 1.2.3-beta / 2019-05-12 PST
 -   Refactored sequence readers
