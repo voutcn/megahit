@@ -26,9 +26,9 @@ class SDBG {
   void LoadFromFile(const char *dbg_name) {
     LoadSdbgRawContent(&content_, dbg_name);
     k_ = content_.meta.k();
-    rs_is_tip_.Build(content_.tip.data(), content_.meta.item_count());
-    rs_w_.Build(content_.w.data(), content_.meta.item_count());
-    rs_last_.Build(content_.last.data(), content_.meta.item_count());
+    rs_is_tip_.from_packed_array(content_.tip.data(), content_.meta.item_count());
+    rs_w_.from_packed_array(content_.w.data(), content_.meta.item_count());
+    rs_last_.from_packed_array(content_.last.data(), content_.meta.item_count());
     invalid_ = kmlib::AtomicBitVector<uint64_t>(content_.tip.data(), content_.tip.data() + content_.tip.word_count());
     prefix_look_up_.resize(content_.meta.bucket_count());
     std::fill(f_, f_ + kAlphabetSize + 2, 0);
@@ -44,7 +44,7 @@ class SDBG {
     }
 
     for (unsigned i = 1; i < kAlphabetSize + 2; ++i) {
-      rank_f_[i] = rs_last_.Rank(f_[i] - 1);
+      rank_f_[i] = rs_last_.rank(f_[i] - 1);
     }
 
     for (uint64_t i = 0; i < content_.meta.item_count(); ++i) {
@@ -66,7 +66,7 @@ class SDBG {
     return ((content_.last.data()[x / 64] | content_.tip.data()[x / 64]) >> (x % 64)) & 1u;
   }
 
-  int64_t GetLastIndex(uint64_t x) const { return rs_last_.Succ(x); }
+  int64_t GetLastIndex(uint64_t x) const { return rs_last_.succ(x); }
 
   uint8_t LastCharOf(uint64_t x) const {
     for (uint8_t i = 1; i < kAlphabetSize + 2; ++i) {
@@ -101,19 +101,19 @@ class SDBG {
     if (a > kAlphabetSize) {
       a -= kAlphabetSize;
     }
-    int64_t count_a = rs_w_.Rank(a, edge_id);
-    return rs_last_.Select(rank_f_[a] + count_a - 1);
+    int64_t count_a = rs_w_.rank(a, edge_id);
+    return rs_last_.select(rank_f_[a] + count_a - 1);
   }
 
   uint64_t Backward(uint64_t edge_id) const {  // the first edge points to edge_id
     uint8_t a = LastCharOf(edge_id);
-    int64_t count_a = rs_last_.Rank(edge_id - 1) - rank_f_[a];
-    return rs_w_.Select(a, count_a);
+    int64_t count_a = rs_last_.rank(edge_id - 1) - rank_f_[a];
+    return rs_w_.select(a, count_a);
   }
 
  private:
   const label_word_t *TipLabelStartPtr(uint64_t edge_id) const {
-    return content_.tip_lables.data() + content_.meta.words_per_tip_label() * (rs_is_tip_.Rank(edge_id) - 1);
+    return content_.tip_lables.data() + content_.meta.words_per_tip_label() * (rs_is_tip_.rank(edge_id) - 1);
   }
   static uint8_t CharAtTipLabel(const label_word_t *label_start_ptr, unsigned offset) {
     return kmlib::CompactVector<kBitsPerChar, label_word_t>::at(label_start_ptr, offset) + 1;
@@ -197,7 +197,7 @@ class SDBG {
    * @param seq the label will be written to this address
    * @return the length of label (always k)
    */
-  uint32_t Label(uint64_t id, uint8_t *seq) const {
+  uint32_t GetLabel(uint64_t id, uint8_t *seq) const {
     int64_t x = id;
     for (int i = k_ - 1; i >= 0; --i) {
       if (IsTip(x)) {
@@ -406,7 +406,7 @@ class SDBG {
     }
 
     uint8_t seq[kMaxK + 1];
-    Label(edge_id, seq);
+    GetLabel(edge_id, seq);
     seq[k_] = GetW(edge_id);
 
     if (seq[k_] > kAlphabetSize) {
@@ -440,7 +440,7 @@ class SDBG {
    * After that EdgeMultiplicity() is invalid
    */
   void FreeMultiplicity() {
-    content_.large_mul = spp::sparse_hash_map<uint64_t, mul_t>();
+    content_.large_mul = phmap::parallel_flat_hash_map<uint64_t, mul_t>();
     content_.small_mul = std::vector<small_mul_t>();
     content_.full_mul = std::vector<mul_t>();
   }

@@ -11,10 +11,10 @@ uint32_t RemoveTips(UnitigGraph &graph, uint32_t max_tip_len) {
 #pragma omp parallel for reduction(+ : num_removed)
     for (UnitigGraph::size_type i = 0; i < graph.size(); ++i) {
       auto adapter = graph.MakeVertexAdapter(i);
-      if (adapter.Length() >= thre) {
+      if (adapter.GetLength() >= thre) {
         continue;
       }
-      if (adapter.ForSureStandalone()) {
+      if (adapter.IsStandalone()) {
         bool success = adapter.SetToDelete();
         assert(success);
         num_removed += success;
@@ -28,13 +28,13 @@ uint32_t RemoveTips(UnitigGraph &graph, uint32_t max_tip_len) {
           assert(success);
           num_removed += success;
         } else if (outd == 1 && ind == 0) {
-          if (nexts[0].AvgDepth() > 8 * adapter.AvgDepth()) {
+          if (nexts[0].GetAvgDepth() > 8 * adapter.GetAvgDepth()) {
             bool success = adapter.SetToDelete();
             assert(success);
             num_removed += success;
           }
         } else if (outd == 0 && ind == 1) {
-          if (prevs[0].AvgDepth() > 8 * adapter.AvgDepth()) {
+          if (prevs[0].GetAvgDepth() > 8 * adapter.GetAvgDepth()) {
             bool success = adapter.SetToDelete();
             assert(success);
             num_removed += success;

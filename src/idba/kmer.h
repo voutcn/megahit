@@ -14,6 +14,7 @@
 
 #include <algorithm>
 #include <cstring>
+#include "xxhash/xxh3.h"
 
 #include "definitions.h"
 #include "bit_operation.h"
@@ -147,10 +148,7 @@ public:
 
     uint64_t hash() const
     {
-        uint64_t key = 0;
-        for (unsigned i = 0; i < kNumUint64; ++i)
-            key ^= data_[i];
-        return (key * 1299709 + 104729) % 323780508946331ULL;
+      return XXH3_64bits(data_, sizeof(data_));
     }
 
     IdbaKmer unique_format() const

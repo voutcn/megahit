@@ -16,12 +16,12 @@ double LocalDepth(UnitigGraph &graph, UnitigGraph::VertexAdapter &adapter, uint3
     int degree = graph.GetNextAdapters(adapter, outs);
 
     for (int i = 0; i < degree; ++i) {
-      if (outs[i].Length() <= local_width) {
-        num_added_edges += outs[i].Length();
-        total_depth += outs[i].TotalDepth();
+      if (outs[i].GetLength() <= local_width) {
+        num_added_edges += outs[i].GetLength();
+        total_depth += outs[i].GetTotalDepth();
       } else {
         num_added_edges += local_width;
-        total_depth += outs[i].AvgDepth() * local_width;
+        total_depth += outs[i].GetAvgDepth() * local_width;
       }
     }
   }
@@ -44,7 +44,7 @@ bool RemoveLocalLowDepth(UnitigGraph &graph, double min_depth, uint32_t max_len,
 #pragma omp parallel for reduction(+ : removed)
   for (UnitigGraph::size_type i = 0; i < graph.size(); ++i) {
     auto adapter = graph.MakeVertexAdapter(i);
-    if (adapter.ForSureStandalone() || adapter.Length() > max_len) {
+    if (adapter.IsStandalone() || adapter.GetLength() > max_len) {
       continue;
     }
     int indegree = graph.InDegree(adapter);
@@ -54,7 +54,7 @@ bool RemoveLocalLowDepth(UnitigGraph &graph, double min_depth, uint32_t max_len,
     }
 
     if ((indegree <= 1 && outdegree <= 1) || indegree == 0 || outdegree == 0) {
-      double depth = adapter.AvgDepth();
+      double depth = adapter.GetAvgDepth();
       if (is_changed && depth > min_depth) continue;
       double mean = LocalDepth(graph, adapter, local_width);
       double threshold = min_depth;
@@ -101,7 +101,7 @@ uint32_t RemoveLowDepth(UnitigGraph &graph, double min_depth) {
 #pragma omp parallel for reduction(+ : num_removed)
   for (UnitigGraph::size_type i = 0; i < graph.size(); ++i) {
     auto adapter = graph.MakeVertexAdapter(i);
-    if (adapter.AvgDepth() < min_depth) {
+    if (adapter.GetAvgDepth() < min_depth) {
       bool success = adapter.SetToDelete();
       assert(success);
       num_removed += success;

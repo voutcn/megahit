@@ -5,15 +5,15 @@
 #include "unitig_graph.h"
 #include <omp.h>
 #include <cmath>
-#include <mutex>
 
 #include "kmlib/kmbitvector.h"
+#include "utils/spinlock.h"
 #include "utils/utils.h"
 
 UnitigGraph::UnitigGraph(SDBG *sdbg) : sdbg_(sdbg), adapter_impl_(this), sudo_adapter_impl_(this) {
   id_map_.clear();
   vertices_.clear();
-  std::mutex path_lock;
+  SpinLock path_lock;
   AtomicBitVector locks(sdbg_->size());
   size_t count_palindrome = 0;
   // assemble simple paths
@@ -69,7 +69,7 @@ UnitigGraph::UnitigGraph(SDBG *sdbg) : sdbg_(sdbg), adapter_impl_(this), sudo_ad
       }
 
       if (will_be_added) {
-        std::lock_guard<std::mutex> lk(path_lock);
+        std::lock_guard<SpinLock> lk(path_lock);
         vertices_.emplace_back(cur_edge, edge_idx, rc_start, rc_end, depth, length);
         count_palindrome += cur_edge == rc_start;
       }
@@ -78,10 +78,12 @@ UnitigGraph::UnitigGraph(SDBG *sdbg) : sdbg_(sdbg), adapter_impl_(this), sudo_ad
   xinfo("Graph size without loops: %lu, palindrome: %lu\n", vertices_.size(), count_palindrome);
 
   // assemble looped paths
+  std::mutex loop_lock;
+  size_t count_loop = 0;
 #pragma omp parallel for
   for (size_t edge_idx = 0; edge_idx < sdbg_->size(); ++edge_idx) {
     if (!locks.at(edge_idx) && sdbg_->IsValidEdge(edge_idx)) {
-      std::lock_guard<std::mutex> lk(path_lock);
+      std::lock_guard<std::mutex> lk(loop_lock);
       if (!locks.at(edge_idx)) {
         uint64_t cur_edge = edge_idx;
         uint64_t rc_edge = sdbg_->EdgeReverseComplement(edge_idx);
@@ -104,6 +106,7 @@ UnitigGraph::UnitigGraph(SDBG *sdbg) : sdbg_(sdbg), adapter_impl_(this), sudo_ad
           uint64_t end = edge_idx;
           vertices_.emplace_back(start, end, sdbg_->EdgeReverseComplement(end), sdbg_->EdgeReverseComplement(start),
                                  depth, length, true);
+          count_loop += 1;
         }
       }
     }
@@ -117,17 +120,18 @@ UnitigGraph::UnitigGraph(SDBG *sdbg) : sdbg_(sdbg), adapter_impl_(this), sudo_ad
   }
 
   sdbg_->FreeMultiplicity();
-  id_map_.reserve(vertices_.size() * 2);
+  id_map_.reserve(vertices_.size() * 2 - count_palindrome);
 
   for (size_type i = 0; i < vertices_.size(); ++i) {
     VertexAdapter adapter(vertices_[i]);
-    id_map_[adapter.Begin()] = i;
-    id_map_[adapter.RevBegin()] = i;
+    id_map_[adapter.b()] = i;
+    id_map_[adapter.rb()] = i;
   }
+  assert(vertices_.size() * 2 - count_palindrome >= id_map_.size());
 }
 
 void UnitigGraph::RefreshDisconnected() {
-  std::mutex mutex;
+  SpinLock mutex;
 #pragma omp parallel for
   for (size_type i = 0; i < vertices_.size(); ++i) {
     auto adapter = MakeSudoAdapter(i);
@@ -144,15 +148,15 @@ void UnitigGraph::RefreshDisconnected() {
       continue;
     }
 
-    if (adapter.Length() <= to_disconnect + rc_to_disconnect) {
+    if (adapter.GetLength() <= to_disconnect + rc_to_disconnect) {
       adapter.SetToDelete();
       continue;
     }
 
-    auto old_start = adapter.Begin();
-    auto old_end = adapter.End();
-    auto old_rc_start = adapter.RevBegin();
-    auto old_rc_end = adapter.RevEnd();
+    auto old_start = adapter.b();
+    auto old_end = adapter.e();
+    auto old_rc_start = adapter.rb();
+    auto old_rc_end = adapter.re();
     uint64_t new_start, new_end, new_rc_start, new_rc_end;
 
     if (to_disconnect) {
@@ -177,13 +181,13 @@ void UnitigGraph::RefreshDisconnected() {
       new_end = old_end;
     }
 
-    uint32_t new_length = adapter.Length() - to_disconnect - rc_to_disconnect;
-    uint64_t new_total_depth = lround(adapter.AvgDepth() * new_length);
+    uint32_t new_length = adapter.GetLength() - to_disconnect - rc_to_disconnect;
+    uint64_t new_total_depth = lround(adapter.GetAvgDepth() * new_length);
     adapter.SetBeginEnd(new_start, new_end, new_rc_start, new_rc_end);
     adapter.SetLength(new_length);
     adapter.SetTotalDepth(new_total_depth);
 
-    std::lock_guard<std::mutex> lk(mutex);
+    std::lock_guard<SpinLock> lk(mutex);
     if (to_disconnect) {
       id_map_.erase(old_start);
       id_map_[new_start] = i;
@@ -206,18 +210,18 @@ void UnitigGraph::Refresh(bool set_changed) {
       continue;
     }
     adapter.SetFlag(kDeleted);
-    if (adapter.ForSureStandalone()) {
+    if (adapter.IsStandalone()) {
       continue;
     }
     for (int strand = 0; strand < 2; ++strand, adapter.ReverseComplement()) {
-      uint64_t cur_edge = adapter.End();
-      for (size_t j = 1; j < adapter.Length(); ++j) {
+      uint64_t cur_edge = adapter.e();
+      for (size_t j = 1; j < adapter.GetLength(); ++j) {
         auto prev = sdbg_->UniquePrevEdge(cur_edge);
         sdbg_->SetInvalidEdge(cur_edge);
         cur_edge = prev;
         assert(cur_edge != SDBG::kNullID);
       }
-      assert(cur_edge == adapter.Begin());
+      assert(cur_edge == adapter.b());
       sdbg_->SetInvalidEdge(cur_edge);
       if (adapter.IsPalindrome()) {
         break;
@@ -229,18 +233,18 @@ void UnitigGraph::Refresh(bool set_changed) {
 #pragma omp parallel for
   for (size_type i = 0; i < vertices_.size(); ++i) {
     auto adapter = MakeSudoAdapter(i);
-    if (adapter.ForSureStandalone() || (adapter.GetFlag() & kDeleted)) {
+    if (adapter.IsStandalone() || (adapter.GetFlag() & kDeleted)) {
       continue;
     }
     for (int strand = 0; strand < 2; ++strand, adapter.ReverseComplement()) {
-      if (PrevSimplePathAdapter(adapter).Valid()) {
+      if (PrevSimplePathAdapter(adapter).IsValid()) {
         continue;
       }
       if (!locks.try_lock(i)) {
         break;
       }
       std::vector<SudoVertexAdapter> linear_path;
-      for (auto cur = NextSimplePathAdapter(adapter); cur.Valid(); cur = NextSimplePathAdapter(cur)) {
+      for (auto cur = NextSimplePathAdapter(adapter); cur.IsValid(); cur = NextSimplePathAdapter(cur)) {
         linear_path.emplace_back(cur);
       }
 
@@ -259,20 +263,20 @@ void UnitigGraph::Refresh(bool set_changed) {
         }
       }
 
-      auto new_length = adapter.Length();
-      auto new_total_depth = adapter.TotalDepth();
+      auto new_length = adapter.GetLength();
+      auto new_total_depth = adapter.GetTotalDepth();
       adapter.SetFlag(kVisited);
 
       for (auto &v : linear_path) {
-        new_length += v.Length();
-        new_total_depth += v.TotalDepth();
-        if (v.SdbgId() != adapter.SdbgId()) v.SetFlag(kDeleted);
+        new_length += v.GetLength();
+        new_total_depth += v.GetTotalDepth();
+        if (v.canonical_id() != adapter.canonical_id()) v.SetFlag(kDeleted);
       }
 
-      auto new_start = adapter.Begin();
-      auto new_rc_end = adapter.RevEnd();
-      auto new_rc_start = linear_path.back().RevBegin();
-      auto new_end = linear_path.back().End();
+      auto new_start = adapter.b();
+      auto new_rc_end = adapter.re();
+      auto new_rc_start = linear_path.back().rb();
+      auto new_end = linear_path.back().e();
 
       adapter.SetBeginEnd(new_start, new_end, new_rc_start, new_rc_end);
       adapter.SetLength(new_length);
@@ -287,30 +291,30 @@ void UnitigGraph::Refresh(bool set_changed) {
 #pragma omp parallel for
   for (size_type i = 0; i < vertices_.size(); ++i) {
     auto adapter = MakeSudoAdapter(i);
-    if (!adapter.ForSureStandalone() && !adapter.GetFlag()) {
+    if (!adapter.IsStandalone() && !adapter.GetFlag()) {
       std::lock_guard<std::mutex> lk(mutex);
       if (adapter.GetFlag()) {
         continue;
       }
 
-      uint32_t length = adapter.Length();
-      uint64_t total_depth = adapter.TotalDepth();
+      uint32_t length = adapter.GetLength();
+      uint64_t total_depth = adapter.GetTotalDepth();
       SudoVertexAdapter next_adapter = adapter;
       while (true) {
         next_adapter = NextSimplePathAdapter(next_adapter);
-        assert(next_adapter.Valid());
+        assert(next_adapter.IsValid());
         assert(!(next_adapter.GetFlag() & kDeleted));
-        if (next_adapter.Begin() == adapter.Begin()) {
+        if (next_adapter.b() == adapter.b()) {
           break;
         }
         next_adapter.SetFlag(kDeleted);
-        length += next_adapter.Length();
-        total_depth += next_adapter.TotalDepth();
+        length += next_adapter.GetLength();
+        total_depth += next_adapter.GetTotalDepth();
       }
 
-      auto new_start = adapter.Begin();
+      auto new_start = adapter.b();
       auto new_end = sdbg_->PrevSimplePathEdge(new_start);
-      auto new_rc_end = adapter.RevEnd();
+      auto new_rc_end = adapter.re();
       auto new_rc_start = sdbg_->NextSimplePathEdge(new_rc_end);
       assert(new_start == sdbg_->EdgeReverseComplement(new_rc_end));
       assert(new_end == sdbg_->EdgeReverseComplement(new_rc_start));
@@ -331,10 +335,10 @@ void UnitigGraph::Refresh(bool set_changed) {
 #pragma omp parallel for reduction(+ : num_changed)
   for (size_type i = 0; i < vertices_.size(); ++i) {
     auto adapter = MakeSudoAdapter(i);
-    assert(adapter.ForSureStandalone() || adapter.GetFlag());
+    assert(adapter.IsStandalone() || adapter.GetFlag());
     adapter.SetFlag(0);
-    id_map_.at(adapter.Begin()) = i;
-    id_map_.at(adapter.RevBegin()) = i;
+    id_map_.at(adapter.b()) = i;
+    id_map_.at(adapter.rb()) = i;
     num_changed += adapter.IsChanged();
   }
 }
@@ -342,30 +346,32 @@ void UnitigGraph::Refresh(bool set_changed) {
 std::string UnitigGraph::VertexToDNAString(VertexAdapter v) {
   v.ToUniqueFormat();
   std::string label;
-  label.reserve(k() + v.Length());
-  uint64_t cur_edge = v.End();
+  label.reserve(k() + v.GetLength());
+  uint64_t cur_edge = v.e();
 
-  for (unsigned i = 1; i < v.Length(); ++i) {
+  for (unsigned i = 1; i < v.GetLength(); ++i) {
     int8_t cur_char = sdbg_->GetW(cur_edge);
     label.push_back("ACGT"[cur_char > 4 ? (cur_char - 5) : (cur_char - 1)]);
 
     cur_edge = sdbg_->PrevSimplePathEdge(cur_edge);
     if (cur_edge == SDBG::kNullID) {
-      xfatal("%lld, %lld, %lld, %lld, (%lld, %lld), %d, %d\n", v.Begin(), v.End(), v.RevBegin(), v.RevEnd(),
-             sdbg_->EdgeReverseComplement(v.End()), sdbg_->EdgeReverseComplement(v.Begin()), v.Length(), i);
+      xfatal("%lld, %lld, %lld, %lld, (%lld, %lld), %d, %d\n", v.b(), v.e(), v.rb(),
+             v.re(),
+             sdbg_->EdgeReverseComplement(v.e()), sdbg_->EdgeReverseComplement(v.b()), v.GetLength(), i);
     }
   }
 
   int8_t cur_char = sdbg_->GetW(cur_edge);
   label.push_back("ACGT"[cur_char > 4 ? (cur_char - 5) : (cur_char - 1)]);
 
-  if (cur_edge != v.Begin()) {
-    xfatal("fwd: %lld, %lld, rev: %lld, %lld, (%lld, %lld) length: %d\n", v.Begin(), v.End(), v.RevBegin(), v.RevEnd(),
-           sdbg_->EdgeReverseComplement(v.End()), sdbg_->EdgeReverseComplement(v.Begin()), v.Length());
+  if (cur_edge != v.b()) {
+    xfatal("fwd: %lld, %lld, rev: %lld, %lld, (%lld, %lld) length: %d\n", v.b(),
+           v.e(), v.rb(), v.re(),
+           sdbg_->EdgeReverseComplement(v.e()), sdbg_->EdgeReverseComplement(v.b()), v.GetLength());
   }
 
   uint8_t seq[kMaxK];
-  sdbg_->Label(v.Begin(), seq);
+  sdbg_->GetLabel(v.b(), seq);
 
   for (int i = sdbg_->k() - 1; i >= 0; --i) {
     assert(seq[i] >= 1 && seq[i] <= 4);

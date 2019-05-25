@@ -13,7 +13,6 @@ option(STATIC_BUILD "Build static executation" OFF)
 option(SANITIZER "Enable santinizers" OFF)
 
 include_directories(src)
-include_directories(src/sparsepp)
 FILE(GLOB_RECURSE ASMBL_SOURCE "src/assembly/*.cpp")
 FILE(GLOB_RECURSE LCASM_SOURCE "src/localasm/*.cpp")
 FILE(GLOB_RECURSE IDBA_SOURCE "src/idba/*.cpp")
@@ -48,7 +47,7 @@ set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -D__XROOT__='\"${CMAKE_SOURCE_DIR}/src\"
 
 set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} ${ZLIB_EXE_LINKER_FLAGS} ${OpenMP_EXE_LINKER_FLAGS}")
 
-set(CMAKE_CXX_FLAGS_RELEASE "-O2 -DNDEBUG")
+set(CMAKE_CXX_FLAGS_RELEASE "-O3 -DNDEBUG")
 set(CMAKE_CXX_FLAGS_DEBUG "-g -ggdb -O1 -D_LIBCPP_DEBUG -D_GLIBCXX_DEBUG")
 
 if (COVERAGE)

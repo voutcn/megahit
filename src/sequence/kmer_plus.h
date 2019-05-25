@@ -6,6 +6,7 @@
 #define MEGAHIT_KMER_PLUS_H
 
 #include "kmer.h"
+#include "xxhash/xxh3.h"
 
 /**
  * @brief a kmer plus any annotation
@@ -25,15 +26,13 @@ struct KmerPlus {
   aux_type aux;
 };
 
-#include "xxHash/xxhash.h"
-
 struct KmerHash {
   template <unsigned NumWords, class WordType>
-  size_t operator()(Kmer<NumWords, WordType> const &kmer) const {
-    return XXH64(static_cast<const void *>(kmer.data()), sizeof(WordType) * NumWords, 0);
+  size_t operator()(const Kmer<NumWords, WordType> &kmer) const {
+    return XXH3_64bits(static_cast<const void *>(kmer.data()), sizeof(WordType) * NumWords);
   }
   template <class KmerType, class Auxiliary>
-  size_t operator()(KmerPlus<KmerType, Auxiliary> const &kmer_plus) const {
+  size_t operator()(const KmerPlus<KmerType, Auxiliary> &kmer_plus) const {
     return operator()(kmer_plus.kmer);
   }
 };

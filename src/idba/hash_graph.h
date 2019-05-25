@@ -16,142 +16,50 @@
 
 #include "bit_operation.h"
 #include "utils/histgram.h"
-#include "idba/hash_table.h"
 #include "idba/kmer.h"
 #include "idba/contig_info.h"
 #include "idba/hash_graph_vertex.h"
 #include "idba/hash_graph_path.h"
 #include "idba/sequence.h"
+#include "idba/hash_table.h"
 
 class IdbaKmer;
 class Sequence;
-class ShortSequence;
-class CompactSequence;
-
 
 /**
  * @brief It is a hash table based de Bruijn graph implementation.
  */
 class HashGraph
 {
-    class RefreshVerticesFunc;
-    class RefreshEdgesFunc;
-
 public:
-    friend std::istream &operator >>(std::istream &is, HashGraph &hash_graph);
-    friend std::ostream &operator <<(std::ostream &os, HashGraph &hash_graph);
 
     typedef HashTableST<HashGraphVertex, IdbaKmer> vertex_table_type;
-    typedef vertex_table_type::iterator iterator;
 
     explicit HashGraph(uint32_t kmer_size = 0) { set_kmer_size(kmer_size); num_edges_ = 0; }
     ~HashGraph() {}
 
-    iterator begin() { return vertex_table_.begin(); }
-    iterator end() { return vertex_table_.end(); }
-
-    HashGraphVertex *InsertVertex(const IdbaKmer &kmer, int count = 1)
-    {
-        IdbaKmer key = kmer.unique_format();
-        HashGraphVertex &vertex = vertex_table_.find_or_insert(HashGraphVertex(key));
-        vertex.count() += count;
-        return &vertex;
-    }
-
-    HashGraphVertex *InsertVertex(const HashGraphVertex &vertex)
-    { return &vertex_table_.find_or_insert(vertex); }
-
-    HashGraphVertex *FindVertex(const IdbaKmer &kmer)
-    {
-        IdbaKmer key = kmer.unique_format();
-        vertex_table_type::iterator p = vertex_table_.find(key);
-        return (p != vertex_table_.end()) ? &*p : NULL;
-    }
-
-    const HashGraphVertex *FindVertex(const IdbaKmer &kmer) const
-    {
-        IdbaKmer key = kmer.unique_format();
-        vertex_table_type::const_iterator p = vertex_table_.find(key);
-        return (p != vertex_table_.end()) ? &*p : NULL;
-    }
-
     HashGraphVertexAdaptor FindVertexAdaptor(const IdbaKmer &kmer)
-    { 
+    {
         IdbaKmer key = kmer.unique_format();
-        vertex_table_type::iterator p = vertex_table_.find(key);
-        return ((p != vertex_table_.end()) ? 
+        auto p = vertex_table_.find(key);
+        return ((p != vertex_table_.end()) ?
             HashGraphVertexAdaptor(&*p, kmer != key) : HashGraphVertexAdaptor(NULL));
     }
 
-    HashGraphVertexAdaptor GetNeighbor(const HashGraphVertexAdaptor &current, int x)
-    {
-        IdbaKmer kmer = current.kmer();
-        kmer.ShiftAppend(x);
-        return FindVertexAdaptor(kmer);
-    }
-
-    int64_t InsertKmers(const Sequence &seq) { return InsertKmersWithPrefix(seq, 0, 0); }
-    int64_t InsertKmersWithPrefix(const Sequence &seq, uint64_t prefix, uint64_t umask);
+    int64_t InsertKmers(const Sequence &seq);
     int64_t InsertUncountKmers(const Sequence &seq);
-    void RemoveEdge(HashGraphVertexAdaptor &node, int x)
-    {
-        node.out_edges().Remove(x);
-        IdbaKmer kmer = node.kmer();
-        kmer.ShiftAppend(x);
-        HashGraphVertexAdaptor next = FindVertexAdaptor(kmer);
-        if (!next.is_null())
-            next.in_edges().Remove(3 - node.kmer()[0]);
-    }
 
-    void AddEdge(HashGraphVertexAdaptor &node, int x)
-    {
-        node.out_edges().Add(x);
-        IdbaKmer kmer = node.kmer();
-        kmer.ShiftAppend(x);
-        HashGraphVertexAdaptor next = FindVertexAdaptor(kmer);
-        if (!next.is_null())
-            next.in_edges().Add(3 - node.kmer()[0]);
-    }
-
-    void BackupEdges()
-    { BackupEdgesFunc func; vertex_table_.for_each(func); }
-
-    void RestoreAndMergeEdges()
-    { RestoreAndMergeEdgesFunc func; vertex_table_.for_each(func); }
-
-    void AddAllEdges()
-    { AddAllEdgesFunc func; vertex_table_.for_each(func); RefreshEdges(); }
-    void ClearEdges()
-    { ClearEdgesFunc func; vertex_table_.for_each(func); }
     void ClearStatus()
     { ClearStatusFunc func; vertex_table_.for_each(func); }
-    void ClearCount()
-    { ClearCountFunc func; vertex_table_.for_each(func); }
-
-    void SetCountCap(int cap)
-    { SetCountCapFunc func(cap); vertex_table_.for_each(func); }
-
-    void Refresh(int min_count = 0)
-    { RefreshVertices(min_count); RefreshEdges(); }
-    int64_t RefreshVertices(int min_count = 0)
-    { RefreshVerticesFunc func(min_count); return vertex_table_.remove_if(func); }
-    void RefreshEdges()
-    { RefreshEdgesFunc func(this); vertex_table_.for_each(func); num_edges_ = func.num_edges(); }
 
     int64_t Assemble(std::deque<Sequence> &contigs, std::deque<ContigInfo> &contig_infos);
-
-//    int64_t TrimSequentially(int min_length);
-//    int64_t RemoveDeadEndSequentially(int min_length);
-//    int64_t RemoveLowCoverageSequentially(double min_cover);
-//    int64_t AssembleSequentially(std::deque<Sequence> &contigs);
-//    int64_t AssembleSequentially(std::deque<Sequence> &contigs, std::deque<ContigInfo> &contig_infos);
 
     void reserve(uint64_t capacity) { vertex_table_.reserve(capacity); }
 
     uint32_t kmer_size() const { return kmer_size_; }
     void set_kmer_size(uint32_t kmer_size) { kmer_size_ = kmer_size; }
 
-    Histgram<int> coverage_histgram() const
+    Histgram<int, NotAMutex> coverage_histgram()
     {
         CoverageHistgramFunc func;
         vertex_table_.for_each(func);
@@ -168,9 +76,7 @@ public:
         }
     }
 
-    uint64_t num_bucket() const { return vertex_table_.bucket_count(); }
     uint64_t num_vertices() const { return vertex_table_.size(); }
-    uint64_t num_edges() const { return num_edges_; }
     void clear() { vertex_table_.clear(); num_edges_ = 0; }
 
 private:
@@ -212,48 +118,6 @@ private:
         return contig.GetIdbaKmer(contig.size() - kmer_size_, kmer_size_) == rev_comp;
     }
 
-    class BackupEdgesFunc
-    {
-    public:
-        BackupEdgesFunc() {}
-
-        void operator() (HashGraphVertex &vertex)
-        {
-            vertex.in_edges() = (vertex.in_edges() << 4) | (vertex.in_edges() & 15);
-            vertex.out_edges() = (vertex.out_edges() << 4) | (vertex.out_edges() & 15);
-        }
-    };
-
-    class RestoreAndMergeEdgesFunc
-    {
-    public:
-        RestoreAndMergeEdgesFunc() {}
-
-        void operator() (HashGraphVertex &vertex)
-        {
-            vertex.in_edges() = ((unsigned)vertex.in_edges() >> 4) | (vertex.in_edges() & 15);
-            vertex.out_edges() = ((unsigned)vertex.out_edges() >> 4) | (vertex.out_edges() & 15);
-        }
-    };
-
-    class AddAllEdgesFunc
-    {
-    public:
-        AddAllEdgesFunc() {}
-
-        void operator ()(HashGraphVertex &vertex)
-        { vertex.in_edges() = 15; vertex.out_edges() = 15; }
-    };
-
-    class ClearEdgesFunc
-    {
-    public:
-        ClearEdgesFunc() {}
-
-        void operator ()(HashGraphVertex &vertex)
-        { vertex.in_edges() = 0; vertex.out_edges() = 0; }
-    };
-
     class ClearStatusFunc
     {
     public:
@@ -261,80 +125,6 @@ private:
 
         void operator ()(HashGraphVertex &vertex)
         { vertex.status().clear(); }
-    };
-
-    class ClearCountFunc
-    {
-    public:
-        ClearCountFunc() {}
-
-        void operator ()(HashGraphVertex &vertex)
-        { vertex.count() = 0; }
-    };
-
-    class SetCountCapFunc
-    {
-    public:
-        SetCountCapFunc(int cap): cap_(cap) { }
-
-        void operator ()(HashGraphVertex &vertex)
-        { if (vertex.count() > cap_) vertex.count() = cap_; }
-
-    private:
-        int cap_;
-    };
-
-    class RefreshVerticesFunc
-    {
-    public:
-        explicit RefreshVerticesFunc(int min_count) : min_count_(min_count) {}
-
-        bool operator ()(HashGraphVertex &vertex) const
-        {
-            if (vertex.count() < min_count_ || vertex.status().IsDead())
-                return true;
-            return false;
-        }
-
-    private:
-        int min_count_;
-    };
-
-    class RefreshEdgesFunc
-    {
-    public:
-        explicit RefreshEdgesFunc(HashGraph *hash_graph) { hash_graph_ = hash_graph; total_degree_ = 0; }
-
-        void operator ()(HashGraphVertex &vertex)
-        {
-            HashGraphVertexAdaptor adaptor(&vertex);
-            for (int strand = 0; strand < 2; ++strand)
-            {
-                IdbaKmer kmer = adaptor.kmer();
-                for (int i = 0; i < 4; ++i)
-                {
-                    if (adaptor.out_edges()[i])
-                    {
-                        IdbaKmer next = kmer;
-                        next.ShiftAppend(i);
-                        if (hash_graph_->FindVertex(next) == NULL)
-                            adaptor.out_edges().Remove(i);
-                        else
-                            total_degree_ += 1;
-                    }
-                }
-                adaptor.ReverseComplement();
-            }
-
-            if ((vertex.kmer().size() & 1) == 0)
-                vertex.FixPalindromeEdges();
-        }
-
-        uint64_t num_edges() { return total_degree_ / 2; }
-
-    private:
-        HashGraph *hash_graph_;
-        uint64_t total_degree_;
     };
 
     class AssembleFunc
@@ -363,22 +153,16 @@ private:
         void operator ()(HashGraphVertex &vertex)
         { histgram_.insert(vertex.count()); }
 
-        const Histgram<int> &histgram() { return histgram_; }
+        const Histgram<int, NotAMutex> &histgram() { return histgram_; }
 
     private:
-        Histgram<int> histgram_;
+        Histgram<int, NotAMutex> histgram_;
     };
 
-    HashTableST<HashGraphVertex, IdbaKmer> vertex_table_;
+    vertex_table_type vertex_table_;
     uint32_t kmer_size_;
     uint64_t num_edges_;
 };
-
-inline std::istream &operator >>(std::istream &is, HashGraph &hash_graph)
-{ return is >> hash_graph.vertex_table_; }
-
-inline std::ostream &operator <<(std::ostream &os, HashGraph &hash_graph)
-{ os << hash_graph.vertex_table_; hash_graph.RefreshEdges(); return os; }
 
 namespace std
 {

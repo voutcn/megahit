@@ -8,7 +8,7 @@
 #include "kmlib/kmcompactvector.h"
 #include "sdbg_def.h"
 #include "sdbg_meta.h"
-#include "sparsepp/sparsepp/spp.h"
+#include "parallel_hashmap/phmap.h"
 
 /**
  * The raw (non-indexed) data of a SDBG
@@ -21,7 +21,7 @@ struct SdbgRawContent {
   kmlib::CompactVector<1, uint64_t> last, tip;
   std::vector<small_mul_t> small_mul;
   std::vector<label_word_t> tip_lables;
-  spp::sparse_hash_map<uint64_t, mul_t> large_mul;
+  phmap::parallel_flat_hash_map<uint64_t, mul_t> large_mul;
   std::vector<mul_t> full_mul;
 };
 

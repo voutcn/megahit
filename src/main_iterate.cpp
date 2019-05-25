@@ -104,7 +104,7 @@ static void ParseIterOptions(int argc, char *argv[]) {
 }  // namespace
 
 template <class KmerType, class IndexType>
-static bool ReadReadsAndProcessKernel(const Option &opt, IndexType &index) {
+static bool ReadReadsAndProcessKernel(const Option &opt, const IndexType &index) {
   if (KmerType::max_size() < static_cast<unsigned>(opt.kmer_k + opt.step + 1)) {
     return false;
   }
@@ -115,14 +115,11 @@ static bool ReadReadsAndProcessKernel(const Option &opt, IndexType &index) {
   int64_t num_total_reads = 0;
 
   while (true) {
-    auto read_pkg = reader.Next();
+    const auto &read_pkg = reader.Next();
     if (read_pkg.Size() == 0) {
       break;
     }
-#pragma omp parallel for reduction(+ : num_aligned_reads)
-    for (unsigned i = 0; i < read_pkg.Size(); ++i) {
-      num_aligned_reads += index.FindNextKmersFromRead(read_pkg, i, &collector) > 0;
-    }
+    num_aligned_reads += index.FindNextKmersFromReads(read_pkg, &collector);
     num_total_reads += read_pkg.Size();
     xinfo("Processed: %lld, aligned: %lld. Iterative edges: %llu\n", num_total_reads, num_aligned_reads,
           collector.collection().size());

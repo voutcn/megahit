@@ -34,6 +34,7 @@ class BinaryReader : public BaseSequenceReader {
       }
       auto bytes_read = reader_.read(&buf_[0], num_words);
       assert(bytes_read == num_words * sizeof(buf_[0]));
+      (void)(bytes_read);
 
       if (!reverse) {
         pkg->AppendCompactSequence(&buf_[0], read_len);

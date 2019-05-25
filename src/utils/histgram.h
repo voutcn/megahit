@@ -19,17 +19,24 @@
 #include <map>
 #include <mutex>
 
+class NotAMutex {
+ public:
+  void lock() {}
+  void unlock() {}
+};
+
 /**
  * @brief It is a class which contains a set of number for drawing histgram.
  * @tparam T
  */
-template <class T>
+template <class T, class Mutex = std::mutex>
 class Histgram {
  public:
   typedef T value_type;
 
   Histgram() = default;
   Histgram(const Histgram &hist) : map_(hist.map_), size_(hist.size_) {}
+  Histgram(Histgram &&rhs) = default;
   ~Histgram() = default;
 
   const Histgram &operator=(const Histgram &hist) {
@@ -39,7 +46,7 @@ class Histgram {
   }
 
   void insert(value_type value, size_t count = 1) {
-    std::lock_guard<std::mutex> lk(mutex_);
+    std::lock_guard<Mutex> lk(mutex_);
     map_[value] += count;
     size_ += count;
   }
@@ -211,7 +218,7 @@ class Histgram {
  private:
   std::map<value_type, size_t> map_{};
   size_t size_{0};
-  std::mutex mutex_{};
+  Mutex mutex_{};
 };
 
 namespace std {

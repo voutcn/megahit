@@ -26,12 +26,13 @@
 #include <string>
 #include <vector>
 
-#include <mutex>
 #include "kmlib/kmbitvector.h"
 #include "sequence/kmer_plus.h"
 #include "sequence/lib_info.h"
 #include "sequence/sequence_package.h"
-#include "sparsepp/sparsepp/spp.h"
+#include "parallel_hashmap/phmap.h"
+#include "utils/spinlock.h"
+
 
 struct LocalAssembler {
   static const int kMaxLocalRange = 650;
@@ -69,7 +70,7 @@ struct LocalAssembler {
 
   typedef std::pair<double, double> tlen_t;
   typedef Kmer<2, uint32_t> kmer_t;
-  typedef spp::sparse_hash_map<kmer_t, uint64_t, KmerHash> mapper_t;
+  typedef phmap::flat_hash_map<kmer_t, uint64_t, KmerHash> mapper_t;
 
   unsigned min_contig_len_;  // only align reads to these contigs
   int seed_kmer_;            // kmer size for seeding
@@ -88,7 +89,7 @@ struct LocalAssembler {
   mapper_t mapper_;
   std::vector<lib_info_t> lib_info_;
   std::vector<tlen_t> insert_sizes_;
-  std::mutex lock_;
+  SpinLock lock_;
   AtomicBitVector locks_;
 
   std::vector<std::deque<MappedReadRecord> > mapped_f_, mapped_r_;
