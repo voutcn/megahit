@@ -522,7 +522,7 @@ void s1_lv2_output_(int64_t from, int64_t to, int tid, read2sdbg_global_t &globa
       }
 
       auto readinfo_ptr = reinterpret_cast<uint64_t *>(substr + end_idx * (2 + globals.words_per_substring) +
-                                                            globals.words_per_substring);
+                                                       globals.words_per_substring);
       uint8_t prev_and_next = ExtractPrevNext(*readinfo_ptr);
       uint8_t head_and_tail =
           ExtractHeadTail(substr + end_idx * (globals.words_per_substring + 2), 1, globals.words_per_substring);
@@ -575,7 +575,7 @@ void s1_lv2_output_(int64_t from, int64_t to, int tid, read2sdbg_global_t &globa
           count_head_tail[head_and_tail] >= globals.kmer_freq_threshold) {
         for (int64_t j = 0; j < count_head_tail[head_and_tail]; ++j, ++i) {
           auto readinfo_ptr = reinterpret_cast<uint64_t *>(substr + i * (2 + globals.words_per_substring) +
-              globals.words_per_substring);
+                                                           globals.words_per_substring);
           int64_t read_info = *readinfo_ptr >> 6;
           int strand = read_info & 1;
           int64_t read_id = globals.package.GetSeqID(read_info >> 1);

@@ -416,8 +416,8 @@ void LocalAssembler::MapToContigs() {
   locks_.reset(0);
 }
 
-inline void LaunchIDBA(HashGraph &hash_graph, ContigGraph &contig_graph,
-    std::deque<Sequence> &reads, Sequence &contig_end, std::deque<Sequence> &out_contigs,
+inline void LaunchIDBA(HashGraph &hash_graph, ContigGraph &contig_graph, std::deque<Sequence> &reads,
+                       Sequence &contig_end, std::deque<Sequence> &out_contigs,
                        std::deque<ContigInfo> &out_contig_infos, int mink, int maxk, int step) {
   int local_range = contig_end.size();
   hash_graph.clear();
@@ -427,7 +427,7 @@ inline void LaunchIDBA(HashGraph &hash_graph, ContigGraph &contig_graph,
 
   int max_read_len = 0;
 
-  for (auto & read : reads) {
+  for (auto &read : reads) {
     max_read_len = std::max(max_read_len, (int)read.size());
   }
 
@@ -436,10 +436,10 @@ inline void LaunchIDBA(HashGraph &hash_graph, ContigGraph &contig_graph,
     hash_graph.set_kmer_size(kmer_size);
     hash_graph.clear();
 
-    for (auto & read : reads) {
+    for (auto &read : reads) {
       if ((int)read.size() < kmer_size) continue;
 
-      const Sequence& seq(read);
+      const Sequence &seq(read);
       hash_graph.InsertKmers(seq);
       sum += seq.size() - kmer_size + 1;
     }
@@ -531,7 +531,8 @@ void LocalAssembler::LocalAssemble() {
       }
 
       out_contigs.clear();
-      LaunchIDBA(hash_graph, contig_graph, reads, contig_end, out_contigs, out_contig_infos, local_kmin_, local_kmax_, local_step_);
+      LaunchIDBA(hash_graph, contig_graph, reads, contig_end, out_contigs, out_contig_infos, local_kmin_, local_kmax_,
+                 local_step_);
 
       for (uint64_t j = 0; j < out_contigs.size(); ++j) {
         if (out_contigs[j].size() > min_contig_len_ && out_contigs[j].size() > local_kmax_) {

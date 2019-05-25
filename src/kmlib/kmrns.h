@@ -401,8 +401,8 @@ class RankAndSelect {
   // contains the (i*kSelectSampleSize)th (0 based) c
   // i.e. OccValue(c, j)<=i*kSelectSampleSize and OccValue(c, j+1)>i*kSelectSampleSize
   std::vector<TInterval> rank2itv_[kAlphabetSize];
-  std::vector<uint16_t> l1_occ_[kAlphabetSize];  // level 1 OCC
-  std::vector<size_type> l2_occ_[kAlphabetSize];     // level 2 OCC
+  std::vector<uint16_t> l1_occ_[kAlphabetSize];   // level 1 OCC
+  std::vector<size_type> l2_occ_[kAlphabetSize];  // level 2 OCC
   word_type xor_masks_[kAlphabetSize];
   uint64_t xor_64masks_[kAlphabetSize]{};
   // e.g. if c = 0110(2), popcount_xorers_[c] = 1001 1001 1001 1001...(2),

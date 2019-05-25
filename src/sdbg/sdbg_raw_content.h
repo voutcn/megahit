@@ -6,9 +6,9 @@
 #define MEGAHIT_SDBG_RAW_CONTENT_H
 
 #include "kmlib/kmcompactvector.h"
+#include "parallel_hashmap/phmap.h"
 #include "sdbg_def.h"
 #include "sdbg_meta.h"
-#include "parallel_hashmap/phmap.h"
 
 /**
  * The raw (non-indexed) data of a SDBG

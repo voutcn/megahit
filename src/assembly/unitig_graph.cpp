@@ -7,7 +7,7 @@
 #include <cmath>
 
 #include "kmlib/kmbitvector.h"
-#include "utils/spinlock.h"
+#include "utils/mutex.h"
 #include "utils/utils.h"
 
 UnitigGraph::UnitigGraph(SDBG *sdbg) : sdbg_(sdbg), adapter_impl_(this), sudo_adapter_impl_(this) {
@@ -355,8 +355,7 @@ std::string UnitigGraph::VertexToDNAString(VertexAdapter v) {
 
     cur_edge = sdbg_->PrevSimplePathEdge(cur_edge);
     if (cur_edge == SDBG::kNullID) {
-      xfatal("%lld, %lld, %lld, %lld, (%lld, %lld), %d, %d\n", v.b(), v.e(), v.rb(),
-             v.re(),
+      xfatal("%lld, %lld, %lld, %lld, (%lld, %lld), %d, %d\n", v.b(), v.e(), v.rb(), v.re(),
              sdbg_->EdgeReverseComplement(v.e()), sdbg_->EdgeReverseComplement(v.b()), v.GetLength(), i);
     }
   }
@@ -365,8 +364,7 @@ std::string UnitigGraph::VertexToDNAString(VertexAdapter v) {
   label.push_back("ACGT"[cur_char > 4 ? (cur_char - 5) : (cur_char - 1)]);
 
   if (cur_edge != v.b()) {
-    xfatal("fwd: %lld, %lld, rev: %lld, %lld, (%lld, %lld) length: %d\n", v.b(),
-           v.e(), v.rb(), v.re(),
+    xfatal("fwd: %lld, %lld, rev: %lld, %lld, (%lld, %lld) length: %d\n", v.b(), v.e(), v.rb(), v.re(),
            sdbg_->EdgeReverseComplement(v.e()), sdbg_->EdgeReverseComplement(v.b()), v.GetLength());
   }
 

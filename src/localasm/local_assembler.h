@@ -27,12 +27,11 @@
 #include <vector>
 
 #include "kmlib/kmbitvector.h"
+#include "parallel_hashmap/phmap.h"
 #include "sequence/kmer_plus.h"
 #include "sequence/lib_info.h"
 #include "sequence/sequence_package.h"
-#include "parallel_hashmap/phmap.h"
-#include "utils/spinlock.h"
-
+#include "utils/mutex.h"
 
 struct LocalAssembler {
   static const int kMaxLocalRange = 650;

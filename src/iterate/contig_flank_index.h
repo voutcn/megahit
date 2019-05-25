@@ -7,10 +7,10 @@
 
 #include <sdbg/sdbg_def.h>
 #include <utils/utils.h>
+#include "parallel_hashmap/phmap.h"
 #include "sequence/kmer_plus.h"
 #include "sequence/sequence_package.h"
-#include "parallel_hashmap/phmap.h"
-#include "utils/spinlock.h"
+#include "utils/mutex.h"
 
 template <class KmerType>
 class ContigFlankIndex {
@@ -74,7 +74,6 @@ class ContigFlankIndex {
       }
     }
   }
-
 
   template <class CollectorType>
   size_t FindNextKmersFromReads(const SeqPackage &seq_pkg, CollectorType *out) const {

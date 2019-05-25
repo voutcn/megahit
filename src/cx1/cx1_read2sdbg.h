@@ -90,7 +90,7 @@ struct read2sdbg_global_t {
   int words_per_dummy_node;
   int64_t max_bucket_size;
   int64_t tot_bucket_size;
-  int64_t num_short_reads;       // total number of short reads
+  int64_t num_short_reads;  // total number of short reads
   // new sorting
   int64_t max_sorting_items;
 

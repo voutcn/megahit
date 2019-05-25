@@ -11,25 +11,19 @@
 
 #define __BASIC_HISTGRAM_H__
 
-#include <stdint.h>
-
 #include <algorithm>
 #include <cmath>
+#include <cstdint>
 #include <deque>
 #include <map>
-#include <mutex>
 
-class NotAMutex {
- public:
-  void lock() {}
-  void unlock() {}
-};
+#include "utils/mutex.h"
 
 /**
  * @brief It is a class which contains a set of number for drawing histgram.
  * @tparam T
  */
-template <class T, class Mutex = std::mutex>
+template <class T, class Mutex = SpinLock>
 class Histgram {
  public:
   typedef T value_type;
