@@ -122,7 +122,7 @@ class Kmer {
 
   void ShiftAppend(uint8_t ch, unsigned k) {
     ch &= 3;
-    uint32_t used_words = std::min(kNumWords, (k + kCharsPerWord - 1) / kCharsPerWord);
+    uint32_t used_words = std::min(NWords, (k + kCharsPerWord - 1) / kCharsPerWord);
 
     for (unsigned i = 0; i + 1 < used_words; ++i) {
       data_[i] = (data_[i] << 2) | (data_[i + 1] >> (kBitsPerWord - 2));
@@ -135,7 +135,7 @@ class Kmer {
   void ShiftPreappend(uint8_t ch, unsigned k) {
     ch &= 3;
     uint32_t used_words = (k + kCharsPerWord - 1) / kCharsPerWord;
-    used_words = std::min(used_words, kNumWords);
+    used_words = std::min(NWords, used_words);
 
     for (int i = used_words - 1; i > 0; --i) {
       data_[i] = (data_[i] >> 2) | (data_[i - 1] << (kBitsPerWord - 2));
