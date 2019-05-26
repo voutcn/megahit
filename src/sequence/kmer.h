@@ -53,7 +53,7 @@ class Kmer {
       data_[used_words - 1] = data_[used_words - 1] >> clean_shift << clean_shift;
     }
 
-    memset(data_ + used_words, 0, sizeof(word_type) * (NWords - used_words));
+    memset(data_ + used_words, 0, sizeof(word_type) * (kNumWords - used_words));
   }
 
   ~Kmer() = default;
@@ -66,7 +66,7 @@ class Kmer {
   }
 
   bool operator<(const Kmer &kmer) const {
-    for (unsigned i = 0; i < NWords; ++i) {
+    for (unsigned i = 0; i < kNumWords; ++i) {
       if (data_[i] != kmer.data_[i]) return data_[i] < kmer.data_[i];
     }
 
@@ -74,7 +74,7 @@ class Kmer {
   }
 
   bool operator>(const Kmer &kmer) const {
-    for (unsigned i = 0; i < NWords; ++i) {
+    for (unsigned i = 0; i < kNumWords; ++i) {
       if (data_[i] != kmer.data_[i]) return data_[i] > kmer.data_[i];
     }
 
@@ -176,13 +176,13 @@ class Kmer {
 
   void swap(Kmer &kmer) {
     if (this != &kmer) {
-      for (unsigned i = 0; i < NWords; ++i) {
+      for (unsigned i = 0; i < kNumWords; ++i) {
         std::swap(data_[i], kmer.data_[i]);
       }
     }
   }
 
-  void clear() { memset(data_, 0, sizeof(word_type) * NWords); }
+  void clear() { memset(data_, 0, sizeof(word_type) * kNumWords); }
 
   static uint32_t max_size() { return kMaxSize; }
 
@@ -195,7 +195,7 @@ class Kmer {
   static const unsigned n_bytes = sizeof(word_type) * kNumWords;
 
  private:
-  word_type data_[NWords];
+  word_type data_[kNumWords];
 } __attribute__((packed));
 
 namespace std {

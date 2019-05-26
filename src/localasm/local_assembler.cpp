@@ -34,7 +34,7 @@
 #include "idba/sequence.h"
 #include "kmlib/kmbit.h"
 
-#include "sequence/read_lib_functions-inl.h"
+#include "sequence/lib_io.h"
 #include "sequence/readers/contig_reader.h"
 #include "utils/histgram.h"
 #include "utils/safe_open.h"
@@ -270,7 +270,7 @@ void LocalAssembler::EstimateInsertSize(bool show_stat) {
       for (int64_t i = start_read_id; i < end_read_id; i += 2) {
         if (MapToHashMapper(mapper_, i, rec1) && MapToHashMapper(mapper_, i + 1, rec2)) {
           if (rec1.contig_id == rec2.contig_id && rec1.strand != rec2.strand) {
-            int insert_size = -1;
+            int insert_size;
 
             if (rec1.strand == 0) {
               insert_size =

@@ -16,7 +16,6 @@
 
 #include "bit_operation.h"
 #include "idba/contig_info.h"
-#include "idba/hash_graph_path.h"
 #include "idba/hash_graph_vertex.h"
 #include "idba/hash_table.h"
 #include "idba/kmer.h"
