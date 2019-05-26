@@ -10,7 +10,7 @@ MEGAHIT is an ultra-fast and memory-efficient NGS assembler. It is optimized for
 
 MEGAHIT v1.2.x (beta) is released. Compared to v1.1.x, its changes include
 
--   faster and more memory-efficient than before, by using [BMI2 instructions](https://en.wikipedia.org/wiki/Bit_Manipulation_Instruction_Sets), [sparsepp](https://github.com/greg7mdp/sparsepp) and [xxhash](https://github.com/Cyan4973/xxHash)
+-   faster and more memory-efficient than before, by using [BMI2 instructions](https://en.wikipedia.org/wiki/Bit_Manipulation_Instruction_Sets) and more recent hash libraries ([phmap](https://github.com/greg7mdp/parallel-hashmap) and [xxhash](https://github.com/Cyan4973/xxHash))
 -   refactored with C++11 features
 -   use CMake to build the project
 -   removal of GPU support

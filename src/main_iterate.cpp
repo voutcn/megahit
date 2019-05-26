@@ -18,21 +18,21 @@
 
 /* contact: Dinghua Li <dhli@cs.hku.hk> */
 
-#include <stdio.h>
-#include <omp.h>
 #include <assert.h>
+#include <omp.h>
+#include <stdio.h>
 
-#include <string>
-#include <vector>
+#include <algorithm>
 #include <iostream>
 #include <sstream>
-#include <algorithm>
 #include <stdexcept>
+#include <string>
+#include <vector>
 
 #include "definitions.h"
-#include "sequence/readers/async_sequence_reader.h"
-#include "iterate/kmer_collector.h"
 #include "iterate/contig_flank_index.h"
+#include "iterate/kmer_collector.h"
+#include "sequence/readers/async_sequence_reader.h"
 #include "utils/options_description.h"
 
 using std::string;
@@ -91,8 +91,7 @@ static void ParseIterOptions(int argc, char *argv[]) {
     } else {
       omp_set_num_threads(1);
     }
-  }
-  catch (std::exception &e) {
+  } catch (std::exception &e) {
     std::cerr << e.what() << std::endl;
     std::cerr << "Usage: " << argv[0] << " [opt]" << std::endl;
     std::cerr << "opt with (*) are must" << std::endl;
@@ -102,10 +101,10 @@ static void ParseIterOptions(int argc, char *argv[]) {
   }
 }
 
-}
+}  // namespace
 
-template<class KmerType, class IndexType>
-static bool ReadReadsAndProcessKernel(const Option &opt, IndexType &index) {
+template <class KmerType, class IndexType>
+static bool ReadReadsAndProcessKernel(const Option &opt, const IndexType &index) {
   if (KmerType::max_size() < static_cast<unsigned>(opt.kmer_k + opt.step + 1)) {
     return false;
   }
@@ -116,25 +115,22 @@ static bool ReadReadsAndProcessKernel(const Option &opt, IndexType &index) {
   int64_t num_total_reads = 0;
 
   while (true) {
-    auto read_pkg = reader.Next();
+    const auto &read_pkg = reader.Next();
     if (read_pkg.Size() == 0) {
       break;
     }
-#pragma omp parallel for reduction(+: num_aligned_reads)
-    for (unsigned i = 0; i < read_pkg.Size(); ++i) {
-      num_aligned_reads += index.FindNextKmersFromRead(read_pkg, i, &collector) > 0;
-    }
+    num_aligned_reads += index.FindNextKmersFromReads(read_pkg, &collector);
     num_total_reads += read_pkg.Size();
-    xinfo("Processed: %lld, aligned: %lld. Iterative edges: %llu\n",
-          num_total_reads, num_aligned_reads, collector.collection().size());
+    xinfo("Processed: %lld, aligned: %lld. Iterative edges: %llu\n", num_total_reads, num_aligned_reads,
+          collector.collection().size());
   }
   collector.FlushToFile();
-  xinfo("Total: %lld, aligned: %lld. Iterative edges: %llu\n",
-        num_total_reads, num_aligned_reads, collector.collection().size());
+  xinfo("Total: %lld, aligned: %lld. Iterative edges: %llu\n", num_total_reads, num_aligned_reads,
+        collector.collection().size());
   return true;
 }
 
-template<class IndexType>
+template <class IndexType>
 static void ReadReadsAndProcess(const Option &opt, const IndexType &index) {
   if (ReadReadsAndProcessKernel<Kmer<1, uint64_t>>(opt, index)) return;
   if (ReadReadsAndProcessKernel<Kmer<3, uint32_t>>(opt, index)) return;
@@ -147,7 +143,7 @@ static void ReadReadsAndProcess(const Option &opt, const IndexType &index) {
   xfatal("k is too large!\n");
 }
 
-template<class IndexType>
+template <class IndexType>
 static void ReadContigsAndBuildIndex(const Option &opt, const std::string &file_name, IndexType *index) {
   AsyncContigReader reader(file_name);
   while (true) {
@@ -163,7 +159,7 @@ static void ReadContigsAndBuildIndex(const Option &opt, const std::string &file_
   }
 }
 
-template<class KmerType>
+template <class KmerType>
 bool KmerTypeSelectAndRun(const Option &opt) {
   if (KmerType::max_size() >= static_cast<unsigned>(opt.kmer_k + 1)) {
     xinfo("Selected kmer type size for k: %u\n", sizeof(KmerType));

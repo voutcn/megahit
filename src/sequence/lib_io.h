@@ -21,23 +21,23 @@
 #ifndef READ_LIB_FUNCTIONS_INL_H__
 #define READ_LIB_FUNCTIONS_INL_H__
 
-#include <stdlib.h>
-#include <stdio.h>
-#include <stdint.h>
 #include <inttypes.h>
-#include <iostream>
+#include <stdint.h>
+#include <stdio.h>
+#include <stdlib.h>
 #include <fstream>
+#include <iostream>
+#include <memory>
 #include <string>
 #include <vector>
-#include <memory>
 
-#include "utils/utils.h"
 #include "lib_info.h"
-#include "sequence/sequence_package.h"
+#include "sequence/readers/binary_reader.h"
 #include "sequence/readers/fastx_reader.h"
 #include "sequence/readers/pair_end_fastx_reader.h"
-#include "sequence/readers/binary_reader.h"
-#include "utils/safe_alloc_open-inl.h"
+#include "sequence/sequence_package.h"
+#include "utils/safe_open.h"
+#include "utils/utils.h"
 
 inline void WriteBinarySequences(const SeqPackage &pkg, FILE *file, int64_t from = 0, int64_t to = -1) {
   if (to == -1) {
@@ -55,8 +55,7 @@ inline void WriteBinarySequences(const SeqPackage &pkg, FILE *file, int64_t from
   }
 }
 
-inline void ReadAndWriteMultipleLibs(const std::string &lib_file,
-                                     const std::string &out_prefix) {
+inline void ReadAndWriteMultipleLibs(const std::string &lib_file, const std::string &out_prefix) {
   std::ifstream lib_config(lib_file);
 
   if (!lib_config.is_open()) {
@@ -111,7 +110,7 @@ inline void ReadAndWriteMultipleLibs(const std::string &lib_file,
       total_reads += num_read;
       total_bases += seq_batch.BaseCount();
       WriteBinarySequences(seq_batch, bin_file);
-      max_read_len = std::max(max_read_len, (int) seq_batch.MaxSequenceLength());
+      max_read_len = std::max(max_read_len, (int)seq_batch.MaxSequenceLength());
       seq_batch.Clear();
     }
 
@@ -125,11 +124,11 @@ inline void ReadAndWriteMultipleLibs(const std::string &lib_file,
       xfatal("File(s): %s\n", metadata.c_str());
     }
 
-    xinfo("Lib %d (%s): %s, %lld reads, %d max length\n",
-          lib_info.size(), metadata.c_str(), type.c_str(), total_reads - start, max_read_len);
+    xinfo("Lib %d (%s): %s, %lld reads, %d max length\n", lib_info.size(), metadata.c_str(), type.c_str(),
+          total_reads - start, max_read_len);
 
     lib_info.emplace_back(&seq_batch, start, total_reads - 1, max_read_len, type != "se", metadata);
-    std::getline(lib_config, metadata); // eliminate the "\n"
+    std::getline(lib_config, metadata);  // eliminate the "\n"
   }
 
   FILE *lib_info_file = xfopen(FormatString("%s.lib_info", out_prefix.c_str()), "w");
@@ -137,8 +136,7 @@ inline void ReadAndWriteMultipleLibs(const std::string &lib_file,
 
   for (auto &i : lib_info) {
     fprintf(lib_info_file, "%s\n", i.metadata.c_str());
-    fprintf(lib_info_file, "%" PRId64 " %" PRId64 " %d %s\n", i.from, i.to,
-            i.max_read_len, i.is_pe ? "pe" : "se");
+    fprintf(lib_info_file, "%" PRId64 " %" PRId64 " %d %s\n", i.from, i.to, i.max_read_len, i.is_pe ? "pe" : "se");
   }
 
   fclose(lib_info_file);
@@ -158,12 +156,12 @@ inline void ReadBinaryLibs(const std::string &file_prefix, SeqPackage &package, 
   std::string metadata, pe_or_se;
 
   lib_info_file >> total_bases >> num_reads;
-  std::getline(lib_info_file, metadata); // eliminate the "\n"
+  std::getline(lib_info_file, metadata);  // eliminate the "\n"
 
   while (std::getline(lib_info_file, metadata)) {
     lib_info_file >> start >> end >> max_read_len >> pe_or_se;
     lib_info.emplace_back(&package, start, end, max_read_len, pe_or_se == "pe", metadata);
-    std::getline(lib_info_file, metadata); // eliminate the "\n"
+    std::getline(lib_info_file, metadata);  // eliminate the "\n"
   }
 
   xinfo("Before reserve for %lu reads, %lu bases, sizeof seq_package: %lu\n", num_reads, total_bases,

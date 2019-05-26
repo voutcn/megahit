@@ -12,7 +12,7 @@
 
 class BinaryReader : public BaseSequenceReader {
  public:
-  explicit BinaryReader(const std::string &filename): is_(filename) {
+  explicit BinaryReader(const std::string &filename) : is_(filename) {
     if (is_.bad()) {
       throw std::invalid_argument("Failed to open file " + filename);
     }
@@ -34,6 +34,7 @@ class BinaryReader : public BaseSequenceReader {
       }
       auto bytes_read = reader_.read(&buf_[0], num_words);
       assert(bytes_read == num_words * sizeof(buf_[0]));
+      (void)(bytes_read);
 
       if (!reverse) {
         pkg->AppendCompactSequence(&buf_[0], read_len);
@@ -55,4 +56,4 @@ class BinaryReader : public BaseSequenceReader {
   std::vector<SeqPackage::word_type> buf_;
 };
 
-#endif //MEGAHIT_BINARY_READER_H
+#endif  // MEGAHIT_BINARY_READER_H

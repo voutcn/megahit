@@ -11,4 +11,4 @@ class UnitigGraph;
 
 uint32_t DisconnectWeakLinks(UnitigGraph&, double local_ratio);
 
-#endif //MEGAHIT_WEAK_LINK_REMOVER_H
+#endif  // MEGAHIT_WEAK_LINK_REMOVER_H

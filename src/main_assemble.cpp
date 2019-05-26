@@ -19,19 +19,19 @@
 /* contact: Dinghua Li <dhli@cs.hku.hk> */
 
 #include <omp.h>
-#include <cassert>
-#include <string>
 #include <algorithm>
+#include <cassert>
 #include <iostream>
 #include <stdexcept>
+#include <string>
 
-#include "utils/utils.h"
-#include "utils/options_description.h"
-#include "utils/safe_alloc_open-inl.h"
 #include "assembly/all_algo.h"
-#include "assembly/contig_writer.h"
 #include "assembly/contig_stat.h"
+#include "assembly/contig_writer.h"
 #include "utils/histgram.h"
+#include "utils/options_description.h"
+#include "utils/safe_open.h"
+#include "utils/utils.h"
 
 using std::string;
 
@@ -55,18 +55,10 @@ struct Option {
   bool output_standalone{false};
   bool careful_bubble{false};
 
-  string contig_file() {
-    return output_prefix + ".contigs.fa";
-  }
-  string standalone_file() {
-    return output_prefix + ".final.contigs.fa";
-  }
-  string addi_contig_file() {
-    return output_prefix + ".addi.fa";
-  }
-  string bubble_file() {
-    return output_prefix + ".bubble_seq.fa";
-  }
+  string contig_file() { return output_prefix + ".contigs.fa"; }
+  string standalone_file() { return output_prefix + ".final.contigs.fa"; }
+  string addi_contig_file() { return output_prefix + ".addi.fa"; }
+  string bubble_file() { return output_prefix + ".bubble_seq.fa"; }
 } opt;
 
 void ParseAsmOption(int argc, char *argv[]) {
@@ -86,8 +78,7 @@ void ParseAsmOption(int argc, char *argv[]) {
   desc.AddOption("min_depth", "", opt.min_depth,
                  "if prune_level >= 2, permanently remove low local coverage unitigs under this threshold");
   desc.AddOption("is_final_round", "", opt.is_final_round, "this is the last iteration");
-  desc.AddOption("output_standalone", "", opt.output_standalone,
-                 "output standalone contigs to *.final.contigs.fa");
+  desc.AddOption("output_standalone", "", opt.output_standalone, "output standalone contigs to *.final.contigs.fa");
   desc.AddOption("careful_bubble", "", opt.careful_bubble, "remove bubble carefully");
 
   try {
@@ -95,8 +86,7 @@ void ParseAsmOption(int argc, char *argv[]) {
     if (opt.sdbg_name.empty()) {
       throw std::logic_error("no succinct de Bruijn graph name!");
     }
-  }
-  catch (std::exception &e) {
+  } catch (std::exception &e) {
     std::cerr << e.what() << std::endl;
     std::cerr << "Usage: " << argv[0] << " -s sdbg_name -o output_prefix" << std::endl;
     std::cerr << "options:" << std::endl;
@@ -105,7 +95,7 @@ void ParseAsmOption(int argc, char *argv[]) {
   }
 }
 
-}
+}  // namespace
 
 int main_assemble(int argc, char **argv) {
   AutoMaxRssRecorder recorder;
@@ -121,7 +111,7 @@ int main_assemble(int argc, char **argv) {
   dbg.LoadFromFile(opt.sdbg_name.c_str());
   timer.stop();
   xinfoc("Done. Time elapsed: %lf\n", timer.elapsed());
-  xinfo("Number of Edges: %lld; K value: %d\n", (long long) dbg.size(), dbg.k());
+  xinfo("Number of Edges: %lld; K value: %d\n", (long long)dbg.size(), dbg.k());
 
   // set cpu threads
   if (opt.num_cpu_threads == 0) {
@@ -161,7 +151,7 @@ int main_assemble(int argc, char **argv) {
   FILE *bubble_file = xfopen(opt.bubble_file().c_str(), "w");
   NaiveBubbleRemover naiver_bubble_remover;
   ComplexBubbleRemover complex_bubble_remover;
-  complex_bubble_remover.set_merge_similarity(opt.merge_similar).set_merge_level(opt.merge_len);
+  complex_bubble_remover.SetMergeSimilarity(opt.merge_similar).SetMergeLevel(opt.merge_len);
   Histgram<int64_t> bubble_hist;
   if (opt.careful_bubble) {
     naiver_bubble_remover.set_careful_threshold(0.2).set_bubble_file(bubble_file).set_hist(bubble_hist);
@@ -185,8 +175,7 @@ int main_assemble(int argc, char **argv) {
       timer.start();
       uint32_t num_bubbles = naiver_bubble_remover.PopBubbles(graph, true);
       timer.stop();
-      xinfo("Number of bubbles removed: %u, Time elapsed(sec): %lf\n",
-            num_bubbles, timer.elapsed());
+      xinfo("Number of bubbles removed: %u, Time elapsed(sec): %lf\n", num_bubbles, timer.elapsed());
       changed |= num_bubbles > 0;
     }
     // remove complex bubbles
@@ -195,8 +184,7 @@ int main_assemble(int argc, char **argv) {
       timer.start();
       uint32_t num_bubbles = complex_bubble_remover.PopBubbles(graph, true);
       timer.stop();
-      xinfo("Number of complex bubbles removed: %u, Time elapsed(sec): %lf\n",
-            num_bubbles, timer.elapsed());
+      xinfo("Number of complex bubbles removed: %u, Time elapsed(sec): %lf\n", num_bubbles, timer.elapsed());
       changed |= num_bubbles > 0;
     }
 
@@ -219,22 +207,14 @@ int main_assemble(int argc, char **argv) {
         num_excessive_pruned += complex_bubble_remover.PopBubbles(graph, true);
       }
       timer.stop();
-      xinfo("Unitigs removed in (more-)excessive pruning: %llu, time: %lf\n",
-            num_excessive_pruned,
-            timer.elapsed());
+      xinfo("Unitigs removed in (more-)excessive pruning: %llu, time: %lf\n", num_excessive_pruned, timer.elapsed());
     } else if (opt.prune_level >= 2) {
       timer.reset();
       timer.start();
-      RemoveLocalLowDepth(graph, opt.min_depth,
-                          opt.max_tip_len,
-                          opt.local_width,
-                          std::min(opt.low_local_ratio, 0.1),
-                          true,
-                          &num_excessive_pruned);
+      RemoveLocalLowDepth(graph, opt.min_depth, opt.max_tip_len, opt.local_width, std::min(opt.low_local_ratio, 0.1),
+                          true, &num_excessive_pruned);
       timer.stop();
-      xinfo("Unitigs removed in excessive pruning: %llu, time: %lf\n",
-            num_excessive_pruned,
-            timer.elapsed());
+      xinfo("Unitigs removed in excessive pruning: %llu, time: %lf\n", num_excessive_pruned, timer.elapsed());
     }
     if (!changed) break;
   }
@@ -245,16 +225,14 @@ int main_assemble(int argc, char **argv) {
   FILE *contig_file = xfopen(opt.contig_file().c_str(), "w");
   FILE *standalone_file = xfopen(opt.standalone_file().c_str(), "w");
 
-  if (!(opt.is_final_round && opt.prune_level >= 1)) { // otherwise output after local low depth pruning
+  if (!(opt.is_final_round && opt.prune_level >= 1)) {  // otherwise output after local low depth pruning
     timer.reset();
     timer.start();
     FILE *out_contig_info = xfopen((opt.contig_file() + ".info").c_str(), "w");
-    fprintf(out_contig_info, "%lu %lu\n",
-            graph.size() + bubble_hist.size(), stat["total size"] + bubble_hist.sum());
+    fprintf(out_contig_info, "%lu %lu\n", graph.size() + bubble_hist.size(), stat["total size"] + bubble_hist.sum());
     fclose(out_contig_info);
 
-    OutputContigs(graph, contig_file, opt.output_standalone ? standalone_file : nullptr,
-                  false, opt.min_standalone);
+    OutputContigs(graph, contig_file, opt.output_standalone ? standalone_file : nullptr, false, opt.min_standalone);
     timer.stop();
     xinfo("Time to output: %lf\n", timer.elapsed());
   }
@@ -266,8 +244,8 @@ int main_assemble(int argc, char **argv) {
 
     timer.reset();
     timer.start();
-    uint32_t num_removed = IterateLocalLowDepth(
-        graph, opt.min_depth, opt.max_tip_len, opt.local_width, opt.low_local_ratio, opt.is_final_round);
+    uint32_t num_removed = IterateLocalLowDepth(graph, opt.min_depth, opt.max_tip_len, opt.local_width,
+                                                opt.low_local_ratio, opt.is_final_round);
 
     uint32_t n_bubbles = 0;
     if (opt.bubble_level >= 2 && opt.merge_len > 0) {
@@ -275,15 +253,14 @@ int main_assemble(int argc, char **argv) {
       n_bubbles = complex_bubble_remover.PopBubbles(graph, false);
       timer.stop();
     }
-    xinfo("Number of local low depth unitigs removed: %lu, complex bubbles removed: %u, time: %lf\n",
-          num_removed, n_bubbles, timer.elapsed());
+    xinfo("Number of local low depth unitigs removed: %lu, complex bubbles removed: %u, time: %lf\n", num_removed,
+          n_bubbles, timer.elapsed());
     CalcAndPrintStat(graph);
 
     if (!opt.is_final_round) {
       OutputContigs(graph, add_contig_file, nullptr, true, 0);
     } else {
-      OutputContigs(graph, contig_file, opt.output_standalone ? standalone_file : nullptr,
-                    false, opt.min_standalone);
+      OutputContigs(graph, contig_file, opt.output_standalone ? standalone_file : nullptr, false, opt.min_standalone);
     }
 
     auto stat_changed = CalcAndPrintStat(graph, false, true);

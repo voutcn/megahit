@@ -21,8 +21,8 @@
 #ifndef MEGAHIT_SEQUENCE_PACKAGE_H
 #define MEGAHIT_SEQUENCE_PACKAGE_H
 
-#include <cstdint>
 #include <cassert>
+#include <cstdint>
 #include <vector>
 #include "kmlib/kmbit.h"
 #include "kmlib/kmcompactvector.h"
@@ -31,7 +31,7 @@
 /**
  * @brief hold a set of sequences
  */
-template<class WordType = unsigned long>
+template <class WordType = unsigned long>
 class SequencePackage {
  public:
   using word_type = WordType;
@@ -56,31 +56,20 @@ class SequencePackage {
     num_fixed_len_ = 0;
   }
 
-  void ReserveBases(size_t num_bases) {
-    sequences_.reserve(num_bases);
-  }
+  void ReserveBases(size_t num_bases) { sequences_.reserve(num_bases); }
 
-  void ReserveSequences(size_t num_seq) {
-    start_pos_.reserve(num_seq + 1);
-  }
+  void ReserveSequences(size_t num_seq) { start_pos_.reserve(num_seq + 1); }
 
-  size_t Size() const {
-    return num_fixed_len_ + start_pos_.size() - 1;
-  }
+  size_t Size() const { return num_fixed_len_ + start_pos_.size() - 1; }
 
-  size_t BaseCount() const {
-    return start_pos_.back();
-  }
+  size_t BaseCount() const { return start_pos_.back(); }
 
   size_t SizeInByte() const {
-    return sizeof(word_type) * sequences_.word_capacity()
-        + sizeof(uint64_t) * start_pos_.capacity()
-        + sizeof(uint64_t) * pos_to_id_.capacity();
+    return sizeof(word_type) * sequences_.word_capacity() + sizeof(uint64_t) * start_pos_.capacity() +
+           sizeof(uint64_t) * pos_to_id_.capacity();
   }
 
-  unsigned MaxSequenceLength() const {
-    return max_len_;
-  }
+  unsigned MaxSequenceLength() const { return max_len_; }
 
   unsigned SequenceLength(size_t seq_id) const {
     if (seq_id < num_fixed_len_) {
@@ -90,9 +79,7 @@ class SequencePackage {
     }
   }
 
-  uint8_t GetBase(size_t seq_id, unsigned offset) const {
-    return sequences_[StartPos(seq_id) + offset];
-  }
+  uint8_t GetBase(size_t seq_id, unsigned offset) const { return sequences_[StartPos(seq_id) + offset]; }
 
   uint64_t StartPos(size_t seq_id) const {
     if (seq_id < num_fixed_len_) {
@@ -148,21 +135,13 @@ class SequencePackage {
   }
 
  public:
-  void AppendStringSequence(const char *s, unsigned len) {
-    AppendStringSequence(s, s + len, len);
-  }
+  void AppendStringSequence(const char *s, unsigned len) { AppendStringSequence(s, s + len, len); }
 
-  void AppendReversedStringSequence(const char *s, unsigned len) {
-    AppendStringSequence(s + len - 1, s - 1, len);
-  }
+  void AppendReversedStringSequence(const char *s, unsigned len) { AppendStringSequence(s + len - 1, s - 1, len); }
 
-  void AppendCompactSequence(const word_type *s, unsigned len) {
-    AppendCompactSequence(s, len, false);
-  }
+  void AppendCompactSequence(const word_type *s, unsigned len) { AppendCompactSequence(s, len, false); }
 
-  void AppendReversedCompactSequence(const word_type *s, unsigned len) {
-    AppendCompactSequence(s, len, true);
-  }
+  void AppendReversedCompactSequence(const word_type *s, unsigned len) { AppendCompactSequence(s, len, true); }
 
   void FetchSequence(size_t seq_id, std::vector<word_type> *s) const {
     vector_type cvec(s);
@@ -186,9 +165,7 @@ class SequencePackage {
   }
 
  private:
-  bool IsFixedLength() const {
-    return start_pos_.size() == 1;
-  }
+  bool IsFixedLength() const { return start_pos_.size() == 1; }
 
   void UpdateLength(unsigned len) {
     if (num_fixed_len_ == 0) {
@@ -243,7 +220,7 @@ class SequencePackage {
   vector_type sequences_;
   unsigned fixed_len_{0};
   size_t num_fixed_len_{0};
-  std::vector<uint64_t> start_pos_; // the index of the starting position of a sequence
+  std::vector<uint64_t> start_pos_;  // the index of the starting position of a sequence
   char dna_map_[256]{};
   unsigned max_len_{0};
 

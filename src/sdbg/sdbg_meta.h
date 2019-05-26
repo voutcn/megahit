@@ -7,12 +7,12 @@
 
 #include "sdbg_def.h"
 
-#include <cstdint>
 #include <cstddef>
+#include <cstdint>
 #include <cstring>
-#include <vector>
 #include <fstream>
 #include <limits>
+#include <vector>
 
 /**
  * @brief bucket record of a SDBG
@@ -47,43 +47,23 @@ class SdbgMeta {
   size_t ones_in_last_{};
   size_t w_count_[kWAlphabetSize]{};
   std::vector<SdbgBucketRecord> bucket_rec_;
+
  public:
   SdbgMeta() = default;
   void Serialize(std::ofstream &os);
-  SdbgMeta& Deserialize(std::ifstream &is);
-  SdbgMeta& FromBucketRecord(const std::vector<SdbgBucketRecord> &bucket_rec,
-      uint32_t k, uint32_t words_per_tip_label);
+  SdbgMeta &Deserialize(std::ifstream &is);
+  SdbgMeta &FromBucketRecord(const std::vector<SdbgBucketRecord> &bucket_rec, uint32_t k, uint32_t words_per_tip_label);
   ~SdbgMeta() = default;
-  uint32_t k() const {
-    return k_;
-  }
-  size_t bucket_count() const {
-    return bucket_rec_.size();
-  }
-  size_t item_count() const {
-    return item_count_;
-  }
-  size_t tip_count() const {
-    return tip_count_;
-  }
-  size_t w_count(unsigned w) const {
-    return w_count_[w];
-  }
-  size_t ones_in_last() const {
-    return ones_in_last_;
-  }
-  size_t large_mul_count() const {
-    return large_mul_count_;
-  }
-  size_t words_per_tip_label() const {
-    return words_per_tip_label_;
-  }
-  std::vector<SdbgBucketRecord>::const_iterator begin_bucket() const {
-    return bucket_rec_.begin();
-  }
-  std::vector<SdbgBucketRecord>::const_iterator end_bucket() const {
-    return bucket_rec_.end();
-  }
+  uint32_t k() const { return k_; }
+  size_t bucket_count() const { return bucket_rec_.size(); }
+  size_t item_count() const { return item_count_; }
+  size_t tip_count() const { return tip_count_; }
+  size_t w_count(unsigned w) const { return w_count_[w]; }
+  size_t ones_in_last() const { return ones_in_last_; }
+  size_t large_mul_count() const { return large_mul_count_; }
+  size_t words_per_tip_label() const { return words_per_tip_label_; }
+  std::vector<SdbgBucketRecord>::const_iterator begin_bucket() const { return bucket_rec_.begin(); }
+  std::vector<SdbgBucketRecord>::const_iterator end_bucket() const { return bucket_rec_.end(); }
 };
 
-#endif //MEGAHIT_SDBG_META_H
+#endif  // MEGAHIT_SDBG_META_H

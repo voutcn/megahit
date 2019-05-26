@@ -3,9 +3,9 @@
 //
 
 #include "contig_writer.h"
-#include "unitig_graph.h"
-#include "definitions.h"
 #include <cassert>
+#include "definitions.h"
+#include "unitig_graph.h"
 
 namespace {
 
@@ -14,11 +14,16 @@ inline char Complement(char c) {
     return 3 - c;
   }
   switch (c) {
-    case 'A': return 'T';
-    case 'C': return 'G';
-    case 'G': return 'C';
-    case 'T': return 'A';
-    default: assert(false);
+    case 'A':
+      return 'T';
+    case 'C':
+      return 'G';
+    case 'G':
+      return 'C';
+    case 'T':
+      return 'A';
+    default:
+      assert(false);
   }
   return 0;
 }
@@ -34,7 +39,6 @@ inline void ReverseComplement(std::string &s) {
     s[i] = Complement(s[i]);
   }
 }
-
 
 void FoldPalindrome(std::string &s, unsigned kmer_k, bool is_loop) {
   if (is_loop) {
@@ -54,27 +58,26 @@ void FoldPalindrome(std::string &s, unsigned kmer_k, bool is_loop) {
   }
 }
 
-}
+}  // namespace
 
-void OutputContigs(UnitigGraph &graph, FILE *contig_file, FILE *final_file,
-                   bool change_only, uint32_t min_standalone) {
-  assert(!(change_only && final_file != nullptr)); // if output changed contigs, must not output final contigs
+void OutputContigs(UnitigGraph &graph, FILE *contig_file, FILE *final_file, bool change_only, uint32_t min_standalone) {
+  assert(!(change_only && final_file != nullptr));  // if output changed contigs, must not output final contigs
 
 #pragma omp parallel for
   for (UnitigGraph::size_type i = 0; i < graph.size(); ++i) {
     auto adapter = graph.MakeVertexAdapter(i);
-    double multi = change_only ? 1 : std::min(static_cast<double>(kMaxMul), adapter.avg_depth());
+    double multi = change_only ? 1 : std::min(static_cast<double>(kMaxMul), adapter.GetAvgDepth());
     std::string ascii_contig = graph.VertexToDNAString(adapter);
-    if (change_only && !adapter.is_changed()) {
+    if (change_only && !adapter.IsChanged()) {
       continue;
     }
 
-    if (adapter.is_loop()) {
+    if (adapter.IsLoop()) {
       int flag = contig_flag::kLoop | contig_flag::kStandalone;
       FILE *out_file = contig_file;
 
-      if (adapter.is_palindrome()) {
-        FoldPalindrome(ascii_contig, graph.k(), adapter.is_loop());
+      if (adapter.IsPalindrome()) {
+        FoldPalindrome(ascii_contig, graph.k(), adapter.IsLoop());
         flag = contig_flag::kStandalone;
       }
 
@@ -90,9 +93,9 @@ void OutputContigs(UnitigGraph &graph, FILE *contig_file, FILE *final_file,
       FILE *out_file = contig_file;
       int flag = 0;
 
-      if (adapter.forsure_standalone() || (graph.InDegree(adapter) == 0 && graph.OutDegree(adapter) == 0)) {
-        if (adapter.is_palindrome()) {
-          FoldPalindrome(ascii_contig, graph.k(), adapter.is_loop());
+      if (adapter.IsStandalone() || (graph.InDegree(adapter) == 0 && graph.OutDegree(adapter) == 0)) {
+        if (adapter.IsPalindrome()) {
+          FoldPalindrome(ascii_contig, graph.k(), adapter.IsLoop());
         }
         flag = contig_flag::kStandalone;
         if (final_file != nullptr) {

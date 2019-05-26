@@ -11,27 +11,26 @@
 
 #define __BASIC_HISTGRAM_H__
 
-#include <stdint.h>
-
 #include <algorithm>
 #include <cmath>
+#include <cstdint>
 #include <deque>
 #include <map>
-#include <mutex>
+
+#include "utils/mutex.h"
 
 /**
  * @brief It is a class which contains a set of number for drawing histgram.
  * @tparam T
  */
-template<class T>
+template <class T, class Mutex = SpinLock>
 class Histgram {
  public:
   typedef T value_type;
 
   Histgram() = default;
-  Histgram(const Histgram &hist)
-      : map_(hist.map_), size_(hist.size_) {
-  }
+  Histgram(const Histgram &hist) : map_(hist.map_), size_(hist.size_) {}
+  Histgram(Histgram &&rhs) = default;
   ~Histgram() = default;
 
   const Histgram &operator=(const Histgram &hist) {
@@ -41,7 +40,7 @@ class Histgram {
   }
 
   void insert(value_type value, size_t count = 1) {
-    std::lock_guard<std::mutex> lk(mutex_);
+    std::lock_guard<Mutex> lk(mutex_);
     map_[value] += count;
     size_ += count;
   }
@@ -55,8 +54,7 @@ class Histgram {
   }
 
   size_t count(value_type from, value_type to) const {
-    if (from >= to)
-      return 0;
+    if (from >= to) return 0;
 
     size_t sum = 0;
     for (typename std::map<value_type, size_t>::const_iterator iter = map_.lower_bound(from);
@@ -65,12 +63,8 @@ class Histgram {
     return sum;
   }
 
-  value_type minimum() const {
-    return empty() ? 0 : map_.begin()->first;
-  }
-  value_type maximum() const {
-    return empty() ? 0 : map_.rbegin()->first;
-  }
+  value_type minimum() const { return empty() ? 0 : map_.begin()->first; }
+  value_type maximum() const { return empty() ? 0 : map_.rbegin()->first; }
 
   double mean() const {
     if (size() == 0) {
@@ -81,8 +75,7 @@ class Histgram {
 
   value_type sum() const {
     value_type sum = 0;
-    for (typename std::map<value_type, size_t>::const_iterator iter = map_.begin();
-         iter != map_.end(); ++iter)
+    for (typename std::map<value_type, size_t>::const_iterator iter = map_.begin(); iter != map_.end(); ++iter)
       sum += iter->first * iter->second;
     return sum;
   }
@@ -91,31 +84,24 @@ class Histgram {
     double sum = 0;
     double square_sum = 0;
     size_t n = size();
-    for (typename std::map<value_type, size_t>::const_iterator iter = map_.begin();
-         iter != map_.end(); ++iter) {
+    for (typename std::map<value_type, size_t>::const_iterator iter = map_.begin(); iter != map_.end(); ++iter) {
       sum += 1.0 * iter->first * iter->second;
       square_sum += 1.0 * iter->first * iter->first * iter->second;
     }
     return square_sum / n - (sum / n) * (sum / n);
   }
 
-  double sd() const {
-    return std::sqrt(variance());
-  }
+  double sd() const { return std::sqrt(variance()); }
 
-  value_type median() const {
-    return percentile(0.5);
-  }
+  value_type median() const { return percentile(0.5); }
 
   value_type percentile(double p) const {
     size_t half = size() * p;
     size_t sum = 0;
-    for (typename std::map<value_type, size_t>::const_iterator iter = map_.begin();
-         iter != map_.end(); ++iter) {
+    for (typename std::map<value_type, size_t>::const_iterator iter = map_.begin(); iter != map_.end(); ++iter) {
       sum += iter->second;
 
-      if (sum > half)
-        return iter->first;
+      if (sum > half) return iter->first;
     }
     return 0;
   }
@@ -124,23 +110,21 @@ class Histgram {
     size_t count = size() * p;
     size_t sum = 0;
     double total = 0;
-    for (typename std::map<value_type, size_t>::const_reverse_iterator iter = map_.rbegin();
-         iter != map_.rend(); ++iter) {
+    for (typename std::map<value_type, size_t>::const_reverse_iterator iter = map_.rbegin(); iter != map_.rend();
+         ++iter) {
       sum += iter->second;
       total += iter->second * iter->first;
-      if (sum > count)
-        break;
+      if (sum > count) break;
     }
     return (sum != 0) ? total / sum : 0;
   }
 
   value_type Nx(double x) {
     double total = 0;
-    for (typename std::map<value_type, size_t>::const_reverse_iterator iter = map_.rbegin();
-         iter != map_.rend(); ++iter) {
+    for (typename std::map<value_type, size_t>::const_reverse_iterator iter = map_.rbegin(); iter != map_.rend();
+         ++iter) {
       total += iter->second * iter->first;
-      if (total >= x)
-        return iter->first;
+      if (total >= x) return iter->first;
     }
     return 0;
   }
@@ -158,8 +142,7 @@ class Histgram {
       } else if (++count >= kSmoothing)
         break;
     }
-    if (minimum->first == maximum())
-      return 0;
+    if (minimum->first == maximum()) return 0;
     return minimum->first;
   }
 
@@ -168,8 +151,7 @@ class Histgram {
     std::deque<value_type> trim_values;
 
     size_t sum = 0;
-    for (typename std::map<value_type, size_t>::iterator iter = map_.begin();
-         iter != map_.end(); ++iter) {
+    for (typename std::map<value_type, size_t>::iterator iter = map_.begin(); iter != map_.end(); ++iter) {
       if (sum + iter->second <= trim_size) {
         sum += iter->second;
         trim_values.push_back(iter->first);
@@ -178,8 +160,7 @@ class Histgram {
     }
     size_ -= sum;
     sum = 0;
-    for (typename std::map<value_type, size_t>::reverse_iterator iter = map_.rbegin();
-         iter != map_.rend(); ++iter) {
+    for (typename std::map<value_type, size_t>::reverse_iterator iter = map_.rbegin(); iter != map_.rend(); ++iter) {
       if (sum + iter->second <= trim_size) {
         sum += iter->second;
         trim_values.push_back(iter->first);
@@ -198,8 +179,7 @@ class Histgram {
   size_t TrimLow(value_type threshold) {
     std::deque<value_type> trim_values;
     size_t sum = 0;
-    for (typename std::map<value_type, size_t>::iterator iter = map_.begin();
-         iter != map_.end(); ++iter) {
+    for (typename std::map<value_type, size_t>::iterator iter = map_.begin(); iter != map_.end(); ++iter) {
       if (iter->first < threshold) {
         sum += iter->second;
         trim_values.push_back(iter->first);
@@ -220,13 +200,9 @@ class Histgram {
     map_.swap(histgram.map_);
   }
 
-  bool empty() const {
-    return map_.empty();
-  }
+  bool empty() const { return map_.empty(); }
 
-  size_t size() const {
-    return size_;
-  }
+  size_t size() const { return size_; }
 
   void clear() {
     map_.clear();
@@ -236,15 +212,14 @@ class Histgram {
  private:
   std::map<value_type, size_t> map_{};
   size_t size_{0};
-  std::mutex mutex_{};
+  Mutex mutex_{};
 };
 
 namespace std {
-template<typename T>
+template <typename T>
 inline void swap(Histgram<T> &histgram1, Histgram<T> &histgram2) {
   histgram1.swap(histgram2);
 }
-}
+}  // namespace std
 
 #endif
-

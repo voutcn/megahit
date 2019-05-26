@@ -18,12 +18,12 @@
 
 /* contact: Dinghua Li <dhli@cs.hku.hk> */
 
-#include <string>
-#include <iostream>
 #include <omp.h>
+#include <iostream>
+#include <string>
 
-#include "utils/options_description.h"
 #include "localasm/local_assembler.h"
+#include "utils/options_description.h"
 #include "utils/utils.h"
 
 namespace {
@@ -75,8 +75,7 @@ void ParseLocalAsmOptions(int argc, char *argv[]) {
     if (opt.num_threads == 0) {
       opt.num_threads = omp_get_max_threads();
     }
-  }
-  catch (std::exception &e) {
+  } catch (std::exception &e) {
     std::cerr << e.what() << std::endl;
     std::cerr << "Usage: " << argv[0] << " -c contigs.fa -r reads.fq -o out.local_contig.fa" << std::endl;
     std::cerr << "options:" << std::endl;
@@ -84,7 +83,7 @@ void ParseLocalAsmOptions(int argc, char *argv[]) {
     exit(1);
   }
 }
-}
+}  // namespace
 
 int main_local(int argc, char **argv) {
   AutoMaxRssRecorder recorder;
@@ -98,12 +97,36 @@ int main_local(int argc, char **argv) {
   la.set_mapping_threshold(opt.similarity, opt.min_mapping_len);
   la.set_local_file(opt.output_file);
 
+  SimpleTimer timer;
+  timer.reset();
+  timer.start();
   la.ReadContigs(opt.contig_file);
   la.BuildHashMapper();
-  la.AddReadLib(opt.lib_file_prefix);
-  la.EstimateInsertSize();
-  la.MapToContigs();
-  la.LocalAssemble();
+  timer.stop();
+  xinfo("Hash mapper construction time elapsed: %f\n", timer.elapsed());
 
+  timer.reset();
+  timer.start();
+  la.AddReadLib(opt.lib_file_prefix);
+  timer.stop();
+  xinfo("Read lib time elapsed: %f\n", timer.elapsed());
+
+  timer.reset();
+  timer.start();
+  la.EstimateInsertSize();
+  timer.stop();
+  xinfo("Insert size estimation time elapsed: %f\n", timer.elapsed());
+
+  timer.reset();
+  timer.start();
+  la.MapToContigs();
+  timer.stop();
+  xinfo("Mapping time elapsed: %f\n", timer.elapsed());
+
+  timer.reset();
+  timer.start();
+  la.LocalAssemble();
+  timer.stop();
+  xinfo("Local assembly time elapsed: %f\n", timer.elapsed());
   return 0;
 }

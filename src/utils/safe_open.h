@@ -21,8 +21,8 @@
 #ifndef SAFE_ALLOC_OPEN_INL_H
 #define SAFE_ALLOC_OPEN_INL_H
 
-#include <stdlib.h>
 #include <stdio.h>
+#include <stdlib.h>
 
 inline FILE *xfopen(const char *filename, const char *mode) {
   FILE *fp;
@@ -33,26 +33,4 @@ inline FILE *xfopen(const char *filename, const char *mode) {
   return fp;
 }
 
-inline void *__xmalloc(size_t size_in_byte,
-                     const char *malloc_from_which_file = __FILE__,
-                     int malloc_from_which_line = __LINE__) {
-  void *ptr = malloc(size_in_byte);
-
-  if (ptr == nullptr && size_in_byte != 0) {
-    fprintf(stderr, "[ERROR] Ran out of memory while applying %llubytes\n", (unsigned long long) size_in_byte);
-    fprintf(stderr, "In file: %s, line %d\n", malloc_from_which_file, malloc_from_which_line);
-    fprintf(stderr, "There may be errors as follows:\n");
-    fprintf(stderr, "1) Not enough memory.\n");
-    fprintf(stderr, "2) The ARRAY may be overrode.\n");
-    fprintf(stderr, "3) The wild pointers.\n");
-    exit(-1);
-  }
-
-  return ptr;
-}
-
-
-#define xmalloc(sz) __xmalloc(sz, __FILE__, __LINE__)
-
-
-#endif // SAFE_ALLOC_OPEN_INL_H
+#endif  // SAFE_ALLOC_OPEN_INL_H

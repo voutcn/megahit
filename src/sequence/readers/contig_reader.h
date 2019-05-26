@@ -7,20 +7,19 @@
 
 #include "fastx_reader.h"
 
-
 class ContigReader : public FastxReader {
  public:
   explicit ContigReader(const std::string &file_name) : FastxReader(file_name) {}
-  ContigReader* SetMinLen(unsigned min_len) {
+  ContigReader *SetMinLen(unsigned min_len) {
     min_len_ = min_len;
     return this;
   }
-  ContigReader* SetExtendLoop(unsigned k_from, unsigned k_to) {
+  ContigReader *SetExtendLoop(unsigned k_from, unsigned k_to) {
     k_from_ = k_from;
     k_to_ = k_to;
     return this;
   }
-  ContigReader* SetDiscardFlag(unsigned flag) {
+  ContigReader *SetDiscardFlag(unsigned flag) {
     discard_flag_ = flag;
     return this;
   }
@@ -29,14 +28,14 @@ class ContigReader : public FastxReader {
     return ReadWithMultiplicity<float>(pkg, nullptr, max_num, max_num_bases, reverse);
   }
 
-  template<typename TMul>
+  template <typename TMul>
   int64_t ReadAllWithMultiplicity(SeqPackage *pkg, std::vector<TMul> *mul, bool reverse) {
     return ReadWithMultiplicity(pkg, mul, kMaxNumSeq, kMaxNumBases, reverse);
   }
 
-  template<typename TMul>
-  int64_t ReadWithMultiplicity(SeqPackage *pkg, std::vector<TMul> *mul,
-                               int64_t max_num, int64_t max_num_bases, bool reverse) {
+  template <typename TMul>
+  int64_t ReadWithMultiplicity(SeqPackage *pkg, std::vector<TMul> *mul, int64_t max_num, int64_t max_num_bases,
+                               bool reverse) {
     bool extend_loop = k_from_ < k_to_ && !(discard_flag_ & contig_flag::kLoop);
 
     int64_t num_bases = 0;
@@ -108,4 +107,4 @@ class ContigReader : public FastxReader {
   unsigned discard_flag_{0};
 };
 
-#endif //MEGAHIT_CONTIG_READER_H
+#endif  // MEGAHIT_CONTIG_READER_H

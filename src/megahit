@@ -332,7 +332,7 @@ def parse_opt(argv):
         opt.pe12 = [os.path.join(test_data_dir, "r1.il.fa.gz"), os.path.join(test_data_dir, "r2.il.fa.bz2")]
         opt.pe1 = [os.path.join(test_data_dir, "r3_1.fa")]
         opt.pe2 = [os.path.join(test_data_dir, "r3_2.fa")]
-        opt.se = [os.path.join(test_data_dir, "r4.fa")]
+        opt.se = [os.path.join(test_data_dir, "r4.fa"), os.path.join(test_data_dir, "loop.fa")]
         opt.out_dir = os.path.join(tempfile.mkdtemp(prefix='megahit_test'), 'out')
 
     if opt.temp_dir == "":

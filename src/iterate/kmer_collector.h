@@ -5,22 +5,22 @@
 #ifndef MEGAHIT_SPANNING_KMER_COLLECTOR_H
 #define MEGAHIT_SPANNING_KMER_COLLECTOR_H
 
-#include <mutex>
-#include <omp.h>
+#include "parallel_hashmap/phmap.h"
 #include "sdbg/sdbg_def.h"
 #include "sequence/kmer_plus.h"
-#include "sparsepp/spp.h"
 #include "sequence/readers/edge_io.h"
+#include "utils/mutex.h"
 
-template<class KmerType>
+template <class KmerType>
 class KmerCollector {
  public:
   using kmer_type = KmerType;
   using kmer_plus = KmerPlus<KmerType, mul_t>;
-  using hash_set = spp::sparse_hash_set<kmer_plus, KmerHash>;
+  using hash_set =
+      phmap::parallel_flat_hash_set<kmer_plus, KmerHash, phmap::container_internal::hash_default_eq<kmer_plus>,
+                                    phmap::container_internal::Allocator<kmer_plus>, 12, SpinLock>;
 
-  KmerCollector(unsigned k, const std::string &out_prefix)
-      : k_(k), output_prefix_(out_prefix) {
+  KmerCollector(unsigned k, const std::string &out_prefix) : k_(k), output_prefix_(out_prefix) {
     last_shift_ = k_ % 16;
     last_shift_ = (last_shift_ == 0 ? 0 : 16 - last_shift_) * 2;
     words_per_kmer_ = DivCeiling(k_ * 2 + kBitsPerMul, 32);
@@ -33,23 +33,20 @@ class KmerCollector {
     writer_.init_files();
   }
 
-  void Insert(const KmerType &kmer, mul_t mul) {
-    std::lock_guard<std::mutex> lk(lock_);
-    collection_.emplace(kmer, mul);
-  }
-  const hash_set &collection() const {
-    return collection_;
-  }
+  void Insert(const KmerType &kmer, mul_t mul) { collection_.insert({kmer, mul}); }
+
+  const hash_set &collection() const { return collection_; }
   void FlushToFile() {
-    for (auto &item: collection_) {
+    for (const auto &item : collection_) {
       WriteToFile(item.kmer, item.aux);
     }
   }
+
  private:
   void WriteToFile(const KmerType &kmer, mul_t mul) {
-    uint32_t *start_ptr = buffer_.data();
-    memset(start_ptr, 0, words_per_kmer_ * sizeof(buffer_[0]));
-    auto ptr = start_ptr;
+    std::fill(buffer_.begin(), buffer_.end(), 0);
+
+    auto ptr = buffer_.begin();
     uint32_t w = 0;
 
     for (unsigned j = 0; j < k_; ++j) {
@@ -61,22 +58,21 @@ class KmerCollector {
       }
     }
 
-    assert(ptr - start_ptr < words_per_kmer_);
+    assert(ptr - buffer_.begin() < words_per_kmer_);
     *ptr = (w << last_shift_);
-    assert((start_ptr[words_per_kmer_ - 1] & kMaxMul) == 0);
-    start_ptr[words_per_kmer_ - 1] |= mul;
-    writer_.write_unsorted(start_ptr, 0);
+    assert((buffer_.back() & kMaxMul) == 0);
+    buffer_.back() |= mul;
+    writer_.write_unsorted(buffer_.data(), 0);
   }
+
  private:
   unsigned k_;
   std::string output_prefix_;
-  std::mutex lock_;
   hash_set collection_;
-
   EdgeWriter writer_;
   unsigned last_shift_;
   unsigned words_per_kmer_;
   std::vector<uint32_t> buffer_;
 };
 
-#endif //MEGAHIT_SPANNING_KMER_COLLECTOR_H
+#endif  // MEGAHIT_SPANNING_KMER_COLLECTOR_H

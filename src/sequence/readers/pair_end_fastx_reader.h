@@ -16,9 +16,10 @@ class PairEndFastxReader : public BaseSequenceReader {
   }
 
   int64_t Read(SeqPackage *pkg, int64_t max_num, int64_t max_num_bases, bool reverse) override;
+
  private:
   std::unique_ptr<FastxReader> readers_[2];
   bool trim_n_{true};
 };
 
-#endif //MEGAHIT_PAIR_END_FASTX_READER_H
+#endif  // MEGAHIT_PAIR_END_FASTX_READER_H

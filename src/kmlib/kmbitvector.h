@@ -5,12 +5,12 @@
 #ifndef KMLIB_ATOMIC_BIT_VECTOR_H
 #define KMLIB_ATOMIC_BIT_VECTOR_H
 
-#include <memory>
 #include <algorithm>
-#include <vector>
 #include <atomic>
-#include <thread>
 #include <cassert>
+#include <memory>
+#include <thread>
+#include <vector>
 
 namespace kmlib {
 /*!
@@ -18,38 +18,35 @@ namespace kmlib {
  * @details Update of each bit is threads safe via set and get.
  * It can also be used as a vector of bit locks via try_lock, lock and unlock
  */
-template<typename WordType = unsigned long>
+template <typename WordType = unsigned long>
 class AtomicBitVector {
  public:
   using word_type = WordType;
   using size_type = typename std::vector<word_type>::size_type;
+
  public:
   /*!
    * @brief Constructor
    * @param size the size (number of bits) of the bit vector
    */
-  explicit AtomicBitVector(size_type size = 0)
-      : size_(size),
-        data_array_((size + kBitsPerWord - 1) / kBitsPerWord) {
-  }
+  explicit AtomicBitVector(size_type size = 0) : size_(size), data_array_((size + kBitsPerWord - 1) / kBitsPerWord) {}
   /*!
    * @brief Construct a bit vector from iterators of words
    * @tparam WordIterator iterator to access words
    * @param first the iterator pointing to the first word
    * @param last the iterator pointing to the last word
    */
-  template<typename WordIterator>
+  template <typename WordIterator>
   explicit AtomicBitVector(WordIterator first, WordIterator last)
       : size_((last - first) * kBitsPerWord), data_array_(first, last) {}
   /*!
    * @brief the move constructor
    */
-  AtomicBitVector(AtomicBitVector &&rhs)
-      : size_(rhs.size_), data_array_(std::move(rhs.data_array_)) {}
+  AtomicBitVector(AtomicBitVector &&rhs) : size_(rhs.size_), data_array_(std::move(rhs.data_array_)) {}
   /*!
    * @brief the move operator
    */
-  AtomicBitVector &operator=(AtomicBitVector &&rhs) {
+  AtomicBitVector &operator=(AtomicBitVector &&rhs) noexcept {
     size_ = rhs.size_;
     data_array_ = std::move(rhs.data_array_);
     return *this;
@@ -59,9 +56,7 @@ class AtomicBitVector {
   /*!
    * @return the size of the bit vector
    */
-  size_type size() const {
-    return size_;
-  }
+  size_type size() const { return size_; }
 
   /*!
    * @brief set the i-th bit to 1
@@ -69,7 +64,7 @@ class AtomicBitVector {
    */
   void set(size_type i) {
     word_type mask = word_type(1) << (i % kBitsPerWord);
-    data_array_[i / kBitsPerWord].v.fetch_or(mask, std::memory_order_release);
+    data_array_[i / kBitsPerWord].v.fetch_or(mask, std::memory_order_relaxed);
   }
 
   /*!
@@ -78,7 +73,7 @@ class AtomicBitVector {
    */
   void unset(size_type i) {
     word_type mask = ~(word_type(1) << (i % kBitsPerWord));
-    data_array_[i / kBitsPerWord].v.fetch_and(mask, std::memory_order_release);
+    data_array_[i / kBitsPerWord].v.fetch_and(mask, std::memory_order_relaxed);
   }
 
   /*!
@@ -86,8 +81,7 @@ class AtomicBitVector {
    * @return value of the i-th bit
    */
   bool at(size_type i) const {
-    return !!(data_array_[i / kBitsPerWord].v.load(std::memory_order_acquire)
-        & (word_type(1) << i % kBitsPerWord));
+    return !!(data_array_[i / kBitsPerWord].v.load(std::memory_order_relaxed) & (word_type(1) << i % kBitsPerWord));
   }
 
   /*!
@@ -112,6 +106,7 @@ class AtomicBitVector {
         std::this_thread::yield();
       }
     }
+    assert(at(i));
   }
 
   /*!
@@ -130,15 +125,16 @@ class AtomicBitVector {
    * @param size the new size of the bit vector
    */
   void reset(size_type size) {
-    if (size == size_)
-    data_array_ = std::move(array_type(0)); // clear memory
+    if (size == size_) {
+      reset();
+    } else {
+    }
     size_ = size;
+    data_array_ = std::move(array_type(0));
     data_array_ = std::move(array_type((size + kBitsPerWord - 1) / kBitsPerWord, 0));
   }
 
-  void reset() {
-    std::fill(data_array_.begin(), data_array_.end(), 0);
-  }
+  void reset() { std::fill(data_array_.begin(), data_array_.end(), 0); }
 
   /*!
    * @brief swap with another bit vector
@@ -155,7 +151,7 @@ class AtomicBitVector {
    * constructor, so this wrapper is used to make suitable to std::vector
    * @tparam T the underlying type of the atomic struct
    */
-  template<typename T>
+  template <typename T>
   struct AtomicWrapper {
     std::atomic<T> v;
     AtomicWrapper(T a = T()) : v(a) {}
@@ -174,8 +170,8 @@ class AtomicBitVector {
   static_assert(sizeof(AtomicWrapper<word_type>) == sizeof(word_type), "");
 };
 
-} // namespace kmlib
+}  // namespace kmlib
 
 using AtomicBitVector = kmlib::AtomicBitVector<>;
 
-#endif //KMLIB_ATOMIC_BIT_VECTOR_H
+#endif  // KMLIB_ATOMIC_BIT_VECTOR_H
