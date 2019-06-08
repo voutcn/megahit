@@ -11,9 +11,9 @@
 class EdgeReader : public BaseSequenceReader {
  public:
   EdgeReader(const std::string &file_prefix) {
-    edge_reader_.set_file_prefix(file_prefix);
-    edge_reader_.read_info();
-    edge_reader_.init_files();
+    edge_reader_.SetFilePrefix(file_prefix);
+    edge_reader_.ReadInfo();
+    edge_reader_.InitFiles();
   }
 
   int64_t ReadUnsorted(SeqPackage *pkg, std::vector<mul_t> *mul, int64_t max_num) {
@@ -22,7 +22,7 @@ class EdgeReader : public BaseSequenceReader {
       if (next_edge == nullptr) {
         return i;
       }
-      pkg->AppendCompactSequence(next_edge, edge_reader_.kmer_size() + 1);
+      pkg->AppendCompactSequence(next_edge, edge_reader_.k() + 1);
       if (mul) {
         mul->push_back(next_edge[edge_reader_.words_per_edge() - 1] & kMaxMul);
       }
@@ -36,7 +36,7 @@ class EdgeReader : public BaseSequenceReader {
       if (next_edge == nullptr) {
         return i;
       }
-      pkg->AppendCompactSequence(next_edge, edge_reader_.kmer_size() + 1);
+      pkg->AppendCompactSequence(next_edge, edge_reader_.k() + 1);
       if (mul) {
         mul->push_back(next_edge[edge_reader_.words_per_edge() - 1] & kMaxMul);
       }
@@ -45,7 +45,7 @@ class EdgeReader : public BaseSequenceReader {
   }
 
   int64_t Read(SeqPackage *pkg, int64_t max_num, int64_t max_num_bases, bool reverse = false) override {
-    if (edge_reader_.is_unsorted()) {
+    if (edge_reader_.IsUnsorted()) {
       return ReadSorted(pkg, mul_, max_num);
     } else {
       return ReadUnsorted(pkg, mul_, max_num);

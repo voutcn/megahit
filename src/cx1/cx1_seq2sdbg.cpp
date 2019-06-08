@@ -344,8 +344,8 @@ void read_seq_and_prepare(seq2sdbg_global_t &globals) {
 
     if (globals.input_prefix != "") {
       MegahitEdgeReader edge_reader;
-      edge_reader.set_file_prefix(globals.input_prefix);
-      edge_reader.read_info();
+      edge_reader.SetFilePrefix(globals.input_prefix);
+      edge_reader.ReadInfo();
       int64_t num_edges = edge_reader.num_edges();
       xinfo("Number edges: %lld\n", (long long)num_edges);
 
@@ -353,7 +353,7 @@ void read_seq_and_prepare(seq2sdbg_global_t &globals) {
         num_edges *= 1.25;  // it is rare that # mercy > 25%
       }
 
-      bases_to_reserve += num_edges * (edge_reader.kmer_size() + 1);
+      bases_to_reserve += num_edges * (edge_reader.k() + 1);
       num_multiplicities_to_reserve += num_edges;
     }
 

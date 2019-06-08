@@ -274,11 +274,11 @@ void init_global_and_set_cx1(count_global_t &globals) {
   }
 
   // --- initialize writer ---
-  globals.edge_writer.set_file_prefix(globals.output_prefix);
-  globals.edge_writer.set_num_threads(globals.num_output_threads);
-  globals.edge_writer.set_kmer_size(globals.kmer_k);
-  globals.edge_writer.set_num_buckets(kNumBuckets);
-  globals.edge_writer.init_files();
+  globals.edge_writer.SetFilePrefix(globals.output_prefix);
+  globals.edge_writer.SetNumThreads(globals.num_output_threads);
+  globals.edge_writer.SetKmerSize(globals.kmer_k);
+  globals.edge_writer.SetNumBuckets(kNumBuckets);
+  globals.edge_writer.InitFiles();
 }
 
 void *lv1_fill_offset(void *_data) {
@@ -523,7 +523,7 @@ void lv2_output_(int64_t start_index, int64_t end_index, int thread_id, count_gl
 
     if (count >= globals.kmer_freq_threshold) {
       PackEdge(packed_edge, first_item, count, globals);
-      globals.edge_writer.write(packed_edge, packed_edge[0] >> (32 - 2 * kBucketPrefixLength), thread_id, &snapshot);
+      globals.edge_writer.Write(packed_edge, packed_edge[0] >> (32 - 2 * kBucketPrefixLength), thread_id, &snapshot);
     }
   }
 
@@ -623,7 +623,7 @@ void post_proc(count_global_t &globals) {
   fclose(counting_file);
 
   // --- cleaning ---
-  globals.edge_writer.destroy();
+  globals.edge_writer.Finalize();
 }
 
 }  // namespace cx1_kmer_count

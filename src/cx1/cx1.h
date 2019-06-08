@@ -41,7 +41,8 @@
  * @tparam NBuckets      number of buckets
  */
 template <typename TGlobal, unsigned NBuckets>
-struct CX1 {
+class CX1 {
+ private:
   typedef TGlobal global_data_t;
   // other settings, don't change
   static const int kLv1BytePerItem = 4;  // 32-bit differatial offset
@@ -78,9 +79,10 @@ struct CX1 {
   std::vector<int64_t> lv1_items_special_;
 
   // === functions to specify a CX1 instance ===
-  int64_t (*encode_lv1_diff_base_func_)(int64_t, global_data_t &);
-  void (*prepare_func_)(global_data_t &);  // num_items_, num_cpu_threads_ and num_output_threads_ must be set here
-  void *(*lv0_calc_bucket_size_func_)(void *);
+ public:
+  virtual int64_t encode_lv1_diff_base_func_(int64_t, global_data_t &) = 0;
+  virtual void prepare_func_(global_data_t &) = 0;  // num_items_, num_cpu_threads_ and num_output_threads_ must be set here
+  virtual void *(*lv0_calc_bucket_size_func_)(void *);
   void (*init_global_and_set_cx1_func_)(global_data_t &);  // xxx set here
   void *(*lv1_fill_offset_func_)(void *);
   void (*lv1_sort_and_proc)(global_data_t &);

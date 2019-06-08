@@ -1,40 +1,40 @@
-#ifndef EDGE_IO_H__
-#define EDGE_IO_H__
+#ifndef MEGAHIT_EDGE_IO_H
+#define MEGAHIT_EDGE_IO_H
 
 #include <assert.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <sys/mman.h>
-#include <unistd.h>
 
 #include <string>
 #include <vector>
+#include <memory>
+#include <fstream>
+#include <utils/buffered_reader.h>
 
 #include "definitions.h"
-#include "utils/safe_open.h"
 #include "utils/utils.h"
 
 struct PartitionRecord {
   int thread_id;
-  long long starting_offset;
-  long long total_number;
+  int64_t starting_offset;
+  int64_t total_number;
 
   PartitionRecord() : thread_id(-1), starting_offset(0), total_number(0) {}
 };
 
 class EdgeWriter {
  private:
-  int32_t kmer_size_;
-  int32_t words_per_edge_;
-  int32_t num_threads_;
-  int32_t num_buckets_;
+  uint32_t kmer_size_{};
+  uint32_t words_per_edge_{};
+  uint32_t num_threads_{};
+  uint32_t num_buckets_{};
 
   bool unsorted_;
   std::vector<int64_t> num_unsorted_edges_;
 
   std::string file_prefix_;
-  std::vector<FILE *> files_;
+  std::vector<std::unique_ptr<std::ofstream>> files_;
   std::vector<int32_t> cur_bucket_;
   std::vector<int64_t> cur_num_edges_;
   std::vector<PartitionRecord> p_rec_;
@@ -49,21 +49,18 @@ class EdgeWriter {
     friend class EdgeWriter;
   };
 
-  EdgeWriter() : unsorted_(false), is_opened_(false){};
-  ~EdgeWriter() { destroy(); }
+  EdgeWriter() : unsorted_(false), is_opened_(false) {};
+  ~EdgeWriter() { Finalize(); }
 
-  void set_kmer_size(int32_t k) {
+  void SetKmerSize(uint32_t k) {
     kmer_size_ = k;
     words_per_edge_ = DivCeiling((k + 1) * 2 + 16, 32);
   }
 
-  void set_num_threads(int32_t num_threads) { num_threads_ = num_threads; }
-
-  void set_file_prefix(const std::string &prefix) { file_prefix_ = prefix; }
-
-  void set_num_buckets(int num_buckets) { num_buckets_ = num_buckets; }
-
-  void set_unsorted() {
+  void SetNumThreads(int32_t num_threads) { num_threads_ = num_threads; }
+  void SetFilePrefix(const std::string &prefix) { file_prefix_ = prefix; }
+  void SetNumBuckets(int num_buckets) { num_buckets_ = num_buckets; }
+  void SetUnsorted() {
     num_buckets_ = 0;
     p_rec_.clear();
     unsorted_ = true;
@@ -71,22 +68,22 @@ class EdgeWriter {
     num_unsorted_edges_.resize(num_threads_, 0);
   }
 
-  void init_files() {
+  void InitFiles() {
     assert(!is_opened_);
 
-    files_.resize(num_threads_);
     cur_bucket_.resize(num_threads_, -1);
     cur_num_edges_.resize(num_threads_, 0);
     p_rec_.resize(num_buckets_, PartitionRecord());
 
-    for (int i = 0; i < num_threads_; ++i) {
-      files_[i] = xfopen(FormatString("%s.edges.%d", file_prefix_.c_str(), i), "wb");
+    for (unsigned i = 0; i < num_threads_; ++i) {
+      files_.emplace_back(new std::ofstream((file_prefix_ + ".edges." + std::to_string(i)).c_str(),
+                                            std::ofstream::binary | std::ofstream::out));
     }
 
     is_opened_ = true;
   }
 
-  void write(uint32_t *edge_ptr, int32_t bucket, int tid, Snapshot *snapshot) const {
+  void Write(uint32_t *edge_ptr, int32_t bucket, int tid, Snapshot *snapshot) const {
     if (bucket != snapshot->bucket_id) {
       assert(snapshot->bucket_id == -1);
       assert(snapshot->p_rec.thread_id == -1);
@@ -97,7 +94,7 @@ class EdgeWriter {
     assert(snapshot->bucket_id == bucket);
     assert(snapshot->p_rec.thread_id == tid);
 
-    fwrite(edge_ptr, sizeof(uint32_t), words_per_edge_, files_[tid]);
+    files_[tid]->write(reinterpret_cast<const char *>(edge_ptr), sizeof(uint32_t) * words_per_edge_);
     ++snapshot->p_rec.total_number;
   }
 
@@ -108,15 +105,15 @@ class EdgeWriter {
     }
   }
 
-  void write_unsorted(uint32_t *edge_ptr, int tid) {
-    fwrite(edge_ptr, sizeof(uint32_t), words_per_edge_, files_[tid]);
+  void WriteUnsorted(uint32_t *edge_ptr, int tid) {
+    files_[tid]->write(reinterpret_cast<const char *>(edge_ptr), sizeof(uint32_t) * words_per_edge_);
     ++num_unsorted_edges_[tid];
   }
 
-  void destroy() {
+  void Finalize() {
     if (is_opened_) {
-      for (int i = 0; i < num_threads_; ++i) {
-        fclose(files_[i]);
+      for (auto &file: files_) {
+        file->close();
       }
 
       int64_t num_edges = 0;
@@ -131,28 +128,29 @@ class EdgeWriter {
         }
       }
 
-      FILE *info = xfopen(FormatString("%s.edges.info", file_prefix_.c_str()), "w");
-      fprintf(info, "kmer_size %d\n", (int)kmer_size_);
-      fprintf(info, "words_per_edge %d\n", (int)words_per_edge_);
-      fprintf(info, "num_threads %d\n", (int)num_threads_);
-      fprintf(info, "num_bucket %d\n", (int)num_buckets_);
-      fprintf(info, "item_count %lld\n", (long long)num_edges);
+      std::ofstream info_file(file_prefix_ + ".edges.info");
+      info_file << "kmer_size " << kmer_size_ << '\n'
+                << "words_per_edge " << words_per_edge_ << '\n'
+                << "num_threads " << num_threads_ << '\n'
+                << "num_buckets " << num_buckets_ << '\n'
+                << "item_count " << num_edges << '\n';
 
       for (unsigned i = 0; i < p_rec_.size(); ++i) {
-        fprintf(info, "%u %d %lld %lld\n", i, p_rec_[i].thread_id, p_rec_[i].starting_offset, p_rec_[i].total_number);
+        info_file << i << ' '
+                  << p_rec_[i].thread_id << ' '
+                  << p_rec_[i].starting_offset << ' '
+                  << p_rec_[i].total_number << '\n';
       }
 
       for (unsigned i = 0; i < num_unsorted_edges_.size(); ++i) {
-        fprintf(info, "%d %lld\n", i, (long long)num_unsorted_edges_[i]);
+        info_file << i << ' ' << num_unsorted_edges_[i] << '\n';
       }
 
-      fclose(info);
-
+      info_file.close();
       files_.clear();
       cur_bucket_.clear();
       cur_num_edges_.clear();
       p_rec_.clear();
-
       is_opened_ = false;
     }
   }
@@ -160,52 +158,59 @@ class EdgeWriter {
 
 class MegahitEdgeReader {
  private:
-  int kmer_size_;
-  int words_per_edge_;
-  int num_files_;
-  int num_buckets_;
-  long long num_edges_;
+  uint32_t kmer_size_{};
+  uint32_t words_per_edge_{};
+  int32_t num_files_{};
+  int32_t num_buckets_{};
+  int64_t num_edges_{};
 
   std::string file_prefix_;
-  std::vector<int> fds_;
+  std::vector<BufferedReader> readers_;
+  std::vector<std::unique_ptr<std::ifstream>> in_streams_;
+  std::ifstream unsorted_stream_;
+  BufferedReader unsorted_reader_;
   std::vector<PartitionRecord> p_rec_;
-  std::vector<long long> file_sizes_;
+  std::vector<int64_t> file_sizes_;
+  std::vector<uint32_t> buffer_;
 
-  void *mmap_;
-  long page_size_;
-  int64_t mmap_size_;
-
-  int cur_bucket_;
-  int cur_file_num_;  // used for unsorted edges
-  long long cur_cnt_;
-  long long cur_file_loaded_;
-  long long cur_vol_;
-  uint32_t *cur_ptr_;
+  int cur_bucket_{};
+  int cur_file_num_{};  // used for unsorted edges
+  int64_t cur_cnt_{};
+  int64_t cur_vol_{};
+  BufferedReader *cur_reader_{};
 
   bool is_opened_;
 
  public:
   MegahitEdgeReader() : is_opened_(false) {}
-  ~MegahitEdgeReader() { destroy(); }
+  ~MegahitEdgeReader() { Close(); }
 
-  void set_file_prefix(const std::string &prefix) { file_prefix_ = prefix; }
+  void SetFilePrefix(const std::string &prefix) { file_prefix_ = prefix; }
 
-  void read_info() {
-    FILE *info = xfopen(FormatString("%s.edges.info", file_prefix_.c_str()), "r");
-    if (fscanf(info, "kmer_size %d\n", &kmer_size_) != 1 ||
-        fscanf(info, "words_per_edge %d\n", &words_per_edge_) != 1 ||
-        fscanf(info, "num_threads %d\n", &num_files_) != 1 || fscanf(info, "num_bucket %d\n", &num_buckets_) != 1 ||
-        fscanf(info, "item_count %lld\n", &num_edges_) != 1) {
-      xfatal("Invalid format\n");
-    }
+  template<typename T>
+  static void ScanField(std::ifstream &in, const std::string &field, T &out) {
+    std::string s;
+    in >> s >> out;
+    assert(s == field);
+  }
+
+  void ReadInfo() {
+    std::ifstream meta_file(file_prefix_ + ".edges.info");
+    ScanField(meta_file, "kmer_size", kmer_size_);
+    ScanField(meta_file, "words_per_edge", words_per_edge_);
+    ScanField(meta_file, "num_threads", num_files_);
+    ScanField(meta_file, "num_buckets", num_buckets_);
+    ScanField(meta_file, "item_count", num_edges_);
+
     p_rec_.resize(num_buckets_);
     file_sizes_.resize(num_files_, 0);
 
     for (int i = 0; i < num_buckets_; ++i) {
-      unsigned dummy;
-      if (fscanf(info, "%u %d %lld %lld\n", &dummy, &p_rec_[i].thread_id, &p_rec_[i].starting_offset,
-                 &p_rec_[i].total_number) != 4) {
-        xfatal("Invalid format\n");
+      int b_id;
+      meta_file >> b_id >> p_rec_[i].thread_id >> p_rec_[i].starting_offset
+                >> p_rec_[i].total_number;
+      if (b_id != i) {
+        xfatal("Invalid format: bucket id not matched!\n");
       }
       if (p_rec_[i].thread_id >= num_files_) {
         xfatal("Record ID %d is greater than number of files %d\n", p_rec_[i].thread_id, num_files_);
@@ -217,50 +222,48 @@ class MegahitEdgeReader {
 
     if (num_buckets_ == 0) {
       for (int i = 0; i < num_files_; ++i) {
-        int _;
-        if (fscanf(info, "%d %lld\n", &_, &file_sizes_[i]) != 2) {
+        int b_id;
+        if (!(meta_file >> b_id >> file_sizes_[i]) || b_id != i) {
           xfatal("Invalid format\n");
         }
       }
     }
 
-    fclose(info);
+    meta_file.close();
   }
 
-  void init_files() {
+  void InitFiles() {
     assert(!is_opened_);
-    fds_.resize(num_files_);
+    ReadInfo();
+    buffer_.resize(words_per_edge_);
 
     for (int i = 0; i < num_files_; ++i) {
-      fds_[i] = open(FormatString("%s.edges.%d", file_prefix_.c_str(), i), O_RDONLY);
-      assert(fds_[i] != -1);
+      in_streams_.emplace_back(new std::ifstream(file_prefix_ + ".edges." + std::to_string(i),
+                                                 std::ifstream::binary | std::ifstream::in));
+      readers_.emplace_back(BufferedReader());
+      readers_.back().reset(in_streams_.back().get());
     }
 
-    page_size_ = sysconf(_SC_PAGESIZE);
-    mmap_ = NULL;
-    mmap_size_ = 0;
     cur_cnt_ = 0;
     cur_vol_ = 0;
-    cur_file_loaded_ = 0;
     cur_bucket_ = -1;
 
     // for unsorted
-    if (is_unsorted()) {
+    if (IsUnsorted()) {
       cur_file_num_ = -1;
     }
 
     is_opened_ = true;
   }
 
-  bool is_unsorted() { return num_buckets_ == 0; }
-
-  int kmer_size() { return kmer_size_; }
-  int words_per_edge() { return words_per_edge_; }
-  int64_t num_edges() { return num_edges_; }
+  bool IsUnsorted() const { return num_buckets_ == 0; }
+  uint32_t k() const { return kmer_size_; }
+  uint32_t words_per_edge() const { return words_per_edge_; }
+  int64_t num_edges() const { return num_edges_; }
 
   uint32_t *NextSortedEdge() {
     if (cur_bucket_ >= num_buckets_) {
-      return NULL;
+      return nullptr;
     }
 
     while (cur_cnt_ >= cur_vol_) {
@@ -271,92 +274,45 @@ class MegahitEdgeReader {
       }
 
       if (cur_bucket_ >= num_buckets_) {
-        return NULL;
+        return nullptr;
       }
-
-      if (mmap_) {
-        munmap(mmap_, mmap_size_);
-        mmap_ = NULL;
-      }
-
-      int64_t offset =
-          sizeof(uint32_t) * words_per_edge_ * p_rec_[cur_bucket_].starting_offset / page_size_ * page_size_;
-      mmap_size_ = sizeof(uint32_t) * p_rec_[cur_bucket_].total_number * words_per_edge_;
-      mmap_size_ += sizeof(uint32_t) * words_per_edge_ * p_rec_[cur_bucket_].starting_offset - offset;
-
-      mmap_ = mmap(NULL, mmap_size_, PROT_READ, MAP_PRIVATE, fds_[p_rec_[cur_bucket_].thread_id], offset);
-      assert(mmap_ != NULL);
-      madvise(mmap_, mmap_size_, MADV_SEQUENTIAL);
 
       cur_cnt_ = 0;
       cur_vol_ = p_rec_[cur_bucket_].total_number;
-      cur_ptr_ = (uint32_t *)((char *)mmap_ + sizeof(uint32_t) * words_per_edge_ * p_rec_[cur_bucket_].starting_offset -
-                              offset);
+      cur_reader_ = &readers_[p_rec_[cur_bucket_].thread_id];
     }
 
     ++cur_cnt_;
-    cur_ptr_ += words_per_edge_;
-    return cur_ptr_ - words_per_edge_;
+    auto n_read = cur_reader_->read(buffer_.data(), words_per_edge_);
+    assert(n_read == words_per_edge_ * sizeof(uint32_t));
+    (void)(n_read);
+    return buffer_.data();
   }
 
   uint32_t *NextUnsortedEdge() {
     if (cur_file_num_ >= num_files_) {
-      return NULL;
+      return nullptr;
     }
 
     while (cur_cnt_ >= cur_vol_) {
-      while (cur_file_num_ == -1 || cur_file_loaded_ >= file_sizes_[cur_file_num_]) {
-        cur_file_num_++;
-
-        if (cur_file_num_ >= num_files_) {
-          return NULL;
-        }
-
-        cur_file_loaded_ = 0;
+      ++cur_file_num_;
+      if (cur_file_num_ >= num_files_) {
+        return nullptr;
       }
-
-      if (mmap_) {
-        munmap(mmap_, mmap_size_);
-        mmap_ = NULL;
-      }
-
-      long long batch_size = std::min(1LL << 20, file_sizes_[cur_file_num_] - cur_file_loaded_);
-      long long offset = cur_file_loaded_ * sizeof(uint32_t) * words_per_edge_ / page_size_ * page_size_;
-
-      mmap_size_ = sizeof(uint32_t) * words_per_edge_ * batch_size;
-      mmap_size_ += cur_file_loaded_ * sizeof(uint32_t) * words_per_edge_ - offset;
-      mmap_ = mmap(NULL, mmap_size_, PROT_READ, MAP_PRIVATE, fds_[cur_file_num_], offset);
-      assert(mmap_ != NULL);
-
-      cur_ptr_ = (uint32_t *)((char *)mmap_ + (cur_file_loaded_ * sizeof(uint32_t) * words_per_edge_ - offset));
-      madvise(cur_ptr_, sizeof(uint32_t) * words_per_edge_ * batch_size, MADV_SEQUENTIAL);
-
+      unsorted_stream_.open(file_prefix_ + ".edges." + std::to_string(cur_file_num_),
+                            std::ifstream::binary | std::ifstream::in);
+      unsorted_reader_.reset(&unsorted_stream_);
       cur_cnt_ = 0;
-      cur_vol_ = batch_size;
-      cur_file_loaded_ += batch_size;
+      cur_vol_ = file_sizes_[cur_file_num_];
     }
 
     ++cur_cnt_;
-    cur_ptr_ += words_per_edge_;
-    return cur_ptr_ - words_per_edge_;
+    unsorted_reader_.read(buffer_.data(), words_per_edge_);
+    return buffer_.data();
   }
 
-  void destroy() {
-    if (is_opened_) {
-      if (mmap_) {
-        munmap(mmap_, mmap_size_);
-        mmap_ = NULL;
-      }
-
-      for (int i = 0; i < num_files_; ++i) {
-        close(fds_[i]);
-      }
-
-      file_sizes_.clear();
-      fds_.clear();
-      is_opened_ = false;
-    }
+  void Close() {
   }
 };
 
-#endif
+#endif // MEGAHIT_EDGE_IO_H
