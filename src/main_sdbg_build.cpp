@@ -96,8 +96,9 @@ int main_kmer_count(int argc, char **argv) {
   xinfo("Number CPU threads: %d\n", globals.num_cpu_threads);
 
   // set & run cx1
-  globals.cx1.g_ = &globals;
-  globals.cx1.run();
+  globals.cx1.reset(new cx1_kmer_count::CX1KmerCount());
+  globals.cx1->g_ = &globals;
+  globals.cx1->run();
 
   return 0;
 }
@@ -261,7 +262,8 @@ int main_seq2sdbg(int argc, char **argv) {
   xinfo("Number CPU threads: %d\n", globals.num_cpu_threads);
 
   // set & run cx1
-  globals.cx1.g_ = &globals;
-  globals.cx1.run();
+  globals.cx1.reset(new cx1_seq2sdbg::CX1Seq2Sdbg());
+  globals.cx1->g_ = &globals;
+  globals.cx1->run();
   return 0;
 }

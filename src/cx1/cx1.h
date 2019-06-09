@@ -42,11 +42,48 @@
  */
 template <typename TGlobal, unsigned NBuckets>
 struct CX1 {
+ private:
+  // may change as cx1 goes
+  int64_t lv1_num_items_{};
+  unsigned lv1_start_bucket_{}, lv1_end_bucket_{};
+  std::vector<bool> cur_lv1_buckets_;
+  std::vector<int64_t> lv1_special_offsets_;
+  std::mutex special_item_lock_;
+
+ public:
+  int64_t GetLv1NumItems() const { return lv1_num_items_; }
+  unsigned GetLv1StartBucket() const { return lv1_start_bucket_; }
+  unsigned GetLv1EndBucket() const { return lv1_end_bucket_; }
+
+  bool HandlingBucket(unsigned bucket) const {
+    return cur_lv1_buckets_[bucket];
+  }
+
+  int64_t AddSpecialOffset(int64_t offset) {
+    std::lock_guard<std::mutex> lk(special_item_lock_);
+    lv1_special_offsets_.push_back(offset);
+    return lv1_special_offsets_.size() - 1;
+  }
+
+  int64_t GetSpecialOffset(size_t index) const {
+    return lv1_special_offsets_[index];
+  }
+
+ private:
+  // set by initialization
+  int64_t num_items_{};
+  unsigned num_cpu_threads_{};
+
+ public:
+  void SetNumItems(int64_t num) { num_items_ = num; }
+  void SetNumCpuThreads(unsigned n) { num_cpu_threads_ = n; }
+
+ public:
   typedef TGlobal global_data_t;
   // other settings, don't change
   static const int kLv1BytePerItem = 4;  // 32-bit differatial offset
   static const uint64_t kSpDiffMaxNum = (1ULL << 32) - 1;
-  static const int64_t kDifferentialLimit = (1ULL << 31) - 1;
+  static const int64_t kDifferentialLimit = 4096; // (1ULL << 31) - 1;
 
   struct ReadPartition {
     // local data for each read partition (i.e. a subrange of input reads)
@@ -58,13 +95,10 @@ struct CX1 {
   };
   // param: must be set
   global_data_t *g_;
-  int64_t num_items_;
-  unsigned num_cpu_threads_;
-  int64_t max_lv1_items_;
+  int64_t max_lv1_items_{};
 
-  int64_t max_mem_remain_;
-  int64_t bytes_per_sorting_item_;
-  std::vector<bool> cur_lv1_buckets_;
+  int64_t max_mem_remain_{};
+  int64_t bytes_per_sorting_item_{};
 
   // other data
   std::array<int64_t, NBuckets> bucket_sizes_;
@@ -72,18 +106,13 @@ struct CX1 {
   std::array<int, NBuckets> bucket_rank_;
   std::vector<ReadPartition> rp_;
 
-  // may change as cx1 goes
-  int64_t lv1_num_items_;
-  unsigned lv1_start_bucket_, lv1_end_bucket_;
-  std::vector<int64_t> lv1_items_special_;
-
   // === functions to specify a CX1 instance ===
  public:
   virtual int64_t encode_lv1_diff_base_func_(int64_t, global_data_t &) = 0;
   virtual void prepare_func_(global_data_t &) = 0;  // num_items_, num_cpu_threads_ and num_output_threads_ must be set here
-  virtual void lv0_calc_bucket_size_func_(void *) = 0;
+  virtual void lv0_calc_bucket_size_func_(ReadPartition *) = 0;
   virtual void init_global_and_set_cx1_func_(global_data_t &) = 0;  // xxx set here
-  virtual void lv1_fill_offset_func_(void *) = 0;
+  virtual void lv1_fill_offset_func_(ReadPartition *) = 0;
   virtual void lv1_sort_and_proc(global_data_t &) = 0;
   virtual void post_proc_func_(global_data_t &) = 0;
 
@@ -240,7 +269,7 @@ struct CX1 {
   }
 
   inline void lv1_fill_offset_mt_() {
-    lv1_items_special_.clear();
+    lv1_special_offsets_.clear();
     lv1_compute_offset_();
 
     // create threads
@@ -304,14 +333,14 @@ struct CX1 {
       // --- scan to fill offset ---
       lv1_fill_offset_mt_();
 
-      if (lv1_items_special_.size() > kSpDiffMaxNum) {
-        fprintf(stderr, "Too many large diff items (%lu) from in buckets [%d, %d)\n", lv1_items_special_.size(),
+      if (lv1_special_offsets_.size() > kSpDiffMaxNum) {
+        fprintf(stderr, "Too many large diff items (%lu) from in buckets [%d, %d)\n", lv1_special_offsets_.size(),
                 lv1_start_bucket_, lv1_end_bucket_);
         exit(1);
       }
 
       lv1_timer.stop();
-      xinfo("Lv1 scanning done. Large diff: %lu. Time elapsed: %.4f\n", lv1_items_special_.size(), lv1_timer.elapsed());
+      xinfo("Lv1 scanning done. Large diff: %lu. Time elapsed: %.4f\n", lv1_special_offsets_.size(), lv1_timer.elapsed());
       lv1_timer.reset();
       lv1_timer.start();
       lv1_sort_and_proc(*g_);

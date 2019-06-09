@@ -74,15 +74,15 @@ struct CX1KmerCount : public CX1<count_global_t, kNumBuckets> {
  public:
   int64_t encode_lv1_diff_base_func_(int64_t, global_data_t &) override;
   void prepare_func_(global_data_t &) override;  // num_items_, num_cpu_threads_ and num_output_threads_ must be set here
-  void lv0_calc_bucket_size_func_(void *) override;
+  void lv0_calc_bucket_size_func_(ReadPartition *) override;
   void init_global_and_set_cx1_func_(global_data_t &) override;  // xxx set here
-  void lv1_fill_offset_func_(void *) override;
+  void lv1_fill_offset_func_(ReadPartition *) override;
   void lv1_sort_and_proc(global_data_t &) override;
   void post_proc_func_(global_data_t &) override;
 };
 
 struct count_global_t {
-  CX1KmerCount cx1;
+  std::unique_ptr<CX1KmerCount> cx1;
 
   // input options
   int max_read_length;

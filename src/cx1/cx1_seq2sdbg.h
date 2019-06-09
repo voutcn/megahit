@@ -41,7 +41,6 @@ struct seq2sdbg_opt_t {
   std::string addi_contig;
   std::string local_contig;
   std::string input_prefix;
-  int num_edge_files;
   std::string output_prefix;
   int mem_flag;
   bool need_mercy;
@@ -51,7 +50,6 @@ struct seq2sdbg_opt_t {
     gpu_mem = 0;
     num_cpu_threads = 0;
     num_output_threads = 0;
-    num_edge_files = 0;
     kmer_k = 0;
     kmer_from = 0;
     mem_flag = 1;
@@ -84,15 +82,15 @@ struct seq2sdbg_global_t;
 struct CX1Seq2Sdbg: public CX1<seq2sdbg_global_t, kNumBuckets> {
   int64_t encode_lv1_diff_base_func_(int64_t, global_data_t &) override;
   void prepare_func_(global_data_t &) override;  // num_items_, num_cpu_threads_ and num_output_threads_ must be set here
-  void lv0_calc_bucket_size_func_(void *) override;
+  void lv0_calc_bucket_size_func_(ReadPartition *) override;
   void init_global_and_set_cx1_func_(global_data_t &) override;  // xxx set here
-  void lv1_fill_offset_func_(void *) override;
+  void lv1_fill_offset_func_(ReadPartition *) override;
   void lv1_sort_and_proc(global_data_t &) override;
   void post_proc_func_(global_data_t &) override;
 };
 
 struct seq2sdbg_global_t {
-  CX1Seq2Sdbg cx1;
+  std::unique_ptr<CX1Seq2Sdbg> cx1;
 
   // input options
   int kmer_k;
@@ -130,15 +128,6 @@ struct seq2sdbg_global_t {
   // output
   SdbgWriter sdbg_writer;
 };
-
-int64_t encode_lv1_diff_base(int64_t read_id, seq2sdbg_global_t &g);
-void read_seq_and_prepare(
-    seq2sdbg_global_t &g);           // num_items_, num_cpu_threads_ and num_output_threads_ must be set here
-void *lv0_calc_bucket_size(void *);  // pthread working function
-void init_global_and_set_cx1(seq2sdbg_global_t &g);
-void *lv1_fill_offset(void *);  // pthread working function
-void lv1_direct_sort_and_proc(seq2sdbg_global_t &g);
-void post_proc(seq2sdbg_global_t &g);
 
 }  // end of namespace cx1_seq2sdbg
 #endif  // CX1_SEQUENCES2SDBG_H__

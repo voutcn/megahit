@@ -77,9 +77,9 @@ struct CX1Read2Sdbg : public CX1<read2sdbg_global_t, kNumBuckets> {
 struct CX1Read2SdbgS1 : public CX1Read2Sdbg {
   int64_t encode_lv1_diff_base_func_(int64_t, global_data_t &) override;
   void prepare_func_(global_data_t &) override;  // num_items_, num_cpu_threads_ and num_output_threads_ must be set here
-  void lv0_calc_bucket_size_func_(void *) override;
+  void lv0_calc_bucket_size_func_(ReadPartition *) override;
   void init_global_and_set_cx1_func_(global_data_t &) override;  // xxx set here
-  void lv1_fill_offset_func_(void *) override;
+  void lv1_fill_offset_func_(ReadPartition *) override;
   void lv1_sort_and_proc(global_data_t &) override;
   void post_proc_func_(global_data_t &) override;
 };
@@ -87,9 +87,9 @@ struct CX1Read2SdbgS1 : public CX1Read2Sdbg {
 struct CX1Read2SdbgS2 : public CX1Read2Sdbg {
   int64_t encode_lv1_diff_base_func_(int64_t, global_data_t &) override;
   void prepare_func_(global_data_t &) override;  // num_items_, num_cpu_threads_ and num_output_threads_ must be set here
-  void lv0_calc_bucket_size_func_(void *) override;
+  void lv0_calc_bucket_size_func_(ReadPartition *) override;
   void init_global_and_set_cx1_func_(global_data_t &) override;  // xxx set here
-  void lv1_fill_offset_func_(void *) override;
+  void lv1_fill_offset_func_(ReadPartition *) override;
   void lv1_sort_and_proc(global_data_t &) override;
   void post_proc_func_(global_data_t &) override;
 };
