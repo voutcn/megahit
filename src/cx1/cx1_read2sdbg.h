@@ -69,8 +69,33 @@ static const int kSentinelValue = 4;
 static const int64_t kMaxDummyEdges = 4294967294LL;
 static const int kBWTCharNumBits = 3;
 
+struct read2sdbg_global_t;
+
+struct CX1Read2Sdbg : public CX1<read2sdbg_global_t, kNumBuckets> {
+};
+
+struct CX1Read2SdbgS1 : public CX1Read2Sdbg {
+  int64_t encode_lv1_diff_base_func_(int64_t, global_data_t &) override;
+  void prepare_func_(global_data_t &) override;  // num_items_, num_cpu_threads_ and num_output_threads_ must be set here
+  void lv0_calc_bucket_size_func_(void *) override;
+  void init_global_and_set_cx1_func_(global_data_t &) override;  // xxx set here
+  void lv1_fill_offset_func_(void *) override;
+  void lv1_sort_and_proc(global_data_t &) override;
+  void post_proc_func_(global_data_t &) override;
+};
+
+struct CX1Read2SdbgS2 : public CX1Read2Sdbg {
+  int64_t encode_lv1_diff_base_func_(int64_t, global_data_t &) override;
+  void prepare_func_(global_data_t &) override;  // num_items_, num_cpu_threads_ and num_output_threads_ must be set here
+  void lv0_calc_bucket_size_func_(void *) override;
+  void init_global_and_set_cx1_func_(global_data_t &) override;  // xxx set here
+  void lv1_fill_offset_func_(void *) override;
+  void lv1_sort_and_proc(global_data_t &) override;
+  void post_proc_func_(global_data_t &) override;
+};
+
 struct read2sdbg_global_t {
-  CX1<read2sdbg_global_t, kNumBuckets> cx1;
+  std::unique_ptr<CX1Read2Sdbg> cx1;
 
   // input options
   int max_read_length;
@@ -113,30 +138,6 @@ struct read2sdbg_global_t {
   // output-stage2
   SdbgWriter sdbg_writer;
 };
-
-namespace s1 {
-// stage1 cx1 core functions
-int64_t s1_encode_lv1_diff_base(int64_t read_id, read2sdbg_global_t &g);
-void s1_read_input_prepare(read2sdbg_global_t &g);  // num_items_, num_cpu_threads_ and
-                                                    // num_output_threads_ must be set here
-void *s1_lv0_calc_bucket_size(void *);              // pthread working function
-void s1_init_global_and_set_cx1(read2sdbg_global_t &g);
-void *s1_lv1_fill_offset(void *);  // pthread working function
-void s1_lv1_direct_sort_and_count(read2sdbg_global_t &g);
-void s1_post_proc(read2sdbg_global_t &g);
-}  // namespace s1
-
-namespace s2 {
-// stage2 cx1 core functions
-int64_t s2_encode_lv1_diff_base(int64_t read_id, read2sdbg_global_t &g);
-void s2_read_mercy_prepare(read2sdbg_global_t &g);  // num_items_, num_cpu_threads_ and
-                                                    // num_output_threads_ must be set here
-void *s2_lv0_calc_bucket_size(void *);              // pthread working function
-void s2_init_global_and_set_cx1(read2sdbg_global_t &g);
-void *s2_lv1_fill_offset(void *);  // pthread working function
-void s2_lv1_direct_sort_and_proc(read2sdbg_global_t &g);
-void s2_post_proc(read2sdbg_global_t &g);
-}  // namespace s2
 
 }  // namespace cx1_read2sdbg
 

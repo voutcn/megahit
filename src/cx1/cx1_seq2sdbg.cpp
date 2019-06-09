@@ -92,7 +92,7 @@ inline int ExtractCounting(uint32_t *item, int num_words, int64_t spacing) {
 }
 
 // cx1 core functions
-int64_t encode_lv1_diff_base(int64_t read_id, seq2sdbg_global_t &g) {
+int64_t CX1Seq2Sdbg::encode_lv1_diff_base_func_(int64_t read_id, seq2sdbg_global_t &g) {
   assert(read_id < (int64_t)g.package.Size());
   return EncodeEdgeOffset(read_id, 0, 0, g.package);
 }
@@ -335,7 +335,7 @@ void GenMercyEdges(seq2sdbg_global_t &globals) {
   xinfo("Number of reads: %ld, Number of mercy edges: %ld\n", num_mercy_reads, num_mercy_edges);
 }
 
-void read_seq_and_prepare(seq2sdbg_global_t &globals) {
+void CX1Seq2Sdbg::prepare_func_(seq2sdbg_global_t &globals) {
   // reserve space
   {
     long long bases_to_reserve = 0;
@@ -469,7 +469,7 @@ void read_seq_and_prepare(seq2sdbg_global_t &globals) {
   globals.cx1.num_items_ = globals.num_seq;
 }
 
-void *lv0_calc_bucket_size(void *_data) {
+void CX1Seq2Sdbg::lv0_calc_bucket_size_func_(void *_data) {
   readpartition_data_t &rp = *((readpartition_data_t *)_data);
   seq2sdbg_global_t &globals = *(rp.globals);
   auto &bucket_sizes = rp.rp_bucket_sizes;
@@ -509,10 +509,9 @@ void *lv0_calc_bucket_size(void *_data) {
       bucket_sizes[key]++;
     }
   }
-  return nullptr;
 }
 
-void init_global_and_set_cx1(seq2sdbg_global_t &globals) {
+void CX1Seq2Sdbg::init_global_and_set_cx1_func_(seq2sdbg_global_t &globals) {
   // --- calculate lv2 memory ---
   globals.max_bucket_size = *std::max_element(globals.cx1.bucket_sizes_.begin(), globals.cx1.bucket_sizes_.end());
   globals.tot_bucket_size = 0;
@@ -598,7 +597,7 @@ void init_global_and_set_cx1(seq2sdbg_global_t &globals) {
   globals.sdbg_writer.InitFiles();
 }
 
-void *lv1_fill_offset(void *_data) {
+void CX1Seq2Sdbg::lv1_fill_offset_func_(void *_data) {
   readpartition_data_t &rp = *((readpartition_data_t *)_data);
   seq2sdbg_global_t &globals = *(rp.globals);
   std::array<int64_t, kNumBuckets> prev_full_offsets;
@@ -660,21 +659,10 @@ void *lv1_fill_offset(void *_data) {
       CHECK_AND_SAVE_OFFSET(rev_key, i - kBucketPrefixLength + 1, 1);
     }
   }
-
 #undef CHECK_AND_SAVE_OFFSET
-  return nullptr;
 }
 
-// inline int BucketToPrefix(int x) {
-//     int y = 0;
-//     for (int i=0; i < kBucketPrefixLength; ++i) {
-//         int z = x % kBucketBase;
-//         if (z > 0) { --z; }
-//         y |= (z << (i * kBitsPerEdgeChar));
-//         x /= kBucketBase;
-//     }
-//     return y;
-// }
+namespace {
 
 void lv2_extract_substr_(int from_bucket, int to_bucket, seq2sdbg_global_t &globals, uint32_t *substr) {
   auto lv1_p = globals.lv1_items.begin() + globals.cx1.rp_[0].rp_bucket_offsets[from_bucket];
@@ -771,7 +759,7 @@ void output_(int64_t from, int64_t to, seq2sdbg_global_t &globals, uint32_t *sub
     uint32_t *item = substr + start_idx * globals.words_per_substring;
 
     while (end_idx < to &&
-           !IsDiffKMinusOneMer(item, substr + end_idx * globals.words_per_substring, 1, globals.kmer_k)) {
+        !IsDiffKMinusOneMer(item, substr + end_idx * globals.words_per_substring, 1, globals.kmer_k)) {
       ++end_idx;
     }
 
@@ -874,14 +862,16 @@ void kt_sort(void *g, long b, int tid) {
   }
 
   size_t offset = kg->globals->cx1.lv1_num_items_ +
-                  kg->thread_offset[tid] * kg->globals->cx1.bytes_per_sorting_item_ / sizeof(uint32_t);
+      kg->thread_offset[tid] * kg->globals->cx1.bytes_per_sorting_item_ / sizeof(uint32_t);
   auto substr_ptr = reinterpret_cast<uint32_t *>(kg->globals->lv1_items.data() + offset);
   lv2_extract_substr_(b, b + 1, *(kg->globals), substr_ptr);
   SortSubStr(substr_ptr, kg->globals->words_per_substring, kg->globals->cx1.bucket_sizes_[b]);
   output_(0, kg->globals->cx1.bucket_sizes_[b], *(kg->globals), substr_ptr, tid);
 }
 
-void lv1_direct_sort_and_proc(seq2sdbg_global_t &globals) {
+}
+
+void CX1Seq2Sdbg::lv1_sort_and_proc(seq2sdbg_global_t &globals) {
   kt_sort_t kg;
   kg.globals = &globals;
 
@@ -894,7 +884,7 @@ void lv1_direct_sort_and_proc(seq2sdbg_global_t &globals) {
   }
 }
 
-void post_proc(seq2sdbg_global_t &globals) {
+void CX1Seq2Sdbg::post_proc_func_(seq2sdbg_global_t &globals) {
   globals.sdbg_writer.Finalize();
   xinfo("Number of $ A C G T A- C- G- T-:\n");
   xinfo("");

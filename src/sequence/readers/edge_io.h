@@ -165,10 +165,9 @@ class MegahitEdgeReader {
   int64_t num_edges_{};
 
   std::string file_prefix_;
-  std::vector<BufferedReader> readers_;
   std::vector<std::unique_ptr<std::ifstream>> in_streams_;
   std::ifstream unsorted_stream_;
-  BufferedReader unsorted_reader_;
+  BufferedReader cur_reader_;
   std::vector<PartitionRecord> p_rec_;
   std::vector<int64_t> file_sizes_;
   std::vector<uint32_t> buffer_;
@@ -177,7 +176,6 @@ class MegahitEdgeReader {
   int cur_file_num_{};  // used for unsorted edges
   int64_t cur_cnt_{};
   int64_t cur_vol_{};
-  BufferedReader *cur_reader_{};
 
   bool is_opened_;
 
@@ -240,8 +238,6 @@ class MegahitEdgeReader {
     for (int i = 0; i < num_files_; ++i) {
       in_streams_.emplace_back(new std::ifstream(file_prefix_ + ".edges." + std::to_string(i),
                                                  std::ifstream::binary | std::ifstream::in));
-      readers_.emplace_back(BufferedReader());
-      readers_.back().reset(in_streams_.back().get());
     }
 
     cur_cnt_ = 0;
@@ -277,13 +273,17 @@ class MegahitEdgeReader {
         return nullptr;
       }
 
+      const auto &p_rec = p_rec_[cur_bucket_];
       cur_cnt_ = 0;
-      cur_vol_ = p_rec_[cur_bucket_].total_number;
-      cur_reader_ = &readers_[p_rec_[cur_bucket_].thread_id];
+      cur_vol_ = p_rec.total_number;
+      auto is = in_streams_[p_rec.thread_id].get();
+      is->clear();
+      is->seekg(p_rec.starting_offset * sizeof(uint32_t) * words_per_edge_);
+      cur_reader_.reset(is);
     }
 
     ++cur_cnt_;
-    auto n_read = cur_reader_->read(buffer_.data(), words_per_edge_);
+    auto n_read = cur_reader_.read(buffer_.data(), words_per_edge_);
     assert(n_read == words_per_edge_ * sizeof(uint32_t));
     (void)(n_read);
     return buffer_.data();
@@ -301,13 +301,13 @@ class MegahitEdgeReader {
       }
       unsorted_stream_.open(file_prefix_ + ".edges." + std::to_string(cur_file_num_),
                             std::ifstream::binary | std::ifstream::in);
-      unsorted_reader_.reset(&unsorted_stream_);
+      cur_reader_.reset(&unsorted_stream_);
       cur_cnt_ = 0;
       cur_vol_ = file_sizes_[cur_file_num_];
     }
 
     ++cur_cnt_;
-    unsorted_reader_.read(buffer_.data(), words_per_edge_);
+    cur_reader_.read(buffer_.data(), words_per_edge_);
     return buffer_.data();
   }
 

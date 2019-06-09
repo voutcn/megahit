@@ -41,8 +41,7 @@
  * @tparam NBuckets      number of buckets
  */
 template <typename TGlobal, unsigned NBuckets>
-class CX1 {
- private:
+struct CX1 {
   typedef TGlobal global_data_t;
   // other settings, don't change
   static const int kLv1BytePerItem = 4;  // 32-bit differatial offset
@@ -82,11 +81,11 @@ class CX1 {
  public:
   virtual int64_t encode_lv1_diff_base_func_(int64_t, global_data_t &) = 0;
   virtual void prepare_func_(global_data_t &) = 0;  // num_items_, num_cpu_threads_ and num_output_threads_ must be set here
-  virtual void *(*lv0_calc_bucket_size_func_)(void *);
-  void (*init_global_and_set_cx1_func_)(global_data_t &);  // xxx set here
-  void *(*lv1_fill_offset_func_)(void *);
-  void (*lv1_sort_and_proc)(global_data_t &);
-  void (*post_proc_func_)(global_data_t &);
+  virtual void lv0_calc_bucket_size_func_(void *) = 0;
+  virtual void init_global_and_set_cx1_func_(global_data_t &) = 0;  // xxx set here
+  virtual void lv1_fill_offset_func_(void *) = 0;
+  virtual void lv1_sort_and_proc(global_data_t &) = 0;
+  virtual void post_proc_func_(global_data_t &) = 0;
 
   CX1() = default;
 
@@ -292,7 +291,7 @@ class CX1 {
       lv1_end_bucket_ = find_end_buckets_with_rank_(lv1_start_bucket_, NBuckets, max_mem_remain_,
                                                     bytes_per_sorting_item_, lv1_num_items_);
 
-      if (lv1_num_items_ == 0) {
+      if (lv1_num_items_  == 0 && lv1_end_bucket_ < NBuckets) {
         fprintf(stderr, "Bucket %d too large for lv1: %lld > %lld\n", lv1_end_bucket_,
                 static_cast<long long>(bucket_sizes_[lv1_end_bucket_]), static_cast<long long>(max_lv1_items_));
         exit(1);

@@ -54,7 +54,7 @@ class BufferedReader {
   }
 
  private:
-  static const size_t kBufferSize = 65536;
+  static const size_t kBufferSize = 4096;
   std::ifstream *is_{};
   char buffer_[kBufferSize]{};
   size_t head_{kBufferSize};

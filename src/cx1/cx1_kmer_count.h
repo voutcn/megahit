@@ -68,8 +68,21 @@ static const int64_t kMaxLv1ScanTime = 64;
 static const int kSentinelValue = 4;
 static const uint32_t kSentinelOffset = 4294967295U;
 
+struct count_global_t;
+
+struct CX1KmerCount : public CX1<count_global_t, kNumBuckets> {
+ public:
+  int64_t encode_lv1_diff_base_func_(int64_t, global_data_t &) override;
+  void prepare_func_(global_data_t &) override;  // num_items_, num_cpu_threads_ and num_output_threads_ must be set here
+  void lv0_calc_bucket_size_func_(void *) override;
+  void init_global_and_set_cx1_func_(global_data_t &) override;  // xxx set here
+  void lv1_fill_offset_func_(void *) override;
+  void lv1_sort_and_proc(global_data_t &) override;
+  void post_proc_func_(global_data_t &) override;
+};
+
 struct count_global_t {
-  CX1<count_global_t, kNumBuckets> cx1;
+  CX1KmerCount cx1;
 
   // input options
   int max_read_length;
@@ -110,14 +123,6 @@ struct count_global_t {
   // output
   EdgeWriter edge_writer;
 };
-
-int64_t encode_lv1_diff_base(int64_t read_id, count_global_t &g);
-void read_input_prepare(count_global_t &g);  // num_items_, num_cpu_threads_ and num_output_threads_ must be set here
-void *lv0_calc_bucket_size(void *);          // pthread working function
-void init_global_and_set_cx1(count_global_t &g);
-void *lv1_fill_offset(void *);  // pthread working function
-void lv1_direct_sort_and_count(count_global_t &g);
-void post_proc(count_global_t &g);
 
 }  // end of namespace cx1_kmer_count
 #endif  // CX1_KMER_COUNT_H__

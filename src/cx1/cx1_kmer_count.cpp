@@ -85,10 +85,12 @@ inline void PackEdge(uint32_t *dest, uint32_t *item, int64_t counting, struct co
 
 // function pass to CX1
 
-int64_t encode_lv1_diff_base(int64_t read_id, count_global_t &g) { return EncodeOffset(read_id, 0, 0, g.package); }
+int64_t CX1KmerCount::encode_lv1_diff_base_func_(int64_t read_id, count_global_t &g) {
+  return EncodeOffset(read_id, 0, 0, g.package);
+}
 
-void read_input_prepare(count_global_t &globals) {  // num_items_, num_cpu_threads_ and
-                                                    // num_output_threads_ must be set here
+void CX1KmerCount::prepare_func_(cx1_kmer_count::count_global_t &globals) {  // num_items_, num_cpu_threads_ and
+  // num_output_threads_ must be set here
   bool is_reverse = true;
 
   int64_t num_bases, num_reads;
@@ -125,9 +127,9 @@ void read_input_prepare(count_global_t &globals) {  // num_items_, num_cpu_threa
   globals.mem_packed_reads = globals.package.SizeInByte();
 
   int64_t mem_low_bound = globals.mem_packed_reads +
-                          globals.num_reads * sizeof(unsigned char) * 2  // first_in0 & last_out0
-                          + kNumBuckets * sizeof(int64_t) * (globals.num_cpu_threads * 3 + 1) +
-                          (kMaxMul + 1) * (globals.num_output_threads + 1) * sizeof(int64_t);
+      globals.num_reads * sizeof(unsigned char) * 2  // first_in0 & last_out0
+      + kNumBuckets * sizeof(int64_t) * (globals.num_cpu_threads * 3 + 1) +
+      (kMaxMul + 1) * (globals.num_output_threads + 1) * sizeof(int64_t);
   mem_low_bound *= 1.05;
 
   if (mem_low_bound > globals.host_mem) {
@@ -140,8 +142,8 @@ void read_input_prepare(count_global_t &globals) {  // num_items_, num_cpu_threa
   globals.cx1.num_items_ = globals.num_reads;
 }
 
-void *lv0_calc_bucket_size(void *_data) {
-  readpartition_data_t &rp = *((readpartition_data_t *)_data);
+void CX1KmerCount::lv0_calc_bucket_size_func_(void *_data) {
+  readpartition_data_t &rp = *((readpartition_data_t *) _data);
   count_global_t &globals = *(rp.globals);
   std::array<int64_t, kNumBuckets> &bucket_sizes = rp.rp_bucket_sizes;
   std::fill(bucket_sizes.begin(), bucket_sizes.end(), 0);
@@ -177,10 +179,9 @@ void *lv0_calc_bucket_size(void *_data) {
       }
     }
   }
-  return nullptr;
 }
 
-void init_global_and_set_cx1(count_global_t &globals) {
+void CX1KmerCount::init_global_and_set_cx1_func_(count_global_t &globals) {
   // --- calculate lv2 memory ---
   globals.max_bucket_size = *std::max_element(globals.cx1.bucket_sizes_.begin(), globals.cx1.bucket_sizes_.end());
   globals.tot_bucket_size = 0;
@@ -209,10 +210,10 @@ void init_global_and_set_cx1(count_global_t &globals) {
   int64_t lv2_bytes_per_item = globals.words_per_substring * sizeof(uint32_t) + sizeof(int64_t);
 
   int64_t mem_remained = globals.host_mem - globals.mem_packed_reads -
-                         globals.num_cpu_threads * 65536 * sizeof(uint64_t)  // radix sort buckets
-                         - globals.num_reads * sizeof(unsigned char) * 2     // first_in0 & last_out0
-                         - kNumBuckets * sizeof(int64_t) * (globals.num_cpu_threads * 3 + 1) -
-                         (kMaxMul + 1) * (globals.num_output_threads + 1) * sizeof(int64_t);
+      globals.num_cpu_threads * 65536 * sizeof(uint64_t)  // radix sort buckets
+      - globals.num_reads * sizeof(unsigned char) * 2     // first_in0 & last_out0
+      - kNumBuckets * sizeof(int64_t) * (globals.num_cpu_threads * 3 + 1) -
+      (kMaxMul + 1) * (globals.num_output_threads + 1) * sizeof(int64_t);
   int64_t min_lv1_items = globals.tot_bucket_size / (kMaxLv1ScanTime - 0.5);
 
   if (globals.mem_flag == 1) {
@@ -258,7 +259,7 @@ void init_global_and_set_cx1(count_global_t &globals) {
         mem_remained);
   globals.cx1.bytes_per_sorting_item_ = lv2_bytes_per_item;
   globals.lv1_items.resize(globals.cx1.max_lv1_items_ +
-                           globals.max_sorting_items * lv2_bytes_per_item / sizeof(uint32_t));
+      globals.max_sorting_items * lv2_bytes_per_item / sizeof(uint32_t));
   xinfo("Memory for reads: %lld\n", globals.mem_packed_reads);
   xinfo("max # lv.1 items = %lld\n", globals.cx1.max_lv1_items_);
 
@@ -281,8 +282,8 @@ void init_global_and_set_cx1(count_global_t &globals) {
   globals.edge_writer.InitFiles();
 }
 
-void *lv1_fill_offset(void *_data) {
-  readpartition_data_t &rp = *((readpartition_data_t *)_data);
+void CX1KmerCount::lv1_fill_offset_func_(void *_data) {
+  readpartition_data_t &rp = *((readpartition_data_t *) _data);
   count_global_t &globals = *(rp.globals);
   std::array<int64_t, kNumBuckets> prev_full_offsets;
 
@@ -349,10 +350,9 @@ void *lv1_fill_offset(void *_data) {
   }
 
 #undef CHECK_AND_SAVE_OFFSET
-  return nullptr;
 }
 
-template <typename Iter>
+template<typename Iter>
 inline void lv2_extract_substr_(Iter substrings_p, count_global_t &globals, int start_bucket, int end_bucket) {
   auto lv1_p = globals.lv1_items.begin() + globals.cx1.rp_[0].rp_bucket_offsets[start_bucket];
 
@@ -401,7 +401,7 @@ inline void lv2_extract_substr_(Iter substrings_p, count_global_t &globals, int 
           CopySubstringRC(substrings_p, read_p, offset + start_offset, num_chars_to_copy, 1, words_this_seq,
                           globals.words_per_substring);
           *read_info_p = (full_offset << 6) | ((next == kSentinelValue ? kSentinelValue : (3 - next)) << 3) |
-                         (prev == kSentinelValue ? kSentinelValue : (3 - prev));
+              (prev == kSentinelValue ? kSentinelValue : (3 - prev));
         }
 
         substrings_p += globals.words_per_substring + 2;
@@ -445,7 +445,7 @@ void lv2_output_(int64_t start_index, int64_t end_index, int thread_id, count_gl
 
     for (int64_t j = from_; j < to_; ++j) {
       auto *read_info = reinterpret_cast<uint64_t *>(substrings + j * (globals.words_per_substring + 2) +
-                                                     globals.words_per_substring);
+          globals.words_per_substring);
       int prev_and_next = *read_info & ((1 << 6) - 1);
       count_prev[prev_and_next >> 3]++;
       count_next[prev_and_next & 7]++;
@@ -464,7 +464,7 @@ void lv2_output_(int64_t start_index, int64_t end_index, int thread_id, count_gl
     if (!has_in && count >= globals.kmer_freq_threshold) {
       for (int64_t j = from_; j < to_; ++j) {
         auto *read_info_ptr = reinterpret_cast<uint64_t *>(substrings + j * (globals.words_per_substring + 2) +
-                                                           globals.words_per_substring);
+            globals.words_per_substring);
         int64_t read_info = *read_info_ptr >> 6;
         int64_t read_id = globals.package.GetSeqID(read_info >> 1);
         int strand = read_info & 1;
@@ -474,17 +474,17 @@ void lv2_output_(int64_t start_index, int64_t end_index, int thread_id, count_gl
           // update last
           uint32_t old_value = globals.last_0_in[read_id].v.load(std::memory_order::memory_order_acquire);
           while ((old_value == kSentinelOffset || old_value < offset) &&
-                 !globals.last_0_in[read_id].v.compare_exchange_weak(old_value, offset,
-                                                                     std::memory_order::memory_order_release,
-                                                                     std::memory_order::memory_order_relaxed)) {
+              !globals.last_0_in[read_id].v.compare_exchange_weak(old_value, offset,
+                                                                  std::memory_order::memory_order_release,
+                                                                  std::memory_order::memory_order_relaxed)) {
           }
         } else {
           // update first
           offset++;
           uint32_t old_value = globals.first_0_out[read_id].v.load(std::memory_order::memory_order_acquire);
           while (old_value > offset && !globals.first_0_out[read_id].v.compare_exchange_weak(
-                                           old_value, offset, std::memory_order::memory_order_release,
-                                           std::memory_order::memory_order_relaxed)) {
+              old_value, offset, std::memory_order::memory_order_release,
+              std::memory_order::memory_order_relaxed)) {
           }
         }
       }
@@ -493,7 +493,7 @@ void lv2_output_(int64_t start_index, int64_t end_index, int thread_id, count_gl
     if (!has_out && count >= globals.kmer_freq_threshold) {
       for (int64_t j = from_; j < to_; ++j) {
         auto *read_info_ptr = reinterpret_cast<uint64_t *>(substrings + j * (globals.words_per_substring + 2) +
-                                                           globals.words_per_substring);
+            globals.words_per_substring);
         int64_t read_info = *read_info_ptr >> 6;
         int64_t read_id = globals.package.GetSeqID(read_info >> 1);
         int strand = read_info & 1;
@@ -504,16 +504,16 @@ void lv2_output_(int64_t start_index, int64_t end_index, int thread_id, count_gl
           offset++;
           uint32_t old_value = globals.first_0_out[read_id].v.load(std::memory_order::memory_order_acquire);
           while (old_value > offset && !globals.first_0_out[read_id].v.compare_exchange_weak(
-                                           old_value, offset, std::memory_order::memory_order_release,
-                                           std::memory_order::memory_order_relaxed)) {
+              old_value, offset, std::memory_order::memory_order_release,
+              std::memory_order::memory_order_relaxed)) {
           }
         } else {
           // update last
           uint32_t old_value = globals.last_0_in[read_id].v.load(std::memory_order::memory_order_acquire);
           while ((old_value == kSentinelOffset || old_value < offset) &&
-                 !globals.last_0_in[read_id].v.compare_exchange_weak(old_value, offset,
-                                                                     std::memory_order::memory_order_release,
-                                                                     std::memory_order::memory_order_relaxed)) {
+              !globals.last_0_in[read_id].v.compare_exchange_weak(old_value, offset,
+                                                                  std::memory_order::memory_order_release,
+                                                                  std::memory_order::memory_order_relaxed)) {
           }
         }
       }
@@ -554,14 +554,14 @@ void kt_sort(void *g, long b, int tid) {
   }
 
   size_t offset = kg->globals->cx1.lv1_num_items_ +
-                  kg->thread_offset[tid] * kg->globals->cx1.bytes_per_sorting_item_ / sizeof(uint32_t);
+      kg->thread_offset[tid] * kg->globals->cx1.bytes_per_sorting_item_ / sizeof(uint32_t);
   auto substr_ptr = reinterpret_cast<uint32_t *>(kg->globals->lv1_items.data() + offset);
   lv2_extract_substr_(substr_ptr, *(kg->globals), b, b + 1);
   SortSubStr(substr_ptr, kg->globals->words_per_substring, kg->globals->cx1.bucket_sizes_[b], 2);
   lv2_output_(0, kg->globals->cx1.bucket_sizes_[b], tid, *(kg->globals), substr_ptr);
 }
 
-void lv1_direct_sort_and_count(count_global_t &globals) {
+void CX1KmerCount::lv1_sort_and_proc(count_global_t &globals) {
   kt_sort_t kg;
   kg.globals = &globals;
 
@@ -574,7 +574,7 @@ void lv1_direct_sort_and_count(count_global_t &globals) {
   }
 }
 
-void post_proc(count_global_t &globals) {
+void CX1KmerCount::post_proc_func_(count_global_t &globals) {
   std::vector<int64_t> edge_counting(kMaxMul + 1, 0);
   for (int t = 0; t < globals.num_output_threads; ++t) {
     for (int i = 1; i <= kMaxMul; ++i) {
@@ -617,7 +617,7 @@ void post_proc(count_global_t &globals) {
 
   for (int64_t i = 1, acc = 0; i <= kMaxMul; ++i) {
     acc += edge_counting[i];
-    fprintf(counting_file, "%lld %lld\n", (long long)i, (long long)acc);
+    fprintf(counting_file, "%lld %lld\n", (long long) i, (long long) acc);
   }
 
   fclose(counting_file);

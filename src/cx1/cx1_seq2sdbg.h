@@ -79,8 +79,20 @@ static const int64_t kMaxLv1ScanTime = 64;
 static const int kSentinelValue = 4;
 static const int kBWTCharNumBits = 3;
 
+struct seq2sdbg_global_t;
+
+struct CX1Seq2Sdbg: public CX1<seq2sdbg_global_t, kNumBuckets> {
+  int64_t encode_lv1_diff_base_func_(int64_t, global_data_t &) override;
+  void prepare_func_(global_data_t &) override;  // num_items_, num_cpu_threads_ and num_output_threads_ must be set here
+  void lv0_calc_bucket_size_func_(void *) override;
+  void init_global_and_set_cx1_func_(global_data_t &) override;  // xxx set here
+  void lv1_fill_offset_func_(void *) override;
+  void lv1_sort_and_proc(global_data_t &) override;
+  void post_proc_func_(global_data_t &) override;
+};
+
 struct seq2sdbg_global_t {
-  CX1<seq2sdbg_global_t, kNumBuckets> cx1;
+  CX1Seq2Sdbg cx1;
 
   // input options
   int kmer_k;
