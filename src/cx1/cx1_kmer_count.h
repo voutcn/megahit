@@ -111,8 +111,6 @@ struct count_global_t {
 
   std::vector<AtomicWrapper<uint32_t>> first_0_out;
   std::vector<AtomicWrapper<uint32_t>> last_0_in;
-  std::vector<int32_t> lv1_items;
-  std::mutex lv1_items_scanning_lock;
 
   // memory usage
   int64_t mem_packed_reads;

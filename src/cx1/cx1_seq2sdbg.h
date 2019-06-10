@@ -117,11 +117,8 @@ struct seq2sdbg_global_t {
   // big arrays
   SeqPackage package;
   std::vector<mul_t> multiplicity;
-  std::vector<int32_t> lv1_items;
 
   int64_t max_sorting_items;
-
-  std::mutex lv1_items_scanning_lock;
   // memory usage
   int64_t mem_packed_seq;
 

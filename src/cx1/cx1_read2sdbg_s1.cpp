@@ -282,12 +282,8 @@ void CX1Read2SdbgS1::init_global_and_set_cx1_func_(read2sdbg_global_t &globals) 
     xfatal("No enough memory to process.");
   }
 
-  globals.cx1->SetWorkingMemory(max_lv1_items * sizeof(int) + globals.max_sorting_items * lv2_bytes_per_item);
-  globals.cx1->SetMaxLv1Items(max_lv1_items);
-  globals.cx1->SetWordsPerSortingItem(lv2_bytes_per_item / sizeof(uint32_t));
-  globals.lv1_items.resize(max_lv1_items +
-      globals.max_sorting_items * lv2_bytes_per_item / sizeof(int32_t));
 
+  globals.cx1->SetMaxLv1Lv2Items(max_lv1_items, globals.max_sorting_items, lv2_bytes_per_item / sizeof(uint32_t));
   xinfo("Memory for reads: %lld\n", globals.mem_packed_reads);
   xinfo("max # lv.1 items = %lld\n", max_lv1_items);
 
@@ -342,17 +338,13 @@ void CX1Read2SdbgS1::lv1_fill_offset_func_(ReadPartition *_data) {
     // ===== this is a macro to save some copy&paste ================
 #define CHECK_AND_SAVE_OFFSET(offset, strand)                                                         \
   do {                                                                                                \
-    if (globals.cx1->HandlingBucket(key)) {                                                          \
-      int key_ =globals.cx1->GetBucketRank(key);                                                       \
+    if (globals.cx1->HandlingBucket(key)) {                                                           \
+      int key_ = globals.cx1->GetBucketRank(key);                                                     \
       int64_t full_offset = EncodeOffset(read_id, offset, strand, globals.package);                   \
       int64_t differential = full_offset - prev_full_offsets[key_];                                   \
-      if (differential > cx1_t::kDifferentialLimit) {                                                 \
-        auto sz = globals.cx1->AddSpecialOffset(full_offset);                                         \
-        globals.lv1_items[rp.rp_bucket_offsets[key_]++] = -sz - 1;                                     \
-      } else {                                                                                        \
-        assert((int)differential >= 0);                                                               \
-        globals.lv1_items[rp.rp_bucket_offsets[key_]++] = (int)differential;                          \
-      }                                                                                               \
+      int64_t index = rp.rp_bucket_offsets[key_]++;                                                   \
+      globals.cx1->WriteOffset(index, differential, full_offset);                                     \
+      assert(rp.rp_bucket_offsets[key_] <= globals.cx1->GetLv1NumItems());                            \
       prev_full_offsets[key_] = full_offset;                                                          \
     }                                                                                                 \
   } while (0)
@@ -410,7 +402,7 @@ void CX1Read2SdbgS1::lv1_fill_offset_func_(ReadPartition *_data) {
 }
 
 void s1_extract_subtstr_(int bp_from, int bp_to, read2sdbg_global_t &globals, uint32_t *substr) {
-  auto lv1_p = globals.lv1_items.begin() + globals.cx1->GetReadPartition(0).rp_bucket_offsets[bp_from];
+  auto lv1_p = globals.cx1->GetLv1Iterator(bp_from);
 
   for (auto b = bp_from; b < bp_to; ++b) {
     for (int t = 0; t < globals.num_cpu_threads; ++t) {
@@ -654,7 +646,7 @@ void s1_lv2_output_(int64_t from, int64_t to, int tid, read2sdbg_global_t &globa
   }
 }
 
-struct kt_sort_t {
+struct Lv2ThreadStatus {
   read2sdbg_global_t *globals;
   std::vector<int64_t> thread_offset;
   std::vector<int> rank;
@@ -663,8 +655,8 @@ struct kt_sort_t {
   std::mutex mutex;
 };
 
-void kt_sort(void *g, long b, int tid) {
-  auto kg = reinterpret_cast<kt_sort_t *>(g);
+void sort_bucket(void *g, long b, int tid) {
+  auto kg = reinterpret_cast<Lv2ThreadStatus *>(g);
   if (kg->thread_offset[tid] == -1) {
     std::lock_guard<std::mutex> lk(kg->mutex);
     kg->thread_offset[tid] = kg->acc;
@@ -679,14 +671,14 @@ void kt_sort(void *g, long b, int tid) {
 
   size_t offset = kg->globals->cx1->GetLv1NumItems() +
       kg->thread_offset[tid] * kg->globals->cx1->GetWordsPerSortingItem();
-  auto substr_ptr = reinterpret_cast<uint32_t *>(kg->globals->lv1_items.data() + offset);
+  auto substr_ptr = kg->globals->cx1->Lv1DataPtr() + offset;
   s1_extract_subtstr_(b, b + 1, *(kg->globals), substr_ptr);
   SortSubStr(substr_ptr, kg->globals->words_per_substring, kg->globals->cx1->GetBucketSizes()[b], 2);
   s1_lv2_output_(0, kg->globals->cx1->GetBucketSizes()[b], tid, *(kg->globals), substr_ptr);
 }
 
 void CX1Read2SdbgS1::lv1_sort_and_proc(read2sdbg_global_t &globals) {
-  kt_sort_t kg;
+  Lv2ThreadStatus kg;
   kg.globals = &globals;
 
   kg.thread_offset.resize(globals.num_cpu_threads, -1);
@@ -694,7 +686,7 @@ void CX1Read2SdbgS1::lv1_sort_and_proc(read2sdbg_global_t &globals) {
   omp_set_num_threads(globals.num_cpu_threads);
 #pragma omp parallel for schedule(dynamic)
   for (auto i = globals.cx1->GetLv1StartBucket(); i < globals.cx1->GetLv1EndBucket(); ++i) {
-    kt_sort(&kg, i, omp_get_thread_num());
+    sort_bucket(&kg, i, omp_get_thread_num());
   }
 }
 
@@ -725,7 +717,6 @@ void CX1Read2SdbgS1::post_proc_func_(read2sdbg_global_t &globals) {
   fclose(counting_file);
 
   // --- cleaning ---
-  globals.lv1_items = std::vector<int32_t>();
   globals.thread_edge_counting = std::vector<std::vector<int64_t>>();
   for (int i = 0; i < globals.num_mercy_files; ++i) {
     fclose(globals.mercy_files[i]);

@@ -123,8 +123,6 @@ struct read2sdbg_global_t {
   SeqPackage package;
   std::vector<lib_info_t> lib_info;
   AtomicBitVector is_solid;  // mark <read_id, offset> is solid
-  std::vector<int32_t> lv1_items;
-  std::mutex lv1_items_scanning_lock;
 
   // memory usage
   int64_t mem_packed_reads;
