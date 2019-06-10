@@ -42,6 +42,24 @@
  */
 template <typename TGlobal, unsigned NBuckets>
 struct CX1 {
+ public:
+  typedef TGlobal global_data_t;
+  // other settings, don't change
+  static const int kLv1BytePerItem = 4;  // 32-bit differatial offset
+  static const uint64_t kSpDiffMaxNum = (1ULL << 32) - 1;
+  static const int64_t kDifferentialLimit = (1ULL << 31) - 1;
+
+  struct ReadPartition {
+    // local data for each read partition (i.e. a subrange of input reads)
+    global_data_t *globals;
+    int64_t rp_start_id, rp_end_id;  // start and end IDs of this read partition (end is exclusive)
+    std::array<int64_t, NBuckets> rp_bucket_sizes;
+    std::array<int64_t, NBuckets> rp_bucket_offsets;
+    int64_t rp_lv1_differential_base;  // the initial offset globals.lv1_items
+  };
+  // param: must be set
+  global_data_t *g_;
+
  private:
   // may change as cx1 goes
   int64_t lv1_num_items_{};
@@ -49,6 +67,11 @@ struct CX1 {
   std::vector<bool> cur_lv1_buckets_;
   std::vector<int64_t> lv1_special_offsets_;
   std::mutex special_item_lock_;
+
+  std::array<int64_t, NBuckets> bucket_sizes_;
+  std::array<int, NBuckets> ori_bucket_id_;
+  std::array<int, NBuckets> bucket_rank_;
+  std::vector<ReadPartition> rp_;
 
  public:
   int64_t GetLv1NumItems() const { return lv1_num_items_; }
@@ -61,12 +84,23 @@ struct CX1 {
 
   int64_t AddSpecialOffset(int64_t offset) {
     std::lock_guard<std::mutex> lk(special_item_lock_);
+    int64_t ret = lv1_special_offsets_.size();
     lv1_special_offsets_.push_back(offset);
-    return lv1_special_offsets_.size() - 1;
+    return ret;
   }
 
   int64_t GetSpecialOffset(size_t index) const {
     return lv1_special_offsets_[index];
+  }
+
+  const std::array<int64_t, NBuckets>& GetBucketSizes() const {
+    return bucket_sizes_;
+  }
+
+  int GetBucketRank(unsigned bucket) const { return bucket_rank_[bucket]; }
+
+  const ReadPartition& GetReadPartition(unsigned tid) const {
+    return rp_[tid];
   }
 
  private:
@@ -74,37 +108,18 @@ struct CX1 {
   int64_t num_items_{};
   unsigned num_cpu_threads_{};
 
+  // set according to memory
+  int64_t max_mem_remain_{};
+  size_t words_per_sorting_item_{};
+  int64_t max_lv1_items_{};
+
  public:
   void SetNumItems(int64_t num) { num_items_ = num; }
   void SetNumCpuThreads(unsigned n) { num_cpu_threads_ = n; }
-
- public:
-  typedef TGlobal global_data_t;
-  // other settings, don't change
-  static const int kLv1BytePerItem = 4;  // 32-bit differatial offset
-  static const uint64_t kSpDiffMaxNum = (1ULL << 32) - 1;
-  static const int64_t kDifferentialLimit = 4096; // (1ULL << 31) - 1;
-
-  struct ReadPartition {
-    // local data for each read partition (i.e. a subrange of input reads)
-    global_data_t *globals;
-    int64_t rp_start_id, rp_end_id;  // start and end IDs of this read partition (end is exclusive)
-    std::array<int64_t, NBuckets> rp_bucket_sizes;
-    std::array<int64_t, NBuckets> rp_bucket_offsets;
-    int64_t rp_lv1_differential_base;  // the initial offset globals.lv1_items
-  };
-  // param: must be set
-  global_data_t *g_;
-  int64_t max_lv1_items_{};
-
-  int64_t max_mem_remain_{};
-  int64_t bytes_per_sorting_item_{};
-
-  // other data
-  std::array<int64_t, NBuckets> bucket_sizes_;
-  std::array<int, NBuckets> ori_bucket_id_;
-  std::array<int, NBuckets> bucket_rank_;
-  std::vector<ReadPartition> rp_;
+  void SetWorkingMemory(int64_t mem_size) { max_mem_remain_ = mem_size; }
+  void SetMaxLv1Items(int64_t n) { max_lv1_items_ = n; }
+  void SetWordsPerSortingItem(size_t n_words) { words_per_sorting_item_ = n_words; }
+  size_t GetWordsPerSortingItem() const { return words_per_sorting_item_; }
 
   // === functions to specify a CX1 instance ===
  public:
@@ -119,7 +134,7 @@ struct CX1 {
   CX1() = default;
 
   // === single thread functions ===
-  inline void adjust_mem(int64_t mem_avail, int64_t bytes_per_sorting_item, int64_t min_lv1_items,
+  static void adjust_mem(int64_t mem_avail, int64_t bytes_per_sorting_item, int64_t min_lv1_items,
                          int64_t min_sorting_items, int64_t max_sorting_items, int64_t &max_lv1_items,
                          int64_t &num_sorting_items) {
     num_sorting_items = max_sorting_items;
@@ -318,7 +333,7 @@ struct CX1 {
       lv1_iteration++;
       // --- finds the bucket range for this iteration ---
       lv1_end_bucket_ = find_end_buckets_with_rank_(lv1_start_bucket_, NBuckets, max_mem_remain_,
-                                                    bytes_per_sorting_item_, lv1_num_items_);
+                                                    words_per_sorting_item_ * sizeof(uint32_t), lv1_num_items_);
 
       if (lv1_num_items_  == 0 && lv1_end_bucket_ < NBuckets) {
         fprintf(stderr, "Bucket %d too large for lv1: %lld > %lld\n", lv1_end_bucket_,
