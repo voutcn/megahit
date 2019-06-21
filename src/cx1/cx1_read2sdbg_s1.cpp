@@ -236,14 +236,12 @@ void CX1Read2SdbgS1::init_global_and_set_cx1_func_(read2sdbg_global_t &globals) 
   globals.max_sorting_items =
       std::max(3 * globals.tot_bucket_size / num_non_empty * globals.num_cpu_threads, globals.max_bucket_size);
 
-  lv2_bytes_per_item += sizeof(uint32_t);  // CPU memory is used to simulate GPU
-
   int64_t mem_remained = globals.host_mem - globals.mem_packed_reads -
       globals.num_cpu_threads * 65536 * sizeof(uint64_t)  // radix sort buckets
       - kNumBuckets * sizeof(int64_t) * (globals.num_cpu_threads * 3 + 1) -
       (kMaxMul + 1) * (globals.num_output_threads + 1) * sizeof(int64_t);
   int64_t min_lv1_items = globals.tot_bucket_size / (kMaxLv1ScanTime - 0.5);
-  int64_t max_lv1_items;
+  int64_t max_lv1_items = 0;
 
   if (globals.mem_flag == 1) {
     // auto set memory
@@ -283,7 +281,7 @@ void CX1Read2SdbgS1::init_global_and_set_cx1_func_(read2sdbg_global_t &globals) 
   }
 
 
-  globals.cx1->SetMaxLv1Lv2Items(max_lv1_items, globals.max_sorting_items, lv2_bytes_per_item / sizeof(uint32_t));
+  globals.cx1->SetMaxLv1Lv2Items(max_lv1_items, globals.max_sorting_items, lv2_bytes_per_item / sizeof(uint32_t), 2);
   xinfo("Memory for reads: %lld\n", globals.mem_packed_reads);
   xinfo("max # lv.1 items = %lld\n", max_lv1_items);
 
@@ -401,7 +399,7 @@ void CX1Read2SdbgS1::lv1_fill_offset_func_(ReadPartition *_data) {
 #undef CHECK_AND_SAVE_OFFSET
 }
 
-void s1_extract_subtstr_(int bp_from, int bp_to, read2sdbg_global_t &globals, uint32_t *substr) {
+void CX1Read2SdbgS1::lv2_extract_substr_(unsigned bp_from, unsigned bp_to, read2sdbg_global_t &globals, uint32_t *substr) {
   auto lv1_p = globals.cx1->GetLv1Iterator(bp_from);
 
   for (auto b = bp_from; b < bp_to; ++b) {
@@ -479,7 +477,7 @@ void s1_extract_subtstr_(int bp_from, int bp_to, read2sdbg_global_t &globals, ui
   }
 }
 
-void s1_lv2_output_(int64_t from, int64_t to, int tid, read2sdbg_global_t &globals, uint32_t *substr) {
+void CX1Read2SdbgS1::output_(int64_t from, int64_t to, int tid, read2sdbg_global_t &globals, uint32_t *substr) {
   int64_t end_idx;
   int64_t count_prev_head[5][5];
   int64_t count_tail_next[5][5];
@@ -643,50 +641,6 @@ void s1_lv2_output_(int64_t from, int64_t to, int tid, read2sdbg_global_t &globa
         }
       }
     }
-  }
-}
-
-struct Lv2ThreadStatus {
-  read2sdbg_global_t *globals;
-  std::vector<int64_t> thread_offset;
-  std::vector<int> rank;
-  int64_t acc = 0;
-  int seen = 0;
-  std::mutex mutex;
-};
-
-void sort_bucket(void *g, long b, int tid) {
-  auto kg = reinterpret_cast<Lv2ThreadStatus *>(g);
-  if (kg->thread_offset[tid] == -1) {
-    std::lock_guard<std::mutex> lk(kg->mutex);
-    kg->thread_offset[tid] = kg->acc;
-    kg->acc += kg->globals->cx1->GetBucketSizes()[b];
-    kg->rank[tid] = kg->seen;
-    kg->seen++;
-  }
-
-  if (kg->globals->cx1->GetBucketSizes()[b] == 0) {
-    return;
-  }
-
-  size_t offset = kg->globals->cx1->GetLv1NumItems() +
-      kg->thread_offset[tid] * kg->globals->cx1->GetWordsPerSortingItem();
-  auto substr_ptr = kg->globals->cx1->Lv1DataPtr() + offset;
-  s1_extract_subtstr_(b, b + 1, *(kg->globals), substr_ptr);
-  SortSubStr(substr_ptr, kg->globals->words_per_substring, kg->globals->cx1->GetBucketSizes()[b], 2);
-  s1_lv2_output_(0, kg->globals->cx1->GetBucketSizes()[b], tid, *(kg->globals), substr_ptr);
-}
-
-void CX1Read2SdbgS1::lv1_sort_and_proc(read2sdbg_global_t &globals) {
-  Lv2ThreadStatus kg;
-  kg.globals = &globals;
-
-  kg.thread_offset.resize(globals.num_cpu_threads, -1);
-  kg.rank.resize(globals.num_cpu_threads, 0);
-  omp_set_num_threads(globals.num_cpu_threads);
-#pragma omp parallel for schedule(dynamic)
-  for (auto i = globals.cx1->GetLv1StartBucket(); i < globals.cx1->GetLv1EndBucket(); ++i) {
-    sort_bucket(&kg, i, omp_get_thread_num());
   }
 }
 

@@ -80,7 +80,8 @@ struct CX1Read2SdbgS1 : public CX1Read2Sdbg {
   void lv0_calc_bucket_size_func_(ReadPartition *) override;
   void init_global_and_set_cx1_func_(global_data_t &) override;  // xxx set here
   void lv1_fill_offset_func_(ReadPartition *) override;
-  void lv1_sort_and_proc(global_data_t &) override;
+  void lv2_extract_substr_(unsigned bucket_from, unsigned bucket_to, global_data_t &g, uint32_t *substr_ptr) override;
+  void output_(int64_t start_index, int64_t end_index, int thread_id, global_data_t &g, uint32_t *substrings) override;
   void post_proc_func_(global_data_t &) override;
 };
 
@@ -90,7 +91,8 @@ struct CX1Read2SdbgS2 : public CX1Read2Sdbg {
   void lv0_calc_bucket_size_func_(ReadPartition *) override;
   void init_global_and_set_cx1_func_(global_data_t &) override;  // xxx set here
   void lv1_fill_offset_func_(ReadPartition *) override;
-  void lv1_sort_and_proc(global_data_t &) override;
+  void lv2_extract_substr_(unsigned bucket_from, unsigned bucket_to, global_data_t &g, uint32_t *substr_ptr) override;
+  void output_(int64_t start_index, int64_t end_index, int thread_id, global_data_t &g, uint32_t *substrings) override;
   void post_proc_func_(global_data_t &) override;
 };
 

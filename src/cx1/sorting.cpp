@@ -9,6 +9,7 @@
 #include <cassert>
 #include "kmlib/kmsort.h"
 
+std::function<void(uint32_t *, int64_t)> SelectSortingFuncHelper(int substr, int words);
 namespace {
 template <int NWords, int NExtraWord>
 struct Substr {
@@ -27,26 +28,26 @@ struct Substr {
   int kth_byte(int k) const { return data[NWords - 1 - k / sizeof(uint32_t)] >> (k % sizeof(uint32_t) * 8) & 0xFF; }
 } __attribute((packed));
 
+constexpr int kMaxWords = (kMaxK * kBitsPerEdgeChar + 3 + 1 + kBitsPerMul + kBitsPerEdgeWord - 1) / kBitsPerEdgeWord;
+
 template <int NWords, int NExtraWords>
-inline void SortSubstrHelper(uint32_t *substr, int words_per_substr, int64_t n, int extra_words) {
+std::function<void(uint32_t *, int64_t)> SelectSortingFuncHelper(int words_per_substr, int extra_words) {
   assert(words_per_substr > 0 && words_per_substr <= NWords);
   assert(extra_words >= 0 && extra_words <= NExtraWords);
   if (words_per_substr < NWords) {
-    SortSubstrHelper<(NWords - 1 > 1 ? NWords - 1 : 1), NExtraWords>(substr, words_per_substr, n, extra_words);
-    return;
+    return SelectSortingFuncHelper<(NWords - 1 > 1 ? NWords - 1 : 1), NExtraWords>(words_per_substr, extra_words);
   }
   if (extra_words < NExtraWords) {
-    SortSubstrHelper<NWords, (NExtraWords - 1 > 0 ? NExtraWords - 1 : 0)>(substr, words_per_substr, n, extra_words);
-    return;
+    return SelectSortingFuncHelper<NWords, (NExtraWords - 1 > 0 ? NExtraWords - 1 : 0)>(words_per_substr, extra_words);
   }
-  auto ptr = reinterpret_cast<Substr<NWords, NExtraWords> *>(substr);
-  kmlib::kmsort(ptr, ptr + n);
+  return [](uint32_t *substr_ptr, int64_t n) {
+    auto ptr = reinterpret_cast<Substr<NWords, NExtraWords> *>(substr_ptr);
+    kmlib::kmsort(ptr, ptr + n);
+  };
 }
-
-constexpr int kMaxWords = (kMaxK * kBitsPerEdgeChar + 3 + 1 + kBitsPerMul + kBitsPerEdgeWord - 1) / kBitsPerEdgeWord;
 
 }  // namespace
 
-void SortSubStr(uint32_t *substr, int words_per_substr, int64_t n, int extra_words) {
-  SortSubstrHelper<kMaxWords, 2>(substr, words_per_substr, n, extra_words);
+std::function<void(uint32_t*, int64_t)> SelectSortingFunc(int words_per_substr, int extra_words) {
+  return SelectSortingFuncHelper<kMaxWords, 2>(words_per_substr, extra_words);
 }

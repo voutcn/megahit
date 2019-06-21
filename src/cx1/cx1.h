@@ -31,17 +31,10 @@
 #include <omp.h>
 
 #include "utils/utils.h"
+#include "sorting.h"
 
-/**
- * @brief    an CX1 engine
- * @details  use CX1 algorithm to do all kinds of things related to substring sorting
- *
- * @tparam TGlobal the type of global datas used in a specified CX1 engine
- *                          must contain a member `CX1* cx1`, where cx1->g_ is itself,
- *                          that enables interactions with CX1 functions
- * @tparam NBuckets      number of buckets
- */
-template <typename TGlobal, unsigned NBuckets>
+
+template<typename TGlobal, unsigned NBuckets>
 struct CX1 {
  public:
   typedef TGlobal global_data_t;
@@ -108,17 +101,17 @@ struct CX1 {
     return lv1_offsets_.cbegin() + GetReadPartition(0).rp_bucket_offsets[bucket];
   }
 
-  uint32_t* Lv1DataPtr() {
-    return reinterpret_cast<uint32_t*>(lv1_offsets_.data());
+  uint32_t *Lv1DataPtr() {
+    return reinterpret_cast<uint32_t *>(lv1_offsets_.data());
   }
 
-  const std::array<int64_t, NBuckets>& GetBucketSizes() const {
+  const std::array<int64_t, NBuckets> &GetBucketSizes() const {
     return bucket_sizes_;
   }
 
   int GetBucketRank(unsigned bucket) const { return bucket_rank_[bucket]; }
 
-  const ReadPartition& GetReadPartition(unsigned tid) const {
+  const ReadPartition &GetReadPartition(unsigned tid) const {
     return rp_[tid];
   }
 
@@ -130,18 +123,22 @@ struct CX1 {
   // set according to memory
   int64_t max_mem_remain_{};
   size_t words_per_sorting_item_{};
+  size_t extra_words_{};
   int64_t max_lv1_items_{};
+  std::function<void(uint32_t *, int64_t)> substr_sort_;
 
  public:
   void SetNumItems(int64_t num) { num_items_ = num; }
   void SetNumCpuThreads(unsigned n) { num_cpu_threads_ = n; }
-  void SetMaxLv1Lv2Items(int64_t n_lv1, int64_t n_lv2, int64_t words_per_lv2) {
+  void SetMaxLv1Lv2Items(int64_t n_lv1, int64_t n_lv2, int64_t words_per_lv2, int64_t extra_words = 0) {
     max_lv1_items_ = n_lv1;
     words_per_sorting_item_ = words_per_lv2;
+    extra_words_ = extra_words;
     auto words_required = n_lv1 + n_lv2 * words_per_lv2;
     max_mem_remain_ = words_required * kLv1BytePerItem;
     lv1_offsets_.reserve(words_required);
     lv1_offsets_.resize(words_required);
+    substr_sort_ = SelectSortingFunc(words_per_sorting_item_ - extra_words_, extra_words_);
   }
   size_t GetWordsPerSortingItem() const { return words_per_sorting_item_; }
 
@@ -152,9 +149,8 @@ struct CX1 {
   virtual void lv0_calc_bucket_size_func_(ReadPartition *) = 0;
   virtual void init_global_and_set_cx1_func_(global_data_t &) = 0;  // xxx set here
   virtual void lv1_fill_offset_func_(ReadPartition *) = 0;
-  virtual void lv1_sort_and_proc(global_data_t &) = 0;
-//  virtual void lv2_extract_substr(global_data_t &) = 0;
-//  virtual void lv2_output(global_data_t &) = 0;
+  virtual void lv2_extract_substr_(unsigned bucket_from, unsigned bucket_to, TGlobal &g, uint32_t *substr_ptr) = 0;
+  virtual void output_(int64_t start_index, int64_t end_index, int thread_id, TGlobal &g, uint32_t *substrings) = 0;
   virtual void post_proc_func_(global_data_t &) = 0;
 
   CX1() = default;
@@ -321,46 +317,44 @@ struct CX1 {
     lv1_compute_offset_();
   }
 
-//  struct Lv2ThreadStatus {
-//    std::vector<int64_t> thread_offset;
-//    std::vector<int64_t> rank;
-//    std::mutex mutex;
-//    int64_t acc = 0;
-//    int seen = 0;
-//  };
-//
-//  void sort_bucket(Lv2ThreadStatus *thread_status, unsigned b, int tid) {
-//    if (thread_status->thread_offset[tid] == -1) {
-//      std::lock_guard<std::mutex> lk(thread_status->mutex);
-//      thread_status->thread_offset[tid] = thread_status->acc;
-//      thread_status->acc += thread_status->globals->cx1->GetBucketSizes()[b];
-//      thread_status->rank[tid] = thread_status->seen;
-//      thread_status->seen++;
-//    }
-//
-//    if (thread_status->globals->cx1->GetBucketSizes()[b] == 0) {
-//      return;
-//    }
-//
-//    size_t offset = thread_status->globals->cx1->GetLv1NumItems() +
-//        thread_status->thread_offset[tid] * thread_status->globals->cx1->GetWordsPerSortingItem();
-//    auto substr_ptr = reinterpret_cast<uint32_t *>(thread_status->globals->lv1_items.data() + offset);
-//    lv2_extract_substr_(b, b + 1, *(thread_status->globals), substr_ptr);
-//    SortSubStr(substr_ptr, thread_status->globals->words_per_substring, thread_status->globals->cx1->GetBucketSizes()[b]);
-//    output_(0, thread_status->globals->cx1->GetBucketSizes()[b], *(thread_status->globals), substr_ptr, tid);
-//  }
-//
-//
-//  void lv1_fetch_and_sort_mt_() {
-//    Lv2ThreadStatus thread_status;
-//    thread_status.thread_offset.resize(num_cpu_threads_, -1);
-//    thread_status.rank.resize(num_cpu_threads_, 0);
-//    omp_set_num_threads(num_cpu_threads_);
-//#pragma omp parallel for schedule(dynamic)
-//    for (auto i = GetLv1StartBucket(); i < GetLv1EndBucket(); ++i) {
-//      sort_bucket(&thread_status, i, omp_get_thread_num());
-//    }
-//  }
+  struct Lv2ThreadStatus {
+    std::vector<int64_t> thread_offset;
+    std::vector<int64_t> rank;
+    std::mutex mutex;
+    int64_t acc{0};
+    int seen{0};
+  };
+
+  void sort_bucket(Lv2ThreadStatus *thread_status, unsigned b, int tid) {
+    if (thread_status->thread_offset[tid] == -1) {
+      std::lock_guard<std::mutex> lk(thread_status->mutex);
+      thread_status->thread_offset[tid] = thread_status->acc;
+      thread_status->acc += GetBucketSizes()[b];
+      thread_status->rank[tid] = thread_status->seen;
+      thread_status->seen++;
+    }
+
+    if (GetBucketSizes()[b] == 0) {
+      return;
+    }
+
+    size_t offset = GetLv1NumItems() + thread_status->thread_offset[tid] * GetWordsPerSortingItem();
+    auto substr_ptr = Lv1DataPtr() + offset;
+    lv2_extract_substr_(b, b + 1, *g_, substr_ptr);
+    substr_sort_(substr_ptr, GetBucketSizes()[b]);
+    output_(0, GetBucketSizes()[b], tid, *g_, substr_ptr);
+  }
+
+  void lv1_fetch_and_sort_mt_() {
+    Lv2ThreadStatus thread_status{};
+    thread_status.thread_offset.resize(num_cpu_threads_, -1);
+    thread_status.rank.resize(num_cpu_threads_, 0);
+    omp_set_num_threads(num_cpu_threads_);
+#pragma omp parallel for schedule(dynamic)
+    for (auto i = GetLv1StartBucket(); i < GetLv1EndBucket(); ++i) {
+      sort_bucket(&thread_status, i, omp_get_thread_num());
+    }
+  }
 
   // entry
   void run() {
@@ -403,7 +397,7 @@ struct CX1 {
       lv1_end_bucket_ = find_end_buckets_with_rank_(lv1_start_bucket_, NBuckets, max_mem_remain_,
                                                     words_per_sorting_item_ * sizeof(uint32_t), lv1_num_items_);
 
-      if (lv1_num_items_  == 0 && lv1_end_bucket_ < NBuckets) {
+      if (lv1_num_items_ == 0 && lv1_end_bucket_ < NBuckets) {
         fprintf(stderr, "Bucket %d too large for lv1: %lld > %lld\n", lv1_end_bucket_,
                 static_cast<long long>(bucket_sizes_[lv1_end_bucket_]), static_cast<long long>(max_lv1_items_));
         exit(1);
@@ -423,10 +417,12 @@ struct CX1 {
       }
 
       lv1_timer.stop();
-      xinfo("Lv1 scanning done. Large diff: %lu. Time elapsed: %.4f\n", lv1_special_offsets_.size(), lv1_timer.elapsed());
+      xinfo("Lv1 scanning done. Large diff: %lu. Time elapsed: %.4f\n",
+            lv1_special_offsets_.size(),
+            lv1_timer.elapsed());
       lv1_timer.reset();
       lv1_timer.start();
-      lv1_sort_and_proc(*g_);
+      lv1_fetch_and_sort_mt_();
       lv1_timer.stop();
       xinfo("Lv1 fetching & sorting done. Time elapsed: %.4f\n", lv1_timer.elapsed());
       lv1_start_bucket_ = lv1_end_bucket_;

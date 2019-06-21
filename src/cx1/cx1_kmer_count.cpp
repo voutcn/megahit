@@ -216,7 +216,7 @@ void CX1KmerCount::init_global_and_set_cx1_func_(count_global_t &globals) {
       - kNumBuckets * sizeof(int64_t) * (globals.num_cpu_threads * 3 + 1) -
       (kMaxMul + 1) * (globals.num_output_threads + 1) * sizeof(int64_t);
   int64_t min_lv1_items = globals.tot_bucket_size / (kMaxLv1ScanTime - 0.5);
-  int64_t max_lv1_items;
+  int64_t max_lv1_items = 0;
 
   if (globals.mem_flag == 1) {
     // auto set memory
@@ -254,7 +254,7 @@ void CX1KmerCount::init_global_and_set_cx1_func_(count_global_t &globals) {
     xfatal("No enough memory to process.");
   }
 
-  globals.cx1->SetMaxLv1Lv2Items(max_lv1_items, globals.max_sorting_items, lv2_bytes_per_item / sizeof(uint32_t));
+  globals.cx1->SetMaxLv1Lv2Items(max_lv1_items, globals.max_sorting_items, lv2_bytes_per_item / sizeof(uint32_t), 2);
   xinfo("Memory for reads: %lld\n", globals.mem_packed_reads);
   xinfo("max # lv.1 items = %lld\n", max_lv1_items);
 
@@ -342,8 +342,8 @@ void CX1KmerCount::lv1_fill_offset_func_(ReadPartition *_data) {
 #undef CHECK_AND_SAVE_OFFSET
 }
 
-template<typename Iter>
-inline void lv2_extract_substr_(Iter substrings_p, count_global_t &globals, int start_bucket, int end_bucket) {
+void CX1KmerCount::lv2_extract_substr_(unsigned start_bucket, unsigned end_bucket,
+    count_global_t &globals, uint32_t *substrings_p) {
   auto lv1_p = globals.cx1->GetLv1Iterator(start_bucket);
 
   for (auto b = start_bucket; b < end_bucket; ++b) {
@@ -400,7 +400,8 @@ inline void lv2_extract_substr_(Iter substrings_p, count_global_t &globals, int 
   }
 }
 
-void lv2_output_(int64_t start_index, int64_t end_index, int thread_id, count_global_t &globals, uint32_t *substrings) {
+void CX1KmerCount::output_(int64_t start_index, int64_t end_index, int thread_id,
+    count_global_t &globals, uint32_t *substrings) {
   uint32_t packed_edge[32];
   int64_t count_prev[5], count_next[5];
   auto &thread_edge_counting = globals.thread_edge_counting[thread_id];
@@ -518,50 +519,6 @@ void lv2_output_(int64_t start_index, int64_t end_index, int thread_id, count_gl
   }
 
   globals.edge_writer.SaveSnapshot(snapshot);
-}
-
-struct Lv2ThreadStatus {
-  count_global_t *globals;
-  std::vector<int64_t> thread_offset;
-  std::vector<int64_t> rank;
-  std::mutex mutex;
-  int64_t acc = 0;
-  int seen = 0;
-};
-
-void sort_bucket(void *g, long b, int tid) {
-  auto kg = reinterpret_cast<Lv2ThreadStatus *>(g);
-  if (kg->thread_offset[tid] == -1) {
-    std::lock_guard<std::mutex> lk(kg->mutex);
-    kg->thread_offset[tid] = kg->acc;
-    kg->acc += kg->globals->cx1->GetBucketSizes()[b];
-    kg->rank[tid] = kg->seen;
-    kg->seen++;
-  }
-
-  if (kg->globals->cx1->GetBucketSizes()[b] == 0) {
-    return;
-  }
-
-  size_t offset = kg->globals->cx1->GetLv1NumItems() +
-      kg->thread_offset[tid] * kg->globals->cx1->GetWordsPerSortingItem();
-  auto substr_ptr = kg->globals->cx1->Lv1DataPtr() + offset;
-  lv2_extract_substr_(substr_ptr, *(kg->globals), b, b + 1);
-  SortSubStr(substr_ptr, kg->globals->words_per_substring, kg->globals->cx1->GetBucketSizes()[b], 2);
-  lv2_output_(0, kg->globals->cx1->GetBucketSizes()[b], tid, *(kg->globals), substr_ptr);
-}
-
-void CX1KmerCount::lv1_sort_and_proc(count_global_t &globals) {
-  Lv2ThreadStatus kg;
-  kg.globals = &globals;
-
-  kg.thread_offset.resize(globals.num_cpu_threads, -1);
-  kg.rank.resize(globals.num_cpu_threads, 0);
-  omp_set_num_threads(globals.num_cpu_threads);
-#pragma omp parallel for schedule(dynamic)
-  for (auto i = globals.cx1->GetLv1StartBucket(); i < globals.cx1->GetLv1EndBucket(); ++i) {
-    sort_bucket(&kg, i, omp_get_thread_num());
-  }
 }
 
 void CX1KmerCount::post_proc_func_(count_global_t &globals) {

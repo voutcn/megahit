@@ -327,7 +327,7 @@ void CX1Read2SdbgS2::init_global_and_set_cx1_func_(read2sdbg_global_t &globals) 
                          globals.num_cpu_threads * 65536 * sizeof(uint64_t)  // radix sort buckets
                          - kNumBuckets * sizeof(int64_t) * (globals.num_cpu_threads * 3 + 1);
   int64_t min_lv1_items = globals.tot_bucket_size / (kMaxLv1ScanTime - 0.5);
-  int64_t max_lv1_items;
+  int64_t max_lv1_items = 0;
 
   if (globals.mem_flag == 1) {
     // auto set memory
@@ -478,9 +478,7 @@ void CX1Read2SdbgS2::lv1_fill_offset_func_(ReadPartition *_data) {
 #undef CHECK_AND_SAVE_OFFSET
 }
 
-namespace {
-
-void s2_lv2_extract_substr_(int bp_from, int bp_to, read2sdbg_global_t &globals, uint32_t *substr) {
+void CX1Read2SdbgS2::lv2_extract_substr_(unsigned bp_from, unsigned bp_to, read2sdbg_global_t &globals, uint32_t *substr) {
   auto lv1_p = globals.cx1->GetLv1Iterator(bp_from);
 
   for (auto b = bp_from; b < bp_to; ++b) {
@@ -563,7 +561,7 @@ void s2_lv2_extract_substr_(int bp_from, int bp_to, read2sdbg_global_t &globals,
   }
 }
 
-void output_(int64_t from, int64_t to, read2sdbg_global_t &globals, uint32_t *substr, int tid) {
+void CX1Read2SdbgS2::output_(int64_t from, int64_t to,  int tid, read2sdbg_global_t &globals, uint32_t *substr) {
   int64_t start_idx, end_idx;
   int has_solid_a = 0;  // has solid (k+1)-mer aSb
   int has_solid_b = 0;  // has solid aSb
@@ -653,52 +651,6 @@ void output_(int64_t from, int64_t to, read2sdbg_global_t &globals, uint32_t *su
     }
   }
   globals.sdbg_writer.SaveSnapshot(snapshot);
-}
-
-struct Lv2ThreadStatus {
-  read2sdbg_global_t *globals;
-  std::vector<int64_t> thread_offset;
-  std::vector<int> rank;
-  int64_t acc = 0;
-  int seen = 0;
-  std::mutex mutex;
-};
-
-void sort_bucket(void *g, long b, int tid) {
-  auto kg = reinterpret_cast<Lv2ThreadStatus *>(g);
-  if (kg->thread_offset[tid] == -1) {
-    std::lock_guard<std::mutex> lk(kg->mutex);
-    kg->thread_offset[tid] = kg->acc;
-    kg->acc += kg->globals->cx1->GetBucketSizes()[b];
-    kg->rank[tid] = kg->seen;
-    kg->seen++;
-  }
-
-  if (kg->globals->cx1->GetBucketSizes()[b] == 0) {
-    return;
-  }
-
-  size_t offset = kg->globals->cx1->GetLv1NumItems()+
-      kg->thread_offset[tid] * kg->globals->cx1->GetWordsPerSortingItem();
-  auto substr_ptr = kg->globals->cx1->Lv1DataPtr() + offset;
-  s2_lv2_extract_substr_(b, b + 1, *(kg->globals), substr_ptr);
-  SortSubStr(substr_ptr, kg->globals->words_per_substring, kg->globals->cx1->GetBucketSizes()[b]);
-  output_(0, kg->globals->cx1->GetBucketSizes()[b], *(kg->globals), substr_ptr, tid);
-}
-
-}
-
-void CX1Read2SdbgS2::lv1_sort_and_proc(read2sdbg_global_t &globals) {
-  Lv2ThreadStatus kg;
-  kg.globals = &globals;
-
-  kg.thread_offset.resize(globals.num_cpu_threads, -1);
-  kg.rank.resize(globals.num_cpu_threads, 0);
-  omp_set_num_threads(globals.num_cpu_threads);
-#pragma omp parallel for schedule(dynamic)
-  for (auto i = globals.cx1->GetLv1StartBucket(); i < globals.cx1->GetLv1EndBucket(); ++i) {
-    sort_bucket(&kg, i, omp_get_thread_num());
-  }
 }
 
 void CX1Read2SdbgS2::post_proc_func_(read2sdbg_global_t &globals) {
