@@ -138,7 +138,7 @@ void CX1Read2SdbgS1::prepare_func_(read2sdbg_global_t &globals) {
   }
 
   int64_t mem_low_bound = globals.mem_packed_reads + kNumBuckets * sizeof(int64_t) * (globals.num_cpu_threads * 3 + 1) +
-      (kMaxMul + 1) * (globals.num_output_threads + 1) * sizeof(int64_t);
+      (kMaxMul + 1) * (globals.num_cpu_threads + 1) * sizeof(int64_t);
   mem_low_bound *= 1.05;
 
   if (mem_low_bound > globals.host_mem) {
@@ -223,7 +223,6 @@ void CX1Read2SdbgS1::init_global_and_set_cx1_func_(read2sdbg_global_t &globals) 
 
   // lv2 bytes: substring, readinfo
   int64_t lv2_bytes_per_item = (globals.words_per_substring) * sizeof(uint32_t) + sizeof(uint64_t);
-  globals.num_output_threads = globals.num_cpu_threads;
   num_non_empty = std::max(1, num_non_empty);
 
   for (int i = 0; i < kNumBuckets; ++i) {
@@ -239,7 +238,7 @@ void CX1Read2SdbgS1::init_global_and_set_cx1_func_(read2sdbg_global_t &globals) 
   int64_t mem_remained = globals.host_mem - globals.mem_packed_reads -
       globals.num_cpu_threads * 65536 * sizeof(uint64_t)  // radix sort buckets
       - kNumBuckets * sizeof(int64_t) * (globals.num_cpu_threads * 3 + 1) -
-      (kMaxMul + 1) * (globals.num_output_threads + 1) * sizeof(int64_t);
+      (kMaxMul + 1) * (globals.num_cpu_threads + 1) * sizeof(int64_t);
   int64_t min_lv1_items = globals.tot_bucket_size / (kMaxLv1ScanTime - 0.5);
   int64_t max_lv1_items = 0;
 
@@ -299,7 +298,7 @@ void CX1Read2SdbgS1::init_global_and_set_cx1_func_(read2sdbg_global_t &globals) 
   }
 
   // --- initialize stat ---
-  globals.thread_edge_counting.resize(globals.num_output_threads);
+  globals.thread_edge_counting.resize(globals.num_cpu_threads);
   for (auto &c : globals.thread_edge_counting) {
     c.resize(kMaxMul + 1);
     std::fill(c.begin(), c.end(), 0);
@@ -646,7 +645,7 @@ void CX1Read2SdbgS1::output_(int64_t from, int64_t to, int tid, read2sdbg_global
 
 void CX1Read2SdbgS1::post_proc_func_(read2sdbg_global_t &globals) {
   std::vector<int64_t> edge_counting(kMaxMul + 1, 0);
-  for (int t = 0; t < globals.num_output_threads; ++t) {
+  for (int t = 0; t < globals.num_cpu_threads; ++t) {
     for (int i = 1; i <= kMaxMul; ++i) {
       edge_counting[i] += globals.thread_edge_counting[t][i];
     }

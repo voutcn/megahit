@@ -42,10 +42,7 @@ int main_kmer_count(int argc, char **argv) {
   desc.AddOption("kmer_k", "k", opt.kmer_k, "kmer size");
   desc.AddOption("min_kmer_frequency", "m", opt.kmer_freq_threshold, "min frequency to output an edge");
   desc.AddOption("host_mem", "", opt.host_mem, "Max memory to be used. 90% of the free memory is recommended.");
-  desc.AddOption("gpu_mem", "", opt.gpu_mem, "gpu memory to be used. 0 for auto detect.");
   desc.AddOption("num_cpu_threads", "", opt.num_cpu_threads, "number of CPU threads. At least 2.");
-  desc.AddOption("num_output_threads", "", opt.num_output_threads,
-                 "number of threads for output. Must be less than num_cpu_threads");
   desc.AddOption("read_lib_file", "", opt.read_lib_file, "read library configuration file.");
   desc.AddOption("assist_seq", "", opt.assist_seq_file,
                  "input assisting fast[aq] file (FILE_NAME.info should exist), can be gzip'ed.");
@@ -66,10 +63,6 @@ int main_kmer_count(int argc, char **argv) {
       opt.num_cpu_threads = omp_get_max_threads();
     }
 
-    if (opt.num_output_threads == 0) {
-      opt.num_output_threads = std::max(1, opt.num_cpu_threads / 3);
-    }
-
     if (opt.host_mem == 0) {
       throw std::logic_error("Please specify the host memory!");
     }
@@ -86,7 +79,6 @@ int main_kmer_count(int argc, char **argv) {
   globals.kmer_freq_threshold = opt.kmer_freq_threshold;
   globals.host_mem = opt.host_mem;
   globals.num_cpu_threads = opt.num_cpu_threads;
-  globals.num_output_threads = opt.num_output_threads;
   globals.read_lib_file = opt.read_lib_file.c_str();
   globals.assist_seq_file = opt.assist_seq_file;
   globals.output_prefix = opt.output_prefix.c_str();
@@ -113,10 +105,7 @@ int main_read2sdbg(int argc, char **argv) {
   desc.AddOption("kmer_k", "k", opt.kmer_k, "kmer size");
   desc.AddOption("min_kmer_frequency", "m", opt.kmer_freq_threshold, "min frequency to output an edge");
   desc.AddOption("host_mem", "", opt.host_mem, "Max memory to be used. 90% of the free memory is recommended.");
-  desc.AddOption("gpu_mem", "", opt.gpu_mem, "gpu memory to be used. 0 for auto detect.");
   desc.AddOption("num_cpu_threads", "", opt.num_cpu_threads, "number of CPU threads. At least 2.");
-  desc.AddOption("num_output_threads", "", opt.num_output_threads,
-                 "number of threads for output. Must be less than num_cpu_threads");
   desc.AddOption("read_lib_file", "", opt.read_lib_file, "input fast[aq] file, can be gzip'ed. \"-\" for stdin.");
   desc.AddOption("assist_seq", "", opt.assist_seq_file,
                  "input assisting fast[aq] file (FILE_NAME.info should exist), can be gzip'ed.");
@@ -138,10 +127,6 @@ int main_read2sdbg(int argc, char **argv) {
       opt.num_cpu_threads = omp_get_max_threads();
     }
 
-    if (opt.num_output_threads == 0) {
-      opt.num_output_threads = std::max(1, opt.num_cpu_threads / 3);
-    }
-
     if (opt.host_mem == 0) {
       throw std::logic_error("Please specify the host memory!");
     }
@@ -158,7 +143,6 @@ int main_read2sdbg(int argc, char **argv) {
   globals.kmer_freq_threshold = opt.kmer_freq_threshold;
   globals.host_mem = opt.host_mem;
   globals.num_cpu_threads = opt.num_cpu_threads;
-  globals.num_output_threads = opt.num_output_threads;
   globals.read_lib_file = opt.read_lib_file;
   globals.assist_seq_file = opt.assist_seq_file;
   globals.output_prefix = opt.output_prefix;
@@ -190,12 +174,9 @@ int main_seq2sdbg(int argc, char **argv) {
 
   desc.AddOption("host_mem", "", opt.host_mem,
                  "memory to be used. No more than 95% of the free memory is recommended. 0 for auto detect.");
-  desc.AddOption("gpu_mem", "", opt.gpu_mem, "gpu memory to be used. 0 for auto detect.");
   desc.AddOption("kmer_size", "k", opt.kmer_k, "kmer size");
   desc.AddOption("kmer_from", "", opt.kmer_from, "previous k");
   desc.AddOption("num_cpu_threads", "t", opt.num_cpu_threads, "number of CPU threads. At least 2.");
-  desc.AddOption("num_output_threads", "", opt.num_output_threads,
-                 "number of threads for output. Must be less than num_cpu_threads");
   desc.AddOption("contig", "", opt.contig, "contigs from previous k");
   desc.AddOption("bubble", "", opt.bubble_seq, "bubble sequence from previous k");
   desc.AddOption("addi_contig", "", opt.addi_contig, "additional contigs from previous k");
@@ -221,10 +202,6 @@ int main_seq2sdbg(int argc, char **argv) {
       opt.num_cpu_threads = omp_get_max_threads();
     }
 
-    if (opt.num_output_threads == 0) {
-      opt.num_output_threads = std::max(1, opt.num_cpu_threads / 3);
-    }
-
     if (opt.kmer_k < 9) {
       throw std::logic_error("kmer size must be >= 9!");
     }
@@ -246,7 +223,6 @@ int main_seq2sdbg(int argc, char **argv) {
   cx1_seq2sdbg::seq2sdbg_global_t globals;
   globals.host_mem = opt.host_mem;
   globals.num_cpu_threads = opt.num_cpu_threads;
-  globals.num_output_threads = opt.num_output_threads;
   globals.input_prefix = opt.input_prefix;
   globals.output_prefix = opt.output_prefix;
   globals.contig = opt.contig;

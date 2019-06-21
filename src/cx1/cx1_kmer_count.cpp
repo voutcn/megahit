@@ -90,7 +90,7 @@ int64_t CX1KmerCount::encode_lv1_diff_base_func_(int64_t read_id, count_global_t
 }
 
 void CX1KmerCount::prepare_func_(cx1_kmer_count::count_global_t &globals) {  // num_items_, num_cpu_threads_ and
-  // num_output_threads_ must be set here
+  // num_cpu_threads_ must be set here
   bool is_reverse = true;
 
   int64_t num_bases, num_reads;
@@ -129,7 +129,7 @@ void CX1KmerCount::prepare_func_(cx1_kmer_count::count_global_t &globals) {  // 
   int64_t mem_low_bound = globals.mem_packed_reads +
       globals.num_reads * sizeof(unsigned char) * 2  // first_in0 & last_out0
       + kNumBuckets * sizeof(int64_t) * (globals.num_cpu_threads * 3 + 1) +
-      (kMaxMul + 1) * (globals.num_output_threads + 1) * sizeof(int64_t);
+      (kMaxMul + 1) * (globals.num_cpu_threads + 1) * sizeof(int64_t);
   mem_low_bound *= 1.05;
 
   if (mem_low_bound > globals.host_mem) {
@@ -200,8 +200,6 @@ void CX1KmerCount::init_global_and_set_cx1_func_(count_global_t &globals) {
   globals.words_per_edge = DivCeiling((globals.kmer_k + 1) * kBitsPerEdgeChar + kBitsPerMul, kBitsPerEdgeWord);
   xinfo("%d words per substring, %d words per edge\n", globals.words_per_substring, globals.words_per_edge);
 
-  globals.num_output_threads = globals.num_cpu_threads;
-
   num_non_empty = std::max(1, num_non_empty);
 
   globals.max_sorting_items =
@@ -214,7 +212,7 @@ void CX1KmerCount::init_global_and_set_cx1_func_(count_global_t &globals) {
       globals.num_cpu_threads * 65536 * sizeof(uint64_t)  // radix sort buckets
       - globals.num_reads * sizeof(unsigned char) * 2     // first_in0 & last_out0
       - kNumBuckets * sizeof(int64_t) * (globals.num_cpu_threads * 3 + 1) -
-      (kMaxMul + 1) * (globals.num_output_threads + 1) * sizeof(int64_t);
+      (kMaxMul + 1) * (globals.num_cpu_threads + 1) * sizeof(int64_t);
   int64_t min_lv1_items = globals.tot_bucket_size / (kMaxLv1ScanTime - 0.5);
   int64_t max_lv1_items = 0;
 
@@ -263,7 +261,7 @@ void CX1KmerCount::init_global_and_set_cx1_func_(count_global_t &globals) {
   globals.last_0_in = std::vector<AtomicWrapper<uint32_t>>(globals.num_reads, 0xFFFFFFFFU);
 
   // --- initialize stat ---
-  globals.thread_edge_counting.resize(globals.num_output_threads);
+  globals.thread_edge_counting.resize(globals.num_cpu_threads);
   for (auto &c : globals.thread_edge_counting) {
     c.resize(kMaxMul + 1);
     std::fill(c.begin(), c.end(), 0);
@@ -271,7 +269,7 @@ void CX1KmerCount::init_global_and_set_cx1_func_(count_global_t &globals) {
 
   // --- initialize writer ---
   globals.edge_writer.SetFilePrefix(globals.output_prefix);
-  globals.edge_writer.SetNumThreads(globals.num_output_threads);
+  globals.edge_writer.SetNumThreads(globals.num_cpu_threads);
   globals.edge_writer.SetKmerSize(globals.kmer_k);
   globals.edge_writer.SetNumBuckets(kNumBuckets);
   globals.edge_writer.InitFiles();
@@ -523,7 +521,7 @@ void CX1KmerCount::output_(int64_t start_index, int64_t end_index, int thread_id
 
 void CX1KmerCount::post_proc_func_(count_global_t &globals) {
   std::vector<int64_t> edge_counting(kMaxMul + 1, 0);
-  for (int t = 0; t < globals.num_output_threads; ++t) {
+  for (int t = 0; t < globals.num_cpu_threads; ++t) {
     for (int i = 1; i <= kMaxMul; ++i) {
       edge_counting[i] += globals.thread_edge_counting[t][i];
     }

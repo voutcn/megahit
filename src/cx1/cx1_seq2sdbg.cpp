@@ -536,7 +536,7 @@ void CX1Seq2Sdbg::init_global_and_set_cx1_func_(seq2sdbg_global_t &globals) {
 
   globals.max_sorting_items =
       std::max(3 * globals.tot_bucket_size * globals.num_cpu_threads / num_non_empty, globals.max_bucket_size);
-  globals.num_output_threads = globals.num_cpu_threads;
+  globals.num_cpu_threads = globals.num_cpu_threads;
 
   int64_t mem_remained = globals.host_mem - globals.mem_packed_seq -
       globals.num_cpu_threads * 65536 * sizeof(uint64_t)  // radix sort buckets
@@ -586,7 +586,7 @@ void CX1Seq2Sdbg::init_global_and_set_cx1_func_(seq2sdbg_global_t &globals) {
   xinfo("max # lv.1 items = %lld\n", max_lv1_items);
 
   // --- init output ---
-  globals.sdbg_writer.set_num_threads(globals.num_output_threads);
+  globals.sdbg_writer.set_num_threads(globals.num_cpu_threads);
   globals.sdbg_writer.set_kmer_size(globals.kmer_k);
   globals.sdbg_writer.set_num_buckets(kNumBuckets);
   globals.sdbg_writer.set_file_prefix(globals.output_prefix);

@@ -145,7 +145,7 @@ struct CX1 {
   // === functions to specify a CX1 instance ===
  public:
   virtual int64_t encode_lv1_diff_base_func_(int64_t, global_data_t &) = 0;
-  virtual void prepare_func_(global_data_t &) = 0;  // num_items_, num_cpu_threads_ and num_output_threads_ must be set here
+  virtual void prepare_func_(global_data_t &) = 0;  // num_items_, num_cpu_threads_ and num_cpu_threads_ must be set here
   virtual void lv0_calc_bucket_size_func_(ReadPartition *) = 0;
   virtual void init_global_and_set_cx1_func_(global_data_t &) = 0;  // xxx set here
   virtual void lv1_fill_offset_func_(ReadPartition *) = 0;

@@ -33,30 +33,15 @@
 #include "utils/atomic_wrapper.h"
 
 struct count_opt_t {
-  int kmer_k;
-  int kmer_freq_threshold;
-  double host_mem;
-  double gpu_mem;
-  int num_cpu_threads;
-  int num_output_threads;
-  std::string read_lib_file;
-  std::string assist_seq_file;
-  std::string output_prefix;
-  int mem_flag;
-  bool need_mercy;
-
-  count_opt_t() {
-    kmer_k = 21;
-    kmer_freq_threshold = 2;
-    host_mem = 0;
-    gpu_mem = 0;
-    num_cpu_threads = 0;
-    num_output_threads = 0;
-    read_lib_file = "";
-    output_prefix = "out";
-    mem_flag = 1;
-    need_mercy = true;
-  }
+  int kmer_k{21};
+  int kmer_freq_threshold{2};
+  double host_mem{0};
+  int num_cpu_threads{0};
+  std::string read_lib_file{};
+  std::string assist_seq_file{};
+  std::string output_prefix{"out"};
+  int mem_flag{1};
+  bool need_mercy{true};
 };
 
 namespace cx1_kmer_count {
@@ -73,7 +58,7 @@ struct count_global_t;
 struct CX1KmerCount : public CX1<count_global_t, kNumBuckets> {
  public:
   int64_t encode_lv1_diff_base_func_(int64_t, global_data_t &) override;
-  void prepare_func_(global_data_t &) override;  // num_items_, num_cpu_threads_ and num_output_threads_ must be set here
+  void prepare_func_(global_data_t &) override;  // num_items_, num_cpu_threads_ and num_cpu_threads_ must be set here
   void lv0_calc_bucket_size_func_(ReadPartition *) override;
   void init_global_and_set_cx1_func_(global_data_t &) override;  // xxx set here
   void lv1_fill_offset_func_(ReadPartition *) override;
@@ -90,7 +75,6 @@ struct count_global_t {
   int kmer_k;
   int kmer_freq_threshold;
   int num_cpu_threads;
-  int num_output_threads;
   int64_t host_mem;
   int mem_flag;
   std::string read_lib_file;
