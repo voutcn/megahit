@@ -279,7 +279,7 @@ class MegahitEdgeReader {
       auto is = in_streams_[p_rec.thread_id].get();
       is->clear();
       is->seekg(p_rec.starting_offset * sizeof(uint32_t) * words_per_edge_);
-      cur_reader_.reset(is);
+      cur_reader_.reset(is, p_rec.total_number * sizeof(uint32_t) * words_per_edge_);
     }
 
     ++cur_cnt_;

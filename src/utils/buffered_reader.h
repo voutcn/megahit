@@ -13,11 +13,14 @@
  */
 class BufferedReader {
  public:
+  static constexpr size_t kMaxBufferSize = 65536;
   explicit BufferedReader() = default;
-  void reset(std::ifstream *is) {
+  void reset(std::ifstream *is, size_t buffer_size = kMaxBufferSize) {
     is_ = is;
     head_ = tail_ = 0;
+    buffer_size_ = std::min(buffer_size, kMaxBufferSize * 1);
   }
+
   template <typename T>
   size_t read(T *dst, size_t size = 1) {
     if (is_ == nullptr) {
@@ -48,17 +51,17 @@ class BufferedReader {
  private:
   size_t refill() {
     head_ = 0;
-    is_->read(buffer_, kBufferSize);
-    tail_ = *is_ ? kBufferSize : is_->gcount();
+    is_->read(buffer_, buffer_size_);
+    tail_ = *is_ ? buffer_size_ : is_->gcount();
     return tail_;
   }
 
  private:
-  static const size_t kBufferSize = 4096;
   std::ifstream *is_{};
-  char buffer_[kBufferSize]{};
-  size_t head_{kBufferSize};
-  size_t tail_{kBufferSize};
+  char buffer_[kMaxBufferSize]{};
+  size_t buffer_size_{kMaxBufferSize};
+  size_t head_{0};
+  size_t tail_{0};
 };
 
 #endif  // MEGAHIT_BUFFERED_READER_H
