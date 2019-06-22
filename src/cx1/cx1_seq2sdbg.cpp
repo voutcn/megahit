@@ -36,10 +36,6 @@
 
 namespace cx1_seq2sdbg {
 
-// helpers
-typedef CX1<seq2sdbg_global_t, kNumBuckets> cx1_t;
-typedef CX1<seq2sdbg_global_t, kNumBuckets>::ReadPartition readpartition_data_t;
-
 /**
  * @brief encode seq_id and its offset in one int64_t
  */
@@ -92,9 +88,9 @@ inline int ExtractCounting(uint32_t *item, int num_words, int64_t spacing) {
 }
 
 // cx1 core functions
-int64_t CX1Seq2Sdbg::encode_lv1_diff_base_func_(int64_t read_id, seq2sdbg_global_t &g) {
-  assert(read_id < (int64_t) g.package.Size());
-  return EncodeEdgeOffset(read_id, 0, 0, g.package);
+int64_t CX1Seq2Sdbg::encode_lv1_diff_base_func_(int64_t read_id, int &g) {
+  assert(read_id < (int64_t) package.Size());
+  return EncodeEdgeOffset(read_id, 0, 0, package);
 }
 
 /**
@@ -161,15 +157,15 @@ int64_t BinarySearchKmer(GenericKmer &kmer, int64_t *lookup_table, SeqPackage &p
   return -1;
 }
 
-void GenMercyEdges(seq2sdbg_global_t &globals) {
+void CX1Seq2Sdbg::GenMercyEdges() {
   std::vector<int64_t> edge_lookup(kLookUpSize * 2);
-  InitLookupTable(edge_lookup.data(), globals.package);
+  InitLookupTable(edge_lookup.data(), package);
 
   std::vector<GenericKmer> mercy_edges;
   std::mutex mercy_lock;
-  AsyncReadReader reader(globals.input_prefix + ".cand");
+  AsyncReadReader reader(input_prefix + ".cand");
 
-  int num_threads = globals.num_cpu_threads - 1;
+  int num_threads = num_cpu_threads - 1;
   omp_set_num_threads(num_threads);
 
   int64_t num_mercy_edges = 0;
@@ -188,7 +184,7 @@ void GenMercyEdges(seq2sdbg_global_t &globals) {
     for (unsigned read_id = 0; read_id < rp.Size(); ++read_id) {
       int read_len = rp.SequenceLength(read_id);
 
-      if (read_len < globals.kmer_k + 2) {
+      if (read_len < kmer_k + 2) {
         continue;
       }
 
@@ -201,60 +197,60 @@ void GenMercyEdges(seq2sdbg_global_t &globals) {
       std::fill(has_out.begin(), has_out.end(), false);
 
       auto ptr_and_offset = rp.WordPtrAndOffset(read_id);
-      kmer.InitFromPtr(ptr_and_offset.first, ptr_and_offset.second, globals.kmer_k);
+      kmer.InitFromPtr(ptr_and_offset.first, ptr_and_offset.second, kmer_k);
       rev_kmer = kmer;
-      rev_kmer.ReverseComplement(globals.kmer_k);
+      rev_kmer.ReverseComplement(kmer_k);
 
       // mark those positions with in/out
-      for (int i = 0; i + globals.kmer_k <= read_len; ++i) {
+      for (int i = 0; i + kmer_k <= read_len; ++i) {
         if (!has_in[i]) {
           // search rc
-          if (BinarySearchKmer(rev_kmer, edge_lookup.data(), globals.package, globals.kmer_k) != -1) {
+          if (BinarySearchKmer(rev_kmer, edge_lookup.data(), package, kmer_k) != -1) {
             has_in[i] = true;
           } else {
             // left append ACGT to kmer, if the (k+1)-mer exist, the kmer has in
-            rev_kmer.SetBase(globals.kmer_k,
+            rev_kmer.SetBase(kmer_k,
                              3);  // rev kmer is used to compare to kmer, if it's smaller, kmer
             // would not exist in the table
-            kmer.ShiftPreappend(0, globals.kmer_k + 1);
+            kmer.ShiftPreappend(0, kmer_k + 1);
 
             for (int c = 0; c < 4; ++c) {
               kmer.SetBase(0, c);
 
-              if (kmer.cmp(rev_kmer, globals.kmer_k + 1) > 0) {
+              if (kmer.cmp(rev_kmer, kmer_k + 1) > 0) {
                 break;
               }
 
-              if (BinarySearchKmer(kmer, edge_lookup.data(), globals.package, globals.kmer_k + 1) != -1) {
+              if (BinarySearchKmer(kmer, edge_lookup.data(), package, kmer_k + 1) != -1) {
                 has_in[i] = true;
                 break;
               }
             }
 
-            rev_kmer.SetBase(globals.kmer_k, 0);
-            kmer.ShiftAppend(0, globals.kmer_k + 1);  // clean the k+1-th char
+            rev_kmer.SetBase(kmer_k, 0);
+            kmer.ShiftAppend(0, kmer_k + 1);  // clean the k+1-th char
           }
         }
 
         // check whether has out
-        int64_t edge_id = BinarySearchKmer(kmer, edge_lookup.data(), globals.package, globals.kmer_k);
+        int64_t edge_id = BinarySearchKmer(kmer, edge_lookup.data(), package, kmer_k);
 
         if (edge_id != -1) {
           has_out[i] = true;
 
           // BWT see whether the next has in too
-          if (i + globals.kmer_k < read_len &&
-              globals.package.GetBase(edge_id, globals.kmer_k) == rp.GetBase(read_id, i + globals.kmer_k)) {
+          if (i + kmer_k < read_len &&
+              package.GetBase(edge_id, kmer_k) == rp.GetBase(read_id, i + kmer_k)) {
             has_in[i + 1] = true;
           }
         } else {
           // search the rc
-          kmer.SetBase(globals.kmer_k, 3);
-          int next_char = i + globals.kmer_k < read_len ? 3 - rp.GetBase(read_id, i + globals.kmer_k) : 0;
-          rev_kmer.ShiftPreappend(next_char, globals.kmer_k + 1);
+          kmer.SetBase(kmer_k, 3);
+          int next_char = i + kmer_k < read_len ? 3 - rp.GetBase(read_id, i + kmer_k) : 0;
+          rev_kmer.ShiftPreappend(next_char, kmer_k + 1);
 
-          if (rev_kmer.cmp(kmer, globals.kmer_k + 1) <= 0 &&
-              BinarySearchKmer(rev_kmer, edge_lookup.data(), globals.package, globals.kmer_k + 1) != -1) {
+          if (rev_kmer.cmp(kmer, kmer_k + 1) <= 0 &&
+              BinarySearchKmer(rev_kmer, edge_lookup.data(), package, kmer_k + 1) != -1) {
             has_out[i] = true;
             has_in[i + 1] = true;
           } else {
@@ -265,33 +261,33 @@ void GenMercyEdges(seq2sdbg_global_t &globals) {
 
               rev_kmer.SetBase(0, c);
 
-              if (rev_kmer.cmp(kmer, globals.kmer_k + 1) > 0) {
+              if (rev_kmer.cmp(kmer, kmer_k + 1) > 0) {
                 break;
               }
 
-              if (BinarySearchKmer(rev_kmer, edge_lookup.data(), globals.package, globals.kmer_k + 1) != -1) {
+              if (BinarySearchKmer(rev_kmer, edge_lookup.data(), package, kmer_k + 1) != -1) {
                 has_out[i] = true;
                 break;
               }
             }
           }
 
-          kmer.SetBase(globals.kmer_k, 0);
-          rev_kmer.ShiftAppend(0, globals.kmer_k + 1);
+          kmer.SetBase(kmer_k, 0);
+          rev_kmer.ShiftAppend(0, kmer_k + 1);
         }
 
         // shift kmer and rev_kmer
-        if (i + globals.kmer_k < read_len) {
-          int next_char = rp.GetBase(read_id, i + globals.kmer_k);
-          kmer.ShiftAppend(next_char, globals.kmer_k);
-          rev_kmer.ShiftPreappend(3 - next_char, globals.kmer_k);
+        if (i + kmer_k < read_len) {
+          int next_char = rp.GetBase(read_id, i + kmer_k);
+          kmer.ShiftAppend(next_char, kmer_k);
+          rev_kmer.ShiftPreappend(3 - next_char, kmer_k);
         }
       }
 
       // adding mercy edges
       int last_no_out = -1;
 
-      for (int i = 0; i + globals.kmer_k <= read_len; ++i) {
+      for (int i = 0; i + kmer_k <= read_len; ++i) {
         switch (has_in[i] | (int(has_out[i]) << 1)) {
           case 1: {  // has incoming only
             last_no_out = i;
@@ -303,7 +299,7 @@ void GenMercyEdges(seq2sdbg_global_t &globals) {
               for (int j = last_no_out; j < i; ++j) {
                 std::lock_guard<std::mutex> lk(mercy_lock);
                 auto ptr_and_offset = rp.WordPtrAndOffset(read_id);
-                mercy_edges.emplace_back(ptr_and_offset.first, ptr_and_offset.second + j, globals.kmer_k + 1);
+                mercy_edges.emplace_back(ptr_and_offset.first, ptr_and_offset.second + j, kmer_k + 1);
               }
 
               num_mercy_edges += i - last_no_out;
@@ -327,29 +323,29 @@ void GenMercyEdges(seq2sdbg_global_t &globals) {
     }
 
     for (auto &mercy_edge : mercy_edges) {
-      globals.package.AppendCompactSequence(mercy_edge.data(), globals.kmer_k + 1);
+      package.AppendCompactSequence(mercy_edge.data(), kmer_k + 1);
     }
   }
 
-  globals.multiplicity.insert(globals.multiplicity.end(), num_mercy_edges, 1);
+  multiplicity.insert(multiplicity.end(), num_mercy_edges, 1);
   xinfo("Number of reads: %ld, Number of mercy edges: %ld\n", num_mercy_reads, num_mercy_edges);
 }
 
-void CX1Seq2Sdbg::prepare_func_(seq2sdbg_global_t &globals) {
+void CX1Seq2Sdbg::prepare_func_(int &globals) {
   // reserve space
   {
     long long bases_to_reserve = 0;
     long long num_contigs_to_reserve = 0;
     long long num_multiplicities_to_reserve = 0;
 
-    if (globals.input_prefix != "") {
+    if (input_prefix != "") {
       MegahitEdgeReader edge_reader;
-      edge_reader.SetFilePrefix(globals.input_prefix);
+      edge_reader.SetFilePrefix(input_prefix);
       edge_reader.ReadInfo();
       int64_t num_edges = edge_reader.num_edges();
       xinfo("Number edges: %lld\n", (long long) num_edges);
 
-      if (globals.need_mercy) {
+      if (need_mercy) {
         num_edges *= 1.25;  // it is rare that # mercy > 25%
       }
 
@@ -357,9 +353,9 @@ void CX1Seq2Sdbg::prepare_func_(seq2sdbg_global_t &globals) {
       num_multiplicities_to_reserve += num_edges;
     }
 
-    if (globals.contig != "") {
+    if (contig != "") {
       long long num_contigs, num_bases;
-      FILE *contig_info = xfopen((globals.contig + ".info").c_str(), "r");
+      FILE *contig_info = xfopen((contig + ".info").c_str(), "r");
       if (fscanf(contig_info, "%lld%lld", &num_contigs, &num_bases) != 2) {
         xfatal("Invalid format\n");
       }
@@ -369,9 +365,9 @@ void CX1Seq2Sdbg::prepare_func_(seq2sdbg_global_t &globals) {
       fclose(contig_info);
     }
 
-    if (globals.addi_contig != "") {
+    if (addi_contig != "") {
       long long num_contigs, num_bases;
-      FILE *contig_info = xfopen((globals.addi_contig + ".info").c_str(), "r");
+      FILE *contig_info = xfopen((addi_contig + ".info").c_str(), "r");
       if (fscanf(contig_info, "%lld%lld", &num_contigs, &num_bases) != 2) {
         xfatal("Invalid format\n");
       }
@@ -381,9 +377,9 @@ void CX1Seq2Sdbg::prepare_func_(seq2sdbg_global_t &globals) {
       fclose(contig_info);
     }
 
-    if (globals.local_contig != "") {
+    if (local_contig != "") {
       long long num_contigs, num_bases;
-      FILE *contig_info = xfopen((globals.local_contig + ".info").c_str(), "r");
+      FILE *contig_info = xfopen((local_contig + ".info").c_str(), "r");
       if (fscanf(contig_info, "%lld%lld", &num_contigs, &num_bases) != 2) {
         xfatal("Invalid format\n");
       }
@@ -395,90 +391,89 @@ void CX1Seq2Sdbg::prepare_func_(seq2sdbg_global_t &globals) {
 
     xinfo("Bases to reserve: %lld, number contigs: %lld, number multiplicity: %lld\n", bases_to_reserve,
           num_contigs_to_reserve, num_multiplicities_to_reserve);
-    globals.package.ReserveSequences(num_contigs_to_reserve);
-    globals.package.ReserveBases(bases_to_reserve);
-    globals.multiplicity.reserve(num_multiplicities_to_reserve);
+    package.ReserveSequences(num_contigs_to_reserve);
+    package.ReserveBases(bases_to_reserve);
+    multiplicity.reserve(num_multiplicities_to_reserve);
   }
 
-  xinfo("Before reading, sizeof seq_package: %lld, multiplicity vector: %lld\n", globals.package.SizeInByte(),
-        globals.multiplicity.capacity());
+  xinfo("Before reading, sizeof seq_package: %lld, multiplicity vector: %lld\n", package.SizeInByte(),
+        multiplicity.capacity());
 
-  if (globals.input_prefix != "") {
-    EdgeReader reader(globals.input_prefix);
-    if (globals.need_mercy) {
-      reader.ReadSorted(&globals.package, &globals.multiplicity, 1LL << 60);
+  if (input_prefix != "") {
+    EdgeReader reader(input_prefix);
+    if (need_mercy) {
+      reader.ReadSorted(&package, &multiplicity, 1LL << 60);
     } else {
-      reader.ReadUnsorted(&globals.package, &globals.multiplicity, 1LL << 60);
+      reader.ReadUnsorted(&package, &multiplicity, 1LL << 60);
     }
   }
 
-  if (globals.need_mercy) {
+  if (need_mercy) {
     SimpleTimer timer;
     timer.reset();
     timer.start();
     xinfo("Adding mercy edges...\n");
 
-    GenMercyEdges(globals);
+    GenMercyEdges();
     timer.stop();
     xinfo("Done. Time elapsed: %.4lf\n", timer.elapsed());
   }
 
-  if (globals.contig != "") {
-    ContigReader reader(globals.contig);
-    reader.SetExtendLoop(globals.kmer_from, globals.kmer_k)->SetMinLen(globals.kmer_k + 1);
+  if (contig != "") {
+    ContigReader reader(contig);
+    reader.SetExtendLoop(kmer_from, kmer_k)->SetMinLen(kmer_k + 1);
     bool contig_reverse = true;
-    reader.ReadAllWithMultiplicity(&globals.package, &globals.multiplicity, contig_reverse);
+    reader.ReadAllWithMultiplicity(&package, &multiplicity, contig_reverse);
 
     // read bubble
-    ContigReader bubble_reader({globals.bubble_seq});
-    bubble_reader.SetExtendLoop(globals.kmer_from, globals.kmer_k)->SetMinLen(globals.kmer_k + 1);
-    bubble_reader.ReadAllWithMultiplicity(&globals.package, &globals.multiplicity, contig_reverse);
+    ContigReader bubble_reader({bubble_seq});
+    bubble_reader.SetExtendLoop(kmer_from, kmer_k)->SetMinLen(kmer_k + 1);
+    bubble_reader.ReadAllWithMultiplicity(&package, &multiplicity, contig_reverse);
   }
 
-  if (globals.addi_contig != "") {
-    ContigReader reader({globals.addi_contig});
-    reader.SetExtendLoop(globals.kmer_from, globals.kmer_k)->SetMinLen(globals.kmer_k + 1);
+  if (addi_contig != "") {
+    ContigReader reader({addi_contig});
+    reader.SetExtendLoop(kmer_from, kmer_k)->SetMinLen(kmer_k + 1);
     bool contig_reverse = true;
-    reader.ReadAllWithMultiplicity(&globals.package, &globals.multiplicity, contig_reverse);
+    reader.ReadAllWithMultiplicity(&package, &multiplicity, contig_reverse);
   }
 
-  if (globals.local_contig != "") {
-    ContigReader reader({globals.local_contig});
-    reader.SetExtendLoop(globals.kmer_from, globals.kmer_k)->SetMinLen(globals.kmer_k + 1);
+  if (local_contig != "") {
+    ContigReader reader({local_contig});
+    reader.SetExtendLoop(kmer_from, kmer_k)->SetMinLen(kmer_k + 1);
     bool contig_reverse = true;
-    reader.ReadAllWithMultiplicity(&globals.package, &globals.multiplicity, contig_reverse);
+    reader.ReadAllWithMultiplicity(&package, &multiplicity, contig_reverse);
   }
 
-  xinfo("After reading, sizeof seq_package: %lld, multiplicity vector: %lld\n", globals.package.SizeInByte(),
-        globals.multiplicity.capacity());
+  xinfo("After reading, sizeof seq_package: %lld, multiplicity vector: %lld\n", package.SizeInByte(),
+        multiplicity.capacity());
 
-  globals.package.BuildIndex();
-  globals.num_seq = globals.package.Size();
+  package.BuildIndex();
 
-  globals.mem_packed_seq = globals.package.SizeInByte() + globals.multiplicity.size() * sizeof(mul_t);
-  int64_t mem_low_bound = globals.mem_packed_seq + kNumBuckets * sizeof(int64_t) * (globals.num_cpu_threads * 3 + 1);
+  auto mem_packed_seq = package.SizeInByte() + multiplicity.size() * sizeof(mul_t);
+  int64_t mem_low_bound = mem_packed_seq + kNumBuckets * sizeof(int64_t) * (num_cpu_threads * 3 + 1);
   mem_low_bound *= 1.05;
 
-  if (mem_low_bound > globals.host_mem) {
-    xfatal("%lld bytes is not enough for CX1 sorting, please set -m parameter to at least %lld\n", globals.host_mem,
+  if (mem_low_bound > host_mem) {
+    xfatal("%lld bytes is not enough for CX1 sorting, please set -m parameter to at least %lld\n", host_mem,
            mem_low_bound);
   }
 
   // --- set cx1 param ---
-  globals.cx1->SetNumCpuThreads(globals.num_cpu_threads);;
-  globals.cx1->SetNumItems(globals.num_seq);
+  SetNumCpuThreads(num_cpu_threads);;
+  SetNumItems(package.Size());
 }
 
 void CX1Seq2Sdbg::lv0_calc_bucket_size_func_(ReadPartition *_data) {
   auto &rp = *_data;
-  seq2sdbg_global_t &globals = *(rp.globals);
+  int &globals = *(rp.globals);
   auto &bucket_sizes = rp.rp_bucket_sizes;
   std::fill(bucket_sizes.begin(), bucket_sizes.end(), 0);
 
   for (int64_t seq_id = rp.rp_start_id; seq_id < rp.rp_end_id; ++seq_id) {
-    int seq_len = globals.package.SequenceLength(seq_id);
+    int seq_len = package.SequenceLength(seq_id);
 
-    if (seq_len < globals.kmer_k + 1) {
+    if (seq_len < kmer_k + 1) {
       continue;
     }
 
@@ -486,13 +481,13 @@ void CX1Seq2Sdbg::lv0_calc_bucket_size_func_(ReadPartition *_data) {
 
     // build initial partial key
     for (int i = 0; i < kBucketPrefixLength - 1; ++i) {
-      key = key * kBucketBase + globals.package.GetBase(seq_id, i);
+      key = key * kBucketBase + package.GetBase(seq_id, i);
     }
 
     // sequence = xxxxxxxxx
     // edges = $xxxx, xxxxx, ..., xxxx$
-    for (int i = kBucketPrefixLength - 1; i - (kBucketPrefixLength - 1) + globals.kmer_k - 1 <= seq_len; ++i) {
-      key = (key * kBucketBase + globals.package.GetBase(seq_id, i)) % kNumBuckets;
+    for (int i = kBucketPrefixLength - 1; i - (kBucketPrefixLength - 1) + kmer_k - 1 <= seq_len; ++i) {
+      key = (key * kBucketBase + package.GetBase(seq_id, i)) % kNumBuckets;
       bucket_sizes[key]++;
     }
 
@@ -500,105 +495,106 @@ void CX1Seq2Sdbg::lv0_calc_bucket_size_func_(ReadPartition *_data) {
     key = 0;
 
     for (int i = 0; i < kBucketPrefixLength - 1; ++i) {
-      key = key * kBucketBase + (3 - globals.package.GetBase(seq_id, seq_len - 1 - i));  // complement
+      key = key * kBucketBase + (3 - package.GetBase(seq_id, seq_len - 1 - i));  // complement
     }
 
-    for (int i = kBucketPrefixLength - 1; i - (kBucketPrefixLength - 1) + globals.kmer_k - 1 <= seq_len; ++i) {
-      key = key * kBucketBase + (3 - globals.package.GetBase(seq_id, seq_len - 1 - i));
+    for (int i = kBucketPrefixLength - 1; i - (kBucketPrefixLength - 1) + kmer_k - 1 <= seq_len; ++i) {
+      key = key * kBucketBase + (3 - package.GetBase(seq_id, seq_len - 1 - i));
       key %= kNumBuckets;
       bucket_sizes[key]++;
     }
   }
 }
 
-void CX1Seq2Sdbg::init_global_and_set_cx1_func_(seq2sdbg_global_t &globals) {
+void CX1Seq2Sdbg::init_global_and_set_cx1_func_(int &globals) {
   // --- calculate lv2 memory ---
-  globals.max_bucket_size =
-      *std::max_element(globals.cx1->GetBucketSizes().begin(), globals.cx1->GetBucketSizes().end());
-  globals.tot_bucket_size = 0;
+  int64_t max_bucket_size =
+      *std::max_element(GetBucketSizes().begin(), GetBucketSizes().end());
+  int64_t tot_bucket_size = 0;
   int num_non_empty = 0;
 
   for (int i = 0; i < kNumBuckets; ++i) {
-    globals.tot_bucket_size += globals.cx1->GetBucketSizes()[i];
+    tot_bucket_size += GetBucketSizes()[i];
 
-    if (globals.cx1->GetBucketSizes()[i] > 0) {
+    if (GetBucketSizes()[i] > 0) {
       num_non_empty++;
     }
   }
 
-  globals.words_per_substring =
-      DivCeiling(globals.kmer_k * kBitsPerEdgeChar + kBWTCharNumBits + 1 + kBitsPerMul, kBitsPerEdgeWord);
-  globals.words_per_dummy_node = DivCeiling(globals.kmer_k * kBitsPerEdgeChar, kBitsPerEdgeWord);
+  words_per_substring =
+      DivCeiling(kmer_k * kBitsPerEdgeChar + kBWTCharNumBits + 1 + kBitsPerMul, kBitsPerEdgeWord);
+  words_per_dummy_node = DivCeiling(kmer_k * kBitsPerEdgeChar, kBitsPerEdgeWord);
 
   num_non_empty = std::max(1, num_non_empty);
 
-  int64_t lv2_bytes_per_item = globals.words_per_substring * sizeof(uint32_t);
+  int64_t lv2_bytes_per_item = words_per_substring * sizeof(uint32_t);
 
-  globals.max_sorting_items =
-      std::max(3 * globals.tot_bucket_size * globals.num_cpu_threads / num_non_empty, globals.max_bucket_size);
-  globals.num_cpu_threads = globals.num_cpu_threads;
-
-  int64_t mem_remained = globals.host_mem - globals.mem_packed_seq -
-      globals.num_cpu_threads * 65536 * sizeof(uint64_t)  // radix sort buckets
-      - kNumBuckets * sizeof(int64_t) * (globals.num_cpu_threads * 3 + 1);
-  int64_t min_lv1_items = globals.tot_bucket_size / (kMaxLv1ScanTime - 0.5);
+  int64_t max_sorting_items =
+      std::max(3 * tot_bucket_size * num_cpu_threads / num_non_empty, max_bucket_size);
+  num_cpu_threads = num_cpu_threads;
+  
+  int64_t mem_packed_seq = package.SizeInByte() + multiplicity.size() * sizeof(mul_t);
+  int64_t mem_remained = host_mem - mem_packed_seq -
+      num_cpu_threads * 65536 * sizeof(uint64_t)  // radix sort buckets
+      - kNumBuckets * sizeof(int64_t) * (num_cpu_threads * 3 + 1);
+  int64_t min_lv1_items = tot_bucket_size / (kMaxLv1ScanTime - 0.5);
   int64_t max_lv1_items = 0;
 
-  if (globals.mem_flag == 1) {
+  if (mem_flag == 1) {
     // auto set memory
-    max_lv1_items = int64_t(globals.tot_bucket_size / (kDefaultLv1ScanTime - 0.5));
-    max_lv1_items = std::max(max_lv1_items, globals.max_bucket_size);
+    max_lv1_items = int64_t(tot_bucket_size / (kDefaultLv1ScanTime - 0.5));
+    max_lv1_items = std::max(max_lv1_items, max_bucket_size);
     int64_t mem_needed =
-        max_lv1_items * cx1_t::kLv1BytePerItem + globals.max_sorting_items * lv2_bytes_per_item;
+        max_lv1_items * kLv1BytePerItem + max_sorting_items * lv2_bytes_per_item;
 
     if (mem_needed > mem_remained) {
-      globals.cx1->adjust_mem(mem_remained, lv2_bytes_per_item, min_lv1_items, globals.max_bucket_size,
-                              globals.max_sorting_items, max_lv1_items, globals.max_sorting_items);
+      adjust_mem(mem_remained, lv2_bytes_per_item, min_lv1_items, max_bucket_size,
+                              max_sorting_items, max_lv1_items, max_sorting_items);
     }
 
-  } else if (globals.mem_flag == 0) {
+  } else if (mem_flag == 0) {
     // min memory
-    max_lv1_items = int64_t(globals.tot_bucket_size / (kMaxLv1ScanTime - 0.5));
-    max_lv1_items = std::max(max_lv1_items, globals.max_bucket_size);
+    max_lv1_items = int64_t(tot_bucket_size / (kMaxLv1ScanTime - 0.5));
+    max_lv1_items = std::max(max_lv1_items, max_bucket_size);
     int64_t mem_needed =
-        max_lv1_items * cx1_t::kLv1BytePerItem + globals.max_sorting_items * lv2_bytes_per_item;
+        max_lv1_items * kLv1BytePerItem + max_sorting_items * lv2_bytes_per_item;
 
     if (mem_needed > mem_remained) {
-      globals.cx1->adjust_mem(mem_remained, lv2_bytes_per_item, min_lv1_items, globals.max_bucket_size,
-                              globals.max_sorting_items, max_lv1_items, globals.max_sorting_items);
+      adjust_mem(mem_remained, lv2_bytes_per_item, min_lv1_items, max_bucket_size,
+                              max_sorting_items, max_lv1_items, max_sorting_items);
     } else {
-      globals.cx1->adjust_mem(mem_needed, lv2_bytes_per_item, min_lv1_items, globals.max_bucket_size,
-                              globals.max_sorting_items, max_lv1_items, globals.max_sorting_items);
+      adjust_mem(mem_needed, lv2_bytes_per_item, min_lv1_items, max_bucket_size,
+                              max_sorting_items, max_lv1_items, max_sorting_items);
     }
 
   } else {
     // use all
-    globals.cx1->adjust_mem(mem_remained, lv2_bytes_per_item, min_lv1_items, globals.max_bucket_size,
-                            globals.max_sorting_items, max_lv1_items, globals.max_sorting_items);
+    adjust_mem(mem_remained, lv2_bytes_per_item, min_lv1_items, max_bucket_size,
+                            max_sorting_items, max_lv1_items, max_sorting_items);
   }
 
   if (max_lv1_items < min_lv1_items) {
     xfatal("No enough memory to process.");
   }
 
-  globals.cx1->SetMaxLv1Lv2Items(max_lv1_items, globals.max_sorting_items, lv2_bytes_per_item / sizeof(uint32_t));
-  xinfo("Memory for sequence: %lld\n", globals.mem_packed_seq);
+  SetMaxLv1Lv2Items(max_lv1_items, max_sorting_items, lv2_bytes_per_item / sizeof(uint32_t));
+  xinfo("Memory for sequence: %lld\n", mem_packed_seq);
   xinfo("max # lv.1 items = %lld\n", max_lv1_items);
 
   // --- init output ---
-  globals.sdbg_writer.set_num_threads(globals.num_cpu_threads);
-  globals.sdbg_writer.set_kmer_size(globals.kmer_k);
-  globals.sdbg_writer.set_num_buckets(kNumBuckets);
-  globals.sdbg_writer.set_file_prefix(globals.output_prefix);
-  globals.sdbg_writer.InitFiles();
+  sdbg_writer.set_num_threads(num_cpu_threads);
+  sdbg_writer.set_kmer_size(kmer_k);
+  sdbg_writer.set_num_buckets(kNumBuckets);
+  sdbg_writer.set_file_prefix(output_prefix);
+  sdbg_writer.InitFiles();
 }
 
 void CX1Seq2Sdbg::lv1_fill_offset_func_(ReadPartition *_data) {
   auto &rp = *_data;
-  seq2sdbg_global_t &globals = *(rp.globals);
+  int &globals = *(rp.globals);
   std::array<int64_t, kNumBuckets> prev_full_offsets;
 
-  for (auto b = globals.cx1->GetLv1StartBucket(); b < globals.cx1->GetLv1EndBucket(); ++b)
+  for (auto b = GetLv1StartBucket(); b < GetLv1EndBucket(); ++b)
     prev_full_offsets[b] = rp.rp_lv1_differential_base;
 
   // this loop is VERY similar to that in PreprocessScanToFillBucketSizesThread
@@ -606,13 +602,13 @@ void CX1Seq2Sdbg::lv1_fill_offset_func_(ReadPartition *_data) {
   // ===== this is a macro to save some copy&paste ================
 #define CHECK_AND_SAVE_OFFSET(key, offset, strand)                                                    \
   do {                                                                                                \
-    if (globals.cx1->HandlingBucket(key)) {                                                           \
-      int key_ = globals.cx1->GetBucketRank(key);                                                     \
-      int64_t full_offset = EncodeEdgeOffset(seq_id, offset, strand, globals.package);                \
+    if (HandlingBucket(key)) {                                                           \
+      int key_ = GetBucketRank(key);                                                     \
+      int64_t full_offset = EncodeEdgeOffset(seq_id, offset, strand, package);                \
       int64_t differential = full_offset - prev_full_offsets[key_];                                   \
       int64_t index = rp.rp_bucket_offsets[key_]++;                                                   \
-      globals.cx1->WriteOffset(index, differential, full_offset);                                     \
-      assert(rp.rp_bucket_offsets[key_] <= globals.cx1->GetLv1NumItems());                            \
+      WriteOffset(index, differential, full_offset);                                     \
+      assert(rp.rp_bucket_offsets[key_] <= GetLv1NumItems());                            \
       prev_full_offsets[key_] = full_offset;                                                          \
     }                                                                                                 \
   } while (0)
@@ -620,17 +616,17 @@ void CX1Seq2Sdbg::lv1_fill_offset_func_(ReadPartition *_data) {
   // =========== end macro ==========================
 
   for (int64_t seq_id = rp.rp_start_id; seq_id < rp.rp_end_id; ++seq_id) {
-    int seq_len = globals.package.SequenceLength(seq_id);
+    int seq_len = package.SequenceLength(seq_id);
 
-    if (seq_len < globals.kmer_k + 1) {
+    if (seq_len < kmer_k + 1) {
       continue;
     }
 
     // build initial partial key
     Kmer<1, uint32_t> kmer, rev_kmer;
-    auto ptr_and_offset = globals.package.WordPtrAndOffset(seq_id);
+    auto ptr_and_offset = package.WordPtrAndOffset(seq_id);
     kmer.InitFromPtr(ptr_and_offset.first, ptr_and_offset.second, kBucketPrefixLength);
-    auto rev_ptr_and_offset = globals.package.WordPtrAndOffset(seq_id, seq_len - kBucketPrefixLength);
+    auto rev_ptr_and_offset = package.WordPtrAndOffset(seq_id, seq_len - kBucketPrefixLength);
     rev_kmer.InitFromPtr(rev_ptr_and_offset.first, rev_ptr_and_offset.second, kBucketPrefixLength);
     rev_kmer.ReverseComplement(kBucketPrefixLength);
 
@@ -641,9 +637,9 @@ void CX1Seq2Sdbg::lv1_fill_offset_func_(ReadPartition *_data) {
 
     // sequence = xxxxxxxxx
     // edges = $xxxx, xxxxx, ..., xxxx$
-    for (int i = kBucketPrefixLength; i - (kBucketPrefixLength - 1) + globals.kmer_k - 1 <= seq_len; ++i) {
-      key = (key * kBucketBase + globals.package.GetBase(seq_id, i)) % kNumBuckets;
-      rev_key = rev_key * kBucketBase + (3 - globals.package.GetBase(seq_id, seq_len - 1 - i));
+    for (int i = kBucketPrefixLength; i - (kBucketPrefixLength - 1) + kmer_k - 1 <= seq_len; ++i) {
+      key = (key * kBucketBase + package.GetBase(seq_id, i)) % kNumBuckets;
+      rev_key = rev_key * kBucketBase + (3 - package.GetBase(seq_id, seq_len - 1 - i));
       rev_key %= kNumBuckets;
       CHECK_AND_SAVE_OFFSET(key, i - kBucketPrefixLength + 1, 0);
       CHECK_AND_SAVE_OFFSET(rev_key, i - kBucketPrefixLength + 1, 1);
@@ -653,34 +649,34 @@ void CX1Seq2Sdbg::lv1_fill_offset_func_(ReadPartition *_data) {
 }
 
 void CX1Seq2Sdbg::lv2_extract_substr_(unsigned from_bucket,
-                                      unsigned to_bucket, seq2sdbg_global_t &globals, uint32_t *substr) {
-  auto lv1_p = globals.cx1->GetLv1Iterator(from_bucket);
+                                      unsigned to_bucket, int &globals, uint32_t *substr) {
+  auto lv1_p = GetLv1Iterator(from_bucket);
 
   for (auto bucket = from_bucket; bucket < to_bucket; ++bucket) {
-    for (int t = 0; t < globals.num_cpu_threads; ++t) {
-      int64_t full_offset = globals.cx1->GetReadPartition(t).rp_lv1_differential_base;
-      int64_t num = globals.cx1->GetReadPartition(t).rp_bucket_sizes[bucket];
+    for (int t = 0; t < num_cpu_threads; ++t) {
+      int64_t full_offset = GetReadPartition(t).rp_lv1_differential_base;
+      int64_t num = GetReadPartition(t).rp_bucket_sizes[bucket];
 
       for (int64_t i = 0; i < num; ++i) {
         if (*lv1_p >= 0) {
           full_offset += *(lv1_p++);
         } else {
-          full_offset = globals.cx1->GetSpecialOffset(-1 - *(lv1_p++));
+          full_offset = GetSpecialOffset(-1 - *(lv1_p++));
         }
 
-        int64_t seq_id = globals.package.GetSeqID(full_offset >> 1);
-        int offset = (full_offset >> 1) - globals.package.StartPos(seq_id);
+        int64_t seq_id = package.GetSeqID(full_offset >> 1);
+        int offset = (full_offset >> 1) - package.StartPos(seq_id);
         int strand = full_offset & 1;
 
-        int seq_len = globals.package.SequenceLength(seq_id);
-        int num_chars_to_copy = globals.kmer_k - (offset + globals.kmer_k > seq_len);
+        int seq_len = package.SequenceLength(seq_id);
+        int num_chars_to_copy = kmer_k - (offset + kmer_k > seq_len);
         int counting = 0;
 
-        if (offset > 0 && offset + globals.kmer_k <= seq_len) {
-          counting = globals.multiplicity[seq_id];
+        if (offset > 0 && offset + kmer_k <= seq_len) {
+          counting = multiplicity[seq_id];
         }
 
-        auto ptr_and_offset = globals.package.WordPtrAndOffset(seq_id);
+        auto ptr_and_offset = package.WordPtrAndOffset(seq_id);
         int start_offset = ptr_and_offset.second;
         int words_this_seq = DivCeiling(start_offset + seq_len, 16);
         const uint32_t *edge_p = ptr_and_offset.first;
@@ -690,52 +686,52 @@ void CX1Seq2Sdbg::lv2_extract_substr_(unsigned from_bucket,
           int prev_char;
 
           if (offset == 0) {
-            assert(num_chars_to_copy == globals.kmer_k);
+            assert(num_chars_to_copy == kmer_k);
             prev_char = kSentinelValue;
           } else {
-            prev_char = globals.package.GetBase(seq_id, offset - 1);
+            prev_char = package.GetBase(seq_id, offset - 1);
           }
 
           CopySubstring(substr, edge_p, offset + start_offset, num_chars_to_copy, 1, words_this_seq,
-                        globals.words_per_substring);
+                        words_per_substring);
 
-          uint32_t *last_word = substr + globals.words_per_substring - 1;
-          *last_word |= int(num_chars_to_copy == globals.kmer_k) << (kBWTCharNumBits + kBitsPerMul);
+          uint32_t *last_word = substr + words_per_substring - 1;
+          *last_word |= int(num_chars_to_copy == kmer_k) << (kBWTCharNumBits + kBitsPerMul);
           *last_word |= prev_char << kBitsPerMul;
           *last_word |= std::max(0, kMaxMul - counting);  // then larger counting come first after sorting
         } else {
           int prev_char;
 
           if (offset == 0) {
-            assert(num_chars_to_copy == globals.kmer_k);
+            assert(num_chars_to_copy == kmer_k);
             prev_char = kSentinelValue;
           } else {
-            prev_char = 3 - globals.package.GetBase(seq_id, seq_len - 1 - offset + 1);
+            prev_char = 3 - package.GetBase(seq_id, seq_len - 1 - offset + 1);
           }
 
-          offset = seq_len - 1 - offset - (globals.kmer_k - 1);  // switch to normal strand
+          offset = seq_len - 1 - offset - (kmer_k - 1);  // switch to normal strand
 
           if (offset < 0) {
-            assert(num_chars_to_copy == globals.kmer_k - 1);
+            assert(num_chars_to_copy == kmer_k - 1);
             offset = 0;
           }
 
           CopySubstringRC(substr, edge_p, offset + start_offset, num_chars_to_copy, 1, words_this_seq,
-                          globals.words_per_substring);
+                          words_per_substring);
 
-          uint32_t *last_word = substr + globals.words_per_substring - 1;
-          *last_word |= int(num_chars_to_copy == globals.kmer_k) << (kBWTCharNumBits + kBitsPerMul);
+          uint32_t *last_word = substr + words_per_substring - 1;
+          *last_word |= int(num_chars_to_copy == kmer_k) << (kBWTCharNumBits + kBitsPerMul);
           *last_word |= prev_char << kBitsPerMul;
           *last_word |= std::max(0, kMaxMul - counting);
         }
 
-        substr += globals.words_per_substring;
+        substr += words_per_substring;
       }
     }
   }
 }
 
-void CX1Seq2Sdbg::output_(int64_t from, int64_t to, int tid, seq2sdbg_global_t &globals, uint32_t *substr) {
+void CX1Seq2Sdbg::output_(int64_t from, int64_t to, int tid, int &globals, uint32_t *substr) {
   int64_t start_idx, end_idx;
   int has_solid_a = 0;  // has solid (k+1)-mer aSb
   int has_solid_b = 0;  // has solid aSb
@@ -745,10 +741,10 @@ void CX1Seq2Sdbg::output_(int64_t from, int64_t to, int tid, seq2sdbg_global_t &
 
   for (start_idx = from; start_idx < to; start_idx = end_idx) {
     end_idx = start_idx + 1;
-    uint32_t *item = substr + start_idx * globals.words_per_substring;
+    uint32_t *item = substr + start_idx * words_per_substring;
 
     while (end_idx < to &&
-        !IsDiffKMinusOneMer(item, substr + end_idx * globals.words_per_substring, 1, globals.kmer_k)) {
+        !IsDiffKMinusOneMer(item, substr + end_idx * words_per_substring, 1, kmer_k)) {
       ++end_idx;
     }
 
@@ -757,9 +753,9 @@ void CX1Seq2Sdbg::output_(int64_t from, int64_t to, int tid, seq2sdbg_global_t &
     outputed_b = 0;
 
     for (int64_t i = start_idx; i < end_idx; ++i) {
-      uint32_t *cur_item = substr + i * globals.words_per_substring;
-      int a = Extract_a(cur_item, globals.words_per_substring, 1, globals.kmer_k);
-      int b = Extract_b(cur_item, globals.words_per_substring, 1);
+      uint32_t *cur_item = substr + i * words_per_substring;
+      int a = Extract_a(cur_item, words_per_substring, 1, kmer_k);
+      int b = Extract_b(cur_item, words_per_substring, 1);
 
       if (a != kSentinelValue && b != kSentinelValue) {
         has_solid_a |= 1 << a;
@@ -772,17 +768,17 @@ void CX1Seq2Sdbg::output_(int64_t from, int64_t to, int tid, seq2sdbg_global_t &
     }
 
     for (int64_t i = start_idx, j; i < end_idx; i = j) {
-      uint32_t *cur_item = substr + i * globals.words_per_substring;
-      int a = Extract_a(cur_item, globals.words_per_substring, 1, globals.kmer_k);
-      int b = Extract_b(cur_item, globals.words_per_substring, 1);
+      uint32_t *cur_item = substr + i * words_per_substring;
+      int a = Extract_a(cur_item, words_per_substring, 1, kmer_k);
+      int b = Extract_b(cur_item, words_per_substring, 1);
 
       j = i + 1;
 
       while (j < end_idx) {
-        uint32_t *next_item = substr + j * globals.words_per_substring;
+        uint32_t *next_item = substr + j * words_per_substring;
 
-        if (Extract_a(next_item, globals.words_per_substring, 1, globals.kmer_k) != a ||
-            Extract_b(next_item, globals.words_per_substring, 1) != b) {
+        if (Extract_a(next_item, words_per_substring, 1, kmer_k) != a ||
+            Extract_b(next_item, words_per_substring, 1) != b) {
           break;
         } else {
           ++j;
@@ -814,33 +810,33 @@ void CX1Seq2Sdbg::output_(int64_t from, int64_t to, int tid, seq2sdbg_global_t &
       outputed_b |= 1 << b;
 
       if (is_dollar) {
-        for (int64_t i = 0; i < globals.words_per_dummy_node; ++i) {
+        for (int64_t i = 0; i < words_per_dummy_node; ++i) {
           tip_label[i] = cur_item[i];
         }
       }
 
-      globals.sdbg_writer.Write(tid, cur_item[0] >> (32 - kBucketPrefixLength * 2), w, last, is_dollar,
-                                kMaxMul - ExtractCounting(cur_item, globals.words_per_substring, 1), tip_label,
+      sdbg_writer.Write(tid, cur_item[0] >> (32 - kBucketPrefixLength * 2), w, last, is_dollar,
+                                kMaxMul - ExtractCounting(cur_item, words_per_substring, 1), tip_label,
                                 &snapshot);
     }
   }
-  globals.sdbg_writer.SaveSnapshot(snapshot);
+  sdbg_writer.SaveSnapshot(snapshot);
 }
 
-void CX1Seq2Sdbg::post_proc_func_(seq2sdbg_global_t &globals) {
-  globals.sdbg_writer.Finalize();
+void CX1Seq2Sdbg::post_proc_func_(int &globals) {
+  sdbg_writer.Finalize();
   xinfo("Number of $ A C G T A- C- G- T-:\n");
   xinfo("");
   for (int i = 0; i < 9; ++i) {
-    xinfoc("%lld ", (long long) globals.sdbg_writer.final_meta().w_count(i));
+    xinfoc("%lld ", (long long) sdbg_writer.final_meta().w_count(i));
   }
 
   xinfoc("\n");
-  xinfo("Total number of edges: %lld\n", (long long) globals.sdbg_writer.final_meta().item_count());
-  xinfo("Total number of ONEs: %lld\n", (long long) globals.sdbg_writer.final_meta().ones_in_last());
-  xinfo("Total number of $v edges: %lld\n", (long long) globals.sdbg_writer.final_meta().tip_count());
+  xinfo("Total number of edges: %lld\n", (long long) sdbg_writer.final_meta().item_count());
+  xinfo("Total number of ONEs: %lld\n", (long long) sdbg_writer.final_meta().ones_in_last());
+  xinfo("Total number of $v edges: %lld\n", (long long) sdbg_writer.final_meta().tip_count());
 
-  assert(globals.sdbg_writer.final_meta().w_count(0) == globals.sdbg_writer.final_meta().tip_count());
+  assert(sdbg_writer.final_meta().w_count(0) == sdbg_writer.final_meta().tip_count());
 }
 
 }  // namespace cx1_seq2sdbg

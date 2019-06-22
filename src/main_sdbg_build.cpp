@@ -208,26 +208,14 @@ int main_seq2sdbg(int argc, char **argv) {
     exit(1);
   }
 
-  cx1_seq2sdbg::seq2sdbg_global_t globals;
-  globals.host_mem = opt.host_mem;
-  globals.num_cpu_threads = opt.num_cpu_threads;
-  globals.input_prefix = opt.input_prefix;
-  globals.output_prefix = opt.output_prefix;
-  globals.contig = opt.contig;
-  globals.bubble_seq = opt.bubble_seq;
-  globals.addi_contig = opt.addi_contig;
-  globals.local_contig = opt.local_contig;
-  globals.mem_flag = opt.mem_flag;
-  globals.kmer_k = opt.kmer_k;
-  globals.kmer_from = opt.kmer_from;
-  globals.need_mercy = opt.need_mercy;
+  int globals;
+  cx1_seq2sdbg::CX1Seq2Sdbg runner(opt);
 
-  xinfo("Host memory to be used: %lld\n", (long long)globals.host_mem);
-  xinfo("Number CPU threads: %d\n", globals.num_cpu_threads);
+  xinfo("Host memory to be used: %lld\n", (long long)opt.host_mem);
+  xinfo("Number CPU threads: %d\n", opt.num_cpu_threads);
 
   // set & run cx1
-  globals.cx1.reset(new cx1_seq2sdbg::CX1Seq2Sdbg());
-  globals.cx1->g_ = &globals;
-  globals.cx1->run();
+  runner.g_ = &globals;
+  runner.run();
   return 0;
 }

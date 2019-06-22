@@ -59,54 +59,51 @@ static const int64_t kMaxLv1ScanTime = 64;
 static const int kSentinelValue = 4;
 static const int kBWTCharNumBits = 3;
 
-struct seq2sdbg_global_t;
+struct CX1Seq2Sdbg : public CX1<int, kNumBuckets> {
 
-struct CX1Seq2Sdbg: public CX1<seq2sdbg_global_t, kNumBuckets> {
-  int64_t encode_lv1_diff_base_func_(int64_t, global_data_t &) override;
-  void prepare_func_(global_data_t &) override;  // num_items_, num_cpu_threads_ and num_cpu_threads_ must be set here
+  explicit CX1Seq2Sdbg(const seq2sdbg_opt_t &opt) :
+      host_mem(opt.host_mem), mem_flag(opt.mem_flag), num_cpu_threads(opt.num_cpu_threads),
+      kmer_k(opt.kmer_k), kmer_from(opt.kmer_from),
+      input_prefix(opt.input_prefix), output_prefix(opt.output_prefix),
+      contig(opt.contig), bubble_seq(opt.bubble_seq), addi_contig(opt.addi_contig),
+      local_contig(opt.local_contig), need_mercy(opt.need_mercy) {}
+
+  int64_t encode_lv1_diff_base_func_(int64_t, int &) override;
+  void prepare_func_(int &) override;  // num_items_, num_cpu_threads_ and num_cpu_threads_ must be set here
   void lv0_calc_bucket_size_func_(ReadPartition *) override;
-  void init_global_and_set_cx1_func_(global_data_t &) override;  // xxx set here
+  void init_global_and_set_cx1_func_(int &) override;  // xxx set here
   void lv1_fill_offset_func_(ReadPartition *) override;
-  void lv2_extract_substr_(unsigned bucket_from, unsigned bucket_to, global_data_t &g, uint32_t *substr_ptr) override;
-  void output_(int64_t start_index, int64_t end_index, int thread_id, global_data_t &g, uint32_t *substrings) override;
-  void post_proc_func_(global_data_t &) override;
-};
+  void lv2_extract_substr_(unsigned bucket_from, unsigned bucket_to, int &g, uint32_t *substr_ptr) override;
+  void output_(int64_t start_index, int64_t end_index, int thread_id, int &g, uint32_t *substrings) override;
+  void post_proc_func_(int &) override;
 
-struct seq2sdbg_global_t {
-  std::unique_ptr<CX1Seq2Sdbg> cx1;
-
+ private:
   // input options
-  int kmer_k;
-  int kmer_from;
-  int num_cpu_threads;
   int64_t host_mem;
   int mem_flag;
-  bool need_mercy;
+  int num_cpu_threads;
 
+  int kmer_k;
+  int kmer_from;
+
+  std::string input_prefix;
+  std::string output_prefix;
   std::string contig;
   std::string bubble_seq;
   std::string addi_contig;
   std::string local_contig;
-  std::string input_prefix;
-  std::string output_prefix;
+  bool need_mercy;
 
-  int64_t num_seq;
-  int64_t words_per_substring;  // substrings to be sorted by GPU
-  int64_t max_bucket_size;
-  int64_t tot_bucket_size;
-  int words_per_dummy_node;
+  int64_t words_per_substring{};
+  int words_per_dummy_node{};
 
   // big arrays
   SeqPackage package;
   std::vector<mul_t> multiplicity;
 
-  int64_t max_sorting_items;
-  // memory usage
-  int64_t mem_packed_seq;
-
   // output
   SdbgWriter sdbg_writer;
+  void GenMercyEdges();
 };
-
 }  // end of namespace cx1_seq2sdbg
 #endif  // CX1_SEQUENCES2SDBG_H__
