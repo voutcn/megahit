@@ -44,8 +44,6 @@ struct count_opt_t {
   bool need_mercy{true};
 };
 
-namespace cx1_kmer_count {
-
 static const int kBucketPrefixLength = 8;
 static const int kNumBuckets = 65536;  // pow(4, 8)
 static const int64_t kDefaultLv1ScanTime = 8;
@@ -53,10 +51,15 @@ static const int64_t kMaxLv1ScanTime = 64;
 static const int kSentinelValue = 4;
 static const uint32_t kSentinelOffset = 4294967295U;
 
-struct count_global_t;
-
-struct CX1KmerCount : public CX1<count_global_t, kNumBuckets> {
+struct CX1KmerCount : public CX1<int, kNumBuckets> {
  public:
+  CX1KmerCount(int kmer_k, int kmer_freq_threshold, int64_t host_mem, int mem_flag,  int num_cpu_threads,
+              const std::string &read_lib_file, const std::string &assist_seq_file, const std::string &output_prefix):
+              kmer_k(kmer_k), kmer_freq_threshold(kmer_freq_threshold), host_mem(host_mem), mem_flag(mem_flag),
+              num_cpu_threads(num_cpu_threads), read_lib_file(read_lib_file), assist_seq_file(assist_seq_file),
+              output_prefix(output_prefix) {}
+  ~CX1KmerCount() final = default;
+
   int64_t encode_lv1_diff_base_func_(int64_t, global_data_t &) override;
   void prepare_func_(global_data_t &) override;  // num_items_, num_cpu_threads_ and num_cpu_threads_ must be set here
   void lv0_calc_bucket_size_func_(ReadPartition *) override;
@@ -65,47 +68,29 @@ struct CX1KmerCount : public CX1<count_global_t, kNumBuckets> {
   void lv2_extract_substr_(unsigned bucket_from, unsigned bucket_to, global_data_t &g, uint32_t *substr_ptr) override;
   void output_(int64_t start_index, int64_t end_index, int thread_id, global_data_t &g, uint32_t *substrings) override;
   void post_proc_func_(global_data_t &) override;
-};
 
-struct count_global_t {
-  std::unique_ptr<CX1KmerCount> cx1;
-
+ private:
   // input options
-  int max_read_length;
   int kmer_k;
   int kmer_freq_threshold;
-  int num_cpu_threads;
   int64_t host_mem;
   int mem_flag;
+  int num_cpu_threads;
   std::string read_lib_file;
   std::string assist_seq_file;
   std::string output_prefix;
 
-  int words_per_edge;           // number of (32-bit) words needed to represent a (k+1)-mer
-  int64_t words_per_substring;  // substrings to be sorted by GPU
-  int64_t max_bucket_size;
-  int64_t tot_bucket_size;
-  int64_t num_reads;  // total number of reads
+  int words_per_edge{};           // number of (32-bit) words needed to represent a (k+1)-mer
+  int64_t words_per_substring{};  // substrings to be sorted by GPU
 
-  // big arrays
   SeqPackage package;
-  std::vector<lib_info_t> lib_info;
-
-  // lv1 new sorting scheme
-  int64_t max_sorting_items;
-
   std::vector<AtomicWrapper<uint32_t>> first_0_out;
   std::vector<AtomicWrapper<uint32_t>> last_0_in;
-
-  // memory usage
-  int64_t mem_packed_reads;
-
   // stat
   std::vector<std::vector<int64_t>> thread_edge_counting;
-
   // output
   EdgeWriter edge_writer;
+  void PackEdge(uint32_t *dest, uint32_t *item, int64_t counting);
 };
 
-}  // end of namespace cx1_kmer_count
 #endif  // CX1_KMER_COUNT_H__

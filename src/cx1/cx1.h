@@ -37,6 +37,7 @@
 template<typename TGlobal, unsigned NBuckets>
 struct CX1 {
  public:
+  virtual ~CX1() = default;
   typedef TGlobal global_data_t;
   // other settings, don't change
   static const int kLv1BytePerItem = 4;  // 32-bit differatial offset

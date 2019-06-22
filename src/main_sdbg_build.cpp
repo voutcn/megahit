@@ -74,23 +74,11 @@ int main_kmer_count(int argc, char **argv) {
     exit(1);
   }
 
-  cx1_kmer_count::count_global_t globals;
-  globals.kmer_k = opt.kmer_k;
-  globals.kmer_freq_threshold = opt.kmer_freq_threshold;
-  globals.host_mem = opt.host_mem;
-  globals.num_cpu_threads = opt.num_cpu_threads;
-  globals.read_lib_file = opt.read_lib_file.c_str();
-  globals.assist_seq_file = opt.assist_seq_file;
-  globals.output_prefix = opt.output_prefix.c_str();
-  globals.mem_flag = opt.mem_flag;
-
-  xinfo("Host memory to be used: %lld\n", (long long)globals.host_mem);
-  xinfo("Number CPU threads: %d\n", globals.num_cpu_threads);
-
-  // set & run cx1
-  globals.cx1.reset(new cx1_kmer_count::CX1KmerCount());
-  globals.cx1->g_ = &globals;
-  globals.cx1->run();
+  CX1KmerCount runner(opt.kmer_k, opt.kmer_freq_threshold, opt.host_mem, opt.mem_flag, opt.num_cpu_threads,
+      opt.read_lib_file, opt.assist_seq_file, opt.output_prefix);
+  xinfo("Host memory to be used: %lld\n", (long long)opt.host_mem);
+  xinfo("Number CPU threads: %d\n", opt.num_cpu_threads);
+  runner.run();
 
   return 0;
 }
