@@ -579,10 +579,10 @@ void SeqToSdbg::Lv2ExtractSubString(unsigned from_bucket,
       int64_t num = GetReadPartition(t).rp_bucket_sizes[bucket];
 
       for (int64_t i = 0; i < num; ++i) {
-        if (*lv1_p >= 0) {
+        if (*lv1_p <= kDifferentialLimit) {
           full_offset += *(lv1_p++);
         } else {
-          full_offset = GetSpecialOffset(-1 - *(lv1_p++));
+          full_offset = GetSpecialOffset(*(lv1_p++));
         }
 
         int64_t seq_id = seq_pkg_.GetSeqID(full_offset >> 1);

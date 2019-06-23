@@ -1,11 +1,8 @@
 #ifndef MEGAHIT_BASE_ENGINE_H
 #define MEGAHIT_BASE_ENGINE_H
 
-#include <assert.h>
-#include <stdint.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
+#include <cassert>
+#include <cstdint>
 #include <algorithm>
 #include <vector>
 #include <omp.h>
@@ -18,13 +15,13 @@
  */
 class BaseSequenceSortingEngine {
  public:
+  static const unsigned kBucketBase = 4;
   static const unsigned kBucketPrefixLength = 8;
-  static const unsigned kNumBuckets = 65536;  // pow(4, 8)
+  static const unsigned kNumBuckets = 65536;
   static const int64_t kDefaultLv1ScanTime = 8;
-  static const int64_t kMaxLv1ScanTime = 64;
+  static const int64_t kMaxLv1ScanTime = 128;
 
   static const unsigned kLv1BytePerItem = 4;  // 32-bit differential offset
-  static const uint64_t kSpDiffMaxNum = (1ULL << 32) - 1;
   static const int64_t kDifferentialLimit = (1ULL << 31) - 1;
 
   struct ReadPartition {
@@ -56,7 +53,7 @@ class BaseSequenceSortingEngine {
   int64_t lv1_num_items_{};
   std::vector<bool> cur_lv1_buckets_;
   std::vector<int64_t> lv1_special_offsets_;
-  std::vector<int32_t> lv1_offsets_;
+  std::vector<uint32_t> lv1_offsets_;
   std::mutex special_item_lock_;
 
   std::array<int64_t, kNumBuckets> bucket_sizes_{};
@@ -75,7 +72,11 @@ class BaseSequenceSortingEngine {
 
   void WriteOffset(size_t index, int64_t diff, int64_t full_offset) {
     if (diff > kDifferentialLimit) {
-      lv1_offsets_[index] = -1 - AddSpecialOffset(full_offset);
+      int64_t key = kDifferentialLimit + 1 + AddSpecialOffset(full_offset);
+      if (key >= std::numeric_limits<uint32_t>::max()) {
+        xfatal("Too many large difference items!");
+      }
+      lv1_offsets_[index] = key;
     } else {
       assert(diff >= 0);
       lv1_offsets_[index] = static_cast<int32_t>(diff);
@@ -89,16 +90,17 @@ class BaseSequenceSortingEngine {
     return ret;
   }
 
-  int64_t GetSpecialOffset(size_t index) const {
-    return lv1_special_offsets_[index];
+  int64_t GetSpecialOffset(uint32_t key) const {
+    assert(key > kDifferentialLimit);
+    return lv1_special_offsets_[key - (kDifferentialLimit + 1)];
   }
 
-  std::vector<int32_t>::const_iterator GetLv1Iterator(unsigned bucket) const {
+  std::vector<uint32_t>::const_iterator GetLv1Iterator(unsigned bucket) const {
     return lv1_offsets_.cbegin() + GetReadPartition(0).rp_bucket_offsets[bucket];
   }
 
   uint32_t *Lv1DataPtr() {
-    return reinterpret_cast<uint32_t *>(lv1_offsets_.data());
+    return lv1_offsets_.data();
   }
 
   const std::array<int64_t, kNumBuckets> &GetBucketSizes() const {
@@ -169,7 +171,6 @@ class BaseSequenceSortingEngine {
       } else {
         n_items = {est_lv1_items, est_lv2_items};
       }
-
     } else if (mem_flag_ == 0) {
       // min memory
       int64_t est_lv1_items = total_bucket_size / (kMaxLv1ScanTime - 0.5);
@@ -183,7 +184,6 @@ class BaseSequenceSortingEngine {
         n_items = AdjustItemNumbers(mem_needed, lv2_bytes_per_item, min_lv1_items, max_bucket_size,
                                     est_lv2_items);
       }
-
     } else {
       // use all
       n_items = AdjustItemNumbers(mem_remained, lv2_bytes_per_item, min_lv1_items, max_bucket_size,
@@ -360,7 +360,6 @@ class BaseSequenceSortingEngine {
     lv1_special_offsets_.clear();
     Lv1ComputeOffset();
 
-    // create threads
 #pragma omp parallel for
     for (unsigned t = 0; t < n_threads_; ++t) {
       Lv1FillOffsets(&rp_[t]);
@@ -451,12 +450,6 @@ class BaseSequenceSortingEngine {
 
       // --- scan to fill offset ---
       Lv1FillOffsetsLaunchMt();
-
-      if (lv1_special_offsets_.size() > kSpDiffMaxNum) {
-        fprintf(stderr, "Too many large diff items (%lu) from in buckets [%d, %d)\n", lv1_special_offsets_.size(),
-                lv1_start_bucket_, lv1_end_bucket_);
-        exit(1);
-      }
 
       lv1_timer.stop();
       xinfo("Lv1 scanning done. Large diff: %lu. Time elapsed: %.4f\n",

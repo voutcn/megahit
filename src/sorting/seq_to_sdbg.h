@@ -46,7 +46,6 @@ struct Seq2SdbgOption {
 
 class SeqToSdbg : public BaseSequenceSortingEngine {
  public:
-  static const unsigned kBucketBase = 4;
 // binary search look up table
   static const unsigned kLookUpPrefixLength = 12;
   static const unsigned kLookUpShift = 32 - kLookUpPrefixLength * 2;

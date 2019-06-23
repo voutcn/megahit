@@ -415,10 +415,10 @@ void Read2SdbgS2::Lv2ExtractSubString(unsigned bp_from, unsigned bp_to, uint32_t
       int64_t num = GetReadPartition(t).rp_bucket_sizes[b];
 
       for (int64_t i = 0; i < num; ++i) {
-        if (*lv1_p >= 0) {
+        if (*lv1_p <= kDifferentialLimit) {
           full_offset += *(lv1_p++);
         } else {
-          full_offset = GetSpecialOffset(-1 - *(lv1_p++));
+          full_offset = GetSpecialOffset(*(lv1_p++));
         }
 
         int64_t read_id = seq_pkg_->package.GetSeqID(full_offset >> 3);
@@ -462,14 +462,17 @@ void Read2SdbgS2::Lv2ExtractSubString(unsigned bp_from, unsigned bp_to, uint32_t
           uint8_t prev = kSentinelValue;
 
           switch (edge_type) {
-            case 0:num_chars_to_copy--;
+            case 0:
+              num_chars_to_copy--;
               prev = 3 - seq_pkg_->package.GetBase(read_id, offset + opt_.k - 1);
               break;
 
-            case 1:prev = 3 - seq_pkg_->package.GetBase(read_id, offset + opt_.k);
+            case 1:
+              prev = 3 - seq_pkg_->package.GetBase(read_id, offset + opt_.k);
               break;
 
-            case 2:offset++;
+            case 2:
+              offset++;
               break;
 
             default:assert(false);
