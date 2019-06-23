@@ -66,6 +66,10 @@ inline bool IsDiffKMinusOneMer(uint32_t *item1, uint32_t *item2, int64_t spacing
   return false;
 }
 
+inline uint64_t GetReadInfo(uint32_t *read_info_ptr) {
+  return (static_cast<uint64_t>(*read_info_ptr) << 32u) | *(read_info_ptr + 1);
+}
+
 inline uint8_t ExtractHeadTail(const uint32_t *item, int64_t spacing, int words_per_substring) {
   return *(item + spacing * (words_per_substring - 1)) & ((1 << 2 * Read2SdbgS1::kBWTCharNumBits) - 1);
 }
@@ -334,24 +338,26 @@ void Read2SdbgS1::Lv2ExtractSubString(unsigned bp_from, unsigned bp_to, uint32_t
         int start_offset = ptr_and_offset.second;
         const uint32_t *read_p = ptr_and_offset.first;
         int words_this_read = DivCeiling(start_offset + read_length, 16);
-        auto readinfo_ptr = reinterpret_cast<uint64_t *>(substr + words_per_substr_);
+        uint64_t read_info;
 
         if (strand == 0) {
           CopySubstring(substr, read_p, offset + start_offset, num_chars_to_copy, 1, words_this_read,
                         words_per_substr_);
           uint32_t *last_word = substr + int64_t(words_per_substr_ - 1) * 1;
           *last_word |= (head << kBWTCharNumBits) | tail;
-          *readinfo_ptr = (full_offset << 6) | (prev << 3) | next;
+          read_info = (full_offset << 6) | (prev << 3) | next;
         } else {
           CopySubstringRC(substr, read_p, offset + start_offset, num_chars_to_copy, 1, words_this_read,
                           words_per_substr_);
           uint32_t *last_word = substr + int64_t(words_per_substr_ - 1) * 1;
           *last_word |= ((tail == kSentinelValue ? kSentinelValue : 3 - tail) << kBWTCharNumBits) |
               (head == kSentinelValue ? kSentinelValue : 3 - head);
-          *readinfo_ptr = (full_offset << 6) | ((next == kSentinelValue ? kSentinelValue : (3 - next)) << 3) |
+          read_info = (full_offset << 6) | ((next == kSentinelValue ? kSentinelValue : (3 - next)) << 3) |
               (prev == kSentinelValue ? kSentinelValue : (3 - prev));
         }
 
+        substr[words_per_substr_] = read_info >> 32u;
+        substr[words_per_substr_ + 1] = read_info & 0xFFFFFFFFull;
         substr += words_per_substr_ + 2;
       }
     }
@@ -374,8 +380,8 @@ void Read2SdbgS1::Lv2Postprocess(int64_t from, int64_t to, int tid, uint32_t *su
     memset(count_head_tail, 0, sizeof(count_head_tail));
 
     {
-      auto readinfo_ptr = reinterpret_cast<uint64_t *>(first_item + words_per_substr_);
-      uint8_t prev_and_next = ExtractPrevNext(*readinfo_ptr);
+      auto read_info = GetReadInfo(first_item + words_per_substr_);
+      uint8_t prev_and_next = ExtractPrevNext(read_info);
       uint8_t head_and_tail = ExtractHeadTail(first_item, 1, words_per_substr_);
       count_prev_head[prev_and_next >> 3][head_and_tail >> 3]++;
       count_tail_next[head_and_tail & 7][prev_and_next & 7]++;
@@ -387,9 +393,9 @@ void Read2SdbgS1::Lv2Postprocess(int64_t from, int64_t to, int tid, uint32_t *su
         break;
       }
 
-      auto readinfo_ptr = reinterpret_cast<uint64_t *>(substr + end_idx * (2 + words_per_substr_) +
-          words_per_substr_);
-      uint8_t prev_and_next = ExtractPrevNext(*readinfo_ptr);
+
+      auto read_info = GetReadInfo(first_item + words_per_substr_);
+      uint8_t prev_and_next = ExtractPrevNext(read_info);
       uint8_t head_and_tail =
           ExtractHeadTail(substr + end_idx * (words_per_substr_ + 2), 1, words_per_substr_);
       count_prev_head[prev_and_next >> 3][head_and_tail >> 3]++;
@@ -440,9 +446,8 @@ void Read2SdbgS1::Lv2Postprocess(int64_t from, int64_t to, int tid, uint32_t *su
       if (head != kSentinelValue && tail != kSentinelValue &&
           count_head_tail[head_and_tail] >= opt_.solid_threshold) {
         for (int64_t j = 0; j < count_head_tail[head_and_tail]; ++j, ++i) {
-          auto readinfo_ptr = reinterpret_cast<uint64_t *>(substr + i * (2 + words_per_substr_) +
-              words_per_substr_);
-          int64_t read_info = *readinfo_ptr >> 6;
+          auto read_info_context = GetReadInfo(substr + i * (2 + words_per_substr_) + words_per_substr_);
+          int64_t read_info = read_info_context >> 6;
           int strand = read_info & 1;
           int64_t read_id = seq_pkg_->package.GetSeqID(read_info >> 1);
           int offset = (read_info >> 1) - seq_pkg_->package.StartPos(read_id) - 1;
@@ -469,9 +474,8 @@ void Read2SdbgS1::Lv2Postprocess(int64_t from, int64_t to, int tid, uint32_t *su
       } else {
         // not solid, but we still need to tell whether its left/right kmer is solid
         for (int64_t j = 0; j < count_head_tail[head_and_tail]; ++j, ++i) {
-          uint64_t *readinfo_ptr = reinterpret_cast<uint64_t *>(substr + i * (2 + words_per_substr_) +
-              words_per_substr_);
-          int64_t read_info = *readinfo_ptr >> 6;
+          auto read_info_context = GetReadInfo(substr + i * (2 + words_per_substr_) + words_per_substr_);
+          int64_t read_info = read_info_context >> 6;
           int strand = read_info & 1;
           int64_t read_id = seq_pkg_->package.GetSeqID(read_info >> 1);
           int offset = (read_info >> 1) - seq_pkg_->package.StartPos(read_id) - 1;

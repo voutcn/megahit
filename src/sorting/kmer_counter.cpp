@@ -250,18 +250,19 @@ void KmerCounter::Lv2ExtractSubString(unsigned start_bucket, unsigned end_bucket
         } else {
           next = kSentinelValue;
         }
-        uint64_t *read_info_p = reinterpret_cast<uint64_t *>(substrings_p + words_per_substr_);
+        uint64_t read_info;
         if (strand == 0) {
           CopySubstring(substrings_p, read_p, offset + start_offset, num_chars_to_copy, 1, words_this_seq,
                         words_per_substr_);
-          *read_info_p = (full_offset << 6) | (prev << 3) | next;
+          read_info = (full_offset << 6) | (prev << 3) | next;
         } else {
           CopySubstringRC(substrings_p, read_p, offset + start_offset, num_chars_to_copy, 1, words_this_seq,
                           words_per_substr_);
-          *read_info_p = (full_offset << 6) | ((next == kSentinelValue ? kSentinelValue : (3 - next)) << 3) |
+          read_info = (full_offset << 6) | ((next == kSentinelValue ? kSentinelValue : (3 - next)) << 3) |
               (prev == kSentinelValue ? kSentinelValue : (3 - prev));
         }
-
+        substrings_p[words_per_substr_] = read_info >> 32u;
+        substrings_p[words_per_substr_ + 1] = read_info & 0xFFFFFFFFull;
         substrings_p += words_per_substr_ + 2;
       }
     }
@@ -302,9 +303,9 @@ void KmerCounter::Lv2Postprocess(int64_t start_index, int64_t end_index, int thr
     bool has_out = false;
 
     for (int64_t j = from_; j < to_; ++j) {
-      auto *read_info = reinterpret_cast<uint64_t *>(substrings + j * (words_per_substr_ + 2) +
-          words_per_substr_);
-      int prev_and_next = *read_info & ((1 << 6) - 1);
+      auto read_info_ptr = substrings + j * (words_per_substr_ + 2) + words_per_substr_;
+      uint64_t read_info = (static_cast<uint64_t>(*read_info_ptr) << 32u) | (*(read_info_ptr + 1));
+      int prev_and_next = read_info & ((1 << 6) - 1);
       count_prev[prev_and_next >> 3]++;
       count_next[prev_and_next & 7]++;
     }
@@ -321,9 +322,9 @@ void KmerCounter::Lv2Postprocess(int64_t start_index, int64_t end_index, int thr
 
     if (!has_in && count >= opt_.solid_threshold) {
       for (int64_t j = from_; j < to_; ++j) {
-        auto *read_info_ptr = reinterpret_cast<uint64_t *>(substrings + j * (words_per_substr_ + 2) +
-            words_per_substr_);
-        int64_t read_info = *read_info_ptr >> 6;
+        auto *read_info_ptr =substrings + j * (words_per_substr_ + 2) + words_per_substr_;
+        uint64_t read_info_context = (static_cast<uint64_t>(*read_info_ptr) << 32u) | (*(read_info_ptr + 1));
+        int64_t read_info = read_info_context >> 6;
         int64_t read_id = seq_pkg_.GetSeqID(read_info >> 1);
         int strand = read_info & 1;
         uint32_t offset = (read_info >> 1) - seq_pkg_.StartPos(read_id);
@@ -350,9 +351,9 @@ void KmerCounter::Lv2Postprocess(int64_t start_index, int64_t end_index, int thr
 
     if (!has_out && count >= opt_.solid_threshold) {
       for (int64_t j = from_; j < to_; ++j) {
-        auto *read_info_ptr = reinterpret_cast<uint64_t *>(substrings + j * (words_per_substr_ + 2) +
-            words_per_substr_);
-        int64_t read_info = *read_info_ptr >> 6;
+        auto *read_info_ptr =substrings + j * (words_per_substr_ + 2) + words_per_substr_;
+        uint64_t read_info_context = (static_cast<uint64_t>(*read_info_ptr) << 32u) | (*(read_info_ptr + 1));
+        int64_t read_info = read_info_context >> 6;
         int64_t read_id = seq_pkg_.GetSeqID(read_info >> 1);
         int strand = read_info & 1;
         uint32_t offset = (read_info >> 1) - seq_pkg_.StartPos(read_id);
