@@ -18,7 +18,7 @@
 
 /* contact: Dinghua Li <dhli@cs.hku.hk> */
 
-#include "cx1_read2sdbg.h"
+#include "read_to_sdbg.h"
 
 #include <omp.h>
 #include <string.h>
@@ -35,9 +35,8 @@
 #include "utils/utils.h"
 
 #include "sorting.h"
-// helping functions
 
-namespace cx1_read2sdbg {
+namespace { // helper functions
 
 /**
  * @brief encode read_id and its offset in one int64_t
@@ -72,18 +71,20 @@ inline bool IsDiffKMinusOneMer(uint32_t *item1, uint32_t *item2, int64_t spacing
 }
 
 inline uint8_t ExtractHeadTail(const uint32_t *item, int64_t spacing, int words_per_substring) {
-  return *(item + spacing * (words_per_substring - 1)) & ((1 << 2 * kBWTCharNumBits) - 1);
+  return *(item + spacing * (words_per_substring - 1)) & ((1 << 2 * ReadToSdbg::kBWTCharNumBits) - 1);
 }
 
-inline uint8_t ExtractPrevNext(int64_t readinfo) { return readinfo & ((1 << 2 * kBWTCharNumBits) - 1); }
+inline uint8_t ExtractPrevNext(int64_t readinfo) { return readinfo & ((1 << 2 * ReadToSdbg::kBWTCharNumBits) - 1); }
 
-// cx1 core functions
+} // namespace
 
-int64_t CX1Read2SdbgS1::encode_lv1_diff_base_func_(int64_t read_id, int &g) {
+// sequence_sorting core functions
+
+int64_t Read2SdbgS1::encode_lv1_diff_base_func_(int64_t read_id) {
   return EncodeOffset(read_id, 0, 0, seq_pkg_->package);
 }
 
-void CX1Read2SdbgS1::prepare_func_(int &globals) {
+void Read2SdbgS1::prepare_func_() {
   bool is_reverse = true;
   int64_t num_bases, num_reads;
   GetBinaryLibSize(opt.read_lib_file, num_bases, num_reads);
@@ -131,18 +132,17 @@ void CX1Read2SdbgS1::prepare_func_(int &globals) {
   mem_low_bound *= 1.05;
 
   if (mem_low_bound > opt.host_mem) {
-    xfatal("%lld bytes is not enough for CX1 sorting, please set -m parameter to at least %lld\n", opt.host_mem,
+    xfatal("%lld bytes is not enough for BaseSequenceSortingEngine sorting, please set -m parameter to at least %lld\n", opt.host_mem,
            mem_low_bound);
   }
 
-  // set cx1 param
+  // set sequence_sorting param
   SetNumCpuThreads(opt.num_cpu_threads);;
   SetNumItems(seq_pkg_->package.Size());
 }
 
-void CX1Read2SdbgS1::lv0_calc_bucket_size_func_(ReadPartition *_data) {
+void Read2SdbgS1::lv0_calc_bucket_size_func_(ReadPartition *_data) {
   auto &rp = *_data;
-  int &globals = *(rp.globals);
   auto &bucket_sizes = rp.rp_bucket_sizes;
   std::fill(bucket_sizes.begin(), bucket_sizes.end(), 0);
   GenericKmer k_minus1_mer, rev_k_minus1_mer;  // (k-1)-mer and its rc
@@ -191,12 +191,12 @@ void CX1Read2SdbgS1::lv0_calc_bucket_size_func_(ReadPartition *_data) {
   }
 }
 
-void CX1Read2SdbgS1::init_global_and_set_cx1_func_(int &globals) {
+void Read2SdbgS1::init_global_and_set_cx1_func_() {
   int64_t max_bucket_size = *std::max_element(GetBucketSizes().begin(), GetBucketSizes().end());
   int64_t tot_bucket_size = 0;
   int num_non_empty = 0;
 
-  for (int i = 0; i < kNumBuckets; ++i) {
+  for (unsigned i = 0; i < kNumBuckets; ++i) {
     tot_bucket_size += GetBucketSizes()[i];
     num_non_empty += (GetBucketSizes()[i] > 0);
   }
@@ -214,7 +214,7 @@ void CX1Read2SdbgS1::init_global_and_set_cx1_func_(int &globals) {
   int64_t lv2_bytes_per_item = (words_per_substring) * sizeof(uint32_t) + sizeof(uint64_t);
   num_non_empty = std::max(1, num_non_empty);
 
-  for (int i = 0; i < kNumBuckets; ++i) {
+  for (unsigned i = 0; i < kNumBuckets; ++i) {
     if (GetBucketSizes()[i] > 2 * tot_bucket_size / num_non_empty) {
       // xinfo("Bucket %d size = %lld > %lld = 2 * avg\n", i, (long
       // long)GetBucketSizes()[i], (long long)2 * tot_bucket_size / num_non_empty);
@@ -303,7 +303,7 @@ void CX1Read2SdbgS1::init_global_and_set_cx1_func_(int &globals) {
   }
 }
 
-void CX1Read2SdbgS1::lv1_fill_offset_func_(ReadPartition *_data) {
+void Read2SdbgS1::lv1_fill_offset_func_(ReadPartition *_data) {
   auto &rp = *_data;
   std::array<int64_t, kNumBuckets> prev_full_offsets{};  // temporary array for computing differentials
   for (auto b = GetLv1StartBucket(); b < GetLv1EndBucket(); ++b)
@@ -395,7 +395,7 @@ void CX1Read2SdbgS1::lv1_fill_offset_func_(ReadPartition *_data) {
 #undef CHECK_AND_SAVE_OFFSET
 }
 
-void CX1Read2SdbgS1::lv2_extract_substr_(unsigned bp_from, unsigned bp_to, int &globals, uint32_t *substr) {
+void Read2SdbgS1::lv2_extract_substr_(unsigned bp_from, unsigned bp_to, uint32_t *substr) {
   auto lv1_p = GetLv1Iterator(bp_from);
 
   for (auto b = bp_from; b < bp_to; ++b) {
@@ -473,7 +473,7 @@ void CX1Read2SdbgS1::lv2_extract_substr_(unsigned bp_from, unsigned bp_to, int &
   }
 }
 
-void CX1Read2SdbgS1::output_(int64_t from, int64_t to, int tid, int &globals, uint32_t *substr) {
+void Read2SdbgS1::output_(int64_t from, int64_t to, int tid, uint32_t *substr) {
   int64_t end_idx;
   int64_t count_prev_head[5][5];
   int64_t count_tail_next[5][5];
@@ -640,7 +640,7 @@ void CX1Read2SdbgS1::output_(int64_t from, int64_t to, int tid, int &globals, ui
   }
 }
 
-void CX1Read2SdbgS1::post_proc_func_(int &globals) {
+void Read2SdbgS1::post_proc_func_() {
   std::vector<int64_t> edge_counting(kMaxMul + 1, 0);
   for (int t = 0; t < opt.num_cpu_threads; ++t) {
     for (int i = 1; i <= kMaxMul; ++i) {
@@ -672,5 +672,3 @@ void CX1Read2SdbgS1::post_proc_func_(int &globals) {
     fclose(mercy_files[i]);
   }
 }
-
-}  // namespace cx1_read2sdbg

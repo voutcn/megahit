@@ -25,9 +25,9 @@
 #include <stdexcept>
 #include <string>
 
-#include "cx1/cx1_kmer_count.h"
-#include "cx1/cx1_read2sdbg.h"
-#include "cx1/cx1_seq2sdbg.h"
+#include "sequence_sorting/kmer_counter.h"
+#include "sequence_sorting/read_to_sdbg.h"
+#include "sequence_sorting/seq_to_sdbg.h"
 #include "definitions.h"
 #include "utils/options_description.h"
 #include "utils/utils.h"
@@ -74,10 +74,11 @@ int main_kmer_count(int argc, char **argv) {
     exit(1);
   }
 
-  CX1KmerCount runner(opt.kmer_k, opt.kmer_freq_threshold, opt.host_mem, opt.mem_flag, opt.num_cpu_threads,
-      opt.read_lib_file, opt.assist_seq_file, opt.output_prefix);
-  xinfo("Host memory to be used: %lld\n", (long long)opt.host_mem);
+  xinfo("Host memory to be used: %lld\n", (long long) opt.host_mem);
   xinfo("Number CPU threads: %d\n", opt.num_cpu_threads);
+
+  KmerCounter runner(opt.kmer_k, opt.kmer_freq_threshold, opt.host_mem, opt.mem_flag, opt.num_cpu_threads,
+                      opt.read_lib_file, opt.assist_seq_file, opt.output_prefix);
   runner.run();
 
   return 0;
@@ -126,24 +127,21 @@ int main_read2sdbg(int argc, char **argv) {
     exit(1);
   }
 
-  int globals;
-  cx1_read2sdbg::SeqPkgWithSolidMarker pkg;
+  SeqPkgWithSolidMarker pkg;
 
   {
     // stage 1
-    cx1_read2sdbg::CX1Read2SdbgS1 runner(opt, &pkg);
-    runner.g_ = &globals;
+    Read2SdbgS1 runner(opt, &pkg);
     if (opt.kmer_freq_threshold > 1) {
       runner.run();
     } else {
-      runner.prepare_func_(globals);
+      runner.prepare_func_();
     }
   }
 
   {
     // stage 2
-    cx1_read2sdbg::CX1Read2SdbgS2 runner(opt, &pkg);
-    runner.g_ = &globals;
+    Read2SdbgS2 runner(opt, &pkg);
     runner.run();
   }
 
@@ -204,14 +202,9 @@ int main_seq2sdbg(int argc, char **argv) {
     exit(1);
   }
 
-  int globals;
-  cx1_seq2sdbg::CX1Seq2Sdbg runner(opt);
-
-  xinfo("Host memory to be used: %lld\n", (long long)opt.host_mem);
+  xinfo("Host memory to be used: %lld\n", (long long) opt.host_mem);
   xinfo("Number CPU threads: %d\n", opt.num_cpu_threads);
-
-  // set & run cx1
-  runner.g_ = &globals;
+  SeqToSdbg runner(opt);
   runner.run();
   return 0;
 }

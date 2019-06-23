@@ -25,6 +25,5 @@
 #include <functional>
 
 std::function<void(uint32_t*, int64_t)> SelectSortingFunc(int words_per_substr, int extra_words);
-void SortSubStr(uint32_t *substr, int words_per_substr, int64_t n, int extra_words = 0);
 
 #endif

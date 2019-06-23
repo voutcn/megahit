@@ -18,15 +18,15 @@
 
 /* contact: Dinghua Li <dhli@cs.hku.hk> */
 
-#ifndef CX1_SEQUENCES2SDBG_H__
-#define CX1_SEQUENCES2SDBG_H__
+#ifndef MEGAHIT_SEQ_TO_SDBG_H
+#define MEGAHIT_SEQ_TO_SDBG_H
 
 #include <sequence/sequence_package.h>
 #include <stdint.h>
 #include <mutex>
 #include <string>
 #include <vector>
-#include "cx1.h"
+#include "base_sequence_sorting_engine.h"
 #include "sdbg/sdbg_writer.h"
 
 struct seq2sdbg_opt_t {
@@ -44,38 +44,31 @@ struct seq2sdbg_opt_t {
   bool need_mercy{false};
 };
 
-namespace cx1_seq2sdbg {
-
-static const int kBucketPrefixLength = 8;  // less than 16 (chars per word)
-static const int kBucketBase = 4;
-static const int kNumBuckets = 65536;  // pow(4, 8)
+class SeqToSdbg : public BaseSequenceSortingEngine {
+ public:
+  static const int kBucketBase = 4;
 // binary search look up table
-static const int kLookUpPrefixLength = 12;
-static const int kLookUpShift = 32 - kLookUpPrefixLength * 2;
-static const int kLookUpSize = 1 << (2 * kLookUpPrefixLength);
+  static const int kLookUpPrefixLength = 12;
+  static const int kLookUpShift = 32 - kLookUpPrefixLength * 2;
+  static const int kLookUpSize = 1 << (2 * kLookUpPrefixLength);
+  static const int kSentinelValue = 4;
+  static const int kBWTCharNumBits = 3;
 
-static const int64_t kDefaultLv1ScanTime = 8;
-static const int64_t kMaxLv1ScanTime = 64;
-static const int kSentinelValue = 4;
-static const int kBWTCharNumBits = 3;
-
-struct CX1Seq2Sdbg : public CX1<int, kNumBuckets> {
-
-  explicit CX1Seq2Sdbg(const seq2sdbg_opt_t &opt) :
+  explicit SeqToSdbg(const seq2sdbg_opt_t &opt) :
       host_mem(opt.host_mem), mem_flag(opt.mem_flag), num_cpu_threads(opt.num_cpu_threads),
       kmer_k(opt.kmer_k), kmer_from(opt.kmer_from),
       input_prefix(opt.input_prefix), output_prefix(opt.output_prefix),
       contig(opt.contig), bubble_seq(opt.bubble_seq), addi_contig(opt.addi_contig),
       local_contig(opt.local_contig), need_mercy(opt.need_mercy) {}
 
-  int64_t encode_lv1_diff_base_func_(int64_t, int &) override;
-  void prepare_func_(int &) override;  // num_items_, num_cpu_threads_ and num_cpu_threads_ must be set here
+  int64_t encode_lv1_diff_base_func_(int64_t) override;
+  void prepare_func_() override;  // num_items_, num_cpu_threads_ and num_cpu_threads_ must be set here
   void lv0_calc_bucket_size_func_(ReadPartition *) override;
-  void init_global_and_set_cx1_func_(int &) override;  // xxx set here
+  void init_global_and_set_cx1_func_() override;  // xxx set here
   void lv1_fill_offset_func_(ReadPartition *) override;
-  void lv2_extract_substr_(unsigned bucket_from, unsigned bucket_to, int &g, uint32_t *substr_ptr) override;
-  void output_(int64_t start_index, int64_t end_index, int thread_id, int &g, uint32_t *substrings) override;
-  void post_proc_func_(int &) override;
+  void lv2_extract_substr_(unsigned bucket_from, unsigned bucket_to, uint32_t *substr_ptr) override;
+  void output_(int64_t start_index, int64_t end_index, int thread_id, uint32_t *substrings) override;
+  void post_proc_func_() override;
 
  private:
   // input options
@@ -105,5 +98,4 @@ struct CX1Seq2Sdbg : public CX1<int, kNumBuckets> {
   SdbgWriter sdbg_writer;
   void GenMercyEdges();
 };
-}  // end of namespace cx1_seq2sdbg
-#endif  // CX1_SEQUENCES2SDBG_H__
+#endif  // MEGAHIT_SEQ_TO_SDBG_H

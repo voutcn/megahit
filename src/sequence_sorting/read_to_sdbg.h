@@ -18,14 +18,14 @@
 
 /* contact: Dinghua Li <dhli@cs.hku.hk> */
 
-#ifndef CX1_READ2SDBG_H__
-#define CX1_READ2SDBG_H__
+#ifndef MEGAHIT_READ_TO_SDBG_H
+#define MEGAHIT_READ_TO_SDBG_H
 
 #include <stdint.h>
 #include <mutex>
 #include <string>
 #include <vector>
-#include "cx1.h"
+#include "base_sequence_sorting_engine.h"
 #include "definitions.h"
 #include "kmlib/kmbitvector.h"
 #include "sdbg/sdbg_writer.h"
@@ -44,37 +44,33 @@ struct read2sdbg_opt_t {
   bool need_mercy{false};
 };
 
-namespace cx1_read2sdbg {
-
-static const int kBucketPrefixLength = 8;
-static const int kNumBuckets = 65536;  // pow(4, 8)
-static const int64_t kDefaultLv1ScanTime = 8;
-static const int64_t kMaxLv1ScanTime = 64;
-static const int kSentinelValue = 4;
-static const int64_t kMaxDummyEdges = 4294967294LL;
-static const int kBWTCharNumBits = 3;
-
 struct SeqPkgWithSolidMarker {
   SeqPackage package;
   AtomicBitVector is_solid;  // mark <read_id, offset> is solid
   int n_mercy_files;
 };
 
-struct CX1Read2Sdbg : public CX1<int, kNumBuckets> {
+class ReadToSdbg : public BaseSequenceSortingEngine {
+ public:
+  static const int kSentinelValue = 4;
+  static const int64_t kMaxDummyEdges = 4294967294LL;
+  static const int kBWTCharNumBits = 3;
 };
 
-struct CX1Read2SdbgS1 : public CX1Read2Sdbg {
-  CX1Read2SdbgS1(const read2sdbg_opt_t &opt, SeqPkgWithSolidMarker *pkg)
+class Read2SdbgS1 : public ReadToSdbg {
+ public:
+
+  Read2SdbgS1(const read2sdbg_opt_t &opt, SeqPkgWithSolidMarker *pkg)
       : opt(opt), seq_pkg_(pkg) {}
 
-  int64_t encode_lv1_diff_base_func_(int64_t, int &) override;
-  void prepare_func_(int &) override;  // num_items_, num_cpu_threads_ and num_cpu_threads_ must be set here
+  int64_t encode_lv1_diff_base_func_(int64_t) override;
+  void prepare_func_() override;  // num_items_, num_cpu_threads_ and num_cpu_threads_ must be set here
   void lv0_calc_bucket_size_func_(ReadPartition *) override;
-  void init_global_and_set_cx1_func_(int &) override;  // xxx set here
+  void init_global_and_set_cx1_func_() override;  // xxx set here
   void lv1_fill_offset_func_(ReadPartition *) override;
-  void lv2_extract_substr_(unsigned bucket_from, unsigned bucket_to, int &g, uint32_t *substr_ptr) override;
-  void output_(int64_t start_index, int64_t end_index, int thread_id, int &g, uint32_t *substrings) override;
-  void post_proc_func_(int &) override;
+  void lv2_extract_substr_(unsigned bucket_from, unsigned bucket_to, uint32_t *substr_ptr) override;
+  void output_(int64_t start_index, int64_t end_index, int thread_id, uint32_t *substrings) override;
+  void post_proc_func_() override;
  private:
   read2sdbg_opt_t opt;
   SeqPkgWithSolidMarker *seq_pkg_;
@@ -86,17 +82,17 @@ struct CX1Read2SdbgS1 : public CX1Read2Sdbg {
   std::vector<FILE *> mercy_files;
 };
 
-struct CX1Read2SdbgS2 : public CX1Read2Sdbg {
-  CX1Read2SdbgS2(const read2sdbg_opt_t &opt, SeqPkgWithSolidMarker *pkg)
+struct Read2SdbgS2 : public ReadToSdbg {
+  Read2SdbgS2(const read2sdbg_opt_t &opt, SeqPkgWithSolidMarker *pkg)
       :opt(opt), seq_pkg_(pkg) {}
-  int64_t encode_lv1_diff_base_func_(int64_t, int &) override;
-  void prepare_func_(int &) override;  // num_items_, num_cpu_threads_ and num_cpu_threads_ must be set here
+  int64_t encode_lv1_diff_base_func_(int64_t) override;
+  void prepare_func_() override;  // num_items_, num_cpu_threads_ and num_cpu_threads_ must be set here
   void lv0_calc_bucket_size_func_(ReadPartition *) override;
-  void init_global_and_set_cx1_func_(int &) override;  // xxx set here
+  void init_global_and_set_cx1_func_() override;  // xxx set here
   void lv1_fill_offset_func_(ReadPartition *) override;
-  void lv2_extract_substr_(unsigned bucket_from, unsigned bucket_to, int &g, uint32_t *substr_ptr) override;
-  void output_(int64_t start_index, int64_t end_index, int thread_id, int &g, uint32_t *substrings) override;
-  void post_proc_func_(int &) override;
+  void lv2_extract_substr_(unsigned bucket_from, unsigned bucket_to, uint32_t *substr_ptr) override;
+  void output_(int64_t start_index, int64_t end_index, int thread_id, uint32_t *substrings) override;
+  void post_proc_func_() override;
  private:
   read2sdbg_opt_t opt;
   SeqPkgWithSolidMarker *seq_pkg_;
@@ -107,6 +103,4 @@ struct CX1Read2SdbgS2 : public CX1Read2Sdbg {
   SdbgWriter sdbg_writer;
 };
 
-}  // namespace cx1_read2sdbg
-
-#endif  // CX1_READ2SDBG_H__
+#endif  // MEGAHIT_READ_TO_SDBG_H

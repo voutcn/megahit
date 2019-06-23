@@ -18,7 +18,7 @@
 
 /* contact: Dinghua Li <dhli@cs.hku.hk> */
 
-#include "cx1_seq2sdbg.h"
+#include "seq_to_sdbg.h"
 
 #include <omp.h>
 #include <sequence/readers/edge_io.h>
@@ -34,7 +34,7 @@
 
 #include "sorting.h"
 
-namespace cx1_seq2sdbg {
+namespace {
 
 /**
  * @brief encode seq_id and its offset in one int64_t
@@ -68,36 +68,31 @@ inline bool IsDiffKMinusOneMer(uint32_t *item1, uint32_t *item2, int64_t spacing
 }
 
 inline int Extract_a(uint32_t *item, int num_words, int64_t spacing, int kmer_k) {
-  int non_dollar = (item[(num_words - 1) * spacing] >> (kBWTCharNumBits + kBitsPerMul)) & 1;
+  int non_dollar = (item[(num_words - 1) * spacing] >> (SeqToSdbg::kBWTCharNumBits + kBitsPerMul)) & 1;
 
   if (non_dollar) {
     int which_word = (kmer_k - 1) / kCharsPerEdgeWord;
     int word_index = (kmer_k - 1) % kCharsPerEdgeWord;
     return (item[which_word * spacing] >> (kCharsPerEdgeWord - 1 - word_index) * kBitsPerEdgeChar) & kEdgeCharMask;
   } else {
-    return kSentinelValue;
+    return SeqToSdbg::kSentinelValue;
   }
 }
 
 inline int Extract_b(uint32_t *item, int num_words, int64_t spacing) {
-  return (item[(num_words - 1) * spacing] >> kBitsPerMul) & ((1 << kBWTCharNumBits) - 1);
+  return (item[(num_words - 1) * spacing] >> kBitsPerMul) & ((1 << SeqToSdbg::kBWTCharNumBits) - 1);
 }
 
 inline int ExtractCounting(uint32_t *item, int num_words, int64_t spacing) {
   return item[(num_words - 1) * spacing] & kMaxMul;
 }
 
-// cx1 core functions
-int64_t CX1Seq2Sdbg::encode_lv1_diff_base_func_(int64_t read_id, int &g) {
-  assert(read_id < (int64_t) package.Size());
-  return EncodeEdgeOffset(read_id, 0, 0, package);
-}
 
 /**
  * @brief build lkt for faster binary search for mercy
  */
 void InitLookupTable(int64_t *lookup_table, SeqPackage &p) {
-  memset(lookup_table, 0xFF, sizeof(int64_t) * kLookUpSize * 2);
+  memset(lookup_table, 0xFF, sizeof(int64_t) * SeqToSdbg::kLookUpSize * 2);
 
   if (p.Size() == 0) {
     return;
@@ -106,19 +101,19 @@ void InitLookupTable(int64_t *lookup_table, SeqPackage &p) {
   Kmer<1, uint32_t> kmer;
   kmer.InitFromPtr(p.WordPtrAndOffset(0).first, 0, 16);
 
-  uint32_t cur_prefix = kmer.data()[0] >> kLookUpShift;
+  uint32_t cur_prefix = kmer.data()[0] >> SeqToSdbg::kLookUpShift;
   lookup_table[cur_prefix * 2] = 0;
 
   for (int64_t i = 1, num_edges = p.Size(); i < num_edges; ++i) {
     auto ptr_and_offset = p.WordPtrAndOffset(i);
     kmer.InitFromPtr(ptr_and_offset.first, ptr_and_offset.second, 16);
 
-    if ((kmer.data()[0] >> kLookUpShift) > cur_prefix) {
+    if ((kmer.data()[0] >> SeqToSdbg::kLookUpShift) > cur_prefix) {
       lookup_table[cur_prefix * 2 + 1] = i - 1;
-      cur_prefix = kmer.data()[0] >> kLookUpShift;
+      cur_prefix = kmer.data()[0] >> SeqToSdbg::kLookUpShift;
       lookup_table[cur_prefix * 2] = i;
     } else {
-      assert(cur_prefix == (kmer.data()[0] >> kLookUpShift));
+      assert(cur_prefix == (kmer.data()[0] >> SeqToSdbg::kLookUpShift));
     }
   }
 
@@ -130,13 +125,13 @@ void InitLookupTable(int64_t *lookup_table, SeqPackage &p) {
  */
 int64_t BinarySearchKmer(GenericKmer &kmer, int64_t *lookup_table, SeqPackage &p, int kmer_size) {
   // --- first look up ---
-  int64_t l = lookup_table[(kmer.data()[0] >> kLookUpShift) * 2];
+  int64_t l = lookup_table[(kmer.data()[0] >> SeqToSdbg::kLookUpShift) * 2];
 
   if (l == -1) {
     return -1;
   }
 
-  int64_t r = lookup_table[(kmer.data()[0] >> kLookUpShift) * 2 + 1];
+  int64_t r = lookup_table[(kmer.data()[0] >> SeqToSdbg::kLookUpShift) * 2 + 1];
   GenericKmer mid_kmer;
 
   while (l <= r) {
@@ -157,7 +152,15 @@ int64_t BinarySearchKmer(GenericKmer &kmer, int64_t *lookup_table, SeqPackage &p
   return -1;
 }
 
-void CX1Seq2Sdbg::GenMercyEdges() {
+} // namespace
+
+// sequence_sorting core functions
+int64_t SeqToSdbg::encode_lv1_diff_base_func_(int64_t read_id) {
+  assert(read_id < (int64_t) package.Size());
+  return EncodeEdgeOffset(read_id, 0, 0, package);
+}
+
+void SeqToSdbg::GenMercyEdges() {
   std::vector<int64_t> edge_lookup(kLookUpSize * 2);
   InitLookupTable(edge_lookup.data(), package);
 
@@ -331,7 +334,7 @@ void CX1Seq2Sdbg::GenMercyEdges() {
   xinfo("Number of reads: %ld, Number of mercy edges: %ld\n", num_mercy_reads, num_mercy_edges);
 }
 
-void CX1Seq2Sdbg::prepare_func_(int &globals) {
+void SeqToSdbg::prepare_func_() {
   // reserve space
   {
     long long bases_to_reserve = 0;
@@ -455,18 +458,17 @@ void CX1Seq2Sdbg::prepare_func_(int &globals) {
   mem_low_bound *= 1.05;
 
   if (mem_low_bound > host_mem) {
-    xfatal("%lld bytes is not enough for CX1 sorting, please set -m parameter to at least %lld\n", host_mem,
+    xfatal("%lld bytes is not enough for BaseSequenceSortingEngine sorting, please set -m parameter to at least %lld\n", host_mem,
            mem_low_bound);
   }
 
-  // --- set cx1 param ---
+  // --- set sequence_sorting param ---
   SetNumCpuThreads(num_cpu_threads);;
   SetNumItems(package.Size());
 }
 
-void CX1Seq2Sdbg::lv0_calc_bucket_size_func_(ReadPartition *_data) {
+void SeqToSdbg::lv0_calc_bucket_size_func_(ReadPartition *_data) {
   auto &rp = *_data;
-  int &globals = *(rp.globals);
   auto &bucket_sizes = rp.rp_bucket_sizes;
   std::fill(bucket_sizes.begin(), bucket_sizes.end(), 0);
 
@@ -506,14 +508,14 @@ void CX1Seq2Sdbg::lv0_calc_bucket_size_func_(ReadPartition *_data) {
   }
 }
 
-void CX1Seq2Sdbg::init_global_and_set_cx1_func_(int &globals) {
+void SeqToSdbg::init_global_and_set_cx1_func_() {
   // --- calculate lv2 memory ---
   int64_t max_bucket_size =
       *std::max_element(GetBucketSizes().begin(), GetBucketSizes().end());
   int64_t tot_bucket_size = 0;
   int num_non_empty = 0;
 
-  for (int i = 0; i < kNumBuckets; ++i) {
+  for (unsigned i = 0; i < kNumBuckets; ++i) {
     tot_bucket_size += GetBucketSizes()[i];
 
     if (GetBucketSizes()[i] > 0) {
@@ -589,9 +591,8 @@ void CX1Seq2Sdbg::init_global_and_set_cx1_func_(int &globals) {
   sdbg_writer.InitFiles();
 }
 
-void CX1Seq2Sdbg::lv1_fill_offset_func_(ReadPartition *_data) {
+void SeqToSdbg::lv1_fill_offset_func_(ReadPartition *_data) {
   auto &rp = *_data;
-  int &globals = *(rp.globals);
   std::array<int64_t, kNumBuckets> prev_full_offsets;
 
   for (auto b = GetLv1StartBucket(); b < GetLv1EndBucket(); ++b)
@@ -648,8 +649,8 @@ void CX1Seq2Sdbg::lv1_fill_offset_func_(ReadPartition *_data) {
 #undef CHECK_AND_SAVE_OFFSET
 }
 
-void CX1Seq2Sdbg::lv2_extract_substr_(unsigned from_bucket,
-                                      unsigned to_bucket, int &globals, uint32_t *substr) {
+void SeqToSdbg::lv2_extract_substr_(unsigned from_bucket,
+                                      unsigned to_bucket, uint32_t *substr) {
   auto lv1_p = GetLv1Iterator(from_bucket);
 
   for (auto bucket = from_bucket; bucket < to_bucket; ++bucket) {
@@ -731,7 +732,7 @@ void CX1Seq2Sdbg::lv2_extract_substr_(unsigned from_bucket,
   }
 }
 
-void CX1Seq2Sdbg::output_(int64_t from, int64_t to, int tid, int &globals, uint32_t *substr) {
+void SeqToSdbg::output_(int64_t from, int64_t to, int tid, uint32_t *substr) {
   int64_t start_idx, end_idx;
   int has_solid_a = 0;  // has solid (k+1)-mer aSb
   int has_solid_b = 0;  // has solid aSb
@@ -823,7 +824,7 @@ void CX1Seq2Sdbg::output_(int64_t from, int64_t to, int tid, int &globals, uint3
   sdbg_writer.SaveSnapshot(snapshot);
 }
 
-void CX1Seq2Sdbg::post_proc_func_(int &globals) {
+void SeqToSdbg::post_proc_func_() {
   sdbg_writer.Finalize();
   xinfo("Number of $ A C G T A- C- G- T-:\n");
   xinfo("");
@@ -838,5 +839,3 @@ void CX1Seq2Sdbg::post_proc_func_(int &globals) {
 
   assert(sdbg_writer.final_meta().w_count(0) == sdbg_writer.final_meta().tip_count());
 }
-
-}  // namespace cx1_seq2sdbg

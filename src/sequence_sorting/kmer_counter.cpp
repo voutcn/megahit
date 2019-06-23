@@ -1,4 +1,4 @@
-#include "cx1_kmer_count.h"
+#include "kmer_counter.h"
 
 #include <omp.h>
 #include <string.h>
@@ -35,7 +35,7 @@ inline bool IsDifferentEdges(uint32_t *item1, uint32_t *item2, int num_words, in
 /**
  * @brief pack an edge and its multiplicity to word-aligned spaces
  */
-void CX1KmerCount::PackEdge(uint32_t *dest, uint32_t *item, int64_t counting) {
+void KmerCounter::PackEdge(uint32_t *dest, uint32_t *item, int64_t counting) {
   for (int i = 0; i < words_per_edge && i < words_per_substring; ++i) {
     dest[i] = *(item + i);
   }
@@ -57,14 +57,13 @@ void CX1KmerCount::PackEdge(uint32_t *dest, uint32_t *item, int64_t counting) {
   dest[words_per_edge - 1] |= std::min(int64_t(kMaxMul), counting);
 }
 
-// function pass to CX1
+// function pass to BaseSequenceSortingEngine
 
-int64_t CX1KmerCount::encode_lv1_diff_base_func_(int64_t read_id, int&) {
+int64_t KmerCounter::encode_lv1_diff_base_func_(int64_t read_id) {
   return EncodeOffset(read_id, 0, 0, package);
 }
 
-void CX1KmerCount::prepare_func_(int &) {  // num_items_, num_cpu_threads_ and
-  // num_cpu_threads_ must be set here
+void KmerCounter::prepare_func_() {
   bool is_reverse = true;
 
   int64_t num_bases, num_reads;
@@ -107,16 +106,16 @@ void CX1KmerCount::prepare_func_(int &) {  // num_items_, num_cpu_threads_ and
   mem_low_bound *= 1.05;
 
   if (mem_low_bound > host_mem) {
-    xfatal("%lld bytes is not enough for CX1 sorting, please set -m parameter to at least %lld\n", host_mem,
+    xfatal("%lld bytes is not enough for BaseSequenceSortingEngine sorting, please set -m parameter to at least %lld\n", host_mem,
            mem_low_bound);
   }
 
-  // set cx1 param
+  // set sequence_sorting param
   SetNumCpuThreads(num_cpu_threads);;
   SetNumItems(num_reads);
 }
 
-void CX1KmerCount::lv0_calc_bucket_size_func_(ReadPartition *_data) {
+void KmerCounter::lv0_calc_bucket_size_func_(ReadPartition *_data) {
   auto &rp = *(_data);
   std::array<int64_t, kNumBuckets> &bucket_sizes = rp.rp_bucket_sizes;
   std::fill(bucket_sizes.begin(), bucket_sizes.end(), 0);
@@ -154,14 +153,14 @@ void CX1KmerCount::lv0_calc_bucket_size_func_(ReadPartition *_data) {
   }
 }
 
-void CX1KmerCount::init_global_and_set_cx1_func_(int &) {
+void KmerCounter::init_global_and_set_cx1_func_() {
   // --- calculate lv2 memory ---
   int64_t max_bucket_size =
       *std::max_element(GetBucketSizes().begin(), GetBucketSizes().end());
   int64_t tot_bucket_size = 0;
   int num_non_empty = 0;
 
-  for (int i = 0; i < kNumBuckets; ++i) {
+  for (unsigned i = 0; i < kNumBuckets; ++i) {
     tot_bucket_size += GetBucketSizes()[i];
 
     if (GetBucketSizes()[i] > 0) {
@@ -248,7 +247,7 @@ void CX1KmerCount::init_global_and_set_cx1_func_(int &) {
   edge_writer.InitFiles();
 }
 
-void CX1KmerCount::lv1_fill_offset_func_(ReadPartition *_data) {
+void KmerCounter::lv1_fill_offset_func_(ReadPartition *_data) {
   auto &rp = *_data;
   std::array<int64_t, kNumBuckets> prev_full_offsets;
 
@@ -312,8 +311,7 @@ void CX1KmerCount::lv1_fill_offset_func_(ReadPartition *_data) {
 #undef CHECK_AND_SAVE_OFFSET
 }
 
-void CX1KmerCount::lv2_extract_substr_(unsigned start_bucket, unsigned end_bucket,
-                                       int &, uint32_t *substrings_p) {
+void KmerCounter::lv2_extract_substr_(unsigned start_bucket, unsigned end_bucket, uint32_t *substrings_p) {
   auto lv1_p = GetLv1Iterator(start_bucket);
 
   for (auto b = start_bucket; b < end_bucket; ++b) {
@@ -370,8 +368,7 @@ void CX1KmerCount::lv2_extract_substr_(unsigned start_bucket, unsigned end_bucke
   }
 }
 
-void CX1KmerCount::output_(int64_t start_index, int64_t end_index, int thread_id,
-                           int &, uint32_t *substrings) {
+void KmerCounter::output_(int64_t start_index, int64_t end_index, int thread_id, uint32_t *substrings) {
   uint32_t packed_edge[32];
   int64_t count_prev[5], count_next[5];
   auto &thread_edge_count = thread_edge_counting[thread_id];
@@ -491,7 +488,7 @@ void CX1KmerCount::output_(int64_t start_index, int64_t end_index, int thread_id
   edge_writer.SaveSnapshot(snapshot);
 }
 
-void CX1KmerCount::post_proc_func_(int &) {
+void KmerCounter::post_proc_func_() {
   std::vector<int64_t> edge_counting(kMaxMul + 1, 0);
   for (int t = 0; t < num_cpu_threads; ++t) {
     for (int i = 1; i <= kMaxMul; ++i) {

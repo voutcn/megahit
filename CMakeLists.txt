@@ -17,7 +17,7 @@ FILE(GLOB_RECURSE ASMBL_SOURCE "src/assembly/*.cpp")
 FILE(GLOB_RECURSE LCASM_SOURCE "src/localasm/*.cpp")
 FILE(GLOB_RECURSE IDBA_SOURCE "src/idba/*.cpp")
 FILE(GLOB_RECURSE SDBG_SOURCE "src/sdbg/*.cpp")
-FILE(GLOB_RECURSE CX1_SOURCE "src/cx1/*.cpp")
+FILE(GLOB_RECURSE CX1_SOURCE "src/sequence_sorting/*.cpp")
 FILE(GLOB_RECURSE SEQ_SOURCE "src/sequence/*.cpp")
 FILE(GLOB_RECURSE TOOLKIT_SOURCE "src/tools/*.cpp")
 

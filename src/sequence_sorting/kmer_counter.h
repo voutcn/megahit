@@ -18,14 +18,14 @@
 
 /* contact: Dinghua Li <dhli@cs.hku.hk> */
 
-#ifndef CX1_KMER_COUNT_H__
-#define CX1_KMER_COUNT_H__
+#ifndef MEGAHIT_KMER_COUNTER_H
+#define MEGAHIT_KMER_COUNTER_H
 
 #include <stdint.h>
 #include <mutex>
 #include <string>
 #include <vector>
-#include "cx1.h"
+#include "base_sequence_sorting_engine.h"
 #include "definitions.h"
 #include "sequence/lib_info.h"
 #include "sequence/readers/edge_io.h"
@@ -44,30 +44,26 @@ struct count_opt_t {
   bool need_mercy{true};
 };
 
-static const int kBucketPrefixLength = 8;
-static const int kNumBuckets = 65536;  // pow(4, 8)
-static const int64_t kDefaultLv1ScanTime = 8;
-static const int64_t kMaxLv1ScanTime = 64;
-static const int kSentinelValue = 4;
-static const uint32_t kSentinelOffset = 4294967295U;
-
-struct CX1KmerCount : public CX1<int, kNumBuckets> {
+class KmerCounter : public BaseSequenceSortingEngine {
  public:
-  CX1KmerCount(int kmer_k, int kmer_freq_threshold, int64_t host_mem, int mem_flag,  int num_cpu_threads,
+  static const int kSentinelValue = 4;
+  static const uint32_t kSentinelOffset = 4294967295U;
+
+  KmerCounter(int kmer_k, int kmer_freq_threshold, int64_t host_mem, int mem_flag,  int num_cpu_threads,
               const std::string &read_lib_file, const std::string &assist_seq_file, const std::string &output_prefix):
               kmer_k(kmer_k), kmer_freq_threshold(kmer_freq_threshold), host_mem(host_mem), mem_flag(mem_flag),
               num_cpu_threads(num_cpu_threads), read_lib_file(read_lib_file), assist_seq_file(assist_seq_file),
               output_prefix(output_prefix) {}
-  ~CX1KmerCount() final = default;
+  ~KmerCounter() final = default;
 
-  int64_t encode_lv1_diff_base_func_(int64_t, global_data_t &) override;
-  void prepare_func_(global_data_t &) override;  // num_items_, num_cpu_threads_ and num_cpu_threads_ must be set here
+  int64_t encode_lv1_diff_base_func_(int64_t) override;
+  void prepare_func_() override;  // num_items_, num_cpu_threads_ and num_cpu_threads_ must be set here
   void lv0_calc_bucket_size_func_(ReadPartition *) override;
-  void init_global_and_set_cx1_func_(global_data_t &) override;  // xxx set here
+  void init_global_and_set_cx1_func_() override;  // xxx set here
   void lv1_fill_offset_func_(ReadPartition *) override;
-  void lv2_extract_substr_(unsigned bucket_from, unsigned bucket_to, global_data_t &g, uint32_t *substr_ptr) override;
-  void output_(int64_t start_index, int64_t end_index, int thread_id, global_data_t &g, uint32_t *substrings) override;
-  void post_proc_func_(global_data_t &) override;
+  void lv2_extract_substr_(unsigned bucket_from, unsigned bucket_to, uint32_t *substr_ptr) override;
+  void output_(int64_t start_index, int64_t end_index, int thread_id, uint32_t *substrings) override;
+  void post_proc_func_() override;
 
  private:
   // input options
@@ -93,4 +89,4 @@ struct CX1KmerCount : public CX1<int, kNumBuckets> {
   void PackEdge(uint32_t *dest, uint32_t *item, int64_t counting);
 };
 
-#endif  // CX1_KMER_COUNT_H__
+#endif  // MEGAHIT_KMER_COUNTER_H

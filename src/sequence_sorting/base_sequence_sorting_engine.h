@@ -18,8 +18,8 @@
 
 /* contact: Dinghua Li <dhli@cs.hku.hk> */
 
-#ifndef CX1_H__
-#define CX1_H__
+#ifndef MEGAHIT_BASE_SEQUENCE_SORTING_ENGINE_H
+#define MEGAHIT_BASE_SEQUENCE_SORTING_ENGINE_H
 
 #include <assert.h>
 #include <stdint.h>
@@ -34,29 +34,31 @@
 #include "sorting.h"
 
 
-template<typename TGlobal, unsigned NBuckets>
-struct CX1 {
+class BaseSequenceSortingEngine {
  public:
-  virtual ~CX1() = default;
-  typedef TGlobal global_data_t;
-  // other settings, don't change
-  static const int kLv1BytePerItem = 4;  // 32-bit differatial offset
+  static const unsigned kBucketPrefixLength = 8;
+  static const unsigned kNumBuckets = 65536;  // pow(4, 8)
+  static const int64_t kDefaultLv1ScanTime = 8;
+  static const int64_t kMaxLv1ScanTime = 64;
+
+  static const unsigned kLv1BytePerItem = 4;  // 32-bit differatial offset
   static const uint64_t kSpDiffMaxNum = (1ULL << 32) - 1;
   static const int64_t kDifferentialLimit = (1ULL << 31) - 1;
 
   struct ReadPartition {
     // local data for each read partition (i.e. a subrange of input reads)
-    global_data_t *globals;
     int64_t rp_start_id, rp_end_id;  // start and end IDs of this read partition (end is exclusive)
-    std::array<int64_t, NBuckets> rp_bucket_sizes;
-    std::array<int64_t, NBuckets> rp_bucket_offsets;
+    std::array<int64_t, kNumBuckets> rp_bucket_sizes;
+    std::array<int64_t, kNumBuckets> rp_bucket_offsets;
     int64_t rp_lv1_differential_base;  // the initial offset globals.lv1_items
   };
-  // param: must be set
-  global_data_t *g_;
+
+ public:
+  BaseSequenceSortingEngine() = default;
+  virtual ~BaseSequenceSortingEngine() = default;
 
  private:
-  // may change as cx1 goes
+  // may change as sequence_sorting goes
   int64_t lv1_num_items_{};
   unsigned lv1_start_bucket_{}, lv1_end_bucket_{};
   std::vector<bool> cur_lv1_buckets_;
@@ -64,9 +66,9 @@ struct CX1 {
   std::vector<int32_t> lv1_offsets_;
   std::mutex special_item_lock_;
 
-  std::array<int64_t, NBuckets> bucket_sizes_;
-  std::array<int, NBuckets> ori_bucket_id_;
-  std::array<int, NBuckets> bucket_rank_;
+  std::array<int64_t, kNumBuckets> bucket_sizes_;
+  std::array<int, kNumBuckets> ori_bucket_id_;
+  std::array<int, kNumBuckets> bucket_rank_;
   std::vector<ReadPartition> rp_;
 
  public:
@@ -106,7 +108,7 @@ struct CX1 {
     return reinterpret_cast<uint32_t *>(lv1_offsets_.data());
   }
 
-  const std::array<int64_t, NBuckets> &GetBucketSizes() const {
+  const std::array<int64_t, kNumBuckets> &GetBucketSizes() const {
     return bucket_sizes_;
   }
 
@@ -143,18 +145,16 @@ struct CX1 {
   }
   size_t GetWordsPerSortingItem() const { return words_per_sorting_item_; }
 
-  // === functions to specify a CX1 instance ===
+  // === functions to specify a BaseSequenceSortingEngine instance ===
  public:
-  virtual int64_t encode_lv1_diff_base_func_(int64_t, global_data_t &) = 0;
-  virtual void prepare_func_(global_data_t &) = 0;  // num_items_, num_cpu_threads_ and num_cpu_threads_ must be set here
+  virtual int64_t encode_lv1_diff_base_func_(int64_t) = 0;
+  virtual void prepare_func_() = 0;  // num_items_, num_cpu_threads_ and num_cpu_threads_ must be set here
   virtual void lv0_calc_bucket_size_func_(ReadPartition *) = 0;
-  virtual void init_global_and_set_cx1_func_(global_data_t &) = 0;  // xxx set here
+  virtual void init_global_and_set_cx1_func_() = 0;  // xxx set here
   virtual void lv1_fill_offset_func_(ReadPartition *) = 0;
-  virtual void lv2_extract_substr_(unsigned bucket_from, unsigned bucket_to, TGlobal &g, uint32_t *substr_ptr) = 0;
-  virtual void output_(int64_t start_index, int64_t end_index, int thread_id, TGlobal &g, uint32_t *substrings) = 0;
-  virtual void post_proc_func_(global_data_t &) = 0;
-
-  CX1() = default;
+  virtual void lv2_extract_substr_(unsigned bucket_from, unsigned bucket_to, uint32_t *substr_ptr) = 0;
+  virtual void output_(int64_t start_index, int64_t end_index, int thread_id, uint32_t *substrings) = 0;
+  virtual void post_proc_func_() = 0;
 
   // === single thread functions ===
   static void adjust_mem(int64_t mem_avail, int64_t bytes_per_sorting_item, int64_t min_lv1_items,
@@ -183,7 +183,7 @@ struct CX1 {
     }
 
     if (num_sorting_items < min_sorting_items) {
-      xfatal("No enough memory to process CX1.\n");
+      xfatal("No enough memory to process BaseSequenceSortingEngine.\n");
     }
 
     // --- adjust num_sorting_items to fit more lv1 item ---
@@ -203,30 +203,29 @@ struct CX1 {
 
     for (unsigned t = 0; t < num_cpu_threads_; ++t) {
       struct ReadPartition &rp = rp_[t];
-      rp.globals = g_;
       // distribute reads to partitions
       int64_t average = num_items_ / num_cpu_threads_;
       rp.rp_start_id = t * average;
       rp.rp_end_id = t < num_cpu_threads_ - 1 ? (t + 1) * average : num_items_;
-      rp.rp_lv1_differential_base = encode_lv1_diff_base_func_(rp.rp_start_id, *g_);
+      rp.rp_lv1_differential_base = encode_lv1_diff_base_func_(rp.rp_start_id);
     }
 
-    for (unsigned i = 0; i < NBuckets; ++i) {
+    for (unsigned i = 0; i < kNumBuckets; ++i) {
       ori_bucket_id_[i] = i;
       bucket_rank_[i] = i;
     }
   }
 
   inline void reorder_buckets_() {
-    std::vector<std::pair<int64_t, int> > tmp_v(NBuckets);
+    std::vector<std::pair<int64_t, int> > tmp_v(kNumBuckets);
 
-    for (unsigned i = 0; i < NBuckets; ++i) {
+    for (unsigned i = 0; i < kNumBuckets; ++i) {
       tmp_v[i] = std::make_pair(bucket_sizes_[i], i);
     }
 
     std::sort(tmp_v.rbegin(), tmp_v.rend());
 
-    for (unsigned i = 0; i < NBuckets; ++i) {
+    for (unsigned i = 0; i < kNumBuckets; ++i) {
       bucket_sizes_[i] = tmp_v[i].first;
       ori_bucket_id_[i] = tmp_v[i].second;
       bucket_rank_[tmp_v[i].second] = i;
@@ -234,7 +233,7 @@ struct CX1 {
 
     for (unsigned tid = 0; tid < num_cpu_threads_; ++tid) {
       auto old_rp_bucket_sizes = rp_[tid].rp_bucket_sizes;
-      for (unsigned i = 0; i < NBuckets; ++i) {
+      for (unsigned i = 0; i < kNumBuckets; ++i) {
         rp_[tid].rp_bucket_sizes[i] = old_rp_bucket_sizes[tmp_v[i].second];
       }
     }
@@ -247,7 +246,7 @@ struct CX1 {
     unsigned used_threads = 0;
     int64_t mem_sorting_items = 0;
 
-    cur_lv1_buckets_.resize(NBuckets);
+    cur_lv1_buckets_.resize(kNumBuckets);
     std::fill(cur_lv1_buckets_.begin(), cur_lv1_buckets_.end(), false);
 
     while (end_bucket < end_limit) {
@@ -300,7 +299,7 @@ struct CX1 {
 
     // the array accesses in this loop are optimized by the compiler??
     for (unsigned t = 0; t < num_cpu_threads_; ++t) {
-      for (unsigned b = 0; b < NBuckets; ++b) {
+      for (unsigned b = 0; b < kNumBuckets; ++b) {
         bucket_sizes_[b] += rp_[t].rp_bucket_sizes[b];
       }
     }
@@ -341,9 +340,9 @@ struct CX1 {
 
     size_t offset = GetLv1NumItems() + thread_status->thread_offset[tid] * GetWordsPerSortingItem();
     auto substr_ptr = Lv1DataPtr() + offset;
-    lv2_extract_substr_(b, b + 1, *g_, substr_ptr);
+    lv2_extract_substr_(b, b + 1, substr_ptr);
     substr_sort_(substr_ptr, GetBucketSizes()[b]);
-    output_(0, GetBucketSizes()[b], tid, *g_, substr_ptr);
+    output_(0, GetBucketSizes()[b], tid, substr_ptr);
   }
 
   void lv1_fetch_and_sort_mt_() {
@@ -365,7 +364,7 @@ struct CX1 {
     lv0_timer.start();
     xinfo("Preparing data...\n");
 
-    prepare_func_(*g_);
+    prepare_func_();
 
     lv0_timer.stop();
     xinfo("Preparing data... Done. Time elapsed: %.4f\n", lv0_timer.elapsed());
@@ -378,7 +377,7 @@ struct CX1 {
     // calc bucket size
     lv0_calc_bucket_size_mt_();
     // init global datas
-    init_global_and_set_cx1_func_(*g_);
+    init_global_and_set_cx1_func_();
 
     reorder_buckets_();
     lv0_timer.stop();
@@ -391,14 +390,14 @@ struct CX1 {
     int lv1_iteration = 0;
     lv1_start_bucket_ = 0;
 
-    while (lv1_start_bucket_ < NBuckets) {
+    while (lv1_start_bucket_ < kNumBuckets) {
       SimpleTimer lv1_timer;
       lv1_iteration++;
       // --- finds the bucket range for this iteration ---
-      lv1_end_bucket_ = find_end_buckets_with_rank_(lv1_start_bucket_, NBuckets, max_mem_remain_,
+      lv1_end_bucket_ = find_end_buckets_with_rank_(lv1_start_bucket_, kNumBuckets, max_mem_remain_,
                                                     words_per_sorting_item_ * sizeof(uint32_t), lv1_num_items_);
 
-      if (lv1_num_items_ == 0 && lv1_end_bucket_ < NBuckets) {
+      if (lv1_num_items_ == 0 && lv1_end_bucket_ < kNumBuckets) {
         fprintf(stderr, "Bucket %d too large for lv1: %lld > %lld\n", lv1_end_bucket_,
                 static_cast<long long>(bucket_sizes_[lv1_end_bucket_]), static_cast<long long>(max_lv1_items_));
         exit(1);
@@ -434,10 +433,10 @@ struct CX1 {
     lv0_timer.reset();
     lv0_timer.start();
     xinfo("Postprocessing...\n");
-    post_proc_func_(*g_);
+    post_proc_func_();
     lv0_timer.stop();
     xinfo("Postprocess done. Time elapsed: %.4f\n", lv0_timer.elapsed());
   }
 };
 
-#endif  // CX1_H__
+#endif  // MEGAHIT_BASE_SEQUENCE_SORTING_ENGINE_H
