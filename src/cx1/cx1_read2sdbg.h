@@ -54,72 +54,56 @@ static const int kSentinelValue = 4;
 static const int64_t kMaxDummyEdges = 4294967294LL;
 static const int kBWTCharNumBits = 3;
 
-struct read2sdbg_global_t;
+struct SeqPkgWithSolidMarker {
+  SeqPackage package;
+  AtomicBitVector is_solid;  // mark <read_id, offset> is solid
+  int n_mercy_files;
+};
 
-struct CX1Read2Sdbg : public CX1<read2sdbg_global_t, kNumBuckets> {
+struct CX1Read2Sdbg : public CX1<int, kNumBuckets> {
 };
 
 struct CX1Read2SdbgS1 : public CX1Read2Sdbg {
-  int64_t encode_lv1_diff_base_func_(int64_t, global_data_t &) override;
-  void prepare_func_(global_data_t &) override;  // num_items_, num_cpu_threads_ and num_cpu_threads_ must be set here
+  CX1Read2SdbgS1(const read2sdbg_opt_t &opt, SeqPkgWithSolidMarker *pkg)
+      : opt(opt), seq_pkg_(pkg) {}
+
+  int64_t encode_lv1_diff_base_func_(int64_t, int &) override;
+  void prepare_func_(int &) override;  // num_items_, num_cpu_threads_ and num_cpu_threads_ must be set here
   void lv0_calc_bucket_size_func_(ReadPartition *) override;
-  void init_global_and_set_cx1_func_(global_data_t &) override;  // xxx set here
+  void init_global_and_set_cx1_func_(int &) override;  // xxx set here
   void lv1_fill_offset_func_(ReadPartition *) override;
-  void lv2_extract_substr_(unsigned bucket_from, unsigned bucket_to, global_data_t &g, uint32_t *substr_ptr) override;
-  void output_(int64_t start_index, int64_t end_index, int thread_id, global_data_t &g, uint32_t *substrings) override;
-  void post_proc_func_(global_data_t &) override;
+  void lv2_extract_substr_(unsigned bucket_from, unsigned bucket_to, int &g, uint32_t *substr_ptr) override;
+  void output_(int64_t start_index, int64_t end_index, int thread_id, int &g, uint32_t *substrings) override;
+  void post_proc_func_(int &) override;
+ private:
+  read2sdbg_opt_t opt;
+  SeqPkgWithSolidMarker *seq_pkg_;
+
+  int64_t words_per_substring;  // substrings to be sorted by GPU
+  // stat-stage1
+  std::vector<std::vector<int64_t>> thread_edge_counting;
+  // output-stage1
+  std::vector<FILE *> mercy_files;
 };
 
 struct CX1Read2SdbgS2 : public CX1Read2Sdbg {
-  int64_t encode_lv1_diff_base_func_(int64_t, global_data_t &) override;
-  void prepare_func_(global_data_t &) override;  // num_items_, num_cpu_threads_ and num_cpu_threads_ must be set here
+  CX1Read2SdbgS2(const read2sdbg_opt_t &opt, SeqPkgWithSolidMarker *pkg)
+      :opt(opt), seq_pkg_(pkg) {}
+  int64_t encode_lv1_diff_base_func_(int64_t, int &) override;
+  void prepare_func_(int &) override;  // num_items_, num_cpu_threads_ and num_cpu_threads_ must be set here
   void lv0_calc_bucket_size_func_(ReadPartition *) override;
-  void init_global_and_set_cx1_func_(global_data_t &) override;  // xxx set here
+  void init_global_and_set_cx1_func_(int &) override;  // xxx set here
   void lv1_fill_offset_func_(ReadPartition *) override;
-  void lv2_extract_substr_(unsigned bucket_from, unsigned bucket_to, global_data_t &g, uint32_t *substr_ptr) override;
-  void output_(int64_t start_index, int64_t end_index, int thread_id, global_data_t &g, uint32_t *substrings) override;
-  void post_proc_func_(global_data_t &) override;
-};
+  void lv2_extract_substr_(unsigned bucket_from, unsigned bucket_to, int &g, uint32_t *substr_ptr) override;
+  void output_(int64_t start_index, int64_t end_index, int thread_id, int &g, uint32_t *substrings) override;
+  void post_proc_func_(int &) override;
+ private:
+  read2sdbg_opt_t opt;
+  SeqPkgWithSolidMarker *seq_pkg_;
 
-struct read2sdbg_global_t {
-  std::unique_ptr<CX1Read2Sdbg> cx1;
-
-  // input options
-  int max_read_length;
-  int kmer_k;
-  int kmer_freq_threshold;
-  int num_cpu_threads;
-  int64_t host_mem;
-  int mem_flag;
-  bool need_mercy;
-  std::string read_lib_file;
-  std::string assist_seq_file;
-  std::string output_prefix;
-
-  int num_mercy_files;
   int64_t words_per_substring;  // substrings to be sorted by GPU
   int words_per_dummy_node;
-  int64_t max_bucket_size;
-  int64_t tot_bucket_size;
-  int64_t num_short_reads;  // total number of short reads
-  // new sorting
-  int64_t max_sorting_items;
 
-  // big arrays
-  SeqPackage package;
-  std::vector<lib_info_t> lib_info;
-  AtomicBitVector is_solid;  // mark <read_id, offset> is solid
-
-  // memory usage
-  int64_t mem_packed_reads;
-
-  // stat-stage1
-  std::vector<std::vector<int64_t>> thread_edge_counting;
-
-  // output-stage1
-  std::vector<FILE *> mercy_files;
-
-  // output-stage2
   SdbgWriter sdbg_writer;
 };
 

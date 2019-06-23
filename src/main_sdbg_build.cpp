@@ -126,30 +126,26 @@ int main_read2sdbg(int argc, char **argv) {
     exit(1);
   }
 
-  cx1_read2sdbg::read2sdbg_global_t globals;
-  globals.kmer_k = opt.kmer_k;
-  globals.kmer_freq_threshold = opt.kmer_freq_threshold;
-  globals.host_mem = opt.host_mem;
-  globals.num_cpu_threads = opt.num_cpu_threads;
-  globals.read_lib_file = opt.read_lib_file;
-  globals.assist_seq_file = opt.assist_seq_file;
-  globals.output_prefix = opt.output_prefix;
-  globals.mem_flag = opt.mem_flag;
-  globals.need_mercy = opt.need_mercy;
-  globals.cx1.reset(new cx1_read2sdbg::CX1Read2SdbgS1());
-  globals.cx1->g_ = &globals;
+  int globals;
+  cx1_read2sdbg::SeqPkgWithSolidMarker pkg;
 
-  // stage1
-  if (opt.kmer_freq_threshold > 1) {
-    globals.cx1->run();
-  } else {
-    globals.cx1->prepare_func_(globals);
+  {
+    // stage 1
+    cx1_read2sdbg::CX1Read2SdbgS1 runner(opt, &pkg);
+    runner.g_ = &globals;
+    if (opt.kmer_freq_threshold > 1) {
+      runner.run();
+    } else {
+      runner.prepare_func_(globals);
+    }
   }
 
-  // stage2
-  globals.cx1.reset(new cx1_read2sdbg::CX1Read2SdbgS2());
-  globals.cx1->g_ = &globals;
-  globals.cx1->run();
+  {
+    // stage 2
+    cx1_read2sdbg::CX1Read2SdbgS2 runner(opt, &pkg);
+    runner.g_ = &globals;
+    runner.run();
+  }
 
   return 0;
 }
