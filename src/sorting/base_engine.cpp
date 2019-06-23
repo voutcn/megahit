@@ -192,39 +192,39 @@ void BaseSequenceSortingEngine::Run() {
 void BaseSequenceSortingEngine::Lv0PrepareThreadPartition() {
   thread_meta_.resize(n_threads_);
   for (unsigned t = 0; t < n_threads_; ++t) {
-    ThreadMeta &rp = thread_meta_[t];
+    ThreadMeta &meta = thread_meta_[t];
     // distribute reads to partitions
     int64_t average = meta_.num_sequences / n_threads_;
-    rp.seq_from = t * average;
-    rp.seq_to = t < n_threads_ - 1 ? (t + 1) * average : meta_.num_sequences;
-    rp.offset_base = Lv0EncodeDiffBase(rp.seq_from);
+    meta.seq_from = t * average;
+    meta.seq_to = t < n_threads_ - 1 ? (t + 1) * average : meta_.num_sequences;
+    meta.offset_base = Lv0EncodeDiffBase(meta.seq_from);
   }
 
   for (unsigned i = 0; i < kNumBuckets; ++i) {
-    ori_bucket_id_[i] = i;
+    bucket_real_id[i] = i;
     bucket_rank_[i] = i;
   }
 }
 
 void BaseSequenceSortingEngine::Lv0ReorderBuckets() {
-  std::vector<std::pair<int64_t, int> > tmp_v(kNumBuckets);
+  std::vector<std::pair<int64_t, int> > size_and_id(kNumBuckets);
 
   for (unsigned i = 0; i < kNumBuckets; ++i) {
-    tmp_v[i] = std::make_pair(bucket_sizes_[i], i);
+    size_and_id[i] = std::make_pair(bucket_sizes_[i], i);
   }
 
-  std::sort(tmp_v.rbegin(), tmp_v.rend());
+  std::sort(size_and_id.rbegin(), size_and_id.rend());
 
   for (unsigned i = 0; i < kNumBuckets; ++i) {
-    bucket_sizes_[i] = tmp_v[i].first;
-    ori_bucket_id_[i] = tmp_v[i].second;
-    bucket_rank_[tmp_v[i].second] = i;
+    bucket_sizes_[i] = size_and_id[i].first;
+    bucket_real_id[i] = size_and_id[i].second;
+    bucket_rank_[size_and_id[i].second] = i;
   }
 
   for (unsigned tid = 0; tid < n_threads_; ++tid) {
-    auto old_rp_bucket_sizes = thread_meta_[tid].bucket_sizes;
+    auto old_bucket_sizes = thread_meta_[tid].bucket_sizes;
     for (unsigned i = 0; i < kNumBuckets; ++i) {
-      thread_meta_[tid].bucket_sizes[i] = old_rp_bucket_sizes[tmp_v[i].second];
+      thread_meta_[tid].bucket_sizes[i] = old_bucket_sizes[bucket_real_id[i]];
     }
   }
 }
@@ -250,7 +250,7 @@ unsigned BaseSequenceSortingEngine::Lv1FindEndBuckets(unsigned start_bucket) {
     }
 
     lv1_num_items_ += bucket_sizes_[end_bucket];
-    cur_lv1_buckets_[ori_bucket_id_[end_bucket]] = true;
+    cur_lv1_buckets_[bucket_real_id[end_bucket]] = true;
     ++end_bucket;
   }
 
@@ -296,7 +296,7 @@ void BaseSequenceSortingEngine::Lv1FetchAndSortLaunchMt() {
   thread_status.rank.resize(n_threads_, 0);
   omp_set_num_threads(n_threads_);
 #pragma omp parallel for schedule(dynamic)
-  for (auto i = GetLv1StartBucket(); i < GetLv1EndBucket(); ++i) {
+  for (auto i = lv1_start_bucket_; i < lv1_end_bucket_; ++i) {
     Lv2Sort(&thread_status, i, omp_get_thread_num());
   }
 }

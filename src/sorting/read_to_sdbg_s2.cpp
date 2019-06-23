@@ -128,7 +128,8 @@ Read2SdbgS2::Meta Read2SdbgS2::Initialize() {
   read_marker.reset(seq_pkg_->package.SeqCount());
 
   for (int fid = 0; fid < seq_pkg_->n_mercy_files; ++fid) {
-    FILE *fp = xfopen(FormatString("%s.mercy_cand.%d", opt_.output_prefix.c_str(), fid), "rb");
+    auto file_name = opt_.output_prefix + ".mercy_cand" + std::to_string(fid);
+    FILE *fp = xfopen(file_name.c_str(), "rb");
     mercy_cand.clear();
 
     int num_read = 0;
@@ -137,8 +138,8 @@ Read2SdbgS2::Meta Read2SdbgS2::Initialize() {
     while ((num_read = fread(buf, sizeof(uint64_t), 4096, fp)) > 0) {
       mercy_cand.insert(mercy_cand.end(), buf, buf + num_read);
     }
-    xinfo("Mercy file: %s, %lu\n", FormatString("%s.mercy_cand.%d", opt_.output_prefix.c_str(), fid),
-          mercy_cand.size());
+
+    xinfo("Mercy file: %s, %lu\n", file_name.c_str(), mercy_cand.size());
 
     omp_set_num_threads(opt_.n_threads);
     __gnu_parallel::sort(mercy_cand.begin(), mercy_cand.end());

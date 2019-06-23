@@ -24,26 +24,6 @@ class BaseSequenceSortingEngine {
   static const unsigned kLv1BytePerItem = 4;  // 32-bit differential offset
   static const int64_t kDifferentialLimit = (1llu << 31u) - 1;
 
-  //  Sequence divided into n_threads_ partitions
-  //  Each thread read one partition when filling Lv1 offsets, but it will fill multiple buckets
-  //
-  //  SequenceView
-  //  <--------------p0--------------><--------------p1-------------->
-  //  |t0---------------------------->|t1---------------------------->
-  //
-  //  BucketView:
-  //  <------b0------><------b1------><------b2------><------b3------>
-  //  |t0---->|t1---->|t0---->|t1---->|t0---->|t1---->|t0---->|t1---->
-  //  |                                       |
-  //  \ bucket_begin[0] in thread_meta_[0]    \ bucket_begin[2] in thread_meta_[1]
-
-  struct ThreadMeta {
-    int64_t seq_from, seq_to;  // start and end IDs of this sequence partition (end is exclusive)
-    std::array<int64_t, kNumBuckets> bucket_sizes;
-    std::array<int64_t, kNumBuckets> bucket_begin;
-    int64_t offset_base;  // the initial offset globals.lv1_items
-  };
-
   struct Meta {
     int64_t num_sequences;
     int64_t memory_for_data;
@@ -67,10 +47,31 @@ class BaseSequenceSortingEngine {
   std::vector<uint32_t> lv1_offsets_;
   std::mutex special_item_lock_;
 
+ private:
+  //  Sequence divided into n_threads_ partitions
+  //  Each thread read one partition when filling Lv1 offsets, but it will fill multiple buckets
+  //
+  //  SequenceView
+  //  <--------------p0--------------><--------------p1-------------->
+  //  |t0---------------------------->|t1---------------------------->
+  //
+  //  BucketView:
+  //  <------b0------><------b1------><------b2------><------b3------>
+  //  |t0---->|t1---->|t0---->|t1---->|t0---->|t1---->|t0---->|t1---->
+  //  |                                       |
+  //  \ bucket_begin[0] in thread_meta_[0]    \ bucket_begin[2] in thread_meta_[1]
+
+  struct ThreadMeta {
+    int64_t seq_from, seq_to;  // start and end IDs of this sequence partition (end is exclusive)
+    std::array<int64_t, kNumBuckets> bucket_sizes;
+    std::array<int64_t, kNumBuckets> bucket_begin;
+    int64_t offset_base;  // the initial offset globals.lv1_items
+  };
+
   std::vector<ThreadMeta> thread_meta_;
   std::array<int64_t, kNumBuckets> bucket_sizes_{};
-  std::array<int, kNumBuckets> ori_bucket_id_{};
-  std::array<int, kNumBuckets> bucket_rank_{};
+  std::array<unsigned, kNumBuckets> bucket_real_id{};
+  std::array<unsigned, kNumBuckets> bucket_rank_{};
 
  protected:
   /**
@@ -86,8 +87,8 @@ class BaseSequenceSortingEngine {
     }
 
     void WriteNextOffset(unsigned bucket, int64_t full_offset) {
-      assert(engine_->HandlingBucket(bucket));
-      bucket = engine_->GetBucketRank(bucket);
+      assert(IsHandling(bucket));
+      bucket = engine_->bucket_rank_[bucket];
       int64_t diff = full_offset - prev_full_offsets_[bucket];
       int64_t index = bucket_index_[bucket]++;
       engine_->WriteOffset(index, diff, full_offset);
@@ -95,7 +96,7 @@ class BaseSequenceSortingEngine {
     }
 
     bool IsHandling(unsigned bucket) const {
-      return engine_->HandlingBucket(bucket);
+      return engine_->cur_lv1_buckets_[bucket];
     }
 
    private:
@@ -103,6 +104,7 @@ class BaseSequenceSortingEngine {
     std::array<int64_t, kNumBuckets> prev_full_offsets_;
     std::array<int64_t, kNumBuckets> bucket_index_;
   };
+
   /**
    * Iterator to fetch full offset from given buckets
    */
@@ -162,17 +164,11 @@ class BaseSequenceSortingEngine {
     std::vector<uint32_t>::const_iterator diff_iter_;
   };
 
-  unsigned GetLv1StartBucket() const { return lv1_start_bucket_; }
-  unsigned GetLv1EndBucket() const { return lv1_end_bucket_; }
-  int64_t GetLv1NumItems() const { return lv1_num_items_; }
-
-  /**
-   * whether the bucket is being handled in current stage
-   */
-  bool HandlingBucket(unsigned bucket) const {
-    return cur_lv1_buckets_[bucket];
+  OffsetFetcher GetOffsetFetcher(unsigned start_bucket, unsigned end_bucket) {
+    return OffsetFetcher(this, start_bucket, end_bucket);
   }
 
+ private:
   void WriteOffset(size_t index, int64_t diff, int64_t full_offset) {
     if (diff > kDifferentialLimit) {
       int64_t bucket = kDifferentialLimit + 1 + AddSpecialOffset(full_offset);
@@ -186,11 +182,6 @@ class BaseSequenceSortingEngine {
     }
   }
 
-  OffsetFetcher GetOffsetFetcher(unsigned start_bucket, unsigned end_bucket) {
-    return OffsetFetcher(this, start_bucket, end_bucket);
-  }
-
- private:
   int64_t AddSpecialOffset(int64_t offset) {
     std::lock_guard<std::mutex> lk(special_item_lock_);
     int64_t ret = lv1_special_offsets_.size();
@@ -202,8 +193,6 @@ class BaseSequenceSortingEngine {
     assert(bucket > kDifferentialLimit);
     return lv1_special_offsets_[bucket - (kDifferentialLimit + 1)];
   }
-
-  int GetBucketRank(unsigned bucket) const { return bucket_rank_[bucket]; }
 
  private:
   /**

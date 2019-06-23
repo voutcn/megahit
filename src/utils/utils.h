@@ -99,15 +99,6 @@ inline const char *GetFile(const char *filename, const char *rootname) {
 #define UNLIKELY(x) (x)
 #endif
 
-inline char *FormatString(const char *fmt, ...) {
-  static char buffer[1u << 20];
-  va_list args;
-  va_start(args, fmt);
-  vsprintf(buffer, fmt, args);
-  va_end(args);
-  return buffer;
-}
-
 struct SimpleTimer {
   timeval tv1, tv2;
   long long time_elapsed;

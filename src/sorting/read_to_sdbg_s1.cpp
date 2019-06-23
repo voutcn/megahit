@@ -120,7 +120,8 @@ Read2SdbgS1::Meta Read2SdbgS1::Initialize() {
   xinfo("Number of files for mercy candidate reads: %d\n", seq_pkg_->n_mercy_files);
 
   for (int i = 0; i < seq_pkg_->n_mercy_files; ++i) {
-    mercy_files_.push_back(xfopen(FormatString("%s.mercy_cand.%d", opt_.output_prefix.c_str(), i), "wb"));
+    auto file_name = opt_.output_prefix + ".mercy_cand" + std::to_string(i);
+    mercy_files_.push_back(xfopen(file_name.c_str(), "wb"));
   }
 
   // --- initialize stat ---

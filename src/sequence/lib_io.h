@@ -62,7 +62,7 @@ inline void ReadAndWriteMultipleLibs(const std::string &lib_file, const std::str
     xfatal("File to open read_lib file: %s\n", lib_file.c_str());
   }
 
-  FILE *bin_file = xfopen(FormatString("%s.bin", out_prefix.c_str()), "wb");
+  FILE *bin_file = xfopen((out_prefix + ".bin").c_str(), "wb");
 
   SeqPackage seq_batch;
   std::vector<lib_info_t> lib_info;
@@ -131,7 +131,7 @@ inline void ReadAndWriteMultipleLibs(const std::string &lib_file, const std::str
     std::getline(lib_config, metadata);  // eliminate the "\n"
   }
 
-  FILE *lib_info_file = xfopen(FormatString("%s.lib_info", out_prefix.c_str()), "w");
+  FILE *lib_info_file = xfopen((out_prefix + ".lib_info").c_str(), "w");
   fprintf(lib_info_file, "%zu %zu\n", total_bases, total_reads);
 
   for (auto &i : lib_info) {
