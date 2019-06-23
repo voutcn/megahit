@@ -406,89 +406,75 @@ void Read2SdbgS2::Lv1FillOffsets(ReadPartition *_data) {
 #undef CHECK_AND_SAVE_OFFSET
 }
 
-void Read2SdbgS2::Lv2ExtractSubString(unsigned bp_from, unsigned bp_to, uint32_t *substr) {
-  auto lv1_p = GetLv1Iterator(bp_from);
+void Read2SdbgS2::Lv2ExtractSubString(unsigned start_bucket, unsigned end_bucket, uint32_t *substr) {
+  auto offset_iterator = GetOffsetIterator(start_bucket, end_bucket);
 
-  for (auto b = bp_from; b < bp_to; ++b) {
-    for (int t = 0; t < opt_.n_threads; ++t) {
-      int64_t full_offset = GetReadPartition(t).rp_lv1_differential_base;
-      int64_t num = GetReadPartition(t).rp_bucket_sizes[b];
+  while (offset_iterator.HasNext()) {
+    int64_t full_offset = offset_iterator.Next();
 
-      for (int64_t i = 0; i < num; ++i) {
-        if (*lv1_p <= kDifferentialLimit) {
-          full_offset += *(lv1_p++);
-        } else {
-          full_offset = GetSpecialOffset(*(lv1_p++));
-        }
+    int64_t read_id = seq_pkg_->package.GetSeqID(full_offset >> 3);
+    int offset = (full_offset >> 3) - seq_pkg_->package.StartPos(read_id);
+    int strand = full_offset & 1;
+    int edge_type = (full_offset >> 1) & 3;
+    int read_length = seq_pkg_->package.SequenceLength(read_id);
 
-        int64_t read_id = seq_pkg_->package.GetSeqID(full_offset >> 3);
-        int offset = (full_offset >> 3) - seq_pkg_->package.StartPos(read_id);
-        int strand = full_offset & 1;
-        int edge_type = (full_offset >> 1) & 3;
-        int read_length = seq_pkg_->package.SequenceLength(read_id);
+    auto ptr_and_offset = seq_pkg_->package.WordPtrAndOffset(read_id);
+    int64_t start_offset = ptr_and_offset.second;
+    const uint32_t *read_p = ptr_and_offset.first;
+    int words_this_read = DivCeiling(start_offset + read_length, 16);
 
-        auto ptr_and_offset = seq_pkg_->package.WordPtrAndOffset(read_id);
-        int64_t start_offset = ptr_and_offset.second;
-        const uint32_t *read_p = ptr_and_offset.first;
-        int words_this_read = DivCeiling(start_offset + read_length, 16);
+    if (strand == 0) {
+      unsigned num_chars_to_copy = opt_.k;
+      uint8_t prev = kSentinelValue;
 
-        if (strand == 0) {
-          unsigned num_chars_to_copy = opt_.k;
-          uint8_t prev = kSentinelValue;
+      switch (edge_type) {
+        case 0:break;
 
-          switch (edge_type) {
-            case 0:break;
+        case 1:prev = seq_pkg_->package.GetBase(read_id, offset);
+          offset++;
+          break;
 
-            case 1:prev = seq_pkg_->package.GetBase(read_id, offset);
-              offset++;
-              break;
+        case 2:prev = seq_pkg_->package.GetBase(read_id, offset + 1);
+          offset += 2;
+          num_chars_to_copy--;
+          break;
 
-            case 2:prev = seq_pkg_->package.GetBase(read_id, offset + 1);
-              offset += 2;
-              num_chars_to_copy--;
-              break;
-
-            default:assert(false);
-          }
-
-          CopySubstring(substr, read_p, offset + start_offset, num_chars_to_copy, 1, words_this_read,
-                        words_per_substr_);
-
-          uint32_t *last_word = substr + (words_per_substr_ - 1) * 1;
-          *last_word |= unsigned(num_chars_to_copy == opt_.k) << kBWTCharNumBits;
-          *last_word |= prev;
-        } else {
-          unsigned num_chars_to_copy = opt_.k;
-          uint8_t prev = kSentinelValue;
-
-          switch (edge_type) {
-            case 0:
-              num_chars_to_copy--;
-              prev = 3 - seq_pkg_->package.GetBase(read_id, offset + opt_.k - 1);
-              break;
-
-            case 1:
-              prev = 3 - seq_pkg_->package.GetBase(read_id, offset + opt_.k);
-              break;
-
-            case 2:
-              offset++;
-              break;
-
-            default:assert(false);
-          }
-
-          CopySubstringRC(substr, read_p, offset + start_offset, num_chars_to_copy, 1, words_this_read,
-                          words_per_substr_);
-
-          uint32_t *last_word = substr + (words_per_substr_ - 1) * 1;
-          *last_word |= unsigned(num_chars_to_copy == opt_.k) << kBWTCharNumBits;
-          *last_word |= prev;
-        }
-
-        substr += words_per_substr_;
+        default:assert(false);
       }
+
+      CopySubstring(substr, read_p, offset + start_offset, num_chars_to_copy, 1, words_this_read,
+                    words_per_substr_);
+
+      uint32_t *last_word = substr + (words_per_substr_ - 1) * 1;
+      *last_word |= unsigned(num_chars_to_copy == opt_.k) << kBWTCharNumBits;
+      *last_word |= prev;
+    } else {
+      unsigned num_chars_to_copy = opt_.k;
+      uint8_t prev = kSentinelValue;
+
+      switch (edge_type) {
+        case 0:num_chars_to_copy--;
+          prev = 3 - seq_pkg_->package.GetBase(read_id, offset + opt_.k - 1);
+          break;
+
+        case 1:prev = 3 - seq_pkg_->package.GetBase(read_id, offset + opt_.k);
+          break;
+
+        case 2:offset++;
+          break;
+
+        default:assert(false);
+      }
+
+      CopySubstringRC(substr, read_p, offset + start_offset, num_chars_to_copy, 1, words_this_read,
+                      words_per_substr_);
+
+      uint32_t *last_word = substr + (words_per_substr_ - 1) * 1;
+      *last_word |= unsigned(num_chars_to_copy == opt_.k) << kBWTCharNumBits;
+      *last_word |= prev;
     }
+
+    substr += words_per_substr_;
   }
 }
 

@@ -569,86 +569,74 @@ void SeqToSdbg::Lv1FillOffsets(ReadPartition *_data) {
 #undef CHECK_AND_SAVE_OFFSET
 }
 
-void SeqToSdbg::Lv2ExtractSubString(unsigned from_bucket,
-                                    unsigned to_bucket, uint32_t *substr) {
-  auto lv1_p = GetLv1Iterator(from_bucket);
+void SeqToSdbg::Lv2ExtractSubString(unsigned start_bucket, unsigned end_bucket, uint32_t *substr) {
+  auto offset_iterator = GetOffsetIterator(start_bucket, end_bucket);
 
-  for (auto bucket = from_bucket; bucket < to_bucket; ++bucket) {
-    for (int t = 0; t < opt_.n_threads; ++t) {
-      int64_t full_offset = GetReadPartition(t).rp_lv1_differential_base;
-      int64_t num = GetReadPartition(t).rp_bucket_sizes[bucket];
+  while (offset_iterator.HasNext()) {
+    int64_t full_offset = offset_iterator.Next();
 
-      for (int64_t i = 0; i < num; ++i) {
-        if (*lv1_p <= kDifferentialLimit) {
-          full_offset += *(lv1_p++);
-        } else {
-          full_offset = GetSpecialOffset(*(lv1_p++));
-        }
+    int64_t seq_id = seq_pkg_.GetSeqID(full_offset >> 1);
+    int offset = (full_offset >> 1) - seq_pkg_.StartPos(seq_id);
+    unsigned strand = full_offset & 1;
 
-        int64_t seq_id = seq_pkg_.GetSeqID(full_offset >> 1);
-        int offset = (full_offset >> 1) - seq_pkg_.StartPos(seq_id);
-        unsigned strand = full_offset & 1;
+    unsigned seq_len = seq_pkg_.SequenceLength(seq_id);
+    unsigned num_chars_to_copy = opt_.k - (offset + opt_.k > seq_len);
+    unsigned counting = 0;
 
-        unsigned seq_len = seq_pkg_.SequenceLength(seq_id);
-        unsigned num_chars_to_copy = opt_.k - (offset + opt_.k > seq_len);
-        unsigned counting = 0;
-
-        if (offset > 0 && offset + opt_.k <= seq_len) {
-          counting = multiplicity[seq_id];
-        }
-
-        auto ptr_and_offset = seq_pkg_.WordPtrAndOffset(seq_id);
-        unsigned start_offset = ptr_and_offset.second;
-        unsigned words_this_seq = DivCeiling(start_offset + seq_len, 16);
-        const uint32_t *edge_p = ptr_and_offset.first;
-
-        if (strand == 0) {
-          // copy counting and W char
-          unsigned prev_char;
-
-          if (offset == 0) {
-            assert(num_chars_to_copy == opt_.k);
-            prev_char = kSentinelValue;
-          } else {
-            prev_char = seq_pkg_.GetBase(seq_id, offset - 1);
-          }
-
-          CopySubstring(substr, edge_p, offset + start_offset, num_chars_to_copy, 1, words_this_seq,
-                        words_per_substr_);
-
-          uint32_t *last_word = substr + words_per_substr_ - 1;
-          *last_word |= unsigned(num_chars_to_copy == opt_.k) << (kBWTCharNumBits + kBitsPerMul);
-          *last_word |= prev_char << kBitsPerMul;
-          *last_word |= std::max(0u, kMaxMul - counting);  // then larger counting come first after sorting
-        } else {
-          unsigned prev_char;
-
-          if (offset == 0) {
-            assert(num_chars_to_copy == opt_.k);
-            prev_char = kSentinelValue;
-          } else {
-            prev_char = 3 - seq_pkg_.GetBase(seq_id, seq_len - 1 - offset + 1);
-          }
-
-          offset = seq_len - 1 - offset - (opt_.k - 1);  // switch to normal strand
-
-          if (offset < 0) {
-            assert(num_chars_to_copy == opt_.k - 1);
-            offset = 0;
-          }
-
-          CopySubstringRC(substr, edge_p, offset + start_offset, num_chars_to_copy, 1, words_this_seq,
-                          words_per_substr_);
-
-          uint32_t *last_word = substr + words_per_substr_ - 1;
-          *last_word |= unsigned(num_chars_to_copy == opt_.k) << (kBWTCharNumBits + kBitsPerMul);
-          *last_word |= prev_char << kBitsPerMul;
-          *last_word |= std::max(0u, kMaxMul - counting);
-        }
-
-        substr += words_per_substr_;
-      }
+    if (offset > 0 && offset + opt_.k <= seq_len) {
+      counting = multiplicity[seq_id];
     }
+
+    auto ptr_and_offset = seq_pkg_.WordPtrAndOffset(seq_id);
+    unsigned start_offset = ptr_and_offset.second;
+    unsigned words_this_seq = DivCeiling(start_offset + seq_len, 16);
+    const uint32_t *edge_p = ptr_and_offset.first;
+
+    if (strand == 0) {
+      // copy counting and W char
+      unsigned prev_char;
+
+      if (offset == 0) {
+        assert(num_chars_to_copy == opt_.k);
+        prev_char = kSentinelValue;
+      } else {
+        prev_char = seq_pkg_.GetBase(seq_id, offset - 1);
+      }
+
+      CopySubstring(substr, edge_p, offset + start_offset, num_chars_to_copy, 1, words_this_seq,
+                    words_per_substr_);
+
+      uint32_t *last_word = substr + words_per_substr_ - 1;
+      *last_word |= unsigned(num_chars_to_copy == opt_.k) << (kBWTCharNumBits + kBitsPerMul);
+      *last_word |= prev_char << kBitsPerMul;
+      *last_word |= std::max(0u, kMaxMul - counting);  // then larger counting come first after sorting
+    } else {
+      unsigned prev_char;
+
+      if (offset == 0) {
+        assert(num_chars_to_copy == opt_.k);
+        prev_char = kSentinelValue;
+      } else {
+        prev_char = 3 - seq_pkg_.GetBase(seq_id, seq_len - 1 - offset + 1);
+      }
+
+      offset = seq_len - 1 - offset - (opt_.k - 1);  // switch to normal strand
+
+      if (offset < 0) {
+        assert(num_chars_to_copy == opt_.k - 1);
+        offset = 0;
+      }
+
+      CopySubstringRC(substr, edge_p, offset + start_offset, num_chars_to_copy, 1, words_this_seq,
+                      words_per_substr_);
+
+      uint32_t *last_word = substr + words_per_substr_ - 1;
+      *last_word |= unsigned(num_chars_to_copy == opt_.k) << (kBWTCharNumBits + kBitsPerMul);
+      *last_word |= prev_char << kBitsPerMul;
+      *last_word |= std::max(0u, kMaxMul - counting);
+    }
+
+    substr += words_per_substr_;
   }
 }
 

@@ -211,61 +211,48 @@ void KmerCounter::Lv1FillOffsets(ReadPartition *_data) {
 #undef CHECK_AND_SAVE_OFFSET
 }
 
-void KmerCounter::Lv2ExtractSubString(unsigned start_bucket, unsigned end_bucket, uint32_t *substrings_p) {
-  auto lv1_p = GetLv1Iterator(start_bucket);
+void KmerCounter::Lv2ExtractSubString(unsigned start_bucket, unsigned end_bucket, uint32_t *substr_ptr) {
+  auto offset_iterator = GetOffsetIterator(start_bucket, end_bucket);
 
-  for (auto b = start_bucket; b < end_bucket; ++b) {
-    for (int t = 0; t < opt_.n_threads; ++t) {
-      int64_t full_offset = GetReadPartition(t).rp_lv1_differential_base;
-      int64_t num = GetReadPartition(t).rp_bucket_sizes[b];
+  while (offset_iterator.HasNext()) {
+    int64_t full_offset = offset_iterator.Next();
+    int64_t read_id = seq_pkg_.GetSeqID(full_offset >> 1);
+    unsigned strand = full_offset & 1;
+    unsigned offset = (full_offset >> 1) - seq_pkg_.StartPos(read_id);
+    unsigned num_chars_to_copy = opt_.k + 1;
 
-      for (int64_t i = 0; i < num; ++i) {
-        if (*lv1_p <= kDifferentialLimit) {
-          full_offset += *(lv1_p++);
-        } else {
-          full_offset = GetSpecialOffset(*(lv1_p++));
-        }
+    unsigned read_length = seq_pkg_.SequenceLength(read_id);
+    auto ptr_and_offset = seq_pkg_.WordPtrAndOffset(read_id);
+    unsigned start_offset = ptr_and_offset.second;
+    unsigned words_this_seq = DivCeiling(start_offset + read_length, 16);
+    const uint32_t *read_p = ptr_and_offset.first;
 
-        int64_t read_id = seq_pkg_.GetSeqID(full_offset >> 1);
-        unsigned strand = full_offset & 1;
-        unsigned offset = (full_offset >> 1) - seq_pkg_.StartPos(read_id);
-        unsigned num_chars_to_copy = opt_.k + 1;
+    unsigned char prev, next;
 
-        unsigned read_length = seq_pkg_.SequenceLength(read_id);
-        auto ptr_and_offset = seq_pkg_.WordPtrAndOffset(read_id);
-        unsigned start_offset = ptr_and_offset.second;
-        unsigned words_this_seq = DivCeiling(start_offset + read_length, 16);
-        const uint32_t *read_p = ptr_and_offset.first;
-
-        unsigned char prev, next;
-
-        if (offset > 0) {
-          prev = seq_pkg_.GetBase(read_id, offset - 1);
-        } else {
-          prev = kSentinelValue;
-        }
-
-        if (offset + opt_.k + 1 < read_length) {
-          next = seq_pkg_.GetBase(read_id, offset + opt_.k + 1);
-        } else {
-          next = kSentinelValue;
-        }
-        uint64_t read_info;
-        if (strand == 0) {
-          CopySubstring(substrings_p, read_p, offset + start_offset, num_chars_to_copy, 1, words_this_seq,
-                        words_per_substr_);
-          read_info = (full_offset << 6) | (prev << 3) | next;
-        } else {
-          CopySubstringRC(substrings_p, read_p, offset + start_offset, num_chars_to_copy, 1, words_this_seq,
-                          words_per_substr_);
-          read_info = (full_offset << 6) | ((next == kSentinelValue ? kSentinelValue : (3 - next)) << 3) |
-              (prev == kSentinelValue ? kSentinelValue : (3 - prev));
-        }
-        substrings_p[words_per_substr_] = read_info >> 32u;
-        substrings_p[words_per_substr_ + 1] = read_info & 0xFFFFFFFFull;
-        substrings_p += words_per_substr_ + 2;
-      }
+    if (offset > 0) {
+      prev = seq_pkg_.GetBase(read_id, offset - 1);
+    } else {
+      prev = kSentinelValue;
     }
+
+    if (offset + opt_.k + 1 < read_length) {
+      next = seq_pkg_.GetBase(read_id, offset + opt_.k + 1);
+    } else {
+      next = kSentinelValue;
+    }
+    uint64_t read_info;
+    if (strand == 0) {
+      CopySubstring(substr_ptr, read_p, offset + start_offset, num_chars_to_copy, 1, words_this_seq,
+                    words_per_substr_);
+      read_info = (full_offset << 6) | (prev << 3) | next;
+    } else {
+      CopySubstringRC(substr_ptr, read_p, offset + start_offset, num_chars_to_copy, 1, words_this_seq,
+                      words_per_substr_);
+      read_info = (full_offset << 6) | ((next == kSentinelValue ? kSentinelValue : (3 - next)) << 3) |
+          (prev == kSentinelValue ? kSentinelValue : (3 - prev));
+    }
+    DecomposeUint64(substr_ptr + words_per_substr_, read_info);
+    substr_ptr += words_per_substr_ + 2;
   }
 }
 
@@ -304,7 +291,7 @@ void KmerCounter::Lv2Postprocess(int64_t start_index, int64_t end_index, int thr
 
     for (int64_t j = from_; j < to_; ++j) {
       auto read_info_ptr = substrings + j * (words_per_substr_ + 2) + words_per_substr_;
-      uint64_t read_info = (static_cast<uint64_t>(*read_info_ptr) << 32u) | (*(read_info_ptr + 1));
+      uint64_t read_info = ComposeUint64(read_info_ptr);
       int prev_and_next = read_info & ((1 << 6) - 1);
       count_prev[prev_and_next >> 3]++;
       count_next[prev_and_next & 7]++;
@@ -323,7 +310,7 @@ void KmerCounter::Lv2Postprocess(int64_t start_index, int64_t end_index, int thr
     if (!has_in && count >= opt_.solid_threshold) {
       for (int64_t j = from_; j < to_; ++j) {
         auto *read_info_ptr =substrings + j * (words_per_substr_ + 2) + words_per_substr_;
-        uint64_t read_info_context = (static_cast<uint64_t>(*read_info_ptr) << 32u) | (*(read_info_ptr + 1));
+        uint64_t read_info_context = ComposeUint64(read_info_ptr);
         int64_t read_info = read_info_context >> 6;
         int64_t read_id = seq_pkg_.GetSeqID(read_info >> 1);
         int strand = read_info & 1;
@@ -352,7 +339,7 @@ void KmerCounter::Lv2Postprocess(int64_t start_index, int64_t end_index, int thr
     if (!has_out && count >= opt_.solid_threshold) {
       for (int64_t j = from_; j < to_; ++j) {
         auto *read_info_ptr =substrings + j * (words_per_substr_ + 2) + words_per_substr_;
-        uint64_t read_info_context = (static_cast<uint64_t>(*read_info_ptr) << 32u) | (*(read_info_ptr + 1));
+        uint64_t read_info_context = ComposeUint64(read_info_ptr);
         int64_t read_info = read_info_context >> 6;
         int64_t read_id = seq_pkg_.GetSeqID(read_info >> 1);
         int strand = read_info & 1;

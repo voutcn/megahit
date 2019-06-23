@@ -415,8 +415,4 @@ class RankAndSelect {
 
 }  // namespace kmlib
 
-using RankAndSelect4Bits = kmlib::RankAndSelect<4, 9>;
-using RankAndSelect1Bit = kmlib::RankAndSelect<1, 2>;
-using Rank1Bit = kmlib::RankAndSelect<1, 2, kmlib::rnsmode::kRankOnly>;
-
 #endif  // KMLIB_RNS_H

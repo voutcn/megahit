@@ -61,13 +61,75 @@ class BaseSequenceSortingEngine {
   std::array<int, kNumBuckets> bucket_rank_{};
   std::vector<ReadPartition> rp_;
 
- public:
+  /**
+   * APIs used by derived classes
+   */
+ protected:
+  class OffsetIterator {
+   public:
+    OffsetIterator(BaseSequenceSortingEngine *engine, unsigned start_bucket, unsigned end_bucket) :
+        engine_(engine), end_bucket_(end_bucket), cur_bucket_(start_bucket) {
+      cur_thread_id_ = 0;
+      cur_item_index_ = 0;
+      cur_full_offset_ = engine_->rp_[cur_thread_id_].rp_lv1_differential_base;
+      cur_n_items_ = engine_->rp_[cur_thread_id_].rp_bucket_sizes[cur_bucket_];
+      diff_iter_ = engine_->lv1_offsets_.cbegin() + engine_->rp_[0].rp_bucket_offsets[cur_bucket_];
+      TryRefill();
+    }
+
+    bool HasNext() { return cur_bucket_ < end_bucket_; }
+    int64_t Next() {
+      int64_t diff = *diff_iter_;
+      if (diff <= kDifferentialLimit) {
+        cur_full_offset_ += diff;
+      } else {
+        cur_full_offset_ = engine_->GetSpecialOffset(diff);
+      }
+
+      auto ret = cur_full_offset_;
+      ++diff_iter_;
+      ++cur_item_index_;
+      TryRefill();
+      return ret;
+    }
+
+   private:
+    void TryRefill() {
+      while (cur_item_index_ >= cur_n_items_) {
+        ++cur_thread_id_;
+        if (cur_thread_id_ == engine_->n_threads_) {
+          cur_thread_id_ = 0;
+          ++cur_bucket_;
+          if (cur_bucket_ >= end_bucket_) {
+            return;
+          }
+        }
+        cur_full_offset_ = engine_->rp_[cur_thread_id_].rp_lv1_differential_base;
+        cur_item_index_ = 0;
+        cur_n_items_ = engine_->rp_[cur_thread_id_].rp_bucket_sizes[cur_bucket_];
+      }
+    }
+   private:
+    BaseSequenceSortingEngine *engine_;
+    unsigned end_bucket_;
+    unsigned cur_bucket_;
+    unsigned cur_thread_id_;
+    int64_t cur_full_offset_;
+    size_t cur_item_index_;
+    size_t cur_n_items_;
+    std::vector<uint32_t>::const_iterator diff_iter_;
+  };
+
   unsigned GetLv1StartBucket() const { return lv1_start_bucket_; }
   unsigned GetLv1EndBucket() const { return lv1_end_bucket_; }
   int64_t GetLv1NumItems() const { return lv1_num_items_; }
 
   bool HandlingBucket(unsigned bucket) const {
     return cur_lv1_buckets_[bucket];
+  }
+
+  OffsetIterator GetOffsetIterator(unsigned start_bucket, unsigned end_bucket) {
+    return OffsetIterator(this, start_bucket, end_bucket);
   }
 
   void WriteOffset(size_t index, int64_t diff, int64_t full_offset) {
@@ -82,7 +144,9 @@ class BaseSequenceSortingEngine {
       lv1_offsets_[index] = static_cast<int32_t>(diff);
     }
   }
+  int GetBucketRank(unsigned bucket) const { return bucket_rank_[bucket]; }
 
+ private:
   int64_t AddSpecialOffset(int64_t offset) {
     std::lock_guard<std::mutex> lk(special_item_lock_);
     int64_t ret = lv1_special_offsets_.size();
@@ -93,24 +157,6 @@ class BaseSequenceSortingEngine {
   int64_t GetSpecialOffset(uint32_t key) const {
     assert(key > kDifferentialLimit);
     return lv1_special_offsets_[key - (kDifferentialLimit + 1)];
-  }
-
-  std::vector<uint32_t>::const_iterator GetLv1Iterator(unsigned bucket) const {
-    return lv1_offsets_.cbegin() + GetReadPartition(0).rp_bucket_offsets[bucket];
-  }
-
-  uint32_t *Lv1DataPtr() {
-    return lv1_offsets_.data();
-  }
-
-  const std::array<int64_t, kNumBuckets> &GetBucketSizes() const {
-    return bucket_sizes_;
-  }
-
-  int GetBucketRank(unsigned bucket) const { return bucket_rank_[bucket]; }
-
-  const ReadPartition &GetReadPartition(unsigned tid) const {
-    return rp_[tid];
   }
 
   /**
@@ -127,7 +173,7 @@ class BaseSequenceSortingEngine {
   std::function<void(uint32_t *, int64_t)> substr_sort_;
 
   /**
-   * Interfaces used by `run` and must be implemented in derived class
+   * Interfaces used by `Run` and must be implemented in derived class
    */
  public:
   virtual Meta Initialize() = 0;
@@ -146,8 +192,8 @@ class BaseSequenceSortingEngine {
     int64_t total_bucket_size = 0;
     int num_non_empty = 0;
     for (unsigned i = 0; i < kNumBuckets; ++i) {
-      total_bucket_size += GetBucketSizes()[i];
-      if (GetBucketSizes()[i] > 0) {
+      total_bucket_size += bucket_sizes_[i];
+      if (bucket_sizes_[i] > 0) {
         num_non_empty++;
       }
     }
@@ -205,7 +251,7 @@ class BaseSequenceSortingEngine {
 
     xinfo("Lv1 items: %lld, Lv2 items: %lld\n", n_items.first, n_items.second);
     xinfo("Memory of derived class: %lld, Memory for Lv1+Lv2: %lld\n",
-        meta_.memory_for_data, words_required * kLv1BytePerItem);
+          meta_.memory_for_data, words_required * kLv1BytePerItem);
   }
 
   static std::pair<int64_t, int64_t> AdjustItemNumbers(
@@ -307,7 +353,7 @@ class BaseSequenceSortingEngine {
       }
 
       if (num_lv2 * meta_.words_per_lv2 + lv1_num_items_ + bucket_sizes_[end_bucket] >
-        static_cast<int64_t>(lv1_offsets_.size())) {
+          static_cast<int64_t>(lv1_offsets_.size())) {
         return end_bucket;
       }
 
@@ -379,20 +425,20 @@ class BaseSequenceSortingEngine {
     if (thread_status->thread_offset[tid] == -1) {
       std::lock_guard<std::mutex> lk(thread_status->mutex);
       thread_status->thread_offset[tid] = thread_status->acc;
-      thread_status->acc += GetBucketSizes()[b];
+      thread_status->acc += bucket_sizes_[b];
       thread_status->rank[tid] = thread_status->seen;
       thread_status->seen++;
     }
 
-    if (GetBucketSizes()[b] == 0) {
+    if (bucket_sizes_[b] == 0) {
       return;
     }
 
     size_t offset = lv1_num_items_ + thread_status->thread_offset[tid] * meta_.words_per_lv2;
-    auto substr_ptr = Lv1DataPtr() + offset;
+    auto substr_ptr = lv1_offsets_.data() + offset;
     Lv2ExtractSubString(b, b + 1, substr_ptr);
-    substr_sort_(substr_ptr, GetBucketSizes()[b]);
-    Lv2Postprocess(0, GetBucketSizes()[b], tid, substr_ptr);
+    substr_sort_(substr_ptr, bucket_sizes_[b]);
+    Lv2Postprocess(0, bucket_sizes_[b], tid, substr_ptr);
   }
 
   void Lv1FetchAndSortLaunchMt() {
