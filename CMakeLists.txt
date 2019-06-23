@@ -69,7 +69,7 @@ add_executable(megahit_core_no_hw_accel ${OTHER_SOURCE} ${ASMBL_SOURCE} ${IDBA_S
 set_target_properties(megahit_core PROPERTIES COMPILE_FLAGS "-mbmi2 -DUSE_BMI2 -mpopcnt")
 
 if (STATIC_BUILD)
-    # TODO too dirty
+    # TODO dirty
     set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -Wl,--whole-archive -lpthread -Wl,--no-whole-archive -static")
     set_target_properties(megahit_core megahit_core_no_hw_accel PROPERTIES LINK_SEARCH_START_STATIC ON)
     set_target_properties(megahit_core megahit_core_no_hw_accel PROPERTIES LINK_SEARCH_END_STATIC ON)

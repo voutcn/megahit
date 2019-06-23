@@ -467,12 +467,12 @@ SeqToSdbg::Meta SeqToSdbg::Initialize() {
   };
 }
 
-void SeqToSdbg::Lv0CalcBucketSize(ReadPartition *_data) {
+void SeqToSdbg::Lv0CalcBucketSize(SeqPartition *_data) {
   auto &rp = *_data;
   auto &bucket_sizes = rp.rp_bucket_sizes;
   std::fill(bucket_sizes.begin(), bucket_sizes.end(), 0);
 
-  for (int64_t seq_id = rp.rp_start_id; seq_id < rp.rp_end_id; ++seq_id) {
+  for (int64_t seq_id = rp.from; seq_id < rp.to; ++seq_id) {
     unsigned seq_len = seq_pkg_.SequenceLength(seq_id);
 
     if (seq_len < opt_.k + 1) {
@@ -510,7 +510,7 @@ void SeqToSdbg::Lv0CalcBucketSize(ReadPartition *_data) {
   }
 }
 
-void SeqToSdbg::Lv1FillOffsets(ReadPartition *_data) {
+void SeqToSdbg::Lv1FillOffsets(SeqPartition *_data) {
   auto &rp = *_data;
   std::array<int64_t, kNumBuckets> prev_full_offsets;
 
@@ -535,7 +535,7 @@ void SeqToSdbg::Lv1FillOffsets(ReadPartition *_data) {
   // ^^^^^ why is the macro surrounded by a do-while? please ask Google
   // =========== end macro ==========================
 
-  for (int64_t seq_id = rp.rp_start_id; seq_id < rp.rp_end_id; ++seq_id) {
+  for (int64_t seq_id = rp.from; seq_id < rp.to; ++seq_id) {
     unsigned seq_len = seq_pkg_.SequenceLength(seq_id);
 
     if (seq_len < opt_.k + 1) {

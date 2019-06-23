@@ -109,13 +109,13 @@ KmerCounter::Meta KmerCounter::Initialize() {
   };
 }
 
-void KmerCounter::Lv0CalcBucketSize(ReadPartition *_data) {
+void KmerCounter::Lv0CalcBucketSize(SeqPartition *_data) {
   auto &rp = *_data;
   std::array<int64_t, kNumBuckets> &bucket_sizes = rp.rp_bucket_sizes;
   std::fill(bucket_sizes.begin(), bucket_sizes.end(), 0);
   GenericKmer edge, rev_edge;  // (k+1)-mer and its rc
 
-  for (int64_t read_id = rp.rp_start_id; read_id < rp.rp_end_id; ++read_id) {
+  for (int64_t read_id = rp.from; read_id < rp.to; ++read_id) {
     auto read_length = seq_pkg_.SequenceLength(read_id);
 
     if (read_length < opt_.k + 1) {
@@ -147,7 +147,7 @@ void KmerCounter::Lv0CalcBucketSize(ReadPartition *_data) {
   }
 }
 
-void KmerCounter::Lv1FillOffsets(ReadPartition *_data) {
+void KmerCounter::Lv1FillOffsets(SeqPartition *_data) {
   auto &rp = *_data;
   std::array<int64_t, kNumBuckets> prev_full_offsets;
 
@@ -158,7 +158,7 @@ void KmerCounter::Lv1FillOffsets(ReadPartition *_data) {
   GenericKmer edge, rev_edge;  // (k+1)-mer and its rc
   int key;
 
-  for (int64_t read_id = rp.rp_start_id; read_id < rp.rp_end_id; ++read_id) {
+  for (int64_t read_id = rp.from; read_id < rp.to; ++read_id) {
     auto read_length = seq_pkg_.SequenceLength(read_id);
 
     if (read_length < opt_.k + 1) {

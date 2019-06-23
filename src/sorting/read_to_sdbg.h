@@ -62,8 +62,8 @@ class Read2SdbgS1 : public BaseSequenceSortingEngine {
 
  protected:
   int64_t Lv0EncodeDiffBase(int64_t) override;
-  void Lv0CalcBucketSize(ReadPartition *) override;
-  void Lv1FillOffsets(ReadPartition *) override;
+  void Lv0CalcBucketSize(SeqPartition *) override;
+  void Lv1FillOffsets(SeqPartition *) override;
   void Lv2ExtractSubString(unsigned bucket_from, unsigned bucket_to, uint32_t *substr_ptr) override;
   void Lv2Postprocess(int64_t start_index, int64_t end_index, int thread_id, uint32_t *substrings) override;
   void Lv0Postprocess() override;
@@ -92,8 +92,8 @@ class Read2SdbgS2 : public BaseSequenceSortingEngine {
 
  protected:
   int64_t Lv0EncodeDiffBase(int64_t) override;
-  void Lv0CalcBucketSize(ReadPartition *) override;
-  void Lv1FillOffsets(ReadPartition *) override;
+  void Lv0CalcBucketSize(SeqPartition *) override;
+  void Lv1FillOffsets(SeqPartition *) override;
   void Lv2ExtractSubString(unsigned bucket_from, unsigned bucket_to, uint32_t *substr_ptr) override;
   void Lv2Postprocess(int64_t start_index, int64_t end_index, int thread_id, uint32_t *substrings) override;
   void Lv0Postprocess() override;
