@@ -2,7 +2,7 @@
 // Created by vout on 12/8/18.
 //
 
-#include "sorting.h"
+#include "kmsort_selector.h"
 
 #include <definitions.h>
 #include <utils/utils.h>

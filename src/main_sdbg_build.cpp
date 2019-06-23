@@ -25,9 +25,9 @@
 #include <stdexcept>
 #include <string>
 
-#include "sequence_sorting/kmer_counter.h"
-#include "sequence_sorting/read_to_sdbg.h"
-#include "sequence_sorting/seq_to_sdbg.h"
+#include "sorting/kmer_counter.h"
+#include "sorting/read_to_sdbg.h"
+#include "sorting/seq_to_sdbg.h"
 #include "definitions.h"
 #include "utils/options_description.h"
 #include "utils/utils.h"
@@ -37,15 +37,13 @@ int main_kmer_count(int argc, char **argv) {
 
   // parse option
   OptionsDescription desc;
-  count_opt_t opt;
+  KmerCounterOption opt;
 
-  desc.AddOption("kmer_k", "k", opt.kmer_k, "kmer size");
-  desc.AddOption("min_kmer_frequency", "m", opt.kmer_freq_threshold, "min frequency to output an edge");
+  desc.AddOption("kmer_k", "k", opt.k, "kmer size");
+  desc.AddOption("min_kmer_frequency", "m", opt.solid_threshold, "min frequency to output an edge");
   desc.AddOption("host_mem", "", opt.host_mem, "Max memory to be used. 90% of the free memory is recommended.");
-  desc.AddOption("num_cpu_threads", "", opt.num_cpu_threads, "number of CPU threads. At least 2.");
+  desc.AddOption("num_cpu_threads", "", opt.n_threads, "number of CPU threads. At least 2.");
   desc.AddOption("read_lib_file", "", opt.read_lib_file, "read library configuration file.");
-  desc.AddOption("assist_seq", "", opt.assist_seq_file,
-                 "input assisting fast[aq] file (FILE_NAME.info should exist), can be gzip'ed.");
   desc.AddOption("output_prefix", "", opt.output_prefix, "output prefix");
   desc.AddOption("mem_flag", "", opt.mem_flag,
                  "memory options. 0: minimize memory usage; 1: automatically use moderate memory; "
@@ -55,12 +53,12 @@ int main_kmer_count(int argc, char **argv) {
   try {
     desc.Parse(argc, argv);
 
-    if (opt.read_lib_file == "") {
+    if (opt.read_lib_file.empty()) {
       throw std::logic_error("No read library configuration file!");
     }
 
-    if (opt.num_cpu_threads == 0) {
-      opt.num_cpu_threads = omp_get_max_threads();
+    if (opt.n_threads == 0) {
+      opt.n_threads = omp_get_max_threads();
     }
 
     if (opt.host_mem == 0) {
@@ -75,11 +73,10 @@ int main_kmer_count(int argc, char **argv) {
   }
 
   xinfo("Host memory to be used: %lld\n", (long long) opt.host_mem);
-  xinfo("Number CPU threads: %d\n", opt.num_cpu_threads);
+  xinfo("Number CPU threads: %d\n", opt.n_threads);
 
-  KmerCounter runner(opt.kmer_k, opt.kmer_freq_threshold, opt.host_mem, opt.mem_flag, opt.num_cpu_threads,
-                      opt.read_lib_file, opt.assist_seq_file, opt.output_prefix);
-  runner.run();
+  KmerCounter runner(opt);
+  runner.Run();
 
   return 0;
 }
@@ -89,15 +86,13 @@ int main_read2sdbg(int argc, char **argv) {
 
   // parse option the same as kmer_count
   OptionsDescription desc;
-  read2sdbg_opt_t opt;
+  Read2SdbgOption opt;
 
-  desc.AddOption("kmer_k", "k", opt.kmer_k, "kmer size");
-  desc.AddOption("min_kmer_frequency", "m", opt.kmer_freq_threshold, "min frequency to output an edge");
+  desc.AddOption("kmer_k", "k", opt.k, "kmer size");
+  desc.AddOption("min_kmer_frequency", "m", opt.solid_threshold, "min frequency to output an edge");
   desc.AddOption("host_mem", "", opt.host_mem, "Max memory to be used. 90% of the free memory is recommended.");
-  desc.AddOption("num_cpu_threads", "", opt.num_cpu_threads, "number of CPU threads. At least 2.");
+  desc.AddOption("num_cpu_threads", "", opt.n_threads, "number of CPU threads. At least 2.");
   desc.AddOption("read_lib_file", "", opt.read_lib_file, "input fast[aq] file, can be gzip'ed. \"-\" for stdin.");
-  desc.AddOption("assist_seq", "", opt.assist_seq_file,
-                 "input assisting fast[aq] file (FILE_NAME.info should exist), can be gzip'ed.");
   desc.AddOption("output_prefix", "", opt.output_prefix, "output prefix");
   desc.AddOption("mem_flag", "", opt.mem_flag,
                  "memory options. 0: minimize memory usage; 1: automatically use moderate memory; "
@@ -108,12 +103,12 @@ int main_read2sdbg(int argc, char **argv) {
   try {
     desc.Parse(argc, argv);
 
-    if (opt.read_lib_file == "") {
+    if (opt.read_lib_file.empty()) {
       throw std::logic_error("No input file!");
     }
 
-    if (opt.num_cpu_threads == 0) {
-      opt.num_cpu_threads = omp_get_max_threads();
+    if (opt.n_threads == 0) {
+      opt.n_threads = omp_get_max_threads();
     }
 
     if (opt.host_mem == 0) {
@@ -132,17 +127,17 @@ int main_read2sdbg(int argc, char **argv) {
   {
     // stage 1
     Read2SdbgS1 runner(opt, &pkg);
-    if (opt.kmer_freq_threshold > 1) {
-      runner.run();
+    if (opt.solid_threshold > 1) {
+      runner.Run();
     } else {
-      runner.prepare_func_();
+      runner.Initialize();
     }
   }
 
   {
     // stage 2
     Read2SdbgS2 runner(opt, &pkg);
-    runner.run();
+    runner.Run();
   }
 
   return 0;
@@ -152,13 +147,13 @@ int main_seq2sdbg(int argc, char **argv) {
   AutoMaxRssRecorder recorder;
 
   OptionsDescription desc;
-  seq2sdbg_opt_t opt;
+  Seq2SdbgOption opt;
 
   desc.AddOption("host_mem", "", opt.host_mem,
                  "memory to be used. No more than 95% of the free memory is recommended. 0 for auto detect.");
-  desc.AddOption("kmer_size", "k", opt.kmer_k, "kmer size");
-  desc.AddOption("kmer_from", "", opt.kmer_from, "previous k");
-  desc.AddOption("num_cpu_threads", "t", opt.num_cpu_threads, "number of CPU threads. At least 2.");
+  desc.AddOption("kmer_size", "k", opt.k, "kmer size");
+  desc.AddOption("kmer_from", "", opt.k_from, "previous k");
+  desc.AddOption("num_cpu_threads", "t", opt.n_threads, "number of CPU threads. At least 2.");
   desc.AddOption("contig", "", opt.contig, "contigs from previous k");
   desc.AddOption("bubble", "", opt.bubble_seq, "bubble sequence from previous k");
   desc.AddOption("addi_contig", "", opt.addi_contig, "additional contigs from previous k");
@@ -176,15 +171,15 @@ int main_seq2sdbg(int argc, char **argv) {
   try {
     desc.Parse(argc, argv);
 
-    if (opt.input_prefix == "" && opt.contig == "" && opt.addi_contig == "") {
+    if (opt.input_prefix.empty() && opt.contig.empty() && opt.addi_contig.empty()) {
       throw std::logic_error("No input files!");
     }
 
-    if (opt.num_cpu_threads == 0) {
-      opt.num_cpu_threads = omp_get_max_threads();
+    if (opt.n_threads == 0) {
+      opt.n_threads = omp_get_max_threads();
     }
 
-    if (opt.kmer_k < 9) {
+    if (opt.k < 9) {
       throw std::logic_error("kmer size must be >= 9!");
     }
 
@@ -203,8 +198,8 @@ int main_seq2sdbg(int argc, char **argv) {
   }
 
   xinfo("Host memory to be used: %lld\n", (long long) opt.host_mem);
-  xinfo("Number CPU threads: %d\n", opt.num_cpu_threads);
+  xinfo("Number CPU threads: %d\n", opt.n_threads);
   SeqToSdbg runner(opt);
-  runner.run();
+  runner.Run();
   return 0;
 }

@@ -26,14 +26,14 @@
 #include <mutex>
 #include <string>
 #include <vector>
-#include "base_sequence_sorting_engine.h"
+#include "base_engine.h"
 #include "sdbg/sdbg_writer.h"
 
-struct seq2sdbg_opt_t {
+struct Seq2SdbgOption {
   double host_mem{0};
-  int num_cpu_threads{0};
-  int kmer_k{0};
-  int kmer_from{0};
+  int n_threads{0};
+  int k{0};
+  int k_from{0};
   std::string contig;
   std::string bubble_seq;
   std::string addi_contig;
@@ -54,48 +54,34 @@ class SeqToSdbg : public BaseSequenceSortingEngine {
   static const int kSentinelValue = 4;
   static const int kBWTCharNumBits = 3;
 
-  explicit SeqToSdbg(const seq2sdbg_opt_t &opt) :
-      host_mem(opt.host_mem), mem_flag(opt.mem_flag), num_cpu_threads(opt.num_cpu_threads),
-      kmer_k(opt.kmer_k), kmer_from(opt.kmer_from),
-      input_prefix(opt.input_prefix), output_prefix(opt.output_prefix),
-      contig(opt.contig), bubble_seq(opt.bubble_seq), addi_contig(opt.addi_contig),
-      local_contig(opt.local_contig), need_mercy(opt.need_mercy) {}
+  explicit SeqToSdbg(const Seq2SdbgOption &opt) :
+      BaseSequenceSortingEngine(opt.host_mem, opt.mem_flag, opt.n_threads),
+      opt_(opt) {}
 
-  int64_t encode_lv1_diff_base_func_(int64_t) override;
-  void prepare_func_() override;  // num_items_, num_cpu_threads_ and num_cpu_threads_ must be set here
-  void lv0_calc_bucket_size_func_(ReadPartition *) override;
-  void init_global_and_set_cx1_func_() override;  // xxx set here
-  void lv1_fill_offset_func_(ReadPartition *) override;
-  void lv2_extract_substr_(unsigned bucket_from, unsigned bucket_to, uint32_t *substr_ptr) override;
-  void output_(int64_t start_index, int64_t end_index, int thread_id, uint32_t *substrings) override;
-  void post_proc_func_() override;
+ public:
+  Meta Initialize() override;
+
+ protected:
+  int64_t Lv0EncodeDiffBase(int64_t) override;
+  void Lv0CalcBucketSize(ReadPartition *) override;
+  void Lv1FillOffsets(ReadPartition *) override;
+  void Lv2ExtractSubString(unsigned bucket_from, unsigned bucket_to, uint32_t *substr_ptr) override;
+  void Lv2Postprocess(int64_t start_index, int64_t end_index, int thread_id, uint32_t *substrings) override;
+  void Lv0Postprocess() override;
 
  private:
   // input options
-  int64_t host_mem;
-  int mem_flag;
-  int num_cpu_threads;
+  Seq2SdbgOption opt_;
 
-  int kmer_k;
-  int kmer_from;
-
-  std::string input_prefix;
-  std::string output_prefix;
-  std::string contig;
-  std::string bubble_seq;
-  std::string addi_contig;
-  std::string local_contig;
-  bool need_mercy;
-
-  int64_t words_per_substring{};
-  int words_per_dummy_node{};
+  int64_t words_per_substr_{};
+  int words_per_dummy_node_{};
 
   // big arrays
-  SeqPackage package;
+  SeqPackage seq_pkg_;
   std::vector<mul_t> multiplicity;
 
   // output
-  SdbgWriter sdbg_writer;
+  SdbgWriter sdbg_writer_;
   void GenMercyEdges();
 };
 #endif  // MEGAHIT_SEQ_TO_SDBG_H

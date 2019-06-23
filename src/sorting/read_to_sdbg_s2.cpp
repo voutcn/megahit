@@ -32,8 +32,6 @@
 #include "utils/safe_open.h"
 #include "utils/utils.h"
 
-#include "sorting.h"
-
 namespace {
 
 // helper functions
@@ -69,32 +67,53 @@ inline bool IsDiffKMinusOneMer(uint32_t *item1, uint32_t *item2, int64_t spacing
 
 // bS'a
 inline int Extract_a(uint32_t *item, int num_words, int64_t spacing, int kmer_k) {
-  int non_dollar = (item[(num_words - 1) * spacing] >> ReadToSdbg::kBWTCharNumBits) & 1;
+  int non_dollar = (item[(num_words - 1) * spacing] >> Read2SdbgS2::kBWTCharNumBits) & 1;
 
   if (non_dollar) {
     int which_word = (kmer_k - 1) / kCharsPerEdgeWord;
     int word_index = (kmer_k - 1) % kCharsPerEdgeWord;
     return (item[which_word * spacing] >> (kCharsPerEdgeWord - 1 - word_index) * kBitsPerEdgeChar) & kEdgeCharMask;
   } else {
-    return ReadToSdbg::kSentinelValue;
+    return Read2SdbgS2::kSentinelValue;
   }
 }
 
 inline int Extract_b(uint32_t *item, int num_words, int64_t spacing) {
-  return item[(num_words - 1) * spacing] & ((1 << ReadToSdbg::kBWTCharNumBits) - 1);
+  return item[(num_words - 1) * spacing] & ((1 << Read2SdbgS2::kBWTCharNumBits) - 1);
 }
 } // namespace
 
-// sequence_sorting core functions
-int64_t Read2SdbgS2::encode_lv1_diff_base_func_(int64_t read_id) {
+// sorting core functions
+int64_t Read2SdbgS2::Lv0EncodeDiffBase(int64_t read_id) {
   return EncodeOffset(read_id, 0, 0, seq_pkg_->package, 0);
 }
 
-void Read2SdbgS2::prepare_func_() {
-  if (!opt.need_mercy || opt.kmer_freq_threshold == 1) {
-    SetNumCpuThreads(opt.num_cpu_threads);;
-    SetNumItems(seq_pkg_->package.Size());
-    return;
+Read2SdbgS2::Meta Read2SdbgS2::Initialize() {
+
+  words_per_substr_ = DivCeiling(opt_.k * kBitsPerEdgeChar + kBWTCharNumBits + 1, kBitsPerEdgeWord);
+  words_per_dummy_node_ = DivCeiling(opt_.k * kBitsPerEdgeChar, kBitsPerEdgeWord);
+  xinfo("%d words per substring, words per dummy node ($v): %d\n", words_per_substr_,
+        words_per_dummy_node_);
+
+  // --- init output ---
+  sdbg_writer_.set_num_threads(opt_.n_threads);
+  sdbg_writer_.set_kmer_size(opt_.k);
+  sdbg_writer_.set_num_buckets(kNumBuckets);
+  sdbg_writer_.set_file_prefix(opt_.output_prefix);
+  sdbg_writer_.InitFiles();
+
+  int64_t memory_for_data = DivCeiling(seq_pkg_->is_solid.size(), 8)
+      + seq_pkg_->package.SizeInByte();
+
+  Meta ret{
+      static_cast<int64_t>(seq_pkg_->package.Size()),
+      memory_for_data,
+      words_per_substr_,
+      0,
+  };
+
+  if (!opt_.need_mercy || opt_.solid_threshold == 1) {
+    return ret;
   }
 
   SimpleTimer timer;
@@ -109,7 +128,7 @@ void Read2SdbgS2::prepare_func_() {
   read_marker.reset(seq_pkg_->package.Size());
 
   for (int fid = 0; fid < seq_pkg_->n_mercy_files; ++fid) {
-    FILE *fp = xfopen(FormatString("%s.mercy_cand.%d", opt.output_prefix.c_str(), fid), "rb");
+    FILE *fp = xfopen(FormatString("%s.mercy_cand.%d", opt_.output_prefix.c_str(), fid), "rb");
     mercy_cand.clear();
 
     int num_read = 0;
@@ -118,26 +137,26 @@ void Read2SdbgS2::prepare_func_() {
     while ((num_read = fread(buf, sizeof(uint64_t), 4096, fp)) > 0) {
       mercy_cand.insert(mercy_cand.end(), buf, buf + num_read);
     }
-    xinfo("Mercy file: %s, %lu\n", FormatString("%s.mercy_cand.%d", opt.output_prefix.c_str(), fid),
+    xinfo("Mercy file: %s, %lu\n", FormatString("%s.mercy_cand.%d", opt_.output_prefix.c_str(), fid),
           mercy_cand.size());
 
-    omp_set_num_threads(opt.num_cpu_threads);
+    omp_set_num_threads(opt_.n_threads);
     __gnu_parallel::sort(mercy_cand.begin(), mercy_cand.end());
 
     // multi threading
-    uint64_t avg = DivCeiling(mercy_cand.size(), opt.num_cpu_threads);
-    std::vector<uint64_t> start_idx(opt.num_cpu_threads);
-    std::vector<uint64_t> end_idx(opt.num_cpu_threads);
+    uint64_t avg = DivCeiling(mercy_cand.size(), opt_.n_threads);
+    std::vector<uint64_t> start_idx(opt_.n_threads);
+    std::vector<uint64_t> end_idx(opt_.n_threads);
 
     // manually distribute threads
-    for (int tid = 0; tid < opt.num_cpu_threads; ++tid) {
+    for (int tid = 0; tid < opt_.n_threads; ++tid) {
       if (tid == 0) {
         start_idx[tid] = 0;
       } else {
         start_idx[tid] = end_idx[tid - 1];
       }
 
-      uint64_t this_end = std::min(start_idx[tid] + avg, (uint64_t)mercy_cand.size());
+      uint64_t this_end = std::min(start_idx[tid] + avg, (uint64_t) mercy_cand.size());
       uint64_t read_id = 0;
       if (this_end < mercy_cand.size()) {
         read_id = seq_pkg_->package.GetSeqID(mercy_cand[this_end] >> 2);
@@ -152,7 +171,7 @@ void Read2SdbgS2::prepare_func_() {
 
 #pragma omp parallel for reduction(+ : num_mercy)
 
-    for (int tid = 0; tid < opt.num_cpu_threads; ++tid) {
+    for (int tid = 0; tid < opt_.n_threads; ++tid) {
       std::vector<bool> no_in(seq_pkg_->package.MaxSequenceLength());
       std::vector<bool> no_out(seq_pkg_->package.MaxSequenceLength());
       std::vector<bool> has_solid_kmer(seq_pkg_->package.MaxSequenceLength());
@@ -192,13 +211,13 @@ void Read2SdbgS2::prepare_func_() {
         int read_length = seq_pkg_->package.SequenceLength(read_id);
         int last_no_out = -1;
 
-        for (int i = 0; i + opt.kmer_k < read_length; ++i) {
+        for (int i = 0; i + opt_.k < read_length; ++i) {
           if (seq_pkg_->is_solid.at(seq_pkg_->package.StartPos(read_id) + i)) {
             has_solid_kmer[i] = has_solid_kmer[i + 1] = true;
           }
         }
 
-        for (int i = 0; i + opt.kmer_k <= read_length; ++i) {
+        for (int i = 0; i + opt_.k <= read_length; ++i) {
           if (no_in[i] && last_no_out != -1) {
             for (int j = last_no_out; j < i; ++j) {
               seq_pkg_->is_solid.set(seq_pkg_->package.StartPos(read_id) + j);
@@ -223,14 +242,12 @@ void Read2SdbgS2::prepare_func_() {
 
   timer.stop();
   xinfo("Adding mercy Done. Time elapsed: %.4lf\n", timer.elapsed());
-  xinfo("Number mercy: %llu\n", (unsigned long long)num_mercy);
+  xinfo("Number mercy: %llu\n", (unsigned long long) num_mercy);
 
-  // set sequence_sorting param
-  SetNumCpuThreads(opt.num_cpu_threads);;
-  SetNumItems(seq_pkg_->package.Size());
+  return ret;
 }
 
-void Read2SdbgS2::lv0_calc_bucket_size_func_(ReadPartition *_data) {
+void Read2SdbgS2::Lv0CalcBucketSize(ReadPartition *_data) {
   auto &rp = *_data;
   auto &bucket_sizes = rp.rp_bucket_sizes;
   std::fill(bucket_sizes.begin(), bucket_sizes.end(), 0);
@@ -239,7 +256,7 @@ void Read2SdbgS2::lv0_calc_bucket_size_func_(ReadPartition *_data) {
   for (int64_t read_id = rp.rp_start_id; read_id < rp.rp_end_id; ++read_id) {
     int read_length = seq_pkg_->package.SequenceLength(read_id);
 
-    if (read_length < opt.kmer_k + 1) {
+    if (read_length < opt_.k + 1) {
       continue;
     }
 
@@ -247,30 +264,30 @@ void Read2SdbgS2::lv0_calc_bucket_size_func_(ReadPartition *_data) {
     int64_t offset = ptr_and_offset.second;
     const uint32_t *read_p = ptr_and_offset.first;
 
-    edge.InitFromPtr(read_p, offset, opt.kmer_k + 1);
+    edge.InitFromPtr(read_p, offset, opt_.k + 1);
     rev_edge = edge;
-    rev_edge.ReverseComplement(opt.kmer_k + 1);
+    rev_edge.ReverseComplement(opt_.k + 1);
 
-    int last_char_offset = opt.kmer_k;
+    int last_char_offset = opt_.k;
     int64_t full_offset = seq_pkg_->package.StartPos(read_id);
-    bool is_solid = opt.kmer_freq_threshold == 1 || read_id >= seq_pkg_->package.Size();
+    bool for_sure_solid = opt_.solid_threshold == 1;
 
     while (true) {
-      if (is_solid || seq_pkg_->is_solid.at(full_offset)) {
-        bool is_palindrome = rev_edge.cmp(edge, opt.kmer_k + 1) == 0;
+      if (for_sure_solid || seq_pkg_->is_solid.at(full_offset)) {
+        bool is_palindrome = rev_edge.cmp(edge, opt_.k + 1) == 0;
         bucket_sizes[(edge.data()[0] << 2) >> (kCharsPerEdgeWord - kBucketPrefixLength) * kBitsPerEdgeChar]++;
 
         if (!is_palindrome)
           bucket_sizes[(rev_edge.data()[0] << 2) >> (kCharsPerEdgeWord - kBucketPrefixLength) * kBitsPerEdgeChar]++;
 
-        if (last_char_offset == opt.kmer_k || !(is_solid || seq_pkg_->is_solid.at(full_offset - 1))) {
+        if (last_char_offset == opt_.k || !(for_sure_solid || seq_pkg_->is_solid.at(full_offset - 1))) {
           bucket_sizes[edge.data()[0] >> (kCharsPerEdgeWord - kBucketPrefixLength) * kBitsPerEdgeChar]++;
 
           if (!is_palindrome)
             bucket_sizes[(rev_edge.data()[0] << 4) >> (kCharsPerEdgeWord - kBucketPrefixLength) * kBitsPerEdgeChar]++;
         }
 
-        if (last_char_offset == read_length - 1 || !(is_solid || seq_pkg_->is_solid.at(full_offset + 1))) {
+        if (last_char_offset == read_length - 1 || !(for_sure_solid || seq_pkg_->is_solid.at(full_offset + 1))) {
           bucket_sizes[(edge.data()[0] << 4) >> (kCharsPerEdgeWord - kBucketPrefixLength) * kBitsPerEdgeChar]++;
 
           if (!is_palindrome)
@@ -284,105 +301,14 @@ void Read2SdbgS2::lv0_calc_bucket_size_func_(ReadPartition *_data) {
         break;
       } else {
         int c = seq_pkg_->package.GetBase(read_id, last_char_offset);
-        edge.ShiftAppend(c, opt.kmer_k + 1);
-        rev_edge.ShiftPreappend(3 - c, opt.kmer_k + 1);
+        edge.ShiftAppend(c, opt_.k + 1);
+        rev_edge.ShiftPreappend(3 - c, opt_.k + 1);
       }
     }
   }
 }
 
-void Read2SdbgS2::init_global_and_set_cx1_func_() {
-  int64_t max_bucket_size = *std::max_element(GetBucketSizes().begin(), GetBucketSizes().end());
-  int64_t tot_bucket_size = 0;
-  int num_non_empty = 0;
-
-  for (unsigned i = 0; i < kNumBuckets; ++i) {
-    tot_bucket_size += GetBucketSizes()[i];
-
-    if (GetBucketSizes()[i] > 0) {
-      num_non_empty++;
-    }
-  }
-
-  words_per_substring = DivCeiling(opt.kmer_k * kBitsPerEdgeChar + kBWTCharNumBits + 1, kBitsPerEdgeWord);
-  words_per_dummy_node = DivCeiling(opt.kmer_k * kBitsPerEdgeChar, kBitsPerEdgeWord);
-
-  xinfo("%d words per substring, words per dummy node ($v): %d\n", words_per_substring,
-        words_per_dummy_node);
-
-  // --- calculate lv2 memory ---
-
-  num_non_empty = std::max(1, num_non_empty);
-
-  int64_t lv2_bytes_per_item = words_per_substring * sizeof(uint32_t);
-
-  int64_t max_sorting_items =
-      std::max(tot_bucket_size * opt.num_cpu_threads / num_non_empty, max_bucket_size);
-
-  int64_t mem_packed_reads = 0;
-  if (opt.kmer_freq_threshold == 1) {
-    // do not need to count solid kmers
-    mem_packed_reads = seq_pkg_->package.SizeInByte();
-  } else {
-    mem_packed_reads = DivCeiling(seq_pkg_->package.BaseCount(), 8) + seq_pkg_->package.SizeInByte();
-  }
-
-  int64_t mem_remained = opt.host_mem - mem_packed_reads -
-                         opt.num_cpu_threads * 65536 * sizeof(uint64_t)  // radix sort buckets
-                         - kNumBuckets * sizeof(int64_t) * (opt.num_cpu_threads * 3 + 1);
-  int64_t min_lv1_items = tot_bucket_size / (kMaxLv1ScanTime - 0.5);
-  int64_t max_lv1_items = 0;
-
-  if (opt.mem_flag == 1) {
-    // auto set memory
-    max_lv1_items = int64_t(tot_bucket_size / (kDefaultLv1ScanTime - 0.5));
-    max_lv1_items = std::max(max_lv1_items, max_bucket_size);
-    int64_t mem_needed =
-        max_lv1_items * kLv1BytePerItem + max_sorting_items * lv2_bytes_per_item;
-
-    if (mem_needed > mem_remained) {
-      adjust_mem(mem_remained, lv2_bytes_per_item, min_lv1_items, max_bucket_size,
-                             max_sorting_items, max_lv1_items, max_sorting_items);
-    }
-
-  } else if (opt.mem_flag == 0) {
-    // min memory
-    max_lv1_items = int64_t(tot_bucket_size / (kMaxLv1ScanTime - 0.5));
-    max_lv1_items = std::max(max_lv1_items, max_bucket_size);
-    int64_t mem_needed =
-        max_lv1_items * kLv1BytePerItem + max_sorting_items * lv2_bytes_per_item;
-
-    if (mem_needed > mem_remained) {
-      adjust_mem(mem_remained, lv2_bytes_per_item, min_lv1_items, max_bucket_size,
-                             max_sorting_items, max_lv1_items, max_sorting_items);
-    } else {
-      adjust_mem(mem_needed, lv2_bytes_per_item, min_lv1_items, max_bucket_size,
-                             max_sorting_items, max_lv1_items, max_sorting_items);
-    }
-
-  } else {
-    // use all
-    adjust_mem(mem_remained, lv2_bytes_per_item, min_lv1_items, max_bucket_size,
-                           max_sorting_items, max_lv1_items, max_sorting_items);
-  }
-
-  if (max_lv1_items < min_lv1_items) {
-    xfatal("No enough memory to process.");
-  }
-
-  SetMaxLv1Lv2Items(max_lv1_items, max_sorting_items, lv2_bytes_per_item / sizeof(uint32_t));
-
-  xinfo("Memory for sequence: %lld\n", mem_packed_reads);
-  xinfo("max # lv.1 items = %lld\n", max_lv1_items);
-  // --- init output ---
-  sdbg_writer.set_num_threads(opt.num_cpu_threads);
-  sdbg_writer.set_kmer_size(opt.kmer_k);
-  sdbg_writer.set_num_buckets(kNumBuckets);
-  sdbg_writer.set_file_prefix(opt.output_prefix);
-  sdbg_writer.InitFiles();
-}
-
-void Read2SdbgS2::lv1_fill_offset_func_(ReadPartition *_data) {
+void Read2SdbgS2::Lv1FillOffsets(ReadPartition *_data) {
   auto &rp = *_data;
   std::array<int64_t, kNumBuckets> prev_full_offsets{};  // temporary array for computing differentials
 
@@ -397,7 +323,7 @@ void Read2SdbgS2::lv1_fill_offset_func_(ReadPartition *_data) {
   for (int64_t read_id = rp.rp_start_id; read_id < rp.rp_end_id; ++read_id) {
     int read_length = seq_pkg_->package.SequenceLength(read_id);
 
-    if (read_length < opt.kmer_k + 1) {
+    if (read_length < opt_.k + 1) {
       continue;
     }
 
@@ -405,9 +331,9 @@ void Read2SdbgS2::lv1_fill_offset_func_(ReadPartition *_data) {
     int64_t offset = ptr_and_offset.second;
     const uint32_t *read_p = ptr_and_offset.first;
 
-    edge.InitFromPtr(read_p, offset, opt.kmer_k + 1);
+    edge.InitFromPtr(read_p, offset, opt_.k + 1);
     rev_edge = edge;
-    rev_edge.ReverseComplement(opt.kmer_k + 1);
+    rev_edge.ReverseComplement(opt_.k + 1);
 
     // ===== this is a macro to save some copy&paste ================
 #define CHECK_AND_SAVE_OFFSET(offset, strand, edge_type)                                              \
@@ -426,42 +352,42 @@ void Read2SdbgS2::lv1_fill_offset_func_(ReadPartition *_data) {
     // =========== end macro ==========================
 
     // shift the key char by char
-    int last_char_offset = opt.kmer_k;
+    int last_char_offset = opt_.k;
     int64_t full_offset = seq_pkg_->package.StartPos(read_id);
-    bool is_solid = opt.kmer_freq_threshold == 1 || read_id >= seq_pkg_->package.Size();
+    bool for_sure_solid = opt_.solid_threshold == 1;
 
     while (true) {
-      if (is_solid || seq_pkg_->is_solid.at(full_offset)) {
-        bool is_palindrome = rev_edge.cmp(edge, opt.kmer_k + 1) == 0;
+      if (for_sure_solid || seq_pkg_->is_solid.at(full_offset)) {
+        bool is_palindrome = rev_edge.cmp(edge, opt_.k + 1) == 0;
 
         // left $
-        if (last_char_offset == opt.kmer_k || !(is_solid || seq_pkg_->is_solid.at(full_offset - 1))) {
+        if (last_char_offset == opt_.k || !(for_sure_solid || seq_pkg_->is_solid.at(full_offset - 1))) {
           key = edge.data()[0] >> (kCharsPerEdgeWord - kBucketPrefixLength) * kBitsPerEdgeChar;
-          CHECK_AND_SAVE_OFFSET(last_char_offset - opt.kmer_k, 0, 0);
+          CHECK_AND_SAVE_OFFSET(last_char_offset - opt_.k, 0, 0);
 
           if (!is_palindrome) {
             key = (rev_edge.data()[0] << 4) >> (kCharsPerEdgeWord - kBucketPrefixLength) * kBitsPerEdgeChar;
-            CHECK_AND_SAVE_OFFSET(last_char_offset - opt.kmer_k, 1, 0);
+            CHECK_AND_SAVE_OFFSET(last_char_offset - opt_.k, 1, 0);
           }
         }
 
         // solid
         key = (edge.data()[0] << 2) >> (kCharsPerEdgeWord - kBucketPrefixLength) * kBitsPerEdgeChar;
-        CHECK_AND_SAVE_OFFSET(last_char_offset - opt.kmer_k, 0, 1);
+        CHECK_AND_SAVE_OFFSET(last_char_offset - opt_.k, 0, 1);
 
         if (!is_palindrome) {
           key = (rev_edge.data()[0] << 2) >> (kCharsPerEdgeWord - kBucketPrefixLength) * kBitsPerEdgeChar;
-          CHECK_AND_SAVE_OFFSET(last_char_offset - opt.kmer_k, 1, 1);
+          CHECK_AND_SAVE_OFFSET(last_char_offset - opt_.k, 1, 1);
         }
 
         // right $
-        if (last_char_offset == read_length - 1 || !(is_solid || seq_pkg_->is_solid.at(full_offset + 1))) {
+        if (last_char_offset == read_length - 1 || !(for_sure_solid || seq_pkg_->is_solid.at(full_offset + 1))) {
           key = (edge.data()[0] << 4) >> (kCharsPerEdgeWord - kBucketPrefixLength) * kBitsPerEdgeChar;
-          CHECK_AND_SAVE_OFFSET(last_char_offset - opt.kmer_k, 0, 2);
+          CHECK_AND_SAVE_OFFSET(last_char_offset - opt_.k, 0, 2);
 
           if (!is_palindrome) {
             key = rev_edge.data()[0] >> (kCharsPerEdgeWord - kBucketPrefixLength) * kBitsPerEdgeChar;
-            CHECK_AND_SAVE_OFFSET(last_char_offset - opt.kmer_k, 1, 2);
+            CHECK_AND_SAVE_OFFSET(last_char_offset - opt_.k, 1, 2);
           }
         }
       }
@@ -472,8 +398,8 @@ void Read2SdbgS2::lv1_fill_offset_func_(ReadPartition *_data) {
         break;
       } else {
         int c = seq_pkg_->package.GetBase(read_id, last_char_offset);
-        edge.ShiftAppend(c, opt.kmer_k + 1);
-        rev_edge.ShiftPreappend(3 - c, opt.kmer_k + 1);
+        edge.ShiftAppend(c, opt_.k + 1);
+        rev_edge.ShiftPreappend(3 - c, opt_.k + 1);
       }
     }
   }
@@ -481,11 +407,11 @@ void Read2SdbgS2::lv1_fill_offset_func_(ReadPartition *_data) {
 #undef CHECK_AND_SAVE_OFFSET
 }
 
-void Read2SdbgS2::lv2_extract_substr_(unsigned bp_from, unsigned bp_to, uint32_t *substr) {
+void Read2SdbgS2::Lv2ExtractSubString(unsigned bp_from, unsigned bp_to, uint32_t *substr) {
   auto lv1_p = GetLv1Iterator(bp_from);
 
   for (auto b = bp_from; b < bp_to; ++b) {
-    for (int t = 0; t < opt.num_cpu_threads; ++t) {
+    for (int t = 0; t < opt_.n_threads; ++t) {
       int64_t full_offset = GetReadPartition(t).rp_lv1_differential_base;
       int64_t num = GetReadPartition(t).rp_bucket_sizes[b];
 
@@ -508,7 +434,7 @@ void Read2SdbgS2::lv2_extract_substr_(unsigned bp_from, unsigned bp_to, uint32_t
         int words_this_read = DivCeiling(start_offset + read_length, 16);
 
         if (strand == 0) {
-          int num_chars_to_copy = opt.kmer_k;
+          int num_chars_to_copy = opt_.k;
           uint8_t prev = kSentinelValue;
 
           switch (edge_type) {
@@ -527,21 +453,21 @@ void Read2SdbgS2::lv2_extract_substr_(unsigned bp_from, unsigned bp_to, uint32_t
           }
 
           CopySubstring(substr, read_p, offset + start_offset, num_chars_to_copy, 1, words_this_read,
-                        words_per_substring);
+                        words_per_substr_);
 
-          uint32_t *last_word = substr + (words_per_substring - 1) * 1;
-          *last_word |= int(num_chars_to_copy == opt.kmer_k) << kBWTCharNumBits;
+          uint32_t *last_word = substr + (words_per_substr_ - 1) * 1;
+          *last_word |= int(num_chars_to_copy == opt_.k) << kBWTCharNumBits;
           *last_word |= prev;
         } else {
-          int num_chars_to_copy = opt.kmer_k;
+          int num_chars_to_copy = opt_.k;
           uint8_t prev = kSentinelValue;
 
           switch (edge_type) {
             case 0:num_chars_to_copy--;
-              prev = 3 - seq_pkg_->package.GetBase(read_id, offset + opt.kmer_k - 1);
+              prev = 3 - seq_pkg_->package.GetBase(read_id, offset + opt_.k - 1);
               break;
 
-            case 1:prev = 3 - seq_pkg_->package.GetBase(read_id, offset + opt.kmer_k);
+            case 1:prev = 3 - seq_pkg_->package.GetBase(read_id, offset + opt_.k);
               break;
 
             case 2:offset++;
@@ -551,20 +477,20 @@ void Read2SdbgS2::lv2_extract_substr_(unsigned bp_from, unsigned bp_to, uint32_t
           }
 
           CopySubstringRC(substr, read_p, offset + start_offset, num_chars_to_copy, 1, words_this_read,
-                          words_per_substring);
+                          words_per_substr_);
 
-          uint32_t *last_word = substr + (words_per_substring - 1) * 1;
-          *last_word |= int(num_chars_to_copy == opt.kmer_k) << kBWTCharNumBits;
+          uint32_t *last_word = substr + (words_per_substr_ - 1) * 1;
+          *last_word |= int(num_chars_to_copy == opt_.k) << kBWTCharNumBits;
           *last_word |= prev;
         }
 
-        substr += words_per_substring;
+        substr += words_per_substr_;
       }
     }
   }
 }
 
-void Read2SdbgS2::output_(int64_t from, int64_t to,  int tid, uint32_t *substr) {
+void Read2SdbgS2::Lv2Postprocess(int64_t from, int64_t to, int tid, uint32_t *substr) {
   int64_t start_idx, end_idx;
   int has_solid_a = 0;  // has solid (k+1)-mer aSb
   int has_solid_b = 0;  // has solid aSb
@@ -574,10 +500,10 @@ void Read2SdbgS2::output_(int64_t from, int64_t to,  int tid, uint32_t *substr) 
 
   for (start_idx = from; start_idx < to; start_idx = end_idx) {
     end_idx = start_idx + 1;
-    uint32_t *item = substr + start_idx * words_per_substring;
+    uint32_t *item = substr + start_idx * words_per_substr_;
 
     while (end_idx < to &&
-        !IsDiffKMinusOneMer(item, substr + end_idx * words_per_substring, 1, opt.kmer_k)) {
+        !IsDiffKMinusOneMer(item, substr + end_idx * words_per_substr_, 1, opt_.k)) {
       ++end_idx;
     }
 
@@ -586,9 +512,9 @@ void Read2SdbgS2::output_(int64_t from, int64_t to,  int tid, uint32_t *substr) 
     outputed_b = 0;
 
     for (int64_t i = start_idx; i < end_idx; ++i) {
-      uint32_t *cur_item = substr + i * words_per_substring;
-      int a = Extract_a(cur_item, words_per_substring, 1, opt.kmer_k);
-      int b = Extract_b(cur_item, words_per_substring, 1);
+      uint32_t *cur_item = substr + i * words_per_substr_;
+      int a = Extract_a(cur_item, words_per_substr_, 1, opt_.k);
+      int b = Extract_b(cur_item, words_per_substr_, 1);
 
       if (a != kSentinelValue && b != kSentinelValue) {
         has_solid_a |= 1 << a;
@@ -601,17 +527,17 @@ void Read2SdbgS2::output_(int64_t from, int64_t to,  int tid, uint32_t *substr) 
     }
 
     for (int64_t i = start_idx, j; i < end_idx; i = j) {
-      uint32_t *cur_item = substr + i * words_per_substring;
-      int a = Extract_a(cur_item, words_per_substring, 1, opt.kmer_k);
-      int b = Extract_b(cur_item, words_per_substring, 1);
+      uint32_t *cur_item = substr + i * words_per_substr_;
+      int a = Extract_a(cur_item, words_per_substr_, 1, opt_.k);
+      int b = Extract_b(cur_item, words_per_substr_, 1);
 
       j = i + 1;
 
       while (j < end_idx) {
-        uint32_t *next_item = substr + j * words_per_substring;
+        uint32_t *next_item = substr + j * words_per_substr_;
 
-        if (Extract_a(next_item, words_per_substring, 1, opt.kmer_k) != a ||
-            Extract_b(next_item, words_per_substring, 1) != b) {
+        if (Extract_a(next_item, words_per_substr_, 1, opt_.k) != a ||
+            Extract_b(next_item, words_per_substr_, 1) != b) {
           break;
         } else {
           ++j;
@@ -644,28 +570,28 @@ void Read2SdbgS2::output_(int64_t from, int64_t to,  int tid, uint32_t *substr) 
       outputed_b |= 1 << b;
 
       if (is_dollar) {
-        for (int64_t i = 0; i < words_per_dummy_node; ++i) {
+        for (int64_t i = 0; i < words_per_dummy_node_; ++i) {
           tip_label[i] = cur_item[i];
         }
       }
 
-      sdbg_writer.Write(tid, cur_item[0] >> (32 - kBucketPrefixLength * 2), w, last, is_dollar, count,
-                                tip_label, &snapshot);
+      sdbg_writer_.Write(tid, cur_item[0] >> (32 - kBucketPrefixLength * 2), w, last, is_dollar, count,
+                         tip_label, &snapshot);
     }
   }
-  sdbg_writer.SaveSnapshot(snapshot);
+  sdbg_writer_.SaveSnapshot(snapshot);
 }
 
-void Read2SdbgS2::post_proc_func_() {
-  sdbg_writer.Finalize();
+void Read2SdbgS2::Lv0Postprocess() {
+  sdbg_writer_.Finalize();
   xinfo("Number of $ A C G T A- C- G- T-:\n");
   xinfo("");
   for (int i = 0; i < 9; ++i) {
-    xinfoc("%lld ", (long long)sdbg_writer.final_meta().w_count(i));
+    xinfoc("%lld ", (long long) sdbg_writer_.final_meta().w_count(i));
   }
   xinfoc("\n");
-  xinfo("Total number of edges: %lld\n", (long long)sdbg_writer.final_meta().item_count());
-  xinfo("Total number of ONEs: %lld\n", (long long)sdbg_writer.final_meta().ones_in_last());
-  xinfo("Total number of $v edges: %lld\n", (long long)sdbg_writer.final_meta().tip_count());
-  assert(sdbg_writer.final_meta().w_count(0) == sdbg_writer.final_meta().tip_count());
+  xinfo("Total number of edges: %lld\n", (long long) sdbg_writer_.final_meta().item_count());
+  xinfo("Total number of ONEs: %lld\n", (long long) sdbg_writer_.final_meta().ones_in_last());
+  xinfo("Total number of $v edges: %lld\n", (long long) sdbg_writer_.final_meta().tip_count());
+  assert(sdbg_writer_.final_meta().w_count(0) == sdbg_writer_.final_meta().tip_count());
 }
