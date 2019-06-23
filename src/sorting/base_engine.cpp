@@ -3,6 +3,8 @@
 //
 
 #include "base_engine.h"
+#include <omp.h>
+
 
 namespace {
 
@@ -137,7 +139,7 @@ void BaseSequenceSortingEngine::Run() {
   xinfo("Preparing partitions and calculating bucket sizes...\n");
 
   // prepare rp bp and op
-  Lv0PrepareReadPartition();
+  Lv0PrepareThreadPartition();
   // calc bucket size
   Lv0CalcBucketSizeLaunchMt();
   Lv0ReorderBuckets();
@@ -185,4 +187,147 @@ void BaseSequenceSortingEngine::Run() {
   Lv0Postprocess();
   lv0_timer.stop();
   xinfo("Postprocess done. Time elapsed: %.4f\n", lv0_timer.elapsed());
+}
+
+void BaseSequenceSortingEngine::Lv0PrepareThreadPartition() {
+  thread_meta_.resize(n_threads_);
+  for (unsigned t = 0; t < n_threads_; ++t) {
+    ThreadMeta &rp = thread_meta_[t];
+    // distribute reads to partitions
+    int64_t average = meta_.num_sequences / n_threads_;
+    rp.seq_from = t * average;
+    rp.seq_to = t < n_threads_ - 1 ? (t + 1) * average : meta_.num_sequences;
+    rp.offset_base = Lv0EncodeDiffBase(rp.seq_from);
+  }
+
+  for (unsigned i = 0; i < kNumBuckets; ++i) {
+    ori_bucket_id_[i] = i;
+    bucket_rank_[i] = i;
+  }
+}
+
+void BaseSequenceSortingEngine::Lv0ReorderBuckets() {
+  std::vector<std::pair<int64_t, int> > tmp_v(kNumBuckets);
+
+  for (unsigned i = 0; i < kNumBuckets; ++i) {
+    tmp_v[i] = std::make_pair(bucket_sizes_[i], i);
+  }
+
+  std::sort(tmp_v.rbegin(), tmp_v.rend());
+
+  for (unsigned i = 0; i < kNumBuckets; ++i) {
+    bucket_sizes_[i] = tmp_v[i].first;
+    ori_bucket_id_[i] = tmp_v[i].second;
+    bucket_rank_[tmp_v[i].second] = i;
+  }
+
+  for (unsigned tid = 0; tid < n_threads_; ++tid) {
+    auto old_rp_bucket_sizes = thread_meta_[tid].bucket_sizes;
+    for (unsigned i = 0; i < kNumBuckets; ++i) {
+      thread_meta_[tid].bucket_sizes[i] = old_rp_bucket_sizes[tmp_v[i].second];
+    }
+  }
+}
+
+unsigned BaseSequenceSortingEngine::Lv1FindEndBuckets(unsigned start_bucket) {
+  unsigned end_bucket = start_bucket;
+  unsigned used_threads = 0;
+  int64_t num_lv2 = 0;
+  lv1_num_items_ = 0;
+
+  cur_lv1_buckets_.resize(kNumBuckets);
+  std::fill(cur_lv1_buckets_.begin(), cur_lv1_buckets_.end(), false);
+
+  while (end_bucket < kNumBuckets) {
+    if (used_threads < n_threads_) {
+      num_lv2 += bucket_sizes_[end_bucket];
+      ++used_threads;
+    }
+
+    if (num_lv2 * meta_.words_per_lv2 + lv1_num_items_ + bucket_sizes_[end_bucket] >
+        static_cast<int64_t>(lv1_offsets_.size())) {
+      return end_bucket;
+    }
+
+    lv1_num_items_ += bucket_sizes_[end_bucket];
+    cur_lv1_buckets_[ori_bucket_id_[end_bucket]] = true;
+    ++end_bucket;
+  }
+
+  return kNumBuckets;
+}
+
+void BaseSequenceSortingEngine::Lv1ComputeThreadBegin() {
+  // set the bucket begin for the first thread
+  thread_meta_[0].bucket_begin[lv1_start_bucket_] = 0;
+  for (unsigned b = lv1_start_bucket_ + 1; b < lv1_end_bucket_; ++b) {
+    thread_meta_[0].bucket_begin[b] = thread_meta_[0].bucket_begin[b - 1] + bucket_sizes_[b - 1];  // accumulate
+  }
+
+  // then for the remaining threads
+  for (unsigned t = 1; t < n_threads_; ++t) {
+    auto &current_thread_begin = thread_meta_[t].bucket_begin;
+    auto &prev_thread_begin = thread_meta_[t - 1].bucket_begin;
+    auto &prev_thread_sizes = thread_meta_[t - 1].bucket_sizes;
+    for (unsigned b = lv1_start_bucket_; b < lv1_end_bucket_; ++b) {
+      current_thread_begin[b] = prev_thread_begin[b] + prev_thread_sizes[b];
+    }
+  }
+}
+
+void BaseSequenceSortingEngine::Lv0CalcBucketSizeLaunchMt() {
+#pragma omp parallel for
+  for (unsigned t = 0; t < n_threads_; ++t) {
+    auto &thread_meta = thread_meta_[t];
+    Lv0CalcBucketSize(thread_meta.seq_from, thread_meta.seq_to, &thread_meta.bucket_sizes);
+  }
+  std::fill(bucket_sizes_.begin(), bucket_sizes_.end(), 0);
+
+  for (unsigned t = 0; t < n_threads_; ++t) {
+    for (unsigned b = 0; b < kNumBuckets; ++b) {
+      bucket_sizes_[b] += thread_meta_[t].bucket_sizes[b];
+    }
+  }
+}
+
+void BaseSequenceSortingEngine::Lv1FetchAndSortLaunchMt() {
+  Lv2ThreadStatus thread_status{};
+  thread_status.thread_offset.resize(n_threads_, -1);
+  thread_status.rank.resize(n_threads_, 0);
+  omp_set_num_threads(n_threads_);
+#pragma omp parallel for schedule(dynamic)
+  for (auto i = GetLv1StartBucket(); i < GetLv1EndBucket(); ++i) {
+    Lv2Sort(&thread_status, i, omp_get_thread_num());
+  }
+}
+
+void BaseSequenceSortingEngine::Lv2Sort(BaseSequenceSortingEngine::Lv2ThreadStatus *thread_status, unsigned b, int tid) {
+  if (thread_status->thread_offset[tid] == -1) {
+    std::lock_guard<std::mutex> lk(thread_status->mutex);
+    thread_status->thread_offset[tid] = thread_status->acc;
+    thread_status->acc += bucket_sizes_[b];
+    thread_status->rank[tid] = thread_status->seen;
+    thread_status->seen++;
+  }
+
+  if (bucket_sizes_[b] == 0) {
+    return;
+  }
+
+  size_t offset = lv1_num_items_ + thread_status->thread_offset[tid] * meta_.words_per_lv2;
+  auto substr_ptr = lv1_offsets_.data() + offset;
+  Lv2ExtractSubString(b, b + 1, substr_ptr);
+  substr_sort_(substr_ptr, bucket_sizes_[b]);
+  Lv2Postprocess(0, bucket_sizes_[b], tid, substr_ptr);
+}
+
+void BaseSequenceSortingEngine::Lv1FillOffsetsLaunchMt() {
+  lv1_special_offsets_.clear();
+  Lv1ComputeThreadBegin();
+
+#pragma omp parallel for
+  for (unsigned t = 0; t < n_threads_; ++t) {
+    OffsetFiller filler(this, lv1_start_bucket_, lv1_end_bucket_, thread_meta_[t]);
+    Lv1FillOffsets(filler, thread_meta_[t].seq_from, thread_meta_[t].seq_to);
+  }
 }

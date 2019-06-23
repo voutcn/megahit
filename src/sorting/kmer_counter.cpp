@@ -109,13 +109,12 @@ KmerCounter::Meta KmerCounter::Initialize() {
   };
 }
 
-void KmerCounter::Lv0CalcBucketSize(SeqPartition *_data) {
-  auto &rp = *_data;
-  std::array<int64_t, kNumBuckets> &bucket_sizes = rp.rp_bucket_sizes;
+void KmerCounter::Lv0CalcBucketSize(int64_t seq_from, int64_t seq_to, std::array<int64_t, kNumBuckets> *out) {
+  std::array<int64_t, kNumBuckets> &bucket_sizes = *out;
   std::fill(bucket_sizes.begin(), bucket_sizes.end(), 0);
   GenericKmer edge, rev_edge;  // (k+1)-mer and its rc
 
-  for (int64_t read_id = rp.from; read_id < rp.to; ++read_id) {
+  for (int64_t read_id = seq_from; read_id < seq_to; ++read_id) {
     auto read_length = seq_pkg_.SequenceLength(read_id);
 
     if (read_length < opt_.k + 1) {
@@ -147,18 +146,10 @@ void KmerCounter::Lv0CalcBucketSize(SeqPartition *_data) {
   }
 }
 
-void KmerCounter::Lv1FillOffsets(SeqPartition *_data) {
-  auto &rp = *_data;
-  std::array<int64_t, kNumBuckets> prev_full_offsets;
-
-  for (auto b = GetLv1StartBucket(); b < GetLv1EndBucket(); ++b)
-    prev_full_offsets[b] = rp.rp_lv1_differential_base;
-
-  // this loop is VERY similar to that in PreprocessScanToFillBucketSizesThread
+void KmerCounter::Lv1FillOffsets(OffsetFiller &filler, int64_t seq_from, int64_t seq_to) {
   GenericKmer edge, rev_edge;  // (k+1)-mer and its rc
-  int key;
-
-  for (int64_t read_id = rp.from; read_id < rp.to; ++read_id) {
+  unsigned key;
+  for (int64_t read_id = seq_from; read_id < seq_to; ++read_id) {
     auto read_length = seq_pkg_.SequenceLength(read_id);
 
     if (read_length < opt_.k + 1) {
@@ -170,32 +161,20 @@ void KmerCounter::Lv1FillOffsets(SeqPartition *_data) {
     rev_edge = edge;
     rev_edge.ReverseComplement(opt_.k + 1);
 
-    // ===== this is a macro to save some copy&paste ================
-#define CHECK_AND_SAVE_OFFSET(offset, strand)                                            \
-  do {                                                                                   \
-    if (HandlingBucket(key)) {                                                           \
-      int key_ = GetBucketRank(key);                                                     \
-      int64_t full_offset = EncodeOffset(read_id, offset, strand, seq_pkg_);              \
-      int64_t differential = full_offset - prev_full_offsets[key_];                      \
-      int64_t index = rp.rp_bucket_offsets[key_]++;                                      \
-      WriteOffset(index, differential, full_offset);                                     \
-      assert(rp.rp_bucket_offsets[key_] <= GetLv1NumItems());                            \
-      prev_full_offsets[key_] = full_offset;                                             \
-    }                                                                                    \
-  } while (0)
-    // ^^^^^ why is the macro surrounded by a do-while? please ask Google
-    // =========== end macro ==========================
-
     // shift the key char by char
     unsigned last_char_offset = opt_.k;
 
     while (true) {
       if (rev_edge.cmp(edge, opt_.k + 1) < 0) {
         key = rev_edge.data()[0] >> (kCharsPerEdgeWord - kBucketPrefixLength) * kBitsPerEdgeChar;
-        CHECK_AND_SAVE_OFFSET(last_char_offset - opt_.k, 1);
+        if (filler.IsHandling(key)) {
+          filler.WriteNextOffset(key, EncodeOffset(read_id, last_char_offset - opt_.k, 1, seq_pkg_));
+        }
       } else {
         key = edge.data()[0] >> (kCharsPerEdgeWord - kBucketPrefixLength) * kBitsPerEdgeChar;
-        CHECK_AND_SAVE_OFFSET(last_char_offset - opt_.k, 0);
+        if (filler.IsHandling(key)) {
+          filler.WriteNextOffset(key, EncodeOffset(read_id, last_char_offset - opt_.k, 0, seq_pkg_));
+        }
       }
 
       if (++last_char_offset >= read_length) {
@@ -207,12 +186,10 @@ void KmerCounter::Lv1FillOffsets(SeqPartition *_data) {
       }
     }
   }
-
-#undef CHECK_AND_SAVE_OFFSET
 }
 
 void KmerCounter::Lv2ExtractSubString(unsigned start_bucket, unsigned end_bucket, uint32_t *substr_ptr) {
-  auto offset_iterator = GetOffsetIterator(start_bucket, end_bucket);
+  auto offset_iterator = GetOffsetFetcher(start_bucket, end_bucket);
 
   while (offset_iterator.HasNext()) {
     int64_t full_offset = offset_iterator.Next();
@@ -309,7 +286,7 @@ void KmerCounter::Lv2Postprocess(int64_t start_index, int64_t end_index, int thr
 
     if (!has_in && count >= opt_.solid_threshold) {
       for (int64_t j = from_; j < to_; ++j) {
-        auto *read_info_ptr =substrings + j * (words_per_substr_ + 2) + words_per_substr_;
+        auto *read_info_ptr = substrings + j * (words_per_substr_ + 2) + words_per_substr_;
         uint64_t read_info_context = ComposeUint64(read_info_ptr);
         int64_t read_info = read_info_context >> 6;
         int64_t read_id = seq_pkg_.GetSeqID(read_info >> 1);
@@ -321,8 +298,8 @@ void KmerCounter::Lv2Postprocess(int64_t start_index, int64_t end_index, int thr
           uint32_t old_value = last_0_in_[read_id].v.load(std::memory_order::memory_order_acquire);
           while ((old_value == kSentinelOffset || old_value < offset) &&
               !last_0_in_[read_id].v.compare_exchange_weak(old_value, offset,
-                                                          std::memory_order::memory_order_release,
-                                                          std::memory_order::memory_order_relaxed)) {
+                                                           std::memory_order::memory_order_release,
+                                                           std::memory_order::memory_order_relaxed)) {
           }
         } else {
           // update first
@@ -338,7 +315,7 @@ void KmerCounter::Lv2Postprocess(int64_t start_index, int64_t end_index, int thr
 
     if (!has_out && count >= opt_.solid_threshold) {
       for (int64_t j = from_; j < to_; ++j) {
-        auto *read_info_ptr =substrings + j * (words_per_substr_ + 2) + words_per_substr_;
+        auto *read_info_ptr = substrings + j * (words_per_substr_ + 2) + words_per_substr_;
         uint64_t read_info_context = ComposeUint64(read_info_ptr);
         int64_t read_info = read_info_context >> 6;
         int64_t read_id = seq_pkg_.GetSeqID(read_info >> 1);
@@ -358,8 +335,8 @@ void KmerCounter::Lv2Postprocess(int64_t start_index, int64_t end_index, int thr
           uint32_t old_value = last_0_in_[read_id].v.load(std::memory_order::memory_order_acquire);
           while ((old_value == kSentinelOffset || old_value < offset) &&
               !last_0_in_[read_id].v.compare_exchange_weak(old_value, offset,
-                                                          std::memory_order::memory_order_release,
-                                                          std::memory_order::memory_order_relaxed)) {
+                                                           std::memory_order::memory_order_release,
+                                                           std::memory_order::memory_order_relaxed)) {
           }
         }
       }

@@ -467,12 +467,11 @@ SeqToSdbg::Meta SeqToSdbg::Initialize() {
   };
 }
 
-void SeqToSdbg::Lv0CalcBucketSize(SeqPartition *_data) {
-  auto &rp = *_data;
-  auto &bucket_sizes = rp.rp_bucket_sizes;
+void SeqToSdbg::Lv0CalcBucketSize(int64_t seq_from, int64_t seq_to, std::array<int64_t, kNumBuckets> *out) {
+  auto &bucket_sizes = *out;
   std::fill(bucket_sizes.begin(), bucket_sizes.end(), 0);
 
-  for (int64_t seq_id = rp.from; seq_id < rp.to; ++seq_id) {
+  for (int64_t seq_id = seq_from; seq_id < seq_to; ++seq_id) {
     unsigned seq_len = seq_pkg_.SequenceLength(seq_id);
 
     if (seq_len < opt_.k + 1) {
@@ -510,32 +509,17 @@ void SeqToSdbg::Lv0CalcBucketSize(SeqPartition *_data) {
   }
 }
 
-void SeqToSdbg::Lv1FillOffsets(SeqPartition *_data) {
-  auto &rp = *_data;
-  std::array<int64_t, kNumBuckets> prev_full_offsets;
-
-  for (auto b = GetLv1StartBucket(); b < GetLv1EndBucket(); ++b)
-    prev_full_offsets[b] = rp.rp_lv1_differential_base;
-
-  // this loop is VERY similar to that in PreprocessScanToFillBucketSizesThread
-
+void SeqToSdbg::Lv1FillOffsets(OffsetFiller &filler, int64_t seq_from, int64_t seq_to) {
   // ===== this is a macro to save some copy&paste ================
-#define CHECK_AND_SAVE_OFFSET(key, offset, strand)                                                    \
-  do {                                                                                                \
-    if (HandlingBucket(key)) {                                                           \
-      int key_ = GetBucketRank(key);                                                     \
-      int64_t full_offset = EncodeEdgeOffset(seq_id, offset, strand, seq_pkg_);                \
-      int64_t differential = full_offset - prev_full_offsets[key_];                                   \
-      int64_t index = rp.rp_bucket_offsets[key_]++;                                                   \
-      WriteOffset(index, differential, full_offset);                                     \
-      assert(rp.rp_bucket_offsets[key_] <= GetLv1NumItems());                            \
-      prev_full_offsets[key_] = full_offset;                                                          \
-    }                                                                                                 \
+#define CHECK_AND_SAVE_OFFSET(key, offset, strand)                                     \
+  do {                                                                                 \
+    if (filler.IsHandling(key)) {                                                      \
+      filler.WriteNextOffset(key, EncodeEdgeOffset(seq_id, offset, strand, seq_pkg_)); \
+    }                                                                                  \
   } while (0)
-  // ^^^^^ why is the macro surrounded by a do-while? please ask Google
   // =========== end macro ==========================
 
-  for (int64_t seq_id = rp.from; seq_id < rp.to; ++seq_id) {
+  for (int64_t seq_id = seq_from; seq_id < seq_to; ++seq_id) {
     unsigned seq_len = seq_pkg_.SequenceLength(seq_id);
 
     if (seq_len < opt_.k + 1) {
@@ -570,7 +554,7 @@ void SeqToSdbg::Lv1FillOffsets(SeqPartition *_data) {
 }
 
 void SeqToSdbg::Lv2ExtractSubString(unsigned start_bucket, unsigned end_bucket, uint32_t *substr) {
-  auto offset_iterator = GetOffsetIterator(start_bucket, end_bucket);
+  auto offset_iterator = GetOffsetFetcher(start_bucket, end_bucket);
 
   while (offset_iterator.HasNext()) {
     int64_t full_offset = offset_iterator.Next();

@@ -142,13 +142,12 @@ Read2SdbgS1::Meta Read2SdbgS1::Initialize() {
   };
 }
 
-void Read2SdbgS1::Lv0CalcBucketSize(SeqPartition *_data) {
-  auto &rp = *_data;
-  auto &bucket_sizes = rp.rp_bucket_sizes;
+void Read2SdbgS1::Lv0CalcBucketSize(int64_t seq_from, int64_t seq_to, std::array<int64_t, kNumBuckets> *out) {
+  auto &bucket_sizes = *out;
   std::fill(bucket_sizes.begin(), bucket_sizes.end(), 0);
   GenericKmer k_minus1_mer, rev_k_minus1_mer;  // (k-1)-mer and its rc
 
-  for (int64_t read_id = rp.from; read_id < rp.to; ++read_id) {
+  for (int64_t read_id = seq_from; read_id < seq_to; ++read_id) {
     auto read_length = seq_pkg_->package.SequenceLength(read_id);
 
     if (read_length < opt_.k + 1) {
@@ -192,18 +191,11 @@ void Read2SdbgS1::Lv0CalcBucketSize(SeqPartition *_data) {
   }
 }
 
-void Read2SdbgS1::Lv1FillOffsets(SeqPartition *_data) {
-  auto &rp = *_data;
-  std::array<int64_t, kNumBuckets> prev_full_offsets{};  // temporary array for computing differentials
-  for (auto b = GetLv1StartBucket(); b < GetLv1EndBucket(); ++b)
-    prev_full_offsets[b] = rp.rp_lv1_differential_base;
-
-  // this loop is VERY similar to that in PreprocessScanToFillBucketSizesThread
+void Read2SdbgS1::Lv1FillOffsets(OffsetFiller &filler, int64_t seq_from, int64_t seq_to) {
   GenericKmer k_minus1_mer, rev_k_minus1_mer;  // (k+1)-mer and its rc
-
   int key;
 
-  for (int64_t read_id = rp.from; read_id < rp.to; ++read_id) {
+  for (int64_t read_id = seq_from; read_id < seq_to; ++read_id) {
     auto read_length = seq_pkg_->package.SequenceLength(read_id);
 
     if (read_length < opt_.k + 1) {
@@ -219,19 +211,12 @@ void Read2SdbgS1::Lv1FillOffsets(SeqPartition *_data) {
     rev_k_minus1_mer.ReverseComplement(opt_.k - 1);
 
     // ===== this is a macro to save some copy&paste ================
-#define CHECK_AND_SAVE_OFFSET(offset, strand)                                                         \
-  do {                                                                                                \
-    if (HandlingBucket(key)) {                                                           \
-      int key_ = GetBucketRank(key);                                                     \
-      int64_t full_offset = EncodeOffset(read_id, offset, strand, seq_pkg_->package);                   \
-      int64_t differential = full_offset - prev_full_offsets[key_];                                   \
-      int64_t index = rp.rp_bucket_offsets[key_]++;                                                   \
-      WriteOffset(index, differential, full_offset);                                     \
-      assert(rp.rp_bucket_offsets[key_] <= GetLv1NumItems());                            \
-      prev_full_offsets[key_] = full_offset;                                                          \
-    }                                                                                                 \
+#define CHECK_AND_SAVE_OFFSET(offset, strand)                                                \
+  do {                                                                                       \
+    if (filler.IsHandling(key)) {                                                            \
+      filler.WriteNextOffset(key, EncodeOffset(read_id, offset, strand, seq_pkg_->package)); \
+    }                                                                                        \
   } while (0)
-    // ^^^^^ why is the macro surrounded by a do-while? please ask Google
     // =========== end macro ==========================
 
     // the first one special handling
@@ -285,7 +270,7 @@ void Read2SdbgS1::Lv1FillOffsets(SeqPartition *_data) {
 }
 
 void Read2SdbgS1::Lv2ExtractSubString(unsigned start_bucket, unsigned end_bucket, uint32_t *substr_ptr) {
-  auto offset_iterator = GetOffsetIterator(start_bucket, end_bucket);
+  auto offset_iterator = GetOffsetFetcher(start_bucket, end_bucket);
 
   while (offset_iterator.HasNext()) {
     int64_t full_offset = offset_iterator.Next();
