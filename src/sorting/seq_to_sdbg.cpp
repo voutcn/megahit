@@ -91,7 +91,7 @@ inline int ExtractCounting(uint32_t *item, int num_words, int64_t spacing) {
 void InitLookupTable(int64_t *lookup_table, SeqPackage &p) {
   memset(lookup_table, 0xFF, sizeof(int64_t) * SeqToSdbg::kLookUpSize * 2);
 
-  if (p.Size() == 0) {
+  if (p.SeqCount() == 0) {
     return;
   }
 
@@ -101,7 +101,7 @@ void InitLookupTable(int64_t *lookup_table, SeqPackage &p) {
   uint32_t cur_prefix = kmer.data()[0] >> SeqToSdbg::kLookUpShift;
   lookup_table[cur_prefix * 2] = 0;
 
-  for (int64_t i = 1, num_edges = p.Size(); i < num_edges; ++i) {
+  for (int64_t i = 1, num_edges = p.SeqCount(); i < num_edges; ++i) {
     auto ptr_and_offset = p.WordPtrAndOffset(i);
     kmer.InitFromPtr(ptr_and_offset.first, ptr_and_offset.second, 16);
 
@@ -114,7 +114,7 @@ void InitLookupTable(int64_t *lookup_table, SeqPackage &p) {
     }
   }
 
-  lookup_table[cur_prefix * 2 + 1] = p.Size() - 1;
+  lookup_table[cur_prefix * 2 + 1] = p.SeqCount() - 1;
 }
 
 /**
@@ -153,7 +153,7 @@ int64_t BinarySearchKmer(GenericKmer &kmer, int64_t *lookup_table, SeqPackage &p
 
 // sorting core functions
 int64_t SeqToSdbg::Lv0EncodeDiffBase(int64_t read_id) {
-  assert(read_id < (int64_t) seq_pkg_.Size());
+  assert(read_id < (int64_t) seq_pkg_.SeqCount());
   return EncodeEdgeOffset(read_id, 0, 0, seq_pkg_);
 }
 
@@ -173,16 +173,16 @@ void SeqToSdbg::GenMercyEdges() {
 
   while (true) {
     SeqPackage &rp = reader.Next();
-    if (rp.Size() == 0) {
+    if (rp.SeqCount() == 0) {
       break;
     }
-    xinfo("Read %u reads to search for mercy k-mers\n", rp.Size());
+    xinfo("Read %u reads to search for mercy k-mers\n", rp.SeqCount());
 
-    num_mercy_reads += rp.Size();
+    num_mercy_reads += rp.SeqCount();
     mercy_edges.clear();
 #pragma omp parallel for reduction(+ : num_mercy_edges)
-    for (unsigned read_id = 0; read_id < rp.Size(); ++read_id) {
-      int read_len = rp.SequenceLength(read_id);
+    for (unsigned read_id = 0; read_id < rp.SeqCount(); ++read_id) {
+      unsigned read_len = rp.SequenceLength(read_id);
 
       if (read_len < opt_.k + 2) {
         continue;
@@ -460,7 +460,7 @@ SeqToSdbg::Meta SeqToSdbg::Initialize() {
   sdbg_writer_.InitFiles();
 
   return {
-      static_cast<int64_t>(seq_pkg_.Size()),
+      static_cast<int64_t>(seq_pkg_.SeqCount()),
       static_cast<int64_t>(seq_pkg_.SizeInByte() + multiplicity.size() * sizeof(mul_t)),
       words_per_substr_,
       0,
@@ -473,7 +473,7 @@ void SeqToSdbg::Lv0CalcBucketSize(ReadPartition *_data) {
   std::fill(bucket_sizes.begin(), bucket_sizes.end(), 0);
 
   for (int64_t seq_id = rp.rp_start_id; seq_id < rp.rp_end_id; ++seq_id) {
-    int seq_len = seq_pkg_.SequenceLength(seq_id);
+    unsigned seq_len = seq_pkg_.SequenceLength(seq_id);
 
     if (seq_len < opt_.k + 1) {
       continue;
@@ -536,7 +536,7 @@ void SeqToSdbg::Lv1FillOffsets(ReadPartition *_data) {
   // =========== end macro ==========================
 
   for (int64_t seq_id = rp.rp_start_id; seq_id < rp.rp_end_id; ++seq_id) {
-    int seq_len = seq_pkg_.SequenceLength(seq_id);
+    unsigned seq_len = seq_pkg_.SequenceLength(seq_id);
 
     if (seq_len < opt_.k + 1) {
       continue;
@@ -587,24 +587,24 @@ void SeqToSdbg::Lv2ExtractSubString(unsigned from_bucket,
 
         int64_t seq_id = seq_pkg_.GetSeqID(full_offset >> 1);
         int offset = (full_offset >> 1) - seq_pkg_.StartPos(seq_id);
-        int strand = full_offset & 1;
+        unsigned strand = full_offset & 1;
 
-        int seq_len = seq_pkg_.SequenceLength(seq_id);
-        int num_chars_to_copy = opt_.k - (offset + opt_.k > seq_len);
-        int counting = 0;
+        unsigned seq_len = seq_pkg_.SequenceLength(seq_id);
+        unsigned num_chars_to_copy = opt_.k - (offset + opt_.k > seq_len);
+        unsigned counting = 0;
 
         if (offset > 0 && offset + opt_.k <= seq_len) {
           counting = multiplicity[seq_id];
         }
 
         auto ptr_and_offset = seq_pkg_.WordPtrAndOffset(seq_id);
-        int start_offset = ptr_and_offset.second;
-        int words_this_seq = DivCeiling(start_offset + seq_len, 16);
+        unsigned start_offset = ptr_and_offset.second;
+        unsigned words_this_seq = DivCeiling(start_offset + seq_len, 16);
         const uint32_t *edge_p = ptr_and_offset.first;
 
         if (strand == 0) {
           // copy counting and W char
-          int prev_char;
+          unsigned prev_char;
 
           if (offset == 0) {
             assert(num_chars_to_copy == opt_.k);
@@ -617,11 +617,11 @@ void SeqToSdbg::Lv2ExtractSubString(unsigned from_bucket,
                         words_per_substr_);
 
           uint32_t *last_word = substr + words_per_substr_ - 1;
-          *last_word |= int(num_chars_to_copy == opt_.k) << (kBWTCharNumBits + kBitsPerMul);
+          *last_word |= unsigned(num_chars_to_copy == opt_.k) << (kBWTCharNumBits + kBitsPerMul);
           *last_word |= prev_char << kBitsPerMul;
-          *last_word |= std::max(0, kMaxMul - counting);  // then larger counting come first after sorting
+          *last_word |= std::max(0u, kMaxMul - counting);  // then larger counting come first after sorting
         } else {
-          int prev_char;
+          unsigned prev_char;
 
           if (offset == 0) {
             assert(num_chars_to_copy == opt_.k);
@@ -641,9 +641,9 @@ void SeqToSdbg::Lv2ExtractSubString(unsigned from_bucket,
                           words_per_substr_);
 
           uint32_t *last_word = substr + words_per_substr_ - 1;
-          *last_word |= int(num_chars_to_copy == opt_.k) << (kBWTCharNumBits + kBitsPerMul);
+          *last_word |= unsigned(num_chars_to_copy == opt_.k) << (kBWTCharNumBits + kBitsPerMul);
           *last_word |= prev_char << kBitsPerMul;
-          *last_word |= std::max(0, kMaxMul - counting);
+          *last_word |= std::max(0u, kMaxMul - counting);
         }
 
         substr += words_per_substr_;

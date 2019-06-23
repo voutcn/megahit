@@ -33,7 +33,7 @@
 #include "utils/atomic_wrapper.h"
 
 struct KmerCounterOption {
-  int k{21};
+  unsigned k{21};
   int solid_threshold{2};
   double host_mem{0};
   int n_threads{0};
@@ -44,7 +44,7 @@ struct KmerCounterOption {
 
 class KmerCounter : public BaseSequenceSortingEngine {
  public:
-  static const int kSentinelValue = 4;
+  static const unsigned kSentinelValue = 4;
   static const uint32_t kSentinelOffset = 4294967295U;
   explicit KmerCounter(const KmerCounterOption &opt)
       : BaseSequenceSortingEngine(opt.host_mem, opt.mem_flag, opt.n_threads), opt_(opt) {}

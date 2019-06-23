@@ -33,7 +33,7 @@
 #include "sequence/sequence_package.h"
 
 struct Read2SdbgOption {
-  int k{21};
+  unsigned k{21};
   int solid_threshold{2};
   double host_mem{0};
   int n_threads{0};
@@ -51,8 +51,8 @@ struct SeqPkgWithSolidMarker {
 
 class Read2SdbgS1 : public BaseSequenceSortingEngine {
  public:
-  static const int kSentinelValue = 4;
-  static const int kBWTCharNumBits = 3;
+  static const unsigned kSentinelValue = 4;
+  static const unsigned kBWTCharNumBits = 3;
 
   Read2SdbgS1(const Read2SdbgOption &opt, SeqPkgWithSolidMarker *pkg)
       : BaseSequenceSortingEngine(opt.host_mem, opt.mem_flag, opt.n_threads), opt_(opt), seq_pkg_(pkg) {}
@@ -81,8 +81,8 @@ class Read2SdbgS1 : public BaseSequenceSortingEngine {
 
 class Read2SdbgS2 : public BaseSequenceSortingEngine {
  public:
-  static const int kSentinelValue = 4;
-  static const int kBWTCharNumBits = 3;
+  static const unsigned kSentinelValue = 4;
+  static const unsigned kBWTCharNumBits = 3;
 
   Read2SdbgS2(const Read2SdbgOption &opt, SeqPkgWithSolidMarker *pkg)
       : BaseSequenceSortingEngine(opt.host_mem, opt.mem_flag, opt.n_threads), opt_(opt), seq_pkg_(pkg) {}

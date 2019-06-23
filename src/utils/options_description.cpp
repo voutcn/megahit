@@ -109,6 +109,13 @@ void OptionsDescription::AddOption(const std::string &long_name, const std::stri
   AddOption(long_name, short_name, &int_option, kOptionInt, description, ss.str());
 }
 
+void OptionsDescription::AddOption(const std::string &long_name, const std::string &short_name, unsigned &uint_option,
+                                   const std::string &description) {
+  stringstream ss;
+  ss << uint_option;
+  AddOption(long_name, short_name, &uint_option, kOptionInt, description, ss.str());
+}
+
 void OptionsDescription::AddOption(const std::string &long_name, const std::string &short_name, double &double_option,
                                    const std::string &description) {
   stringstream ss;

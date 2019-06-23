@@ -60,7 +60,7 @@ class SequencePackage {
 
   void ReserveSequences(size_t num_seq) { start_pos_.reserve(num_seq + 1); }
 
-  size_t Size() const { return num_fixed_len_ + start_pos_.size() - 1; }
+  size_t SeqCount() const { return num_fixed_len_ + start_pos_.size() - 1; }
 
   size_t BaseCount() const { return start_pos_.back(); }
 
@@ -101,7 +101,7 @@ class SequencePackage {
     size_t cur_id = num_fixed_len_;
 
     while (abs_offset <= start_pos_.back()) {
-      while (cur_id < Size() && start_pos_[cur_id - num_fixed_len_ + 1] <= abs_offset) {
+      while (cur_id < SeqCount() && start_pos_[cur_id - num_fixed_len_ + 1] <= abs_offset) {
         ++cur_id;
       }
 
@@ -109,8 +109,8 @@ class SequencePackage {
       abs_offset += kLookupStep;
     }
 
-    pos_to_id_.push_back(Size());
-    pos_to_id_.push_back(Size());
+    pos_to_id_.push_back(SeqCount());
+    pos_to_id_.push_back(SeqCount());
   }
 
   uint64_t GetSeqID(size_t full_offset) {

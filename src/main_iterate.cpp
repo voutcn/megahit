@@ -116,11 +116,11 @@ static bool ReadReadsAndProcessKernel(const Option &opt, const IndexType &index)
 
   while (true) {
     const auto &read_pkg = reader.Next();
-    if (read_pkg.Size() == 0) {
+    if (read_pkg.SeqCount() == 0) {
       break;
     }
     num_aligned_reads += index.FindNextKmersFromReads(read_pkg, &collector);
-    num_total_reads += read_pkg.Size();
+    num_total_reads += read_pkg.SeqCount();
     xinfo("Processed: %lld, aligned: %lld. Iterative edges: %llu\n", num_total_reads, num_aligned_reads,
           collector.collection().size());
   }
@@ -150,10 +150,10 @@ static void ReadContigsAndBuildIndex(const Option &opt, const std::string &file_
     auto &pkg = reader.Next();
     auto &contig_pkg = pkg.first;
     auto &mul = pkg.second;
-    if (contig_pkg.Size() == 0) {
+    if (contig_pkg.SeqCount() == 0) {
       break;
     }
-    xinfo("Read %lu contigs\n", contig_pkg.Size());
+    xinfo("Read %lu contigs\n", contig_pkg.SeqCount());
     index->FeedBatchContigs(contig_pkg, mul);
     xinfo("Number of flank kmers: %lu\n", index->size());
   }

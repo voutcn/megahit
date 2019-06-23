@@ -141,26 +141,26 @@ class BaseSequenceSortingEngine {
  private:
   void AdjustMemory() {
     int64_t max_bucket_size = *std::max_element(bucket_sizes_.begin(), bucket_sizes_.end());
-    int64_t tot_bucket_size = 0;
+    int64_t total_bucket_size = 0;
     int num_non_empty = 0;
     for (unsigned i = 0; i < kNumBuckets; ++i) {
-      tot_bucket_size += GetBucketSizes()[i];
+      total_bucket_size += GetBucketSizes()[i];
       if (GetBucketSizes()[i] > 0) {
         num_non_empty++;
       }
     }
 
-    int64_t est_lv2_items = std::max(3 * tot_bucket_size / std::max(1, num_non_empty) * n_threads_,
+    int64_t est_lv2_items = std::max(3 * total_bucket_size / std::max(1, num_non_empty) * n_threads_,
                                      max_bucket_size);
 
     const int64_t mem_remained = host_mem_ - meta_.memory_for_data;
-    const int64_t min_lv1_items = tot_bucket_size / (kMaxLv1ScanTime - 0.5);
+    const int64_t min_lv1_items = total_bucket_size / (kMaxLv1ScanTime - 0.5);
     const int64_t lv2_bytes_per_item = meta_.words_per_lv2 * sizeof(uint32_t);
     std::pair<int64_t, int64_t> n_items;
 
     if (mem_flag_ == 1) {
       // auto set memory
-      int64_t est_lv1_items = tot_bucket_size / (kDefaultLv1ScanTime - 0.5);
+      int64_t est_lv1_items = total_bucket_size / (kDefaultLv1ScanTime - 0.5);
       est_lv1_items = std::max(est_lv1_items, max_bucket_size);
       int64_t mem_needed = est_lv1_items * kLv1BytePerItem + est_lv2_items * lv2_bytes_per_item;
       if (mem_needed > mem_remained) {
@@ -172,7 +172,7 @@ class BaseSequenceSortingEngine {
 
     } else if (mem_flag_ == 0) {
       // min memory
-      int64_t est_lv1_items = tot_bucket_size / (kMaxLv1ScanTime - 0.5);
+      int64_t est_lv1_items = total_bucket_size / (kMaxLv1ScanTime - 0.5);
       est_lv1_items = std::max(est_lv1_items, max_bucket_size);
       int64_t mem_needed = est_lv1_items * kLv1BytePerItem + est_lv2_items * lv2_bytes_per_item;
 
@@ -192,6 +192,10 @@ class BaseSequenceSortingEngine {
 
     if (n_items.first < min_lv1_items) {
       xfatal("No enough memory");
+    }
+
+    if (n_items.first > total_bucket_size) {
+      n_items.first = total_bucket_size;
     }
 
     auto words_required = n_items.first + n_items.second * meta_.words_per_lv2;
@@ -247,7 +251,7 @@ class BaseSequenceSortingEngine {
     return {num_lv1_items, num_lv2_items};
   }
 
-  void Lv0PrepareReadPartition() {  // call after Initialize
+  void Lv0PrepareReadPartition() {
     rp_.resize(n_threads_);
     for (unsigned t = 0; t < n_threads_; ++t) {
       ReadPartition &rp = rp_[t];

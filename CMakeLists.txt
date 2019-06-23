@@ -48,7 +48,7 @@ set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -D__XROOT__='\"${CMAKE_SOURCE_DIR}/src\"
 set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} ${ZLIB_EXE_LINKER_FLAGS} ${OpenMP_EXE_LINKER_FLAGS}")
 
 set(CMAKE_CXX_FLAGS_RELEASE "-O3 -DNDEBUG")
-set(CMAKE_CXX_FLAGS_DEBUG "-g -ggdb -O2 -D_LIBCPP_DEBUG -D_GLIBCXX_DEBUG")
+set(CMAKE_CXX_FLAGS_DEBUG "-g -ggdb -O1 -D_LIBCPP_DEBUG -D_GLIBCXX_DEBUG")
 
 if (COVERAGE)
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} --coverage")
@@ -88,6 +88,8 @@ set(TEST_DATA ${CMAKE_SOURCE_DIR}/test_data)
 add_custom_target(
         simple_test
         COMMAND ./megahit --test -t 2
+        COMMAND ./megahit --test -t 2 --mem-flag 2
+        COMMAND ./megahit --test -t 2 --mem-flag 0
         COMMAND ./megahit --test -t 2 --no-hw-accel
         COMMAND ./megahit --test -t 2 --kmin-1pass
         COMMAND rm -rf test-random && python3 ../test_data/generate_random_fasta.py > random.fa && ./megahit -r random.fa --k-list 255 --min-count 1 -o test-random

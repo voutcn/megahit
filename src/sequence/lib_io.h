@@ -41,7 +41,7 @@
 
 inline void WriteBinarySequences(const SeqPackage &pkg, FILE *file, int64_t from = 0, int64_t to = -1) {
   if (to == -1) {
-    to = pkg.Size() - 1;
+    to = pkg.SeqCount() - 1;
   }
 
   uint32_t len;

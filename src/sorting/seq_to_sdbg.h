@@ -32,8 +32,8 @@
 struct Seq2SdbgOption {
   double host_mem{0};
   int n_threads{0};
-  int k{0};
-  int k_from{0};
+  unsigned k{0};
+  unsigned k_from{0};
   std::string contig;
   std::string bubble_seq;
   std::string addi_contig;
@@ -46,13 +46,13 @@ struct Seq2SdbgOption {
 
 class SeqToSdbg : public BaseSequenceSortingEngine {
  public:
-  static const int kBucketBase = 4;
+  static const unsigned kBucketBase = 4;
 // binary search look up table
-  static const int kLookUpPrefixLength = 12;
-  static const int kLookUpShift = 32 - kLookUpPrefixLength * 2;
-  static const int kLookUpSize = 1 << (2 * kLookUpPrefixLength);
-  static const int kSentinelValue = 4;
-  static const int kBWTCharNumBits = 3;
+  static const unsigned kLookUpPrefixLength = 12;
+  static const unsigned kLookUpShift = 32 - kLookUpPrefixLength * 2;
+  static const unsigned kLookUpSize = 1 << (2 * kLookUpPrefixLength);
+  static const unsigned kSentinelValue = 4;
+  static const unsigned kBWTCharNumBits = 3;
 
   explicit SeqToSdbg(const Seq2SdbgOption &opt) :
       BaseSequenceSortingEngine(opt.host_mem, opt.mem_flag, opt.n_threads),

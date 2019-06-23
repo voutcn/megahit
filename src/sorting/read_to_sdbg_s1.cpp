@@ -93,7 +93,7 @@ Read2SdbgS1::Meta Read2SdbgS1::Initialize() {
 
   seq_pkg_->package.BuildIndex();
 
-  xinfo("%lu reads, %d max read length, %lld total bases\n", seq_pkg_->package.Size(),
+  xinfo("%lu reads, %d max read length, %lld total bases\n", seq_pkg_->package.SeqCount(),
         seq_pkg_->package.MaxSequenceLength(),
         seq_pkg_->package.BaseCount());
 
@@ -110,7 +110,7 @@ Read2SdbgS1::Meta Read2SdbgS1::Initialize() {
   seq_pkg_->n_mercy_files = 1;
 
   while (seq_pkg_->n_mercy_files * 10485760LL <
-      static_cast<int64_t>(seq_pkg_->package.Size()) && seq_pkg_->n_mercy_files < 64) {
+      static_cast<int64_t>(seq_pkg_->package.SeqCount()) && seq_pkg_->n_mercy_files < 64) {
     seq_pkg_->n_mercy_files <<= 1;
   }
   xinfo("Number of files for mercy candidate reads: %d\n", seq_pkg_->n_mercy_files);
@@ -145,7 +145,7 @@ void Read2SdbgS1::Lv0CalcBucketSize(ReadPartition *_data) {
   GenericKmer k_minus1_mer, rev_k_minus1_mer;  // (k-1)-mer and its rc
 
   for (int64_t read_id = rp.rp_start_id; read_id < rp.rp_end_id; ++read_id) {
-    int read_length = seq_pkg_->package.SequenceLength(read_id);
+    auto read_length = seq_pkg_->package.SequenceLength(read_id);
 
     if (read_length < opt_.k + 1) {
       continue;
@@ -163,7 +163,7 @@ void Read2SdbgS1::Lv0CalcBucketSize(ReadPartition *_data) {
     bucket_sizes[k_minus1_mer.data()[0] >> (kCharsPerEdgeWord - kBucketPrefixLength) * kBitsPerEdgeChar]++;
     bucket_sizes[rev_k_minus1_mer.data()[0] >> (kCharsPerEdgeWord - kBucketPrefixLength) * kBitsPerEdgeChar]++;
 
-    int last_char_offset = opt_.k - 1;
+    unsigned last_char_offset = opt_.k - 1;
     int c = seq_pkg_->package.GetBase(read_id, last_char_offset);
     k_minus1_mer.ShiftAppend(c, opt_.k - 1);
     rev_k_minus1_mer.ShiftPreappend(3 - c, opt_.k - 1);
@@ -200,7 +200,7 @@ void Read2SdbgS1::Lv1FillOffsets(ReadPartition *_data) {
   int key;
 
   for (int64_t read_id = rp.rp_start_id; read_id < rp.rp_end_id; ++read_id) {
-    int read_length = seq_pkg_->package.SequenceLength(read_id);
+    auto read_length = seq_pkg_->package.SequenceLength(read_id);
 
     if (read_length < opt_.k + 1) {
       continue;
@@ -236,7 +236,7 @@ void Read2SdbgS1::Lv1FillOffsets(ReadPartition *_data) {
     key = rev_k_minus1_mer.data()[0] >> (kCharsPerEdgeWord - kBucketPrefixLength) * kBitsPerEdgeChar;
     CHECK_AND_SAVE_OFFSET(0, 1);
 
-    int last_char_offset = opt_.k - 1;
+    unsigned last_char_offset = opt_.k - 1;
     int c = seq_pkg_->package.GetBase(read_id, last_char_offset);
     k_minus1_mer.ShiftAppend(c, opt_.k - 1);
     rev_k_minus1_mer.ShiftPreappend(3 - c, opt_.k - 1);
@@ -296,10 +296,10 @@ void Read2SdbgS1::Lv2ExtractSubString(unsigned bp_from, unsigned bp_to, uint32_t
         }
 
         int64_t read_id = seq_pkg_->package.GetSeqID(full_offset >> 1);
-        int strand = full_offset & 1;
-        int offset = (full_offset >> 1) - seq_pkg_->package.StartPos(read_id);
-        int read_length = seq_pkg_->package.SequenceLength(read_id);
-        int num_chars_to_copy = opt_.k - 1;
+        unsigned strand = full_offset & 1;
+        unsigned offset = (full_offset >> 1) - seq_pkg_->package.StartPos(read_id);
+        unsigned read_length = seq_pkg_->package.SequenceLength(read_id);
+        unsigned num_chars_to_copy = opt_.k - 1;
         unsigned char prev, next, head, tail;  // (k+1)=abScd, prev=a, head=b, tail=c, next=d
 
         assert(offset < read_length);

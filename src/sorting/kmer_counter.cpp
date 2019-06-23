@@ -72,7 +72,7 @@ KmerCounter::Meta KmerCounter::Initialize() {
   ReadBinaryLibs(opt_.read_lib_file, seq_pkg_, lib_info, is_reverse);
 
   seq_pkg_.BuildIndex();
-  num_reads = seq_pkg_.Size();
+  num_reads = seq_pkg_.SeqCount();
   xinfo("%ld reads, %d max read length\n", num_reads, seq_pkg_.MaxSequenceLength());
 
   words_per_substr_ = DivCeiling((opt_.k + 1) * kBitsPerEdgeChar, kBitsPerEdgeWord);
@@ -80,8 +80,8 @@ KmerCounter::Meta KmerCounter::Initialize() {
   xinfo("%d words per substring, %d words per edge\n", words_per_substr_, words_per_edge_);
 
   // --- malloc read first_in / last_out ---
-  first_0_out_ = std::vector<AtomicWrapper<uint32_t>>(seq_pkg_.Size(), 0xFFFFFFFFU);
-  last_0_in_ = std::vector<AtomicWrapper<uint32_t>>(seq_pkg_.Size(), 0xFFFFFFFFU);
+  first_0_out_ = std::vector<AtomicWrapper<uint32_t>>(seq_pkg_.SeqCount(), 0xFFFFFFFFU);
+  last_0_in_ = std::vector<AtomicWrapper<uint32_t>>(seq_pkg_.SeqCount(), 0xFFFFFFFFU);
 
   // --- initialize stat ---
   thread_edge_counting_.resize(opt_.n_threads);
@@ -98,7 +98,7 @@ KmerCounter::Meta KmerCounter::Initialize() {
   edge_writer_.InitFiles();
 
   int64_t memory_for_data = seq_pkg_.SizeInByte() +
-      + seq_pkg_.Size() * sizeof(first_0_out_[0]) * 2     // first_in0 & last_out0
+      +seq_pkg_.SeqCount() * sizeof(first_0_out_[0]) * 2     // first_in0 & last_out0
       + (kMaxMul + 1) * (opt_.n_threads + 1) * sizeof(int64_t);  // edge_counting
 
   return {
@@ -116,7 +116,7 @@ void KmerCounter::Lv0CalcBucketSize(ReadPartition *_data) {
   GenericKmer edge, rev_edge;  // (k+1)-mer and its rc
 
   for (int64_t read_id = rp.rp_start_id; read_id < rp.rp_end_id; ++read_id) {
-    int read_length = seq_pkg_.SequenceLength(read_id);
+    auto read_length = seq_pkg_.SequenceLength(read_id);
 
     if (read_length < opt_.k + 1) {
       continue;
@@ -127,7 +127,7 @@ void KmerCounter::Lv0CalcBucketSize(ReadPartition *_data) {
     rev_edge = edge;
     rev_edge.ReverseComplement(opt_.k + 1);
 
-    int last_char_offset = opt_.k;
+    unsigned last_char_offset = opt_.k;
 
     while (true) {
       if (rev_edge.cmp(edge, opt_.k + 1) < 0) {
@@ -159,7 +159,7 @@ void KmerCounter::Lv1FillOffsets(ReadPartition *_data) {
   int key;
 
   for (int64_t read_id = rp.rp_start_id; read_id < rp.rp_end_id; ++read_id) {
-    int read_length = seq_pkg_.SequenceLength(read_id);
+    auto read_length = seq_pkg_.SequenceLength(read_id);
 
     if (read_length < opt_.k + 1) {
       continue;
@@ -187,7 +187,7 @@ void KmerCounter::Lv1FillOffsets(ReadPartition *_data) {
     // =========== end macro ==========================
 
     // shift the key char by char
-    int last_char_offset = opt_.k;
+    unsigned last_char_offset = opt_.k;
 
     while (true) {
       if (rev_edge.cmp(edge, opt_.k + 1) < 0) {
@@ -227,14 +227,14 @@ void KmerCounter::Lv2ExtractSubString(unsigned start_bucket, unsigned end_bucket
         }
 
         int64_t read_id = seq_pkg_.GetSeqID(full_offset >> 1);
-        int strand = full_offset & 1;
-        int offset = (full_offset >> 1) - seq_pkg_.StartPos(read_id);
-        int num_chars_to_copy = opt_.k + 1;
+        unsigned strand = full_offset & 1;
+        unsigned offset = (full_offset >> 1) - seq_pkg_.StartPos(read_id);
+        unsigned num_chars_to_copy = opt_.k + 1;
 
-        int read_length = seq_pkg_.SequenceLength(read_id);
+        unsigned read_length = seq_pkg_.SequenceLength(read_id);
         auto ptr_and_offset = seq_pkg_.WordPtrAndOffset(read_id);
-        int start_offset = ptr_and_offset.second;
-        int words_this_seq = DivCeiling(start_offset + read_length, 16);
+        unsigned start_offset = ptr_and_offset.second;
+        unsigned words_this_seq = DivCeiling(start_offset + read_length, 16);
         const uint32_t *read_p = ptr_and_offset.first;
 
         unsigned char prev, next;
@@ -401,7 +401,7 @@ void KmerCounter::Lv0Postprocess() {
   int64_t num_has_tips = 0;
   FILE *candidate_file = xfopen((opt_.output_prefix + ".cand").c_str(), "wb");
 
-  for (size_t i = 0; i < seq_pkg_.Size(); ++i) {
+  for (size_t i = 0; i < seq_pkg_.SeqCount(); ++i) {
     auto first = first_0_out_[i].v.load(std::memory_order::memory_order_relaxed);
     auto last = last_0_in_[i].v.load(std::memory_order::memory_order_relaxed);
 

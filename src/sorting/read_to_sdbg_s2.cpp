@@ -106,7 +106,7 @@ Read2SdbgS2::Meta Read2SdbgS2::Initialize() {
       + seq_pkg_->package.SizeInByte();
 
   Meta ret{
-      static_cast<int64_t>(seq_pkg_->package.Size()),
+      static_cast<int64_t>(seq_pkg_->package.SeqCount()),
       memory_for_data,
       words_per_substr_,
       0,
@@ -125,7 +125,7 @@ Read2SdbgS2::Meta Read2SdbgS2::Initialize() {
   std::vector<uint64_t> mercy_cand;
   uint64_t num_mercy = 0;
   AtomicBitVector read_marker;
-  read_marker.reset(seq_pkg_->package.Size());
+  read_marker.reset(seq_pkg_->package.SeqCount());
 
   for (int fid = 0; fid < seq_pkg_->n_mercy_files; ++fid) {
     FILE *fp = xfopen(FormatString("%s.mercy_cand.%d", opt_.output_prefix.c_str(), fid), "rb");
@@ -170,7 +170,6 @@ Read2SdbgS2::Meta Read2SdbgS2::Initialize() {
     }
 
 #pragma omp parallel for reduction(+ : num_mercy)
-
     for (int tid = 0; tid < opt_.n_threads; ++tid) {
       std::vector<bool> no_in(seq_pkg_->package.MaxSequenceLength());
       std::vector<bool> no_out(seq_pkg_->package.MaxSequenceLength());
@@ -208,18 +207,18 @@ Read2SdbgS2::Meta Read2SdbgS2::Initialize() {
           continue;
         }
 
-        int read_length = seq_pkg_->package.SequenceLength(read_id);
+        auto read_length = seq_pkg_->package.SequenceLength(read_id);
         int last_no_out = -1;
 
-        for (int i = 0; i + opt_.k < read_length; ++i) {
+        for (unsigned i = 0; i + opt_.k < read_length; ++i) {
           if (seq_pkg_->is_solid.at(seq_pkg_->package.StartPos(read_id) + i)) {
             has_solid_kmer[i] = has_solid_kmer[i + 1] = true;
           }
         }
 
-        for (int i = 0; i + opt_.k <= read_length; ++i) {
+        for (unsigned i = 0; i + opt_.k <= read_length; ++i) {
           if (no_in[i] && last_no_out != -1) {
-            for (int j = last_no_out; j < i; ++j) {
+            for (unsigned j = last_no_out; j < i; ++j) {
               seq_pkg_->is_solid.set(seq_pkg_->package.StartPos(read_id) + j);
             }
 
@@ -254,7 +253,7 @@ void Read2SdbgS2::Lv0CalcBucketSize(ReadPartition *_data) {
   GenericKmer edge, rev_edge;  // (k+1)-mer and its rc
 
   for (int64_t read_id = rp.rp_start_id; read_id < rp.rp_end_id; ++read_id) {
-    int read_length = seq_pkg_->package.SequenceLength(read_id);
+    auto read_length = seq_pkg_->package.SequenceLength(read_id);
 
     if (read_length < opt_.k + 1) {
       continue;
@@ -268,7 +267,7 @@ void Read2SdbgS2::Lv0CalcBucketSize(ReadPartition *_data) {
     rev_edge = edge;
     rev_edge.ReverseComplement(opt_.k + 1);
 
-    int last_char_offset = opt_.k;
+    unsigned last_char_offset = opt_.k;
     int64_t full_offset = seq_pkg_->package.StartPos(read_id);
     bool for_sure_solid = opt_.solid_threshold == 1;
 
@@ -321,7 +320,7 @@ void Read2SdbgS2::Lv1FillOffsets(ReadPartition *_data) {
   int key;
 
   for (int64_t read_id = rp.rp_start_id; read_id < rp.rp_end_id; ++read_id) {
-    int read_length = seq_pkg_->package.SequenceLength(read_id);
+    auto read_length = seq_pkg_->package.SequenceLength(read_id);
 
     if (read_length < opt_.k + 1) {
       continue;
@@ -352,7 +351,7 @@ void Read2SdbgS2::Lv1FillOffsets(ReadPartition *_data) {
     // =========== end macro ==========================
 
     // shift the key char by char
-    int last_char_offset = opt_.k;
+    unsigned last_char_offset = opt_.k;
     int64_t full_offset = seq_pkg_->package.StartPos(read_id);
     bool for_sure_solid = opt_.solid_threshold == 1;
 
@@ -434,7 +433,7 @@ void Read2SdbgS2::Lv2ExtractSubString(unsigned bp_from, unsigned bp_to, uint32_t
         int words_this_read = DivCeiling(start_offset + read_length, 16);
 
         if (strand == 0) {
-          int num_chars_to_copy = opt_.k;
+          unsigned num_chars_to_copy = opt_.k;
           uint8_t prev = kSentinelValue;
 
           switch (edge_type) {
@@ -456,10 +455,10 @@ void Read2SdbgS2::Lv2ExtractSubString(unsigned bp_from, unsigned bp_to, uint32_t
                         words_per_substr_);
 
           uint32_t *last_word = substr + (words_per_substr_ - 1) * 1;
-          *last_word |= int(num_chars_to_copy == opt_.k) << kBWTCharNumBits;
+          *last_word |= unsigned(num_chars_to_copy == opt_.k) << kBWTCharNumBits;
           *last_word |= prev;
         } else {
-          int num_chars_to_copy = opt_.k;
+          unsigned num_chars_to_copy = opt_.k;
           uint8_t prev = kSentinelValue;
 
           switch (edge_type) {
@@ -480,7 +479,7 @@ void Read2SdbgS2::Lv2ExtractSubString(unsigned bp_from, unsigned bp_to, uint32_t
                           words_per_substr_);
 
           uint32_t *last_word = substr + (words_per_substr_ - 1) * 1;
-          *last_word |= int(num_chars_to_copy == opt_.k) << kBWTCharNumBits;
+          *last_word |= unsigned(num_chars_to_copy == opt_.k) << kBWTCharNumBits;
           *last_word |= prev;
         }
 
