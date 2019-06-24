@@ -8,12 +8,13 @@
 #include <cassert>
 #include <cstdint>
 #include <string>
+#include "utils/utils.h"
 
 class UnitigGraph;
 
 inline void WriteContig(const std::string &ascii_contig, unsigned k_size, long long id, int flag, double multi,
                         FILE *file) {
-  fprintf(file, ">k%d_%lld flag=%d multi=%.4lf len=%lu\n%s\n", k_size, id, flag, multi, ascii_contig.length(),
+  pfprintf(file, ">k{}_{} flag={} multi={.4} len={}\n{}\n", k_size, id, flag, multi, ascii_contig.length(),
           ascii_contig.c_str());
 }
 

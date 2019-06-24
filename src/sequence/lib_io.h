@@ -59,7 +59,7 @@ inline void ReadAndWriteMultipleLibs(const std::string &lib_file, const std::str
   std::ifstream lib_config(lib_file);
 
   if (!lib_config.is_open()) {
-    xfatal("File to open read_lib file: %s\n", lib_file.c_str());
+    xfatal("File to open read_lib file: {}\n", lib_file.c_str());
   }
 
   FILE *bin_file = xfopen((out_prefix + ".bin").c_str(), "wb");
@@ -90,7 +90,7 @@ inline void ReadAndWriteMultipleLibs(const std::string &lib_file, const std::str
       lib_config >> file_name1;
       reader.reset(new FastxReader(file_name1));
     } else {
-      xerr("Cannot identify read library type %s\n", type.c_str());
+      xerr("Cannot identify read library type {}\n", type.c_str());
       xfatal("Valid types: pe, se, interleaved\n");
     }
 
@@ -115,16 +115,16 @@ inline void ReadAndWriteMultipleLibs(const std::string &lib_file, const std::str
     }
 
     if (type == "pe" && (total_reads - start) % 2 != 0) {
-      xerr("PE library number of reads is odd: %lld!\n", total_reads - start);
-      xfatal("File(s): %s\n", metadata.c_str());
+      xerr("PE library number of reads is odd: {}!\n", total_reads - start);
+      xfatal("File(s): {}\n", metadata.c_str());
     }
 
     if (type == "interleaved" && (total_reads - start) % 2 != 0) {
-      xerr("PE library number of reads is odd: %lld!\n", total_reads - start);
-      xfatal("File(s): %s\n", metadata.c_str());
+      xerr("PE library number of reads is odd: {}!\n", total_reads - start);
+      xfatal("File(s): {}\n", metadata.c_str());
     }
 
-    xinfo("Lib %d (%s): %s, %lld reads, %d max length\n", lib_info.size(), metadata.c_str(), type.c_str(),
+    xinfo("Lib {} ({}): {}, {} reads, {} max length\n", lib_info.size(), metadata.c_str(), type.c_str(),
           total_reads - start, max_read_len);
 
     lib_info.emplace_back(&seq_batch, start, total_reads - 1, max_read_len, type != "se", metadata);
@@ -132,11 +132,11 @@ inline void ReadAndWriteMultipleLibs(const std::string &lib_file, const std::str
   }
 
   FILE *lib_info_file = xfopen((out_prefix + ".lib_info").c_str(), "w");
-  fprintf(lib_info_file, "%zu %zu\n", total_bases, total_reads);
+  pfprintf(lib_info_file, "{} {}\n", total_bases, total_reads);
 
-  for (auto &i : lib_info) {
-    fprintf(lib_info_file, "%s\n", i.metadata.c_str());
-    fprintf(lib_info_file, "%" PRId64 " %" PRId64 " %d %s\n", i.from, i.to, i.max_read_len, i.is_pe ? "pe" : "se");
+  for (auto &lib : lib_info) {
+    pfprintf(lib_info_file, "{}\n", lib.metadata.c_str());
+    pfprintf(lib_info_file, "{} {} {} {}\n", lib.from, lib.to, lib.max_read_len, lib.is_pe ? "pe" : "se");
   }
 
   fclose(lib_info_file);
@@ -164,16 +164,16 @@ inline void ReadBinaryLibs(const std::string &file_prefix, SeqPackage &package, 
     std::getline(lib_info_file, metadata);  // eliminate the "\n"
   }
 
-  xinfo("Before reserve for %lu reads, %lu bases, sizeof seq_package: %lu\n", num_reads, total_bases,
+  xinfo("Before reserve for {} reads, {} bases, sizeof seq_package: {}\n", num_reads, total_bases,
         package.SizeInByte());
 
   package.ReserveSequences(num_reads);
   package.ReserveBases(total_bases);
   BinaryReader reader(file_prefix + ".bin");
-  xinfo("Before reading, sizeof seq_package: %lld\n", package.SizeInByte());
+  xinfo("Before reading, sizeof seq_package: {}\n", package.SizeInByte());
   package.Clear();
   reader.ReadAll(&package, is_reverse);
-  xinfo("After reading, sizeof seq_package: %lld\n", package.SizeInByte());
+  xinfo("After reading, sizeof seq_package: {}\n", package.SizeInByte());
 }
 
 #endif

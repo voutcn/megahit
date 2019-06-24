@@ -29,6 +29,9 @@
 #include <sys/time.h>
 #include <time.h>
 #include <unistd.h>
+#include <cstdint>
+
+#include "pprintpp/pprintpp.hpp"
 
 template <typename T1, typename T2>
 inline T1 DivCeiling(T1 a, T2 b) {
@@ -46,12 +49,7 @@ inline void DecomposeUint64(RandomIt dst, uint64_t x) {
   dst[1] = x & 0xFFFFFFFFllu;
 }
 
-inline void megahit_log__(const char *format, ...) {
-  va_list args;
-  va_start(args, format);
-  vfprintf(stderr, format, args);
-  va_end(args);
-}
+#define megahit_log__(str, args...) pfprintf(stderr, str, ##args)
 
 #ifndef __XFILE__
 #include <cstring>
@@ -135,8 +133,8 @@ struct AutoMaxRssRecorder {
     double stime = 1e-6 * usage.ru_stime.tv_usec + usage.ru_stime.tv_sec;
 
     long long real_time = static_cast<long long>(tv2.tv_sec - tv1.tv_sec) * 1000000 + tv2.tv_usec - tv1.tv_usec;
-    xinfo("Real: %.4lf", real_time / 1000000.0);
-    xinfoc("\tuser: %.4lf\tsys: %.4lf\tmaxrss: %ld\n", utime, stime, usage.ru_maxrss);
+    xinfo("Real: {.4}", real_time / 1000000.0);
+    xinfoc("\tuser: {.4}\tsys: {.4}\tmaxrss: {}\n", utime, stime, usage.ru_maxrss);
 #endif
   }
 };

@@ -27,7 +27,7 @@
 inline FILE *xfopen(const char *filename, const char *mode) {
   FILE *fp;
   if ((fp = fopen(filename, mode)) == nullptr) {
-    fprintf(stderr, "[ERROR] Cannot open %s. Now exit to system...\n", filename);
+    pfprintf(stderr, "[ERROR] Cannot open {s}. Now exit to system...\n", filename);
     exit(-1);
   }
   return fp;

@@ -25,6 +25,8 @@
 #include <algorithm>
 #include <string>
 #include <unordered_map>
+
+#include "utils/utils.h"
 #include "sequence/readers/kseq.h"
 
 using namespace std;
@@ -48,24 +50,24 @@ void output_seq(kseq_t *seq, FILE *file) {
   const char *comm = seq->comment.s ? seq->comment.s : "";
   const char *qual = seq->qual.s ? seq->qual.s : "";
   if (seq->qual.l != 0) {
-    fprintf(file, "@%s %s\n%s\n+%s\n%s\n", seq->name.s, comm, seq->seq.s, seq->name.s, qual);
+    pfprintf(file, "@{s} {s}\n{s}\n+{s}\n{s}\n", seq->name.s, comm, seq->seq.s, seq->name.s, qual);
   } else {
-    fprintf(file, ">%s %s\n%s\n", seq->name.s, comm, seq->seq.s);
+    pfprintf(file, ">{s} {s}\n{s}\n", seq->name.s, comm, seq->seq.s);
   }
 }
 
 void output_seq(const Seq &seq, FILE *file) {
   if (seq.qual.length() != 0) {
-    fprintf(file, "@%s %s\n%s\n+%s\n%s\n", seq.name.c_str(), seq.comment.c_str(), seq.seq.c_str(), seq.name.c_str(),
+    pfprintf(file, "@{s} {s}\n{s}\n+{s}\n{s}\n", seq.name.c_str(), seq.comment.c_str(), seq.seq.c_str(), seq.name.c_str(),
             seq.qual.c_str());
   } else {
-    fprintf(file, ">%s %s\n%s\n", seq.name.c_str(), seq.comment.c_str(), seq.seq.c_str());
+    pfprintf(file, ">{s} {s}\n{s}\n", seq.name.c_str(), seq.comment.c_str(), seq.seq.c_str());
   }
 }
 
 int main_extract_pe(int argc, char **argv) {
   if (argc < 2 || ((string(argv[1]) == "-") && argc < 3)) {
-    fprintf(stderr, "%s <in.[fa|fq][.gz]> [out_prefix]\n", argv[0]);
+    pfprintf(stderr, "{s} <in.[fa|fq][.gz]> [out_prefix]\n", argv[0]);
     exit(1);
   }
 

@@ -176,7 +176,7 @@ void SeqToSdbg::GenMercyEdges() {
     if (rp.SeqCount() == 0) {
       break;
     }
-    xinfo("Read %u reads to search for mercy k-mers\n", rp.SeqCount());
+    xinfo("Read {} reads to search for mercy k-mers\n", rp.SeqCount());
 
     num_mercy_reads += rp.SeqCount();
     mercy_edges.clear();
@@ -328,7 +328,7 @@ void SeqToSdbg::GenMercyEdges() {
   }
 
   multiplicity.insert(multiplicity.end(), num_mercy_edges, 1);
-  xinfo("Number of reads: %ld, Number of mercy edges: %ld\n", num_mercy_reads, num_mercy_edges);
+  xinfo("Number of reads: {}, Number of mercy edges: {}\n", num_mercy_reads, num_mercy_edges);
 }
 
 SeqToSdbg::Meta SeqToSdbg::Initialize() {
@@ -343,7 +343,7 @@ SeqToSdbg::Meta SeqToSdbg::Initialize() {
       edge_reader.SetFilePrefix(opt_.input_prefix);
       edge_reader.ReadInfo();
       int64_t num_edges = edge_reader.num_edges();
-      xinfo("Number edges: %lld\n", (long long) num_edges);
+      xinfo("Number edges: {}\n", num_edges);
 
       if (opt_.need_mercy) {
         num_edges += num_edges >> 2;  // it is rare that # mercy > 25%
@@ -356,7 +356,7 @@ SeqToSdbg::Meta SeqToSdbg::Initialize() {
     if (!opt_.contig.empty()) {
       long long num_contigs, num_bases;
       FILE *contig_info = xfopen((opt_.contig + ".info").c_str(), "r");
-      if (fscanf(contig_info, "%lld%lld", &num_contigs, &num_bases) != 2) {
+      if (fscanf(contig_info, "%lld %lld", &num_contigs, &num_bases) != 2) {
         xfatal("Invalid format\n");
       }
       bases_to_reserve += num_bases;
@@ -368,7 +368,7 @@ SeqToSdbg::Meta SeqToSdbg::Initialize() {
     if (!opt_.addi_contig.empty()) {
       long long num_contigs, num_bases;
       FILE *contig_info = xfopen((opt_.addi_contig + ".info").c_str(), "r");
-      if (fscanf(contig_info, "%lld%lld", &num_contigs, &num_bases) != 2) {
+      if (fscanf(contig_info, "%lld %lld", &num_contigs, &num_bases) != 2) {
         xfatal("Invalid format\n");
       }
       bases_to_reserve += num_bases;
@@ -380,7 +380,7 @@ SeqToSdbg::Meta SeqToSdbg::Initialize() {
     if (!opt_.local_contig.empty()) {
       long long num_contigs, num_bases;
       FILE *contig_info = xfopen((opt_.local_contig + ".info").c_str(), "r");
-      if (fscanf(contig_info, "%lld%lld", &num_contigs, &num_bases) != 2) {
+      if (fscanf(contig_info, "%lld %lld", &num_contigs, &num_bases) != 2) {
         xfatal("Invalid format\n");
       }
       bases_to_reserve += num_bases;
@@ -389,14 +389,14 @@ SeqToSdbg::Meta SeqToSdbg::Initialize() {
       fclose(contig_info);
     }
 
-    xinfo("Bases to reserve: %lld, number contigs: %lld, number multiplicity: %lld\n", bases_to_reserve,
+    xinfo("Bases to reserve: {}, number contigs: {}, number multiplicity: {}\n", bases_to_reserve,
           num_contigs_to_reserve, num_multiplicities_to_reserve);
     seq_pkg_.ReserveSequences(num_contigs_to_reserve);
     seq_pkg_.ReserveBases(bases_to_reserve);
     multiplicity.reserve(num_multiplicities_to_reserve);
   }
 
-  xinfo("Before reading, sizeof seq_package: %lld, multiplicity vector: %lld\n", seq_pkg_.SizeInByte(),
+  xinfo("Before reading, sizeof seq_package: {}, multiplicity vector: {}\n", seq_pkg_.SizeInByte(),
         multiplicity.capacity());
 
   if (!opt_.input_prefix.empty()) {
@@ -416,7 +416,7 @@ SeqToSdbg::Meta SeqToSdbg::Initialize() {
 
     GenMercyEdges();
     timer.stop();
-    xinfo("Done. Time elapsed: %.4lf\n", timer.elapsed());
+    xinfo("Done. Time elapsed: {.4}\n", timer.elapsed());
   }
 
   if (!opt_.contig.empty()) {
@@ -445,7 +445,7 @@ SeqToSdbg::Meta SeqToSdbg::Initialize() {
     reader.ReadAllWithMultiplicity(&seq_pkg_, &multiplicity, contig_reverse);
   }
 
-  xinfo("After reading, sizeof seq_package: %lld, multiplicity vector: %lld\n", seq_pkg_.SizeInByte(),
+  xinfo("After reading, sizeof seq_package: {}, multiplicity vector: {}\n", seq_pkg_.SizeInByte(),
         multiplicity.capacity());
 
   seq_pkg_.BuildIndex();
@@ -721,13 +721,13 @@ void SeqToSdbg::Lv0Postprocess() {
   xinfo("Number of $ A C G T A- C- G- T-:\n");
   xinfo("");
   for (int i = 0; i < 9; ++i) {
-    xinfoc("%lld ", (long long) sdbg_writer_.final_meta().w_count(i));
+    xinfoc("{} ", sdbg_writer_.final_meta().w_count(i));
   }
 
-  xinfoc("\n");
-  xinfo("Total number of edges: %lld\n", (long long) sdbg_writer_.final_meta().item_count());
-  xinfo("Total number of ONEs: %lld\n", (long long) sdbg_writer_.final_meta().ones_in_last());
-  xinfo("Total number of $v edges: %lld\n", (long long) sdbg_writer_.final_meta().tip_count());
+  xinfoc("{}", "\n");
+  xinfo("Total number of edges: {}\n", sdbg_writer_.final_meta().item_count());
+  xinfo("Total number of ONEs: {}\n", sdbg_writer_.final_meta().ones_in_last());
+  xinfo("Total number of $v edges: {}\n", sdbg_writer_.final_meta().tip_count());
 
   assert(sdbg_writer_.final_meta().w_count(0) == sdbg_writer_.final_meta().tip_count());
 }

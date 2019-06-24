@@ -72,9 +72,6 @@ int main_kmer_count(int argc, char **argv) {
     exit(1);
   }
 
-  xinfo("Host memory to be used: %lld\n", (long long) opt.host_mem);
-  xinfo("Number CPU threads: %d\n", opt.n_threads);
-
   KmerCounter runner(opt);
   runner.Run();
 
@@ -189,16 +186,13 @@ int main_seq2sdbg(int argc, char **argv) {
   } catch (std::exception &e) {
     std::cerr << e.what() << std::endl;
     std::cerr << "Usage: sdbg_builder seq2sdbg -k kmer_size --contig contigs.fa [--addi_contig "
-                 "add.fa] [--input_prefix "
-                 "input] -o out"
+                 "add.fa] [--input_prefix input] -o out"
               << std::endl;
     std::cerr << "Options:" << std::endl;
     std::cerr << desc << std::endl;
     exit(1);
   }
 
-  xinfo("Host memory to be used: %lld\n", (long long) opt.host_mem);
-  xinfo("Number CPU threads: %d\n", opt.n_threads);
   SeqToSdbg runner(opt);
   runner.Run();
   return 0;

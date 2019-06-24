@@ -21,6 +21,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <zlib.h>
+
+#include "utils/utils.h"
 #include "sequence/readers/kseq.h"
 
 #ifndef KSEQ_INITED
@@ -30,7 +32,7 @@ KSEQ_INIT(gzFile, gzread)
 
 int main_trim_lowq_tail(int argc, char **argv) {
   if (argc < 4) {
-    fprintf(stderr, "Usage: cat *.fq | %s <format=64|33> <qual_threshold> <min_len_remain>\n", argv[0]);
+    pfprintf(stderr, "Usage: cat *.fq | {s} <format=64|33> <qual_threshold> <min_len_remain>\n", argv[0]);
     exit(1);
   }
 
@@ -52,13 +54,13 @@ int main_trim_lowq_tail(int argc, char **argv) {
     if (i >= min_len) {
       seq->qual.s[i] = 0;
       seq->seq.s[i] = 0;
-      printf("@%s", seq->name.s);
+      pprintf("@{s}", seq->name.s);
 
       if (seq->comment.s != NULL) {
-        printf("%s", seq->comment.s);
+        pprintf("{s}", seq->comment.s);
       }
 
-      printf("\n%s\n+\n%s\n", seq->seq.s, seq->qual.s);
+      pprintf("\n{s}\n+\n{s}\n", seq->seq.s, seq->qual.s);
     }
   }
 

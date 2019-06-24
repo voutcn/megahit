@@ -73,11 +73,11 @@ KmerCounter::Meta KmerCounter::Initialize() {
 
   seq_pkg_.BuildIndex();
   num_reads = seq_pkg_.SeqCount();
-  xinfo("%ld reads, %d max read length\n", num_reads, seq_pkg_.MaxSequenceLength());
+  xinfo("{} reads, {} max read length\n", num_reads, seq_pkg_.MaxSequenceLength());
 
   words_per_substr_ = DivCeiling((opt_.k + 1) * kBitsPerEdgeChar, kBitsPerEdgeWord);
   words_per_edge_ = DivCeiling((opt_.k + 1) * kBitsPerEdgeChar + kBitsPerMul, kBitsPerEdgeWord);
-  xinfo("%d words per substring, %d words per edge\n", words_per_substr_, words_per_edge_);
+  xinfo("{} words per substring, {} words per edge\n", words_per_substr_, words_per_edge_);
 
   // --- malloc read first_in / last_out ---
   first_0_out_ = std::vector<AtomicWrapper<uint32_t>>(seq_pkg_.SeqCount(), 0xFFFFFFFFU);
@@ -382,7 +382,7 @@ void KmerCounter::Lv0Postprocess() {
 
   fclose(candidate_file);
 
-  xinfo("Total number of candidate reads: %lld(%lld)\n", num_candidate_reads, num_has_tips);
+  xinfo("Total number of candidate reads: {} ({})\n", num_candidate_reads, num_has_tips);
 
   // --- stat ---
   int64_t num_solid_edges = 0;
@@ -390,13 +390,13 @@ void KmerCounter::Lv0Postprocess() {
   for (int i = opt_.solid_threshold; i <= kMaxMul; ++i) {
     num_solid_edges += edge_counting[i];
   }
-  xinfo("Total number of solid edges: %llu\n", num_solid_edges);
+  xinfo("Total number of solid edges: {}\n", num_solid_edges);
 
   FILE *counting_file = xfopen((opt_.output_prefix + ".counting").c_str(), "w");
 
   for (int64_t i = 1, acc = 0; i <= kMaxMul; ++i) {
     acc += edge_counting[i];
-    fprintf(counting_file, "%lld %lld\n", (long long) i, (long long) acc);
+    pfprintf(counting_file, "{} {}\n", i, acc);
   }
 
   fclose(counting_file);

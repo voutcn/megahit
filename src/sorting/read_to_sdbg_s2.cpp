@@ -92,7 +92,7 @@ Read2SdbgS2::Meta Read2SdbgS2::Initialize() {
 
   words_per_substr_ = DivCeiling(opt_.k * kBitsPerEdgeChar + kBWTCharNumBits + 1, kBitsPerEdgeWord);
   words_per_dummy_node_ = DivCeiling(opt_.k * kBitsPerEdgeChar, kBitsPerEdgeWord);
-  xinfo("%d words per substring, words per dummy node ($v): %d\n", words_per_substr_,
+  xinfo("{} words per substring, words per dummy node ($v): {}\n", words_per_substr_,
         words_per_dummy_node_);
 
   // --- init output ---
@@ -139,7 +139,7 @@ Read2SdbgS2::Meta Read2SdbgS2::Initialize() {
       mercy_cand.insert(mercy_cand.end(), buf, buf + num_read);
     }
 
-    xinfo("Mercy file: %s, %lu\n", file_name.c_str(), mercy_cand.size());
+    xinfo("Mercy file: {}, {}\n", file_name.c_str(), mercy_cand.size());
 
     omp_set_num_threads(opt_.n_threads);
     __gnu_parallel::sort(mercy_cand.begin(), mercy_cand.end());
@@ -241,8 +241,8 @@ Read2SdbgS2::Meta Read2SdbgS2::Initialize() {
   }
 
   timer.stop();
-  xinfo("Adding mercy Done. Time elapsed: %.4lf\n", timer.elapsed());
-  xinfo("Number mercy: %llu\n", (unsigned long long) num_mercy);
+  xinfo("Adding mercy Done. Time elapsed: {.4}\n", timer.elapsed());
+  xinfo("Number mercy: {}\n", num_mercy);
 
   return ret;
 }
@@ -560,11 +560,11 @@ void Read2SdbgS2::Lv0Postprocess() {
   xinfo("Number of $ A C G T A- C- G- T-:\n");
   xinfo("");
   for (int i = 0; i < 9; ++i) {
-    xinfoc("%lld ", (long long) sdbg_writer_.final_meta().w_count(i));
+    xinfoc("{} ", sdbg_writer_.final_meta().w_count(i));
   }
-  xinfoc("\n");
-  xinfo("Total number of edges: %lld\n", (long long) sdbg_writer_.final_meta().item_count());
-  xinfo("Total number of ONEs: %lld\n", (long long) sdbg_writer_.final_meta().ones_in_last());
-  xinfo("Total number of $v edges: %lld\n", (long long) sdbg_writer_.final_meta().tip_count());
+  xinfoc("{}", "\n");
+  xinfo("Total number of edges: {}\n", sdbg_writer_.final_meta().item_count());
+  xinfo("Total number of ONEs: {}\n", sdbg_writer_.final_meta().ones_in_last());
+  xinfo("Total number of $v edges: {}\n", sdbg_writer_.final_meta().tip_count());
   assert(sdbg_writer_.final_meta().w_count(0) == sdbg_writer_.final_meta().tip_count());
 }

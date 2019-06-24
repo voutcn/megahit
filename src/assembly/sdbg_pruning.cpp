@@ -164,20 +164,20 @@ uint64_t RemoveTips(SDBG &dbg, int max_tip_len) {
   }
 
   for (int len = 2; len < max_tip_len; len *= 2) {
-    xinfo("Removing tips with length less than %d; ", len);
+    xinfo("Removing tips with length less than {}; ", len);
     timer.reset();
     timer.start();
     number_tips += Trim(dbg, len, ignored);
     timer.stop();
-    xinfoc("Accumulated tips removed: %lld; time elapsed: %.4f\n", (long long)number_tips, timer.elapsed());
+    xinfoc("Accumulated tips removed: {}; time elapsed: {.4}\n", number_tips, timer.elapsed());
   }
 
-  xinfo("Removing tips with length less than %d; ", max_tip_len);
+  xinfo("Removing tips with length less than {}; ", max_tip_len);
   timer.reset();
   timer.start();
   number_tips += Trim(dbg, max_tip_len, ignored);
   timer.stop();
-  xinfoc("Accumulated tips removed: %lld; time elapsed: %.4f\n", (long long)number_tips, timer.elapsed());
+  xinfoc("Accumulated tips removed: {}; time elapsed: {.4}\n", number_tips, timer.elapsed());
 
   return number_tips;
 }

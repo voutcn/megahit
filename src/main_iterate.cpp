@@ -108,7 +108,7 @@ static bool ReadReadsAndProcessKernel(const Option &opt, const IndexType &index)
   if (KmerType::max_size() < static_cast<unsigned>(opt.kmer_k + opt.step + 1)) {
     return false;
   }
-  xinfo("Selected kmer type size for next k: %u\n", sizeof(KmerType));
+  xinfo("Selected kmer type size for next k: {}\n", sizeof(KmerType));
   AsyncReadReader reader(opt.read_file);
   KmerCollector<KmerType> collector(opt.kmer_k + opt.step + 1, opt.output_prefix);
   int64_t num_aligned_reads = 0;
@@ -121,11 +121,11 @@ static bool ReadReadsAndProcessKernel(const Option &opt, const IndexType &index)
     }
     num_aligned_reads += index.FindNextKmersFromReads(read_pkg, &collector);
     num_total_reads += read_pkg.SeqCount();
-    xinfo("Processed: %lld, aligned: %lld. Iterative edges: %llu\n", num_total_reads, num_aligned_reads,
+    xinfo("Processed: {}, aligned: {}. Iterative edges: {}\n", num_total_reads, num_aligned_reads,
           collector.collection().size());
   }
   collector.FlushToFile();
-  xinfo("Total: %lld, aligned: %lld. Iterative edges: %llu\n", num_total_reads, num_aligned_reads,
+  xinfo("Total: {}, aligned: {}. Iterative edges: {}\n", num_total_reads, num_aligned_reads,
         collector.collection().size());
   return true;
 }
@@ -153,16 +153,16 @@ static void ReadContigsAndBuildIndex(const Option &opt, const std::string &file_
     if (contig_pkg.SeqCount() == 0) {
       break;
     }
-    xinfo("Read %lu contigs\n", contig_pkg.SeqCount());
+    xinfo("Read {} contigs\n", contig_pkg.SeqCount());
     index->FeedBatchContigs(contig_pkg, mul);
-    xinfo("Number of flank kmers: %lu\n", index->size());
+    xinfo("Number of flank kmers: {}\n", index->size());
   }
 }
 
 template <class KmerType>
 bool KmerTypeSelectAndRun(const Option &opt) {
   if (KmerType::max_size() >= static_cast<unsigned>(opt.kmer_k + 1)) {
-    xinfo("Selected kmer type size for k: %u\n", sizeof(KmerType));
+    xinfo("Selected kmer type size for k: {}\n", sizeof(KmerType));
     ContigFlankIndex<KmerType> index(opt.kmer_k, opt.step);
     ReadContigsAndBuildIndex(opt, opt.contig_file, &index);
     ReadContigsAndBuildIndex(opt, opt.bubble_file, &index);

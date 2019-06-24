@@ -25,6 +25,7 @@
 #include <string>
 #include <vector>
 
+#include "utils/utils.h"
 #include "sequence/readers/kseq.h"
 
 using namespace std;
@@ -69,7 +70,7 @@ string RevComp(const string &s) {
 
 string NodeName(int i, int len, double mul, bool is_rc) {
   static char buf[10240];
-  sprintf(buf, "NODE_%d_length_%d_cov_%.4f_ID_%d", i, len, mul, i * 2 - 1);
+  psprintf(buf, "NODE_{}_length_{}_cov_{.4}_ID_{}", i, len, mul, i * 2 - 1);
 
   if (is_rc)
     return string(buf) + "'";
@@ -79,7 +80,7 @@ string NodeName(int i, int len, double mul, bool is_rc) {
 
 int main_contig2fastg(int argc, char **argv) {
   if (argc < 3) {
-    fprintf(stderr, "Usage: %s <kmer_size> <k_{kmer_size}.contigs.fa>\n", argv[0]);
+    pfprintf(stderr, "Usage: {s} <kmer_size> <k_KMER_SIZE.contigs.fa>\n", argv[0]);
     exit(1);
   }
 
@@ -140,7 +141,7 @@ int main_contig2fastg(int argc, char **argv) {
       }
 
       header += ";";
-      printf("%s\n%s\n", header.c_str(), s.c_str());
+      pprintf("{s}\n{s}\n", header.c_str(), s.c_str());
     }
   }
 

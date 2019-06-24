@@ -22,6 +22,8 @@
 #include <stdlib.h>
 #include <zlib.h>
 #include <algorithm>
+
+#include "utils/utils.h"
 #include "sequence/readers/kseq.h"
 #include "utils/histgram.h"
 
@@ -32,7 +34,7 @@ KSEQ_INIT(gzFile, gzread)
 
 int main_filter_by_len(int argc, char **argv) {
   if (argc < 2) {
-    fprintf(stderr, "Usage: cat contigs.fa | %s <min_len>\n", argv[0]);
+    pfprintf(stderr, "Usage: cat contigs.fa | {s} <min_len>\n", argv[0]);
     exit(1);
   }
 
@@ -45,13 +47,13 @@ int main_filter_by_len(int argc, char **argv) {
   while (kseq_read(seq) >= 0) {
     if (seq->seq.l >= min_len) {
       hist.insert(seq->seq.l);
-      printf(">%s %s\n%s\n", seq->name.s, seq->comment.s, seq->seq.s);
+      pprintf(">{s} {s}\n{s}\n", seq->name.s, seq->comment.s, seq->seq.s);
     }
   }
 
   long long total_bases = hist.sum();
 
-  fprintf(stderr, "%d contigs, total %lld bp, min %lld bp, max %lld bp, avg %d bp, N50 %lld bp\n", (int)hist.size(),
+  pfprintf(stderr, "{} contigs, total {} bp, min {} bp, max {} bp, avg {} bp, N50 {} bp\n", (int)hist.size(),
           total_bases, hist.minimum(), hist.maximum(), int(hist.mean() + 0.5), hist.Nx(total_bases * 0.5));
 
   kseq_destroy(seq);

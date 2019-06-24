@@ -20,8 +20,8 @@ static std::pair<int64_t, int64_t> AdjustItemNumbers(
   while (num_lv2_items >= min_lv2_items) {
     int64_t mem_for_lv2 = bytes_per_lv2_item * num_lv2_items;
 
-    xinfo("Adjusting memory layout: num_lv1_items=%lld, num_lv2_items=%lld, "
-          "mem_sorting_items=%lld, mem_avail=%lld\n",
+    xinfo("Adjusting memory layout: num_lv1_items={}, num_lv2_items={}, "
+          "mem_sorting_items={}, mem_avail={}\n",
           num_lv1_items, num_lv2_items, mem_for_lv2, mem_avail);
 
     if (mem_avail < mem_for_lv2) {
@@ -118,8 +118,8 @@ void BaseSequenceSortingEngine::AdjustMemory() {
   lv1_offsets_.resize(words_required);
   substr_sort_ = SelectSortingFunc(meta_.words_per_lv2 - meta_.aux_words_per_lv2, meta_.aux_words_per_lv2);
 
-  xinfo("Lv1 items: %lld, Lv2 items: %lld\n", n_items.first, n_items.second);
-  xinfo("Memory of derived class: %lld, Memory for Lv1+Lv2: %lld\n",
+  xinfo("Lv1 items: {}, Lv2 items: {}\n", n_items.first, n_items.second);
+  xinfo("Memory of derived class: {}, Memory for Lv1+Lv2: {}\n",
         meta_.memory_for_data, words_required * kLv1BytePerItem);
 }
 
@@ -133,7 +133,7 @@ void BaseSequenceSortingEngine::Run() {
   meta_ = Initialize();
 
   lv0_timer.stop();
-  xinfo("Preparing data... Done. Time elapsed: %.4f\n", lv0_timer.elapsed());
+  xinfo("Preparing data... Done. Time elapsed: {.4}\n", lv0_timer.elapsed());
   lv0_timer.reset();
   lv0_timer.start();
   xinfo("Preparing partitions and calculating bucket sizes...\n");
@@ -145,7 +145,7 @@ void BaseSequenceSortingEngine::Run() {
   Lv0ReorderBuckets();
   AdjustMemory();
   lv0_timer.stop();
-  xinfo("Preparing partitions and calculating bucket sizes... Done. Time elapsed: %.4f\n", lv0_timer.elapsed());
+  xinfo("Preparing partitions and calculating bucket sizes... Done. Time elapsed: {.4}\n", lv0_timer.elapsed());
 
   lv0_timer.reset();
   lv0_timer.start();
@@ -162,31 +162,31 @@ void BaseSequenceSortingEngine::Run() {
 
     lv1_timer.reset();
     lv1_timer.start();
-    xinfo("Lv1 scanning from bucket %d to %d\n", lv1_start_bucket_, lv1_end_bucket_);
+    xinfo("Lv1 scanning from bucket {} to {}\n", lv1_start_bucket_, lv1_end_bucket_);
 
     // --- scan to fill offset ---
     Lv1FillOffsetsLaunchMt();
 
     lv1_timer.stop();
-    xinfo("Lv1 scanning done. Large diff: %lu. Time elapsed: %.4f\n",
+    xinfo("Lv1 scanning done. Large diff: {}. Time elapsed: {.4}\n",
           lv1_special_offsets_.size(),
           lv1_timer.elapsed());
     lv1_timer.reset();
     lv1_timer.start();
     Lv1FetchAndSortLaunchMt();
     lv1_timer.stop();
-    xinfo("Lv1 fetching & sorting done. Time elapsed: %.4f\n", lv1_timer.elapsed());
+    xinfo("Lv1 fetching & sorting done. Time elapsed: {.4}\n", lv1_timer.elapsed());
     lv1_start_bucket_ = lv1_end_bucket_;
   }
 
   lv0_timer.stop();
-  xinfo("Main loop done. Time elapsed: %.4f\n", lv0_timer.elapsed());
+  xinfo("Main loop done. Time elapsed: {.4}\n", lv0_timer.elapsed());
   lv0_timer.reset();
   lv0_timer.start();
   xinfo("Postprocessing...\n");
   Lv0Postprocess();
   lv0_timer.stop();
-  xinfo("Postprocess done. Time elapsed: %.4f\n", lv0_timer.elapsed());
+  xinfo("Postprocess done. Time elapsed: {.4}\n", lv0_timer.elapsed());
 }
 
 void BaseSequenceSortingEngine::Lv0PrepareThreadPartition() {

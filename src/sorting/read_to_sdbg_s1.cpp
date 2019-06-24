@@ -97,13 +97,13 @@ Read2SdbgS1::Meta Read2SdbgS1::Initialize() {
 
   seq_pkg_->package.BuildIndex();
 
-  xinfo("%lu reads, %d max read length, %lld total bases\n", seq_pkg_->package.SeqCount(),
+  xinfo("{} reads, {} max read length, {} total bases\n", seq_pkg_->package.SeqCount(),
         seq_pkg_->package.MaxSequenceLength(),
         seq_pkg_->package.BaseCount());
 
   words_per_substr_ =
       DivCeiling((opt_.k - 1) * kBitsPerEdgeChar + 2 * kBWTCharNumBits, kBitsPerEdgeWord);
-  xinfo("%d words per substring\n", words_per_substr_);
+  xinfo("{} words per substring\n", words_per_substr_);
 
   if (opt_.solid_threshold > 1) {
     seq_pkg_->is_solid.reset(seq_pkg_->package.BaseCount());
@@ -117,7 +117,7 @@ Read2SdbgS1::Meta Read2SdbgS1::Initialize() {
       static_cast<int64_t>(seq_pkg_->package.SeqCount()) && seq_pkg_->n_mercy_files < 64) {
     seq_pkg_->n_mercy_files <<= 1;
   }
-  xinfo("Number of files for mercy candidate reads: %d\n", seq_pkg_->n_mercy_files);
+  xinfo("Number of files for mercy candidate reads: {}\n", seq_pkg_->n_mercy_files);
 
   for (int i = 0; i < seq_pkg_->n_mercy_files; ++i) {
     auto file_name = opt_.output_prefix + ".mercy_cand" + std::to_string(i);
@@ -517,13 +517,13 @@ void Read2SdbgS1::Lv0Postprocess() {
     num_solid_edges += edge_counting[i];
   }
 
-  xinfo("Total number of solid edges: %llu\n", num_solid_edges);
+  xinfo("Total number of solid edges: {}\n", num_solid_edges);
 
   FILE *counting_file = xfopen((std::string(opt_.output_prefix) + ".counting").c_str(), "w");
 
   for (int64_t i = 1, acc = 0; i <= kMaxMul; ++i) {
     acc += edge_counting[i];
-    fprintf(counting_file, "%lld %lld\n", (long long) i, (long long) acc);
+    pfprintf(counting_file, "{} {}\n", i, acc);
   }
 
   fclose(counting_file);

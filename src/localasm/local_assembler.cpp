@@ -65,7 +65,7 @@ void LocalAssembler::BuildHashMapper(bool show_stat) {
   }
 
   if (show_stat) {
-    xinfo("Number of contigs: %lu, Mapper size: %lu\n", contigs_.SeqCount(), mapper_.size());
+    xinfo("Number of contigs: {}, Mapper size: {}\n", contigs_.SeqCount(), mapper_.size());
   }
 }
 
@@ -292,7 +292,7 @@ void LocalAssembler::EstimateInsertSize(bool show_stat) {
     insert_sizes_[lib_id] = tlen_t(insert_hist.mean(), insert_hist.sd());
 
     if (show_stat) {
-      xinfo("Lib %d, insert size: %.2lf sd: %.2lf\n", lib_id, insert_hist.mean(), insert_hist.sd());
+      xinfo("Lib {}, insert size: {.2} sd: {.2}\n", lib_id, insert_hist.mean(), insert_hist.sd());
     }
   }
 }
@@ -410,7 +410,7 @@ void LocalAssembler::MapToContigs() {
       }
     }
 
-    xinfo("Lib %d: total %ld reads, aligned %lu, added %lu reads for local assembly\n", lib_id,
+    xinfo("Lib {}: total {} reads, aligned {}, added {} reads for local assembly\n", lib_id,
           lib_info_[lib_id].to - lib_info_[lib_id].from + 1, num_mapped, num_added);
   }
   locks_.reset(0);
@@ -537,8 +537,7 @@ void LocalAssembler::LocalAssemble() {
       for (uint64_t j = 0; j < out_contigs.size(); ++j) {
         if (out_contigs[j].size() > min_contig_len_ && out_contigs[j].size() > local_kmax_) {
           auto str = out_contigs[j].str();
-          fprintf(local_file, ">lc_%llu_strand_%d_id_%llu flag=0 multi=1\n%s\n", static_cast<unsigned long long>(cid),
-                  strand, static_cast<unsigned long long>(j), str.c_str());
+          pfprintf(local_file, ">lc_{}_strand_{}_id_{} flag=0 multi=1\n{s}\n", cid, strand, j, str.c_str());
           num_contigs++;
           num_bases += out_contigs[j].size();
         }
@@ -546,7 +545,7 @@ void LocalAssembler::LocalAssemble() {
     }
   }
 
-  fprintf(local_info, "%lld %lld\n", num_contigs, num_bases);
+  pfprintf(local_info, "{} {}\n", num_contigs, num_bases);
 
   fclose(local_file);
   fclose(local_info);

@@ -211,7 +211,7 @@ class MegahitEdgeReader {
         xfatal("Invalid format: bucket id not matched!\n");
       }
       if (p_rec_[i].thread_id >= num_files_) {
-        xfatal("Record ID %d is greater than number of files %d\n", p_rec_[i].thread_id, num_files_);
+        xfatal("Record ID {} is greater than number of files {}\n", p_rec_[i].thread_id, num_files_);
       }
       if (p_rec_[i].thread_id >= 0) {
         file_sizes_[p_rec_[i].thread_id] += p_rec_[i].total_number;

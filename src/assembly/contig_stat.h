@@ -34,9 +34,9 @@ inline ContigStat CalcAndPrintStat(UnitigGraph &graph, bool print = true, bool c
   if (print) {
     xinfo("");
     for (auto &kv : stat) {
-      xinfoc("%s: %lu, ", kv.first.c_str(), kv.second);
+      xinfoc("{}: {}, ", kv.first.c_str(), kv.second);
     }
-    xinfoc("\n");
+    xinfoc("{}", "\n");
   }
   return stat;
 }

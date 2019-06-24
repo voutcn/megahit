@@ -22,6 +22,8 @@
 #include <stdlib.h>
 #include <zlib.h>
 #include <algorithm>
+
+#include "utils/utils.h"
 #include "sequence/readers/kseq.h"
 
 #ifndef KSEQ_INITED
@@ -31,7 +33,7 @@ KSEQ_INIT(gzFile, gzread)
 
 int main_read_stat(int argc, char **argv) {
   if (argc > 1) {
-    fprintf(stderr, "Usage: cat *.fq | %s\n", argv[0]);
+    pfprintf(stderr, "Usage: cat *.fq | {s}\n", argv[0]);
     exit(1);
   }
 
@@ -51,7 +53,7 @@ int main_read_stat(int argc, char **argv) {
 
   double avg_len = total_len * 1.0 / num_reads;
 
-  printf("number reads: %lld\ntotal size: %lld\nlongest: %d\nshortest: %d\navg: %lf\n", num_reads, total_len, max_len,
+  pprintf("number reads: {}\ntotal size: {}\nlongest: {}\nshortest: {}\navg: %lf\n", num_reads, total_len, max_len,
          min_len, avg_len);
 
   kseq_destroy(seq);
