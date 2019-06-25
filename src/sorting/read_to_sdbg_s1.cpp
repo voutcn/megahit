@@ -181,7 +181,7 @@ void Read2SdbgS1::Lv0CalcBucketSize(int64_t seq_from, int64_t seq_to, std::array
         bucket_sizes[k_minus1_mer.data()[0] >> (kCharsPerEdgeWord - kBucketPrefixLength) * kBitsPerEdgeChar]++;
       }
 
-      int c = seq_pkg_->package.GetBase(read_id, ++last_char_offset);
+      c = seq_pkg_->package.GetBase(read_id, ++last_char_offset);
       k_minus1_mer.ShiftAppend(c, opt_.k - 1);
       rev_k_minus1_mer.ShiftPreappend(3 - c, opt_.k - 1);
     }
@@ -255,7 +255,7 @@ void Read2SdbgS1::Lv1FillOffsets(OffsetFiller &filler, int64_t seq_from, int64_t
         }
       }
 
-      int c = seq_pkg_->package.GetBase(read_id, ++last_char_offset);
+      c = seq_pkg_->package.GetBase(read_id, ++last_char_offset);
       k_minus1_mer.ShiftAppend(c, opt_.k - 1);
       rev_k_minus1_mer.ShiftPreappend(3 - c, opt_.k - 1);
     }

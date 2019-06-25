@@ -215,7 +215,7 @@ class BaseSequenceSortingEngine {
   virtual void Lv0CalcBucketSize(int64_t seq_from, int64_t seq_to, std::array<int64_t, kNumBuckets> *out) = 0;
   virtual void Lv1FillOffsets(OffsetFiller &filler, int64_t seq_from, int64_t seq_to) = 0;
   virtual void Lv2ExtractSubString(unsigned bucket_from, unsigned bucket_to, uint32_t *substr_ptr) = 0;
-  virtual void Lv2Postprocess(int64_t start_index, int64_t end_index, int thread_id, uint32_t *substrings) = 0;
+  virtual void Lv2Postprocess(int64_t start_index, int64_t end_index, int thread_id, uint32_t *substr_ptr) = 0;
   virtual void Lv0Postprocess() = 0;
 
  private:

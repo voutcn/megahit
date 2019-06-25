@@ -176,11 +176,11 @@ Read2SdbgS2::Meta Read2SdbgS2::Initialize() {
       std::vector<bool> no_out(seq_pkg_->package.MaxSequenceLength());
       std::vector<bool> has_solid_kmer(seq_pkg_->package.MaxSequenceLength());
 
-      uint64_t i = start_idx[tid];
+      uint64_t mercy_index = start_idx[tid];
 
       // go read by read
-      while (i != end_idx[tid]) {
-        uint64_t read_id = seq_pkg_->package.GetSeqID(mercy_cand[i] >> 2);
+      while (mercy_index != end_idx[tid]) {
+        uint64_t read_id = seq_pkg_->package.GetSeqID(mercy_cand[mercy_index] >> 2);
         assert(!read_marker.at(read_id));
         read_marker.set(read_id);
         int first_0_out = seq_pkg_->package.MaxSequenceLength() + 1;
@@ -190,18 +190,18 @@ Read2SdbgS2::Meta Read2SdbgS2::Initialize() {
         std::fill(no_out.begin(), no_out.end(), false);
         std::fill(has_solid_kmer.begin(), has_solid_kmer.end(), false);
 
-        while (i != end_idx[tid] && seq_pkg_->package.GetSeqID(mercy_cand[i] >> 2) == read_id) {
-          int offset = (mercy_cand[i] >> 2) - seq_pkg_->package.StartPos(read_id);
-          if ((mercy_cand[i] & 3) == 2) {
+        while (mercy_index != end_idx[tid] && seq_pkg_->package.GetSeqID(mercy_cand[mercy_index] >> 2) == read_id) {
+          int offset = (mercy_cand[mercy_index] >> 2) - seq_pkg_->package.StartPos(read_id);
+          if ((mercy_cand[mercy_index] & 3) == 2) {
             no_out[offset] = true;
             first_0_out = std::min(first_0_out, offset);
-          } else if ((mercy_cand[i] & 3) == 1) {
+          } else if ((mercy_cand[mercy_index] & 3) == 1) {
             no_in[offset] = true;
             last_0_in = std::max(last_0_in, offset);
           }
 
           has_solid_kmer[offset] = true;
-          ++i;
+          ++mercy_index;
         }
 
         if (last_0_in < first_0_out) {
@@ -484,8 +484,8 @@ void Read2SdbgS2::Lv2Postprocess(int64_t from, int64_t to, int tid, uint32_t *su
     has_solid_a = has_solid_b = 0;
     outputed_b = 0;
 
-    for (int64_t i = start_idx; i < end_idx; ++i) {
-      uint32_t *cur_item = substr + i * words_per_substr_;
+    for (int64_t item_idx = start_idx; item_idx < end_idx; ++item_idx) {
+      uint32_t *cur_item = substr + item_idx * words_per_substr_;
       int a = Extract_a(cur_item, words_per_substr_, 1, opt_.k);
       int b = Extract_b(cur_item, words_per_substr_, 1);
 
@@ -495,16 +495,16 @@ void Read2SdbgS2::Lv2Postprocess(int64_t from, int64_t to, int tid, uint32_t *su
       }
 
       if (a != kSentinelValue && (b != kSentinelValue || !(has_solid_a & (1 << a)))) {
-        last_a[a] = i;
+        last_a[a] = item_idx;
       }
     }
 
-    for (int64_t i = start_idx, j; i < end_idx; i = j) {
-      uint32_t *cur_item = substr + i * words_per_substr_;
+    for (int64_t item_idx = start_idx, j; item_idx < end_idx; item_idx = j) {
+      uint32_t *cur_item = substr + item_idx * words_per_substr_;
       int a = Extract_a(cur_item, words_per_substr_, 1, opt_.k);
       int b = Extract_b(cur_item, words_per_substr_, 1);
 
-      j = i + 1;
+      j = item_idx + 1;
 
       while (j < end_idx) {
         uint32_t *next_item = substr + j * words_per_substr_;
@@ -518,7 +518,7 @@ void Read2SdbgS2::Lv2Postprocess(int64_t from, int64_t to, int tid, uint32_t *su
       }
 
       int w, last, is_dollar = 0;
-      int64_t count = std::min(j - i, int64_t(kMaxMul));
+      int64_t count = std::min(j - item_idx, int64_t(kMaxMul));
 
       if (a == kSentinelValue) {
         assert(b != kSentinelValue);

@@ -354,39 +354,24 @@ SeqToSdbg::Meta SeqToSdbg::Initialize() {
     }
 
     if (!opt_.contig.empty()) {
-      long long num_contigs, num_bases;
-      FILE *contig_info = xfopen((opt_.contig + ".info").c_str(), "r");
-      if (fscanf(contig_info, "%lld %lld", &num_contigs, &num_bases) != 2) {
-        xfatal("Invalid format\n");
-      }
-      bases_to_reserve += num_bases;
-      num_contigs_to_reserve += num_contigs;
-      num_multiplicities_to_reserve += num_contigs;
-      fclose(contig_info);
+      auto sizes = ContigReader(opt_.contig).GetNumContigsAndBases();
+      bases_to_reserve += sizes.second;
+      num_contigs_to_reserve += sizes.first;
+      num_multiplicities_to_reserve += sizes.first;
     }
 
     if (!opt_.addi_contig.empty()) {
-      long long num_contigs, num_bases;
-      FILE *contig_info = xfopen((opt_.addi_contig + ".info").c_str(), "r");
-      if (fscanf(contig_info, "%lld %lld", &num_contigs, &num_bases) != 2) {
-        xfatal("Invalid format\n");
-      }
-      bases_to_reserve += num_bases;
-      num_contigs_to_reserve += num_contigs;
-      num_multiplicities_to_reserve += num_contigs;
-      fclose(contig_info);
+      auto sizes = ContigReader(opt_.addi_contig).GetNumContigsAndBases();
+      bases_to_reserve += sizes.second;
+      num_contigs_to_reserve += sizes.first;
+      num_multiplicities_to_reserve += sizes.first;
     }
 
     if (!opt_.local_contig.empty()) {
-      long long num_contigs, num_bases;
-      FILE *contig_info = xfopen((opt_.local_contig + ".info").c_str(), "r");
-      if (fscanf(contig_info, "%lld %lld", &num_contigs, &num_bases) != 2) {
-        xfatal("Invalid format\n");
-      }
-      bases_to_reserve += num_bases;
-      num_contigs_to_reserve += num_contigs;
-      num_multiplicities_to_reserve += num_contigs;
-      fclose(contig_info);
+      auto sizes = ContigReader(opt_.local_contig).GetNumContigsAndBases();
+      bases_to_reserve += sizes.second;
+      num_contigs_to_reserve += sizes.first;
+      num_multiplicities_to_reserve += sizes.first;
     }
 
     xinfo("Bases to reserve: {}, number contigs: {}, number multiplicity: {}\n", bases_to_reserve,
@@ -565,7 +550,7 @@ void SeqToSdbg::Lv2ExtractSubString(unsigned start_bucket, unsigned end_bucket, 
 
     unsigned seq_len = seq_pkg_.SequenceLength(seq_id);
     unsigned num_chars_to_copy = opt_.k - (offset + opt_.k > seq_len);
-    unsigned counting = 0;
+    int counting = 0;
 
     if (offset > 0 && offset + opt_.k <= seq_len) {
       counting = multiplicity[seq_id];
@@ -593,7 +578,7 @@ void SeqToSdbg::Lv2ExtractSubString(unsigned start_bucket, unsigned end_bucket, 
       uint32_t *last_word = substr + words_per_substr_ - 1;
       *last_word |= unsigned(num_chars_to_copy == opt_.k) << (kBWTCharNumBits + kBitsPerMul);
       *last_word |= prev_char << kBitsPerMul;
-      *last_word |= std::max(0u, kMaxMul - counting);  // then larger counting come first after sorting
+      *last_word |= std::max(0, kMaxMul - counting);  // then larger counting come first after sorting
     } else {
       unsigned prev_char;
 
@@ -617,7 +602,7 @@ void SeqToSdbg::Lv2ExtractSubString(unsigned start_bucket, unsigned end_bucket, 
       uint32_t *last_word = substr + words_per_substr_ - 1;
       *last_word |= unsigned(num_chars_to_copy == opt_.k) << (kBWTCharNumBits + kBitsPerMul);
       *last_word |= prev_char << kBitsPerMul;
-      *last_word |= std::max(0u, kMaxMul - counting);
+      *last_word |= std::max(0, kMaxMul - counting);
     }
 
     substr += words_per_substr_;
