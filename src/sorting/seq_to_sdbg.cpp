@@ -363,6 +363,13 @@ SeqToSdbg::Meta SeqToSdbg::Initialize() {
       num_multiplicities_to_reserve += sizes.first;
     }
 
+    if (!opt_.bubble_seq.empty()) {
+      auto sizes = ContigReader(opt_.bubble_seq).GetNumContigsAndBases();
+      bases_to_reserve += sizes.second;
+      num_contigs_to_reserve += sizes.first;
+      num_multiplicities_to_reserve += sizes.first;
+    }
+
     if (!opt_.addi_contig.empty()) {
       auto sizes = ContigReader(opt_.addi_contig).GetNumContigsAndBases();
       bases_to_reserve += sizes.second;
@@ -390,11 +397,12 @@ SeqToSdbg::Meta SeqToSdbg::Initialize() {
   if (!opt_.input_prefix.empty()) {
     EdgeReader reader(opt_.input_prefix);
     reader.SetMultiplicityVec(&multiplicity);
-    reader.ReadAll(&seq_pkg_, false);
+    auto n_read = reader.ReadAll(&seq_pkg_, false);
+    xinfo("Read {} edges.\n", n_read);
+    xinfo("After reading, sizeof seq_package: {}/{}/{}, multiplicity vector: {}/{}\n",
+        seq_pkg_.SizeInByte(), seq_pkg_.SeqCount(), seq_pkg_.BaseCount(), multiplicity.size(), multiplicity.capacity());
   }
 
-  xinfo("After reading, sizeof seq_package: {}, multiplicity vector: {}\n", seq_pkg_.SizeInByte(),
-        multiplicity.capacity());
 
   if (opt_.need_mercy) {
     SimpleTimer timer;
@@ -405,39 +413,50 @@ SeqToSdbg::Meta SeqToSdbg::Initialize() {
     GenMercyEdges();
     timer.stop();
     xinfo("Done. Time elapsed: {.4}\n", timer.elapsed());
+    xinfo("After adding mercy, sizeof seq_package: {}/{}/{}, multiplicity vector: {}/{}\n",
+          seq_pkg_.SizeInByte(), seq_pkg_.SeqCount(), seq_pkg_.BaseCount(), multiplicity.size(), multiplicity.capacity());
   }
-
-  xinfo("After adding mercy, sizeof seq_package: {}, multiplicity vector: {}\n", seq_pkg_.SizeInByte(),
-        multiplicity.capacity());
 
   if (!opt_.contig.empty()) {
     ContigReader reader(opt_.contig);
     reader.SetExtendLoop(opt_.k_from, opt_.k)->SetMinLen(opt_.k + 1);
     bool contig_reverse = true;
-    reader.ReadAllWithMultiplicity(&seq_pkg_, &multiplicity, contig_reverse);
+    auto n_read = reader.ReadAllWithMultiplicity(&seq_pkg_, &multiplicity, contig_reverse);
+    xinfo("Read {} contigs from {}.\n", n_read, opt_.contig.c_str());
+    xinfo("After reading contigs, sizeof seq_package: {}/{}/{}, multiplicity vector: {}/{}\n",
+          seq_pkg_.SizeInByte(), seq_pkg_.SeqCount(), seq_pkg_.BaseCount(), multiplicity.size(), multiplicity.capacity());
 
     // read bubble
-    ContigReader bubble_reader({opt_.bubble_seq});
-    bubble_reader.SetExtendLoop(opt_.k_from, opt_.k)->SetMinLen(opt_.k + 1);
-    bubble_reader.ReadAllWithMultiplicity(&seq_pkg_, &multiplicity, contig_reverse);
+    ContigReader bubble_reader(opt_.bubble_seq);
+    bubble_reader.SetMinLen(opt_.k + 1);
+    n_read = bubble_reader.ReadAllWithMultiplicity(&seq_pkg_, &multiplicity, contig_reverse);
+    xinfo("Read {} contigs from {}.\n", n_read, opt_.bubble_seq.c_str());
+    xinfo("After reading contigs, sizeof seq_package: {}/{}/{}, multiplicity vector: {}/{}\n",
+          seq_pkg_.SizeInByte(), seq_pkg_.SeqCount(), seq_pkg_.BaseCount(), multiplicity.size(), multiplicity.capacity());
   }
 
   if (!opt_.addi_contig.empty()) {
     ContigReader reader({opt_.addi_contig});
-    reader.SetExtendLoop(opt_.k_from, opt_.k)->SetMinLen(opt_.k + 1);
+    reader.SetMinLen(opt_.k + 1);
     bool contig_reverse = true;
-    reader.ReadAllWithMultiplicity(&seq_pkg_, &multiplicity, contig_reverse);
+    auto n_read = reader.ReadAllWithMultiplicity(&seq_pkg_, &multiplicity, contig_reverse);
+    xinfo("Read {} contigs from {}.\n", n_read, opt_.addi_contig.c_str());
+    xinfo("After reading contigs, sizeof seq_package: {}/{}/{}, multiplicity vector: {}/{}\n",
+          seq_pkg_.SizeInByte(), seq_pkg_.SeqCount(), seq_pkg_.BaseCount(), multiplicity.size(), multiplicity.capacity());
   }
 
   if (!opt_.local_contig.empty()) {
     ContigReader reader({opt_.local_contig});
-    reader.SetExtendLoop(opt_.k_from, opt_.k)->SetMinLen(opt_.k + 1);
+    reader.SetMinLen(opt_.k + 1);
     bool contig_reverse = true;
-    reader.ReadAllWithMultiplicity(&seq_pkg_, &multiplicity, contig_reverse);
+    auto n_read = reader.ReadAllWithMultiplicity(&seq_pkg_, &multiplicity, contig_reverse);
+    xinfo("Read {} contigs from {}.\n", n_read, opt_.local_contig.c_str());
+    xinfo("After reading contigs, sizeof seq_package: {}/{}/{}, multiplicity vector: {}/{}\n",
+          seq_pkg_.SizeInByte(), seq_pkg_.SeqCount(), seq_pkg_.BaseCount(), multiplicity.size(), multiplicity.capacity());
   }
 
-  xinfo("After reading contigs, sizeof seq_package: {}, multiplicity vector: {}\n", seq_pkg_.SizeInByte(),
-        multiplicity.capacity());
+  xinfo("Finally, sizeof seq_package: {}/{}/{}, multiplicity vector: {}/{}\n",
+        seq_pkg_.SizeInByte(), seq_pkg_.SeqCount(), seq_pkg_.BaseCount(), multiplicity.size(), multiplicity.capacity());
 
   seq_pkg_.BuildIndex();
   words_per_substr_ =

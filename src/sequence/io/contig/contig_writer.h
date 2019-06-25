@@ -7,6 +7,7 @@
 
 #include <string>
 #include <atomic>
+#include <definitions.h>
 #include "utils/utils.h"
 #include "utils/safe_open.h"
 
@@ -28,7 +29,7 @@ class ContigWriter {
     pfprintf(file_, ">k{}_{} flag={} multi={.4} len={}\n{s}\n", k_size, id, flag, multi, ascii_contig.length(),
              ascii_contig.c_str());
     ++n_contigs_;
-    n_bases_ += ascii_contig.length();
+    n_bases_ += ascii_contig.length() + (flag & contig_flag::kLoop) ? 28 : 0;
   }
 
   void WriteLocalContig(const std::string &ascii_contig, int64_t origin_contig_id, int strand, int64_t contig_id) {
