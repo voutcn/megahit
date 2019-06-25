@@ -18,6 +18,11 @@ class EdgeReader : public BaseSequenceReader {
     InitFiles();
   }
 
+  EdgeReader *SetMultiplicityVec(std::vector<mul_t> *mul) {
+    mul_ = mul;
+    return this;
+  }
+
   int64_t ReadUnsorted(SeqPackage *pkg, std::vector<mul_t> *mul, int64_t max_num) {
     for (int64_t i = 0; i < max_num; ++i) {
       uint32_t *next_edge = NextUnsortedEdge();

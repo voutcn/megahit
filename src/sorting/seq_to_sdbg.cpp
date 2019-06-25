@@ -21,7 +21,6 @@
 #include "seq_to_sdbg.h"
 
 #include <omp.h>
-#include <sequence/io/edge/edge_writer.h>
 #include <mutex>
 #include <string>
 #include <vector>
@@ -334,9 +333,9 @@ void SeqToSdbg::GenMercyEdges() {
 SeqToSdbg::Meta SeqToSdbg::Initialize() {
   // reserve space
   {
-    long long bases_to_reserve = 0;
-    long long num_contigs_to_reserve = 0;
-    long long num_multiplicities_to_reserve = 0;
+    int64_t bases_to_reserve = 0;
+    int64_t num_contigs_to_reserve = 0;
+    int64_t num_multiplicities_to_reserve = 0;
 
     if (!opt_.input_prefix.empty()) {
       EdgeReader edge_reader(opt_.input_prefix);
@@ -344,7 +343,13 @@ SeqToSdbg::Meta SeqToSdbg::Initialize() {
       xinfo("Number edges: {}\n", num_edges);
 
       if (opt_.need_mercy) {
-        num_edges += num_edges >> 2;  // it is rare that # mercy > 25%
+        auto mercy_factor = std::getenv("MEGAHIT_NUM_MERCY_FACTOR");
+        if (mercy_factor) {
+          char *_;
+          num_edges *= 1 + strtod(mercy_factor, &_);
+        } else {
+          num_edges += num_edges >> 2;  // it is rare that # mercy > 25%
+        }
       }
 
       bases_to_reserve += num_edges * (edge_reader.GetMetadata().kmer_size + 1);
@@ -384,12 +389,12 @@ SeqToSdbg::Meta SeqToSdbg::Initialize() {
 
   if (!opt_.input_prefix.empty()) {
     EdgeReader reader(opt_.input_prefix);
-    if (opt_.need_mercy) {
-      reader.ReadSorted(&seq_pkg_, &multiplicity, 1LL << 60);
-    } else {
-      reader.ReadUnsorted(&seq_pkg_, &multiplicity, 1LL << 60);
-    }
+    reader.SetMultiplicityVec(&multiplicity);
+    reader.ReadAll(&seq_pkg_, false);
   }
+
+  xinfo("After reading, sizeof seq_package: {}, multiplicity vector: {}\n", seq_pkg_.SizeInByte(),
+        multiplicity.capacity());
 
   if (opt_.need_mercy) {
     SimpleTimer timer;
@@ -401,6 +406,9 @@ SeqToSdbg::Meta SeqToSdbg::Initialize() {
     timer.stop();
     xinfo("Done. Time elapsed: {.4}\n", timer.elapsed());
   }
+
+  xinfo("After adding mercy, sizeof seq_package: {}, multiplicity vector: {}\n", seq_pkg_.SizeInByte(),
+        multiplicity.capacity());
 
   if (!opt_.contig.empty()) {
     ContigReader reader(opt_.contig);
@@ -428,7 +436,7 @@ SeqToSdbg::Meta SeqToSdbg::Initialize() {
     reader.ReadAllWithMultiplicity(&seq_pkg_, &multiplicity, contig_reverse);
   }
 
-  xinfo("After reading, sizeof seq_package: {}, multiplicity vector: {}\n", seq_pkg_.SizeInByte(),
+  xinfo("After reading contigs, sizeof seq_package: {}, multiplicity vector: {}\n", seq_pkg_.SizeInByte(),
         multiplicity.capacity());
 
   seq_pkg_.BuildIndex();
@@ -444,7 +452,7 @@ SeqToSdbg::Meta SeqToSdbg::Initialize() {
 
   return {
       static_cast<int64_t>(seq_pkg_.SeqCount()),
-      static_cast<int64_t>(seq_pkg_.SizeInByte() + multiplicity.size() * sizeof(mul_t)),
+      static_cast<int64_t>(seq_pkg_.SizeInByte() + multiplicity.capacity() * sizeof(mul_t)),
       words_per_substr_,
       0,
   };
