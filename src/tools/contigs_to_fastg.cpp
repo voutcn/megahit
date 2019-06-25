@@ -86,7 +86,7 @@ int main_contig2fastg(int argc, char **argv) {
 
   unsigned k = atoi(argv[1]);
   gzFile fp = gzopen(argv[2], "r");
-  assert(fp != NULL);
+  assert(fp != nullptr);
   kseq_t *seq = kseq_init(fp);  // kseq to read files
 
   vector<string> ctgs;
@@ -101,7 +101,9 @@ int main_contig2fastg(int argc, char **argv) {
     }
 
     double mul;
-    assert(sscanf(seq->comment.s + 7, "multi=%lf", &mul) == 1);
+    auto n_scanned = sscanf(seq->comment.s + 7, "multi=%lf", &mul);
+    assert(n_scanned == 1);
+    (void) n_scanned;
 
     muls.push_back(mul);
     ctgs.push_back(string(seq->seq.s));

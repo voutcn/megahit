@@ -107,7 +107,7 @@ int main_assemble(int argc, char **argv) {
   // graph loading
   timer.reset();
   timer.start();
-  xinfo("Loading succinct de Bruijn graph: {} ", opt.sdbg_name.c_str());
+  xinfo("Loading succinct de Bruijn graph: {s} ", opt.sdbg_name.c_str());
   dbg.LoadFromFile(opt.sdbg_name.c_str());
   timer.stop();
   xinfoc("Done. Time elapsed: {}\n", timer.elapsed());

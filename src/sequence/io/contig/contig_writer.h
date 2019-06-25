@@ -12,7 +12,7 @@
 
 class ContigWriter {
  public:
-  ContigWriter(const std::string file_name)
+  explicit ContigWriter(const std::string file_name)
     :file_name_(file_name) {
     file_ = xfopen(file_name.c_str(), "w");
   }
@@ -25,7 +25,7 @@ class ContigWriter {
   }
 
   void WriteContig(const std::string &ascii_contig, unsigned k_size, long long id, int flag, double multi) {
-    pfprintf(file_, ">k{}_{} flag={} multi={.4} len={}\n{}\n", k_size, id, flag, multi, ascii_contig.length(),
+    pfprintf(file_, ">k{}_{} flag={} multi={.4} len={}\n{s}\n", k_size, id, flag, multi, ascii_contig.length(),
              ascii_contig.c_str());
     ++n_contigs_;
     n_bases_ += ascii_contig.length();

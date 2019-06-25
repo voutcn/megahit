@@ -37,9 +37,8 @@ int main_seq2sdbg(int argc, char **argv);
 
 int main_contig2fastg(int argc, char **argv);
 int main_read_stat(int argc, char **argv);
-int main_trim_lowq_tail(int argc, char **argv);
 int main_filter_by_len(int argc, char **argv);
-int main_extract_pe(int argc, char **argv);
+
 
 void show_help(const char *program_name) {
   pfprintf(stderr,
@@ -54,9 +53,7 @@ void show_help(const char *program_name) {
           "       seq2sdbg       build sdbg from megahit contigs + edges\n"
           "       contig2fastg   convert MEGAHIT's k*.contigs.fa to fastg format\n"
           "       readstat       calculate read stats (# of reads, bases, longest, shortest, average)\n"
-          "       trim           trim low quality tail of fastq reads\n"
           "       filterbylen    filter contigs by length\n"
-          "       extractpe      extract pe reads and se reads from fasta/fastq files\n"
           "       checkcpu       check whether the run-time CPU supports POPCNT and BMI2\n"
           "       dumpversion    dump version\n"
           "       kmax           the largest k value supported\n",
@@ -87,12 +84,8 @@ int main(int argc, char **argv) {
     return main_contig2fastg(argc - 1, argv + 1);
   } else if (strcmp(argv[1], "readstat") == 0) {
     return main_read_stat(argc - 1, argv + 1);
-  } else if (strcmp(argv[1], "trim") == 0) {
-    return main_trim_lowq_tail(argc - 1, argv + 1);
   } else if (strcmp(argv[1], "filterbylen") == 0) {
     return main_filter_by_len(argc - 1, argv + 1);
-  } else if (strcmp(argv[1], "extractpe") == 0) {
-    return main_extract_pe(argc - 1, argv + 1);
   } else if (strcmp(argv[1], "checkcpu") == 0) {
     pprintf("{}\n", HasPopcnt() && HasBmi2());
   } else if (strcmp(argv[1], "dumpversion") == 0) {

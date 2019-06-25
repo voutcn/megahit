@@ -135,8 +135,8 @@ inline void ReadAndWriteMultipleLibs(const std::string &lib_file, const std::str
   pfprintf(lib_info_file, "{} {}\n", total_bases, total_reads);
 
   for (auto &lib : lib_info) {
-    pfprintf(lib_info_file, "{}\n", lib.metadata.c_str());
-    pfprintf(lib_info_file, "{} {} {} {}\n", lib.from, lib.to, lib.max_read_len, lib.is_pe ? "pe" : "se");
+    pfprintf(lib_info_file, "{s}\n", lib.metadata.c_str());
+    pfprintf(lib_info_file, "{} {} {} {s}\n", lib.from, lib.to, lib.max_read_len, lib.is_pe ? "pe" : "se");
   }
 
   fclose(lib_info_file);
