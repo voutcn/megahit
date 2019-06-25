@@ -1,4 +1,4 @@
-#include "sequence/lib_io.h"
+#include "sequence/io/lib_io.h"
 #include "utils/utils.h"
 
 void DisplayHelp(const char *program) { pfprintf(stderr, "Usage {s} <read_lib_file> <out_prefix>\n", program); }

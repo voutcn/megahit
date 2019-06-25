@@ -32,9 +32,9 @@
 #include <vector>
 
 #include "lib_info.h"
-#include "sequence/readers/binary_reader.h"
-#include "sequence/readers/fastx_reader.h"
-#include "sequence/readers/pair_end_fastx_reader.h"
+#include "sequence/io/binary_reader.h"
+#include "sequence/io/fastx_reader.h"
+#include "sequence/io/pair_end_fastx_reader.h"
 #include "sequence/sequence_package.h"
 #include "utils/safe_open.h"
 #include "utils/utils.h"

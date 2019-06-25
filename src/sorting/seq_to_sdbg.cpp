@@ -21,15 +21,15 @@
 #include "seq_to_sdbg.h"
 
 #include <omp.h>
-#include <sequence/readers/edge_io.h>
+#include <sequence/io/edge/edge_writer.h>
 #include <mutex>
 #include <string>
 #include <vector>
 
 #include "sequence/kmer.h"
 #include "sequence/packed_reads.h"
-#include "sequence/readers/async_sequence_reader.h"
-#include "sequence/readers/edge_reader.h"
+#include "sequence/io/async_sequence_reader.h"
+#include "sequence/io/edge/edge_reader.h"
 #include "utils/utils.h"
 
 namespace {
@@ -339,17 +339,15 @@ SeqToSdbg::Meta SeqToSdbg::Initialize() {
     long long num_multiplicities_to_reserve = 0;
 
     if (!opt_.input_prefix.empty()) {
-      MegahitEdgeReader edge_reader;
-      edge_reader.SetFilePrefix(opt_.input_prefix);
-      edge_reader.ReadInfo();
-      int64_t num_edges = edge_reader.num_edges();
+      EdgeReader edge_reader(opt_.input_prefix);
+      int64_t num_edges = edge_reader.GetMetadata().num_edges;
       xinfo("Number edges: {}\n", num_edges);
 
       if (opt_.need_mercy) {
         num_edges += num_edges >> 2;  // it is rare that # mercy > 25%
       }
 
-      bases_to_reserve += num_edges * (edge_reader.k() + 1);
+      bases_to_reserve += num_edges * (edge_reader.GetMetadata().kmer_size + 1);
       num_multiplicities_to_reserve += num_edges;
     }
 

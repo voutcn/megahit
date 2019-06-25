@@ -100,10 +100,9 @@ int BaseBubbleRemover::SearchAndPopBubble(UnitigGraph &graph, UnitigGraph::Verte
     bool success = middle[j].SetToDelete();
     assert(success || adapter.canonical_id() == right.canonical_id() || adapter.IsPalindrome());
     num_removed += success;
-    if (hist_ && bubble_file_ && middle[j].GetAvgDepth() >= middle[0].GetAvgDepth() * careful_threshold_) {
+    if (bubble_file_ && middle[j].GetAvgDepth() >= middle[0].GetAvgDepth() * careful_threshold_) {
       std::string label = graph.VertexToDNAString(middle[j]);
-      WriteContig(label, graph.k(), 0, 0, middle[j].GetAvgDepth(), bubble_file_);
-      hist_->insert(label.length());
+      bubble_file_->WriteContig(label, graph.k(), 0, 0, middle[j].GetAvgDepth());
       careful_merged = true;
     }
   }
@@ -111,10 +110,8 @@ int BaseBubbleRemover::SearchAndPopBubble(UnitigGraph &graph, UnitigGraph::Verte
   if (careful_merged) {
     std::string left_label = graph.VertexToDNAString(adapter);
     std::string right_label = graph.VertexToDNAString(right);
-    WriteContig(left_label, graph.k(), 0, 0, adapter.GetAvgDepth(), bubble_file_);
-    WriteContig(right_label, graph.k(), 0, 0, right.GetAvgDepth(), bubble_file_);
-    hist_->insert(left_label.length());
-    hist_->insert(right_label.length());
+    bubble_file_->WriteContig(left_label, graph.k(), 0, 0, adapter.GetAvgDepth());
+    bubble_file_->WriteContig(right_label, graph.k(), 0, 0, right.GetAvgDepth());
   }
   return num_removed;
 }

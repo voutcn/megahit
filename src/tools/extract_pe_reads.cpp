@@ -27,7 +27,7 @@
 #include <unordered_map>
 
 #include "utils/utils.h"
-#include "sequence/readers/kseq.h"
+#include "sequence/io/kseq.h"
 
 using namespace std;
 

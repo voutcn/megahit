@@ -23,7 +23,7 @@
 #include <zlib.h>
 
 #include "utils/utils.h"
-#include "sequence/readers/kseq.h"
+#include "sequence/io/kseq.h"
 
 #ifndef KSEQ_INITED
 #define KSEQ_INITED

@@ -26,8 +26,8 @@
 
 #include "sequence/kmer.h"
 #include "sequence/packed_reads.h"
-#include "sequence/lib_io.h"
-#include "sequence/readers/kseq.h"
+#include "sequence/io/lib_io.h"
+#include "sequence/io/kseq.h"
 #include "sequence/sequence_package.h"
 #include "utils/safe_open.h"
 #include "utils/utils.h"

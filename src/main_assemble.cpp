@@ -27,7 +27,7 @@
 
 #include "assembly/all_algo.h"
 #include "assembly/contig_stat.h"
-#include "assembly/contig_writer.h"
+#include "assembly/contig_output.h"
 #include "utils/histgram.h"
 #include "utils/options_description.h"
 #include "utils/safe_open.h"
@@ -148,14 +148,14 @@ int main_assemble(int argc, char **argv) {
   CalcAndPrintStat(graph);
 
   // set up bubble
-  FILE *bubble_file = xfopen(opt.bubble_file().c_str(), "w");
+  ContigWriter bubble_writer(opt.bubble_file());
   NaiveBubbleRemover naiver_bubble_remover;
   ComplexBubbleRemover complex_bubble_remover;
   complex_bubble_remover.SetMergeSimilarity(opt.merge_similar).SetMergeLevel(opt.merge_len);
   Histgram<int64_t> bubble_hist;
   if (opt.careful_bubble) {
-    naiver_bubble_remover.set_careful_threshold(0.2).set_bubble_file(bubble_file).set_hist(bubble_hist);
-    complex_bubble_remover.set_careful_threshold(0.2).set_bubble_file(bubble_file).set_hist(bubble_hist);
+    naiver_bubble_remover.SetCarefulThreshold(0.2).SetWriter(&bubble_writer);
+    complex_bubble_remover.SetCarefulThreshold(0.2).SetWriter(&bubble_writer);
   }
 
   // graph cleaning for 5 rounds
@@ -222,25 +222,21 @@ int main_assemble(int argc, char **argv) {
   ContigStat stat = CalcAndPrintStat(graph);
 
   // output contigs
-  FILE *contig_file = xfopen(opt.contig_file().c_str(), "w");
-  FILE *standalone_file = xfopen(opt.standalone_file().c_str(), "w");
+  ContigWriter contig_writer(opt.contig_file());
+  ContigWriter standalone_writer(opt.standalone_file());
 
   if (!(opt.is_final_round && opt.prune_level >= 1)) {  // otherwise output after local low depth pruning
     timer.reset();
     timer.start();
-    FILE *out_contig_info = xfopen((opt.contig_file() + ".info").c_str(), "w");
-    pfprintf(out_contig_info, "{} {}\n", graph.size() + bubble_hist.size(), stat["total size"] + bubble_hist.sum());
-    fclose(out_contig_info);
 
-    OutputContigs(graph, contig_file, opt.output_standalone ? standalone_file : nullptr, false, opt.min_standalone);
+    OutputContigs(graph, &contig_writer, opt.output_standalone ? &standalone_writer : nullptr, false, opt.min_standalone);
     timer.stop();
     xinfo("Time to output: {}\n", timer.elapsed());
   }
 
   // remove local low depth & output as contigs
   if (opt.prune_level >= 1) {
-    FILE *add_contig_file = xfopen(opt.addi_contig_file().c_str(), "w");
-    FILE *add_contig_info = xfopen((opt.addi_contig_file() + ".info").c_str(), "w");
+    ContigWriter addi_contig_writer(opt.addi_contig_file());
 
     timer.reset();
     timer.start();
@@ -249,7 +245,7 @@ int main_assemble(int argc, char **argv) {
 
     uint32_t n_bubbles = 0;
     if (opt.bubble_level >= 2 && opt.merge_len > 0) {
-      complex_bubble_remover.set_bubble_file(nullptr);
+      complex_bubble_remover.SetWriter(nullptr);
       n_bubbles = complex_bubble_remover.PopBubbles(graph, false);
       timer.stop();
     }
@@ -258,21 +254,13 @@ int main_assemble(int argc, char **argv) {
     CalcAndPrintStat(graph);
 
     if (!opt.is_final_round) {
-      OutputContigs(graph, add_contig_file, nullptr, true, 0);
+      OutputContigs(graph, &addi_contig_writer, nullptr, true, 0);
     } else {
-      OutputContigs(graph, contig_file, opt.output_standalone ? standalone_file : nullptr, false, opt.min_standalone);
+      OutputContigs(graph, &contig_writer, opt.output_standalone ? &standalone_writer : nullptr, false, opt.min_standalone);
     }
 
     auto stat_changed = CalcAndPrintStat(graph, false, true);
-    pfprintf(add_contig_info, "{} {}\n", stat_changed["number contigs"], stat_changed["total size"]);
-
-    fclose(add_contig_file);
-    fclose(add_contig_info);
   }
-
-  fclose(contig_file);
-  fclose(standalone_file);
-  fclose(bubble_file);
 
   return 0;
 }

@@ -27,8 +27,7 @@
 #include <vector>
 #include "base_engine.h"
 #include "definitions.h"
-#include "sequence/lib_info.h"
-#include "sequence/readers/edge_io.h"
+#include "sequence/io/edge/edge_writer.h"
 #include "sequence/sequence_package.h"
 #include "utils/atomic_wrapper.h"
 

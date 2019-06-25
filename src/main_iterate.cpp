@@ -32,7 +32,7 @@
 #include "definitions.h"
 #include "iterate/contig_flank_index.h"
 #include "iterate/kmer_collector.h"
-#include "sequence/readers/async_sequence_reader.h"
+#include "sequence/io/async_sequence_reader.h"
 #include "utils/options_description.h"
 
 using std::string;

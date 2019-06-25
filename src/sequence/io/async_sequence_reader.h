@@ -7,8 +7,8 @@
 
 #include <future>
 #include <string>
-#include "sequence/readers/binary_reader.h"
-#include "sequence/readers/contig_reader.h"
+#include "sequence/io/binary_reader.h"
+#include "sequence/io/contig/contig_reader.h"
 #include "sequence/sequence_package.h"
 
 template <class PackageType>

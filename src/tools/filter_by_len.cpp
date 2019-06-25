@@ -24,7 +24,7 @@
 #include <algorithm>
 
 #include "utils/utils.h"
-#include "sequence/readers/kseq.h"
+#include "sequence/io/kseq.h"
 #include "utils/histgram.h"
 
 #ifndef KSEQ_INITED

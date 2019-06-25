@@ -22,12 +22,12 @@
 #define MEGAHIT_UTILS_H__
 
 #include <fcntl.h>
-#include <stdarg.h>
-#include <stdio.h>
-#include <stdlib.h>
+#include <cstdarg>
+#include <cstdio>
+#include <cstdlib>
 #include <sys/resource.h>
 #include <sys/time.h>
-#include <time.h>
+#include <ctime>
 #include <unistd.h>
 #include <cstdint>
 

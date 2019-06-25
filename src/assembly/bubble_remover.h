@@ -6,7 +6,7 @@
 #define MEGAHIT_BUBBLE_REMOVER_H
 
 #include <cstdint>
-#include "contig_writer.h"
+#include "contig_output.h"
 #include "unitig_graph.h"
 #include "utils/histgram.h"
 
@@ -15,22 +15,17 @@ class BaseBubbleRemover {
   using checker_type = std::function<bool(const UnitigGraph::VertexAdapter &, const UnitigGraph::VertexAdapter &)>;
 
  public:
-  BaseBubbleRemover &set_bubble_file(FILE *bubble_file) {
+  BaseBubbleRemover &SetWriter(ContigWriter *bubble_file) {
     bubble_file_ = bubble_file;
     return *this;
   }
-  BaseBubbleRemover &set_careful_threshold(double threshold) {
+  BaseBubbleRemover &SetCarefulThreshold(double threshold) {
     careful_threshold_ = threshold;
-    return *this;
-  }
-  BaseBubbleRemover &set_hist(Histgram<int64_t> &hist) {
-    hist_ = &hist;
     return *this;
   }
 
  private:
-  FILE *bubble_file_{};
-  Histgram<int64_t> *hist_{};
+  ContigWriter *bubble_file_{};
   double careful_threshold_{1 + 1e-3};
 
  protected:

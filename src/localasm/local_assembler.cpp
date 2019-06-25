@@ -34,8 +34,9 @@
 #include "idba/sequence.h"
 #include "kmlib/kmbit.h"
 
-#include "sequence/lib_io.h"
-#include "sequence/readers/contig_reader.h"
+#include "sequence/io/lib_io.h"
+#include "sequence/io/contig/contig_reader.h"
+#include "sequence/io/contig/contig_writer.h"
 #include "utils/histgram.h"
 #include "utils/safe_open.h"
 #include "utils/utils.h"
@@ -479,13 +480,9 @@ void LocalAssembler::LocalAssemble() {
   std::deque<Sequence> out_contigs;
   std::deque<ContigInfo> out_contig_infos;
 
-  auto local_file = xfopen(local_filename_.c_str(), "w");
-  auto local_info = xfopen((local_filename_ + ".info").c_str(), "w");
+  ContigWriter local_contig_writer(local_filename_);
 
-  long long num_bases = 0;
-  long long num_contigs = 0;
-
-#pragma omp parallel for private(hash_graph, contig_graph, seq, contig_end, reads, out_contigs, out_contig_infos) schedule(dynamic) reduction(+ : num_contigs, num_bases)
+#pragma omp parallel for private(hash_graph, contig_graph, seq, contig_end, reads, out_contigs, out_contig_infos) schedule(dynamic)
   for (uint64_t cid = 0; cid < contigs_.SeqCount(); ++cid) {
     int cl = contigs_.SequenceLength(cid);
 
@@ -537,16 +534,9 @@ void LocalAssembler::LocalAssemble() {
       for (uint64_t j = 0; j < out_contigs.size(); ++j) {
         if (out_contigs[j].size() > min_contig_len_ && out_contigs[j].size() > local_kmax_) {
           auto str = out_contigs[j].str();
-          pfprintf(local_file, ">lc_{}_strand_{}_id_{} flag=0 multi=1\n{s}\n", cid, strand, j, str.c_str());
-          num_contigs++;
-          num_bases += out_contigs[j].size();
+          local_contig_writer.WriteLocalContig(str, cid, strand, j);
         }
       }
     }
   }
-
-  pfprintf(local_info, "{} {}\n", num_contigs, num_bases);
-
-  fclose(local_file);
-  fclose(local_info);
 }

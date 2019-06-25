@@ -8,7 +8,7 @@
 #include "parallel_hashmap/phmap.h"
 #include "sdbg/sdbg_def.h"
 #include "sequence/kmer_plus.h"
-#include "sequence/readers/edge_io.h"
+#include "sequence/io/edge/edge_writer.h"
 #include "utils/mutex.h"
 
 template <class KmerType>
@@ -28,7 +28,7 @@ class KmerCollector {
 
     writer_.SetNumThreads(1);
     writer_.SetFilePrefix(out_prefix);
-    writer_.SetUnsorted();
+    writer_.SetUnordered();
     writer_.SetKmerSize(k_ - 1);
     writer_.InitFiles();
   }
@@ -62,7 +62,7 @@ class KmerCollector {
     *ptr = (w << last_shift_);
     assert((buffer_.back() & kMaxMul) == 0);
     buffer_.back() |= mul;
-    writer_.WriteUnsorted(buffer_.data(), 0);
+    writer_.WriteUnordered(buffer_.data());
   }
 
  private:
