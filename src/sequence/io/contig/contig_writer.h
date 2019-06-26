@@ -28,22 +28,22 @@ class ContigWriter {
   void WriteContig(const std::string &ascii_contig, unsigned k_size, long long id, int flag, double multi) {
     pfprintf(file_, ">k{}_{} flag={} multi={.4} len={}\n{s}\n", k_size, id, flag, multi, ascii_contig.length(),
              ascii_contig.c_str());
-    ++n_contigs_;
-    n_bases_ += ascii_contig.length() + (flag & contig_flag::kLoop) ? 28 : 0;
+    n_contigs_.fetch_add(1, std::memory_order_relaxed);
+    n_bases_.fetch_add(ascii_contig.length() + (flag & contig_flag::kLoop) ? 28 : 0, std::memory_order_relaxed);
   }
 
   void WriteLocalContig(const std::string &ascii_contig, int64_t origin_contig_id, int strand, int64_t contig_id) {
     pfprintf(file_, ">lc_{}_strand_{}_id_{} flag=0 multi=1\n{s}\n",
         origin_contig_id, strand, contig_id, ascii_contig.c_str());
-    ++n_contigs_;
-    n_bases_ += ascii_contig.length();
+    n_contigs_.fetch_add(1, std::memory_order_relaxed);
+    n_bases_.fetch_add(ascii_contig.length(), std::memory_order_relaxed);
   }
 
  private:
   std::string file_name_;
   std::FILE *file_;
-  std::atomic_int64_t n_contigs_{0};
-  std::atomic_int64_t n_bases_{0};
+  std::atomic<int64_t> n_contigs_{0};
+  std::atomic<int64_t> n_bases_{0};
 };
 
 #endif //MEGAHIT_CONTIG_WRITER_H

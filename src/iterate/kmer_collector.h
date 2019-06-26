@@ -26,7 +26,6 @@ class KmerCollector {
     words_per_kmer_ = DivCeiling(k_ * 2 + kBitsPerMul, 32);
     buffer_.resize(words_per_kmer_);
 
-    writer_.SetNumThreads(1);
     writer_.SetFilePrefix(out_prefix);
     writer_.SetUnordered();
     writer_.SetKmerSize(k_ - 1);

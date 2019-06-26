@@ -436,7 +436,7 @@ SeqToSdbg::Meta SeqToSdbg::Initialize() {
   }
 
   if (!opt_.addi_contig.empty()) {
-    ContigReader reader({opt_.addi_contig});
+    ContigReader reader(opt_.addi_contig);
     reader.SetMinLen(opt_.k + 1);
     bool contig_reverse = true;
     auto n_read = reader.ReadAllWithMultiplicity(&seq_pkg_, &multiplicity, contig_reverse);
@@ -446,7 +446,7 @@ SeqToSdbg::Meta SeqToSdbg::Initialize() {
   }
 
   if (!opt_.local_contig.empty()) {
-    ContigReader reader({opt_.local_contig});
+    ContigReader reader(opt_.local_contig);
     reader.SetMinLen(opt_.k + 1);
     bool contig_reverse = true;
     auto n_read = reader.ReadAllWithMultiplicity(&seq_pkg_, &multiplicity, contig_reverse);

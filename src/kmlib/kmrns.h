@@ -101,16 +101,6 @@ class RankAndSelect {
         xor_masks_[i] |= (word_type)i << (kBitsPerBase * j);
       }
       xor_masks_[i] = ~xor_masks_[i];
-
-      if (sizeof(uint64_t) == sizeof(word_type)) {
-        xor_64masks_[i] = xor_masks_[i];
-      } else {
-        xor_64masks_[i] = 0;
-        for (unsigned j = 0; j < sizeof(uint64_t) / sizeof(word_type); ++j) {
-          xor_64masks_[i] <<= kBitsPerWord;
-          xor_64masks_[i] |= xor_masks_[i];
-        }
-      }
     }
   }
 
@@ -404,7 +394,6 @@ class RankAndSelect {
   std::vector<uint16_t> l1_occ_[kAlphabetSize];   // level 1 OCC
   std::vector<size_type> l2_occ_[kAlphabetSize];  // level 2 OCC
   word_type xor_masks_[kAlphabetSize];
-  uint64_t xor_64masks_[kAlphabetSize]{};
   // e.g. if c = 0110(2), popcount_xorers_[c] = 1001 1001 1001 1001...(2),
   // to make all c's in a word 1111
   static_assert((1 << kBitsPerBase) >= kAlphabetSize, "");
