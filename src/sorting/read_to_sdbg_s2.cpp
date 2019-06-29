@@ -20,12 +20,12 @@
 
 #include "read_to_sdbg.h"
 
-#include <omp.h>
 #include <mutex>
-#include <parallel/algorithm>
 #include <string>
 #include <vector>
+#include <omp.h>
 
+#include "kmlib/kmsort.h"
 #include "sequence/kmer.h"
 #include "sequence/packed_reads.h"
 #include "sequence/io/lib_io.h"
@@ -141,8 +141,7 @@ Read2SdbgS2::Meta Read2SdbgS2::Initialize() {
 
     xinfo("Mercy file: {}, {}\n", file_name.c_str(), mercy_cand.size());
 
-    omp_set_num_threads(opt_.n_threads);
-    __gnu_parallel::sort(mercy_cand.begin(), mercy_cand.end());
+    kmlib::kmsort(mercy_cand.begin(), mercy_cand.end());
 
     // multi threading
     uint64_t avg = DivCeiling(mercy_cand.size(), opt_.n_threads);
@@ -169,6 +168,8 @@ Read2SdbgS2::Meta Read2SdbgS2::Initialize() {
 
       end_idx[tid] = this_end;
     }
+
+    omp_set_num_threads(opt_.n_threads);
 
 #pragma omp parallel for reduction(+ : num_mercy)
     for (int tid = 0; tid < opt_.n_threads; ++tid) {

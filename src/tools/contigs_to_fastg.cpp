@@ -147,5 +147,7 @@ int main_contig2fastg(int argc, char **argv) {
     }
   }
 
+  kseq_destroy(seq);
+  gzclose(fp);
   return 0;
 }

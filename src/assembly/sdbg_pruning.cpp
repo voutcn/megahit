@@ -19,12 +19,9 @@
 /* contact: Dinghua Li <dhli@cs.hku.hk> */
 
 #include "sdbg_pruning.h"
-#include <assert.h>
-#include <math.h>
-#include <omp.h>
-#include <stdio.h>
+#include <cassert>
+#include <cmath>
 #include <algorithm>
-#include <parallel/algorithm>
 #include <queue>
 #include <unordered_set>
 #include <vector>
@@ -32,11 +29,6 @@
 #include "kmlib/kmbitvector.h"
 #include "utils/histgram.h"
 #include "utils/utils.h"
-
-using std::queue;
-using std::string;
-using std::unordered_set;
-using std::vector;
 
 namespace sdbg_pruning {
 
@@ -68,7 +60,7 @@ double InferMinDepth(SDBG &dbg) {
 int64_t Trim(SDBG &dbg, int len, AtomicBitVector &ignored) {
   int64_t number_tips = 0;
   AtomicBitVector to_remove(dbg.size());
-  vector<uint64_t> path;
+  std::vector<uint64_t> path;
 
 #pragma omp parallel for reduction(+ : number_tips) private(path)
   for (uint64_t id = 0; id < dbg.size(); ++id) {

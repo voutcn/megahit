@@ -93,6 +93,7 @@ add_custom_target(
         COMMAND rm -rf test-random && python3 ../test_data/generate_random_fasta.py > random.fa && ./megahit -r random.fa --k-list 255 --min-count 1 -o test-random
         COMMAND rm -rf test-fastg && ./megahit --test -t 2 --mem-flag 2 --keep-tmp-files -o test-fastg
         COMMAND ./megahit_core contig2fastg 59 test-fastg/intermediate_contigs/k59.contigs.fa > 59.fastg
+        COMMAND ./megahit_core readstat < test-fastg/intermediate_contigs/k59.contigs.fa
 )
 
 add_dependencies(megahit megahit_core megahit_core_no_hw_accel)

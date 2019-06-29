@@ -6,6 +6,7 @@
 #include <algorithm>
 #include <vector>
 #include <mutex>
+#include <array>
 
 #include "utils/utils.h"
 #include "kmsort_selector.h"
