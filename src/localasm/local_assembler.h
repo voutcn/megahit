@@ -18,8 +18,8 @@
 
 /* contact: Dinghua Li <dhli@cs.hku.hk> */
 
-#ifndef LOCAL_ASSEMBLER_H__
-#define LOCAL_ASSEMBLER_H__
+#ifndef LOCAL_ASSEMBLER_H
+#define LOCAL_ASSEMBLER_H
 
 #include <stdint.h>
 #include <deque>

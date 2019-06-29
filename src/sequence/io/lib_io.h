@@ -18,8 +18,8 @@
 
 /* contact: Dinghua Li <dhli@cs.hku.hk> */
 
-#ifndef READ_LIB_FUNCTIONS_INL_H__
-#define READ_LIB_FUNCTIONS_INL_H__
+#ifndef READ_LIB_FUNCTIONS_INL_H
+#define READ_LIB_FUNCTIONS_INL_H
 
 #include <inttypes.h>
 #include <stdint.h>

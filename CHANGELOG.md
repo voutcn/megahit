@@ -1,3 +1,7 @@
+### 1.2.5-beta / 2019-06-28 PST
+-   Fixed a bug that causes higher memory usage in seq2sdbg
+-   Refactor on sequence sorters, edge I/O and contig I/O
+
 ### 1.2.4-beta / 2019-05-25 PST
 -   Fixed a few memory leaks
 -   Use std::vector to replace malloc in SDBG builders

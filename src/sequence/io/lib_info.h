@@ -20,8 +20,8 @@
 
 /* contact: Dinghua Li <dhli@cs.hku.hk> */
 
-#ifndef LIB_INFO_H__
-#define LIB_INFO_H__
+#ifndef LIB_INFO_H
+#define LIB_INFO_H
 
 #include <stdint.h>
 #include <string>

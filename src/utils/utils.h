@@ -18,8 +18,8 @@
 
 /* contact: Dinghua Li <dhli@cs.hku.hk> */
 
-#ifndef MEGAHIT_UTILS_H__
-#define MEGAHIT_UTILS_H__
+#ifndef MEGAHIT_UTILS_H
+#define MEGAHIT_UTILS_H
 
 #include <fcntl.h>
 #include <cstdarg>
@@ -139,4 +139,4 @@ struct AutoMaxRssRecorder {
   }
 };
 
-#endif  // MEGAHIT_UTILS_H__
+#endif  // MEGAHIT_UTILS_H

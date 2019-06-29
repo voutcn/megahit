@@ -22,8 +22,8 @@
  * Functions for packed reads or edges (ACGT -> 0123, packed by uint32_t)
  */
 
-#ifndef PACKED_READS_H__
-#define PACKED_READS_H__
+#ifndef PACKED_READS_H
+#define PACKED_READS_H
 
 #include <algorithm>
 #include "definitions.h"
@@ -152,4 +152,4 @@ inline void CopySubstringRC(uint32_t *dest, const uint32_t *src_read, unsigned o
   }
 }
 
-#endif  // PACKED_READS_H__
+#endif  // PACKED_READS_H
