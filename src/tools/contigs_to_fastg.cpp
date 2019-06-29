@@ -25,7 +25,8 @@
 #include <string>
 #include <vector>
 
-#include "sequence/readers/kseq.h"
+#include "utils/utils.h"
+#include "sequence/io/kseq.h"
 
 using namespace std;
 
@@ -69,7 +70,7 @@ string RevComp(const string &s) {
 
 string NodeName(int i, int len, double mul, bool is_rc) {
   static char buf[10240];
-  sprintf(buf, "NODE_%d_length_%d_cov_%.4f_ID_%d", i, len, mul, i * 2 - 1);
+  psprintf(buf, "NODE_{}_length_{}_cov_{.4}_ID_{}", i, len, mul, i * 2 - 1);
 
   if (is_rc)
     return string(buf) + "'";
@@ -79,13 +80,13 @@ string NodeName(int i, int len, double mul, bool is_rc) {
 
 int main_contig2fastg(int argc, char **argv) {
   if (argc < 3) {
-    fprintf(stderr, "Usage: %s <kmer_size> <k_{kmer_size}.contigs.fa>\n", argv[0]);
+    pfprintf(stderr, "Usage: {s} <kmer_size> <k_KMER_SIZE.contigs.fa>\n", argv[0]);
     exit(1);
   }
 
   unsigned k = atoi(argv[1]);
   gzFile fp = gzopen(argv[2], "r");
-  assert(fp != NULL);
+  assert(fp != nullptr);
   kseq_t *seq = kseq_init(fp);  // kseq to read files
 
   vector<string> ctgs;
@@ -100,7 +101,9 @@ int main_contig2fastg(int argc, char **argv) {
     }
 
     double mul;
-    assert(sscanf(seq->comment.s + 7, "multi=%lf", &mul) == 1);
+    auto n_scanned = sscanf(seq->comment.s + 7, "multi=%lf", &mul);
+    assert(n_scanned == 1);
+    (void) n_scanned;
 
     muls.push_back(mul);
     ctgs.push_back(string(seq->seq.s));
@@ -140,9 +143,11 @@ int main_contig2fastg(int argc, char **argv) {
       }
 
       header += ";";
-      printf("%s\n%s\n", header.c_str(), s.c_str());
+      pprintf("{s}\n{s}\n", header.c_str(), s.c_str());
     }
   }
 
+  kseq_destroy(seq);
+  gzclose(fp);
   return 0;
 }

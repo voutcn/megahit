@@ -103,30 +103,30 @@ int main_local(int argc, char **argv) {
   la.ReadContigs(opt.contig_file);
   la.BuildHashMapper();
   timer.stop();
-  xinfo("Hash mapper construction time elapsed: %f\n", timer.elapsed());
+  xinfo("Hash mapper construction time elapsed: {}\n", timer.elapsed());
 
   timer.reset();
   timer.start();
   la.AddReadLib(opt.lib_file_prefix);
   timer.stop();
-  xinfo("Read lib time elapsed: %f\n", timer.elapsed());
+  xinfo("Read lib time elapsed: {}\n", timer.elapsed());
 
   timer.reset();
   timer.start();
   la.EstimateInsertSize();
   timer.stop();
-  xinfo("Insert size estimation time elapsed: %f\n", timer.elapsed());
+  xinfo("Insert size estimation time elapsed: {}\n", timer.elapsed());
 
   timer.reset();
   timer.start();
   la.MapToContigs();
   timer.stop();
-  xinfo("Mapping time elapsed: %f\n", timer.elapsed());
+  xinfo("Mapping time elapsed: {}\n", timer.elapsed());
 
   timer.reset();
   timer.start();
   la.LocalAssemble();
   timer.stop();
-  xinfo("Local assembly time elapsed: %f\n", timer.elapsed());
+  xinfo("Local assembly time elapsed: {}\n", timer.elapsed());
   return 0;
 }

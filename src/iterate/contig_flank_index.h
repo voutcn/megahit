@@ -30,7 +30,7 @@ class ContigFlankIndex {
   void FeedBatchContigs(SeqPackage &seq_pkg, const std::vector<float> &mul) {
     SpinLock lock;
 #pragma omp parallel for
-    for (size_t i = 0; i < seq_pkg.Size(); ++i) {
+    for (size_t i = 0; i < seq_pkg.SeqCount(); ++i) {
       size_t seq_len = seq_pkg.SequenceLength(i);
       if (seq_len < k_ + 1) {
         continue;
@@ -82,7 +82,7 @@ class ContigFlankIndex {
     size_t num_aligned_reads = 0;
 
 #pragma omp parallel for reduction(+ : num_aligned_reads) private(kmer_exist, kmer_mul)
-    for (unsigned seq_id = 0; seq_id < seq_pkg.Size(); ++seq_id) {
+    for (unsigned seq_id = 0; seq_id < seq_pkg.SeqCount(); ++seq_id) {
       size_t length = seq_pkg.SequenceLength(seq_id);
       if (length < k_ + step_ + 1) {
         continue;

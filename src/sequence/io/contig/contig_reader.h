@@ -5,11 +5,11 @@
 #ifndef MEGAHIT_CONTIG_READER_H
 #define MEGAHIT_CONTIG_READER_H
 
-#include "fastx_reader.h"
+#include "sequence/io/fastx_reader.h"
 
 class ContigReader : public FastxReader {
  public:
-  explicit ContigReader(const std::string &file_name) : FastxReader(file_name) {}
+  explicit ContigReader(const std::string &file_name) : FastxReader(file_name), file_name_(file_name) {}
   ContigReader *SetMinLen(unsigned min_len) {
     min_len_ = min_len;
     return this;
@@ -22,6 +22,16 @@ class ContigReader : public FastxReader {
   ContigReader *SetDiscardFlag(unsigned flag) {
     discard_flag_ = flag;
     return this;
+  }
+
+  std::pair<int64_t, int64_t> GetNumContigsAndBases() const {
+    std::ifstream info_fs(file_name_ + ".info");
+    int64_t num_contigs, num_bases;
+    info_fs >> num_contigs >> num_bases;
+    if (!info_fs) {
+      xfatal("Invalid format of contig info file: {s}.info", file_name_.c_str());
+    }
+    return {num_contigs, num_bases};
   }
 
   int64_t Read(SeqPackage *pkg, int64_t max_num, int64_t max_num_bases, bool reverse) override {
@@ -105,6 +115,7 @@ class ContigReader : public FastxReader {
   unsigned min_len_{0};
   unsigned k_from_{0}, k_to_{0};
   unsigned discard_flag_{0};
+  std::string file_name_;
 };
 
 #endif  // MEGAHIT_CONTIG_READER_H

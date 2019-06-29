@@ -2,7 +2,7 @@
 // Created by vout on 11/21/18.
 //
 
-#include "contig_writer.h"
+#include "contig_output.h"
 #include <cassert>
 #include "definitions.h"
 #include "unitig_graph.h"
@@ -60,8 +60,9 @@ void FoldPalindrome(std::string &s, unsigned kmer_k, bool is_loop) {
 
 }  // namespace
 
-void OutputContigs(UnitigGraph &graph, FILE *contig_file, FILE *final_file, bool change_only, uint32_t min_standalone) {
-  assert(!(change_only && final_file != nullptr));  // if output changed contigs, must not output final contigs
+void OutputContigs(UnitigGraph &graph, ContigWriter *contig_writer,
+    ContigWriter *final_contig_writer, bool change_only, uint32_t min_standalone) {
+  assert(!(change_only && final_contig_writer != nullptr));  // if output changed contigs, must not output final contigs
 
 #pragma omp parallel for
   for (UnitigGraph::size_type i = 0; i < graph.size(); ++i) {
@@ -74,23 +75,23 @@ void OutputContigs(UnitigGraph &graph, FILE *contig_file, FILE *final_file, bool
 
     if (adapter.IsLoop()) {
       int flag = contig_flag::kLoop | contig_flag::kStandalone;
-      FILE *out_file = contig_file;
+      auto writer = contig_writer;
 
       if (adapter.IsPalindrome()) {
         FoldPalindrome(ascii_contig, graph.k(), adapter.IsLoop());
         flag = contig_flag::kStandalone;
       }
 
-      if (final_file != nullptr) {
+      if (final_contig_writer != nullptr) {
         if (ascii_contig.length() < min_standalone) {
           continue;
         } else {
-          out_file = final_file;
+          writer = final_contig_writer;
         }
       }
-      WriteContig(ascii_contig, graph.k(), i, flag, multi, out_file);
+      writer->WriteContig(ascii_contig, graph.k(), i, flag, multi);
     } else {
-      FILE *out_file = contig_file;
+      auto out_file = contig_writer;
       int flag = 0;
 
       if (adapter.IsStandalone() || (graph.InDegree(adapter) == 0 && graph.OutDegree(adapter) == 0)) {
@@ -98,15 +99,15 @@ void OutputContigs(UnitigGraph &graph, FILE *contig_file, FILE *final_file, bool
           FoldPalindrome(ascii_contig, graph.k(), adapter.IsLoop());
         }
         flag = contig_flag::kStandalone;
-        if (final_file != nullptr) {
+        if (final_contig_writer != nullptr) {
           if (ascii_contig.length() < min_standalone) {
             continue;
           } else {
-            out_file = final_file;
+            out_file = final_contig_writer;
           }
         }
       }
-      WriteContig(ascii_contig, graph.k(), i, flag, multi, out_file);
+      out_file->WriteContig(ascii_contig, graph.k(), i, flag, multi);
     }
   }
 }

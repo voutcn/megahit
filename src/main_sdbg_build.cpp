@@ -25,9 +25,9 @@
 #include <stdexcept>
 #include <string>
 
-#include "cx1/cx1_kmer_count.h"
-#include "cx1/cx1_read2sdbg.h"
-#include "cx1/cx1_seq2sdbg.h"
+#include "sorting/kmer_counter.h"
+#include "sorting/read_to_sdbg.h"
+#include "sorting/seq_to_sdbg.h"
 #include "definitions.h"
 #include "utils/options_description.h"
 #include "utils/utils.h"
@@ -37,18 +37,13 @@ int main_kmer_count(int argc, char **argv) {
 
   // parse option
   OptionsDescription desc;
-  count_opt_t opt;
+  KmerCounterOption opt;
 
-  desc.AddOption("kmer_k", "k", opt.kmer_k, "kmer size");
-  desc.AddOption("min_kmer_frequency", "m", opt.kmer_freq_threshold, "min frequency to output an edge");
+  desc.AddOption("kmer_k", "k", opt.k, "kmer size");
+  desc.AddOption("min_kmer_frequency", "m", opt.solid_threshold, "min frequency to output an edge");
   desc.AddOption("host_mem", "", opt.host_mem, "Max memory to be used. 90% of the free memory is recommended.");
-  desc.AddOption("gpu_mem", "", opt.gpu_mem, "gpu memory to be used. 0 for auto detect.");
-  desc.AddOption("num_cpu_threads", "", opt.num_cpu_threads, "number of CPU threads. At least 2.");
-  desc.AddOption("num_output_threads", "", opt.num_output_threads,
-                 "number of threads for output. Must be less than num_cpu_threads");
+  desc.AddOption("num_cpu_threads", "", opt.n_threads, "number of CPU threads. At least 2.");
   desc.AddOption("read_lib_file", "", opt.read_lib_file, "read library configuration file.");
-  desc.AddOption("assist_seq", "", opt.assist_seq_file,
-                 "input assisting fast[aq] file (FILE_NAME.info should exist), can be gzip'ed.");
   desc.AddOption("output_prefix", "", opt.output_prefix, "output prefix");
   desc.AddOption("mem_flag", "", opt.mem_flag,
                  "memory options. 0: minimize memory usage; 1: automatically use moderate memory; "
@@ -58,16 +53,12 @@ int main_kmer_count(int argc, char **argv) {
   try {
     desc.Parse(argc, argv);
 
-    if (opt.read_lib_file == "") {
+    if (opt.read_lib_file.empty()) {
       throw std::logic_error("No read library configuration file!");
     }
 
-    if (opt.num_cpu_threads == 0) {
-      opt.num_cpu_threads = omp_get_max_threads();
-    }
-
-    if (opt.num_output_threads == 0) {
-      opt.num_output_threads = std::max(1, opt.num_cpu_threads / 3);
+    if (opt.n_threads == 0) {
+      opt.n_threads = omp_get_max_threads();
     }
 
     if (opt.host_mem == 0) {
@@ -81,31 +72,8 @@ int main_kmer_count(int argc, char **argv) {
     exit(1);
   }
 
-  cx1_kmer_count::count_global_t globals;
-  globals.kmer_k = opt.kmer_k;
-  globals.kmer_freq_threshold = opt.kmer_freq_threshold;
-  globals.host_mem = opt.host_mem;
-  globals.num_cpu_threads = opt.num_cpu_threads;
-  globals.num_output_threads = opt.num_output_threads;
-  globals.read_lib_file = opt.read_lib_file.c_str();
-  globals.assist_seq_file = opt.assist_seq_file;
-  globals.output_prefix = opt.output_prefix.c_str();
-  globals.mem_flag = opt.mem_flag;
-
-  xinfo("Host memory to be used: %lld\n", (long long)globals.host_mem);
-  xinfo("Number CPU threads: %d\n", globals.num_cpu_threads);
-
-  // set & run cx1
-  globals.cx1.g_ = &globals;
-  globals.cx1.encode_lv1_diff_base_func_ = cx1_kmer_count::encode_lv1_diff_base;
-  globals.cx1.prepare_func_ = cx1_kmer_count::read_input_prepare;
-  globals.cx1.lv0_calc_bucket_size_func_ = cx1_kmer_count::lv0_calc_bucket_size;
-  globals.cx1.init_global_and_set_cx1_func_ = cx1_kmer_count::init_global_and_set_cx1;
-  globals.cx1.lv1_fill_offset_func_ = cx1_kmer_count::lv1_fill_offset;
-  globals.cx1.lv1_sort_and_proc = cx1_kmer_count::lv1_direct_sort_and_count;
-  globals.cx1.post_proc_func_ = cx1_kmer_count::post_proc;
-
-  globals.cx1.run();
+  KmerCounter runner(opt);
+  runner.Run();
 
   return 0;
 }
@@ -115,18 +83,13 @@ int main_read2sdbg(int argc, char **argv) {
 
   // parse option the same as kmer_count
   OptionsDescription desc;
-  read2sdbg_opt_t opt;
+  Read2SdbgOption opt;
 
-  desc.AddOption("kmer_k", "k", opt.kmer_k, "kmer size");
-  desc.AddOption("min_kmer_frequency", "m", opt.kmer_freq_threshold, "min frequency to output an edge");
+  desc.AddOption("kmer_k", "k", opt.k, "kmer size");
+  desc.AddOption("min_kmer_frequency", "m", opt.solid_threshold, "min frequency to output an edge");
   desc.AddOption("host_mem", "", opt.host_mem, "Max memory to be used. 90% of the free memory is recommended.");
-  desc.AddOption("gpu_mem", "", opt.gpu_mem, "gpu memory to be used. 0 for auto detect.");
-  desc.AddOption("num_cpu_threads", "", opt.num_cpu_threads, "number of CPU threads. At least 2.");
-  desc.AddOption("num_output_threads", "", opt.num_output_threads,
-                 "number of threads for output. Must be less than num_cpu_threads");
+  desc.AddOption("num_cpu_threads", "", opt.n_threads, "number of CPU threads. At least 2.");
   desc.AddOption("read_lib_file", "", opt.read_lib_file, "input fast[aq] file, can be gzip'ed. \"-\" for stdin.");
-  desc.AddOption("assist_seq", "", opt.assist_seq_file,
-                 "input assisting fast[aq] file (FILE_NAME.info should exist), can be gzip'ed.");
   desc.AddOption("output_prefix", "", opt.output_prefix, "output prefix");
   desc.AddOption("mem_flag", "", opt.mem_flag,
                  "memory options. 0: minimize memory usage; 1: automatically use moderate memory; "
@@ -137,16 +100,12 @@ int main_read2sdbg(int argc, char **argv) {
   try {
     desc.Parse(argc, argv);
 
-    if (opt.read_lib_file == "") {
+    if (opt.read_lib_file.empty()) {
       throw std::logic_error("No input file!");
     }
 
-    if (opt.num_cpu_threads == 0) {
-      opt.num_cpu_threads = omp_get_max_threads();
-    }
-
-    if (opt.num_output_threads == 0) {
-      opt.num_output_threads = std::max(1, opt.num_cpu_threads / 3);
+    if (opt.n_threads == 0) {
+      opt.n_threads = omp_get_max_threads();
     }
 
     if (opt.host_mem == 0) {
@@ -160,42 +119,23 @@ int main_read2sdbg(int argc, char **argv) {
     exit(1);
   }
 
-  cx1_read2sdbg::read2sdbg_global_t globals;
-  globals.kmer_k = opt.kmer_k;
-  globals.kmer_freq_threshold = opt.kmer_freq_threshold;
-  globals.host_mem = opt.host_mem;
-  globals.num_cpu_threads = opt.num_cpu_threads;
-  globals.num_output_threads = opt.num_output_threads;
-  globals.read_lib_file = opt.read_lib_file;
-  globals.assist_seq_file = opt.assist_seq_file;
-  globals.output_prefix = opt.output_prefix;
-  globals.mem_flag = opt.mem_flag;
-  globals.need_mercy = opt.need_mercy;
-  globals.cx1.g_ = &globals;
+  SeqPkgWithSolidMarker pkg;
 
-  // stage1
-  if (opt.kmer_freq_threshold > 1) {
-    globals.cx1.encode_lv1_diff_base_func_ = cx1_read2sdbg::s1::s1_encode_lv1_diff_base;
-    globals.cx1.prepare_func_ = cx1_read2sdbg::s1::s1_read_input_prepare;
-    globals.cx1.lv0_calc_bucket_size_func_ = cx1_read2sdbg::s1::s1_lv0_calc_bucket_size;
-    globals.cx1.init_global_and_set_cx1_func_ = cx1_read2sdbg::s1::s1_init_global_and_set_cx1;
-    globals.cx1.lv1_fill_offset_func_ = cx1_read2sdbg::s1::s1_lv1_fill_offset;
-    globals.cx1.lv1_sort_and_proc = cx1_read2sdbg::s1::s1_lv1_direct_sort_and_count;
-    globals.cx1.post_proc_func_ = cx1_read2sdbg::s1::s1_post_proc;
-    globals.cx1.run();
-  } else {
-    cx1_read2sdbg::s1::s1_read_input_prepare(globals);
+  {
+    // stage 1
+    Read2SdbgS1 runner(opt, &pkg);
+    if (opt.solid_threshold > 1) {
+      runner.Run();
+    } else {
+      runner.Initialize();
+    }
   }
 
-  // stage2
-  globals.cx1.encode_lv1_diff_base_func_ = cx1_read2sdbg::s2::s2_encode_lv1_diff_base;
-  globals.cx1.prepare_func_ = cx1_read2sdbg::s2::s2_read_mercy_prepare;
-  globals.cx1.lv0_calc_bucket_size_func_ = cx1_read2sdbg::s2::s2_lv0_calc_bucket_size;
-  globals.cx1.init_global_and_set_cx1_func_ = cx1_read2sdbg::s2::s2_init_global_and_set_cx1;
-  globals.cx1.lv1_fill_offset_func_ = cx1_read2sdbg::s2::s2_lv1_fill_offset;
-  globals.cx1.lv1_sort_and_proc = cx1_read2sdbg::s2::s2_lv1_direct_sort_and_proc;
-  globals.cx1.post_proc_func_ = cx1_read2sdbg::s2::s2_post_proc;
-  globals.cx1.run();
+  {
+    // stage 2
+    Read2SdbgS2 runner(opt, &pkg);
+    runner.Run();
+  }
 
   return 0;
 }
@@ -204,16 +144,13 @@ int main_seq2sdbg(int argc, char **argv) {
   AutoMaxRssRecorder recorder;
 
   OptionsDescription desc;
-  seq2sdbg_opt_t opt;
+  Seq2SdbgOption opt;
 
   desc.AddOption("host_mem", "", opt.host_mem,
                  "memory to be used. No more than 95% of the free memory is recommended. 0 for auto detect.");
-  desc.AddOption("gpu_mem", "", opt.gpu_mem, "gpu memory to be used. 0 for auto detect.");
-  desc.AddOption("kmer_size", "k", opt.kmer_k, "kmer size");
-  desc.AddOption("kmer_from", "", opt.kmer_from, "previous k");
-  desc.AddOption("num_cpu_threads", "t", opt.num_cpu_threads, "number of CPU threads. At least 2.");
-  desc.AddOption("num_output_threads", "", opt.num_output_threads,
-                 "number of threads for output. Must be less than num_cpu_threads");
+  desc.AddOption("kmer_size", "k", opt.k, "kmer size");
+  desc.AddOption("kmer_from", "", opt.k_from, "previous k");
+  desc.AddOption("num_cpu_threads", "t", opt.n_threads, "number of CPU threads. At least 2.");
   desc.AddOption("contig", "", opt.contig, "contigs from previous k");
   desc.AddOption("bubble", "", opt.bubble_seq, "bubble sequence from previous k");
   desc.AddOption("addi_contig", "", opt.addi_contig, "additional contigs from previous k");
@@ -231,19 +168,15 @@ int main_seq2sdbg(int argc, char **argv) {
   try {
     desc.Parse(argc, argv);
 
-    if (opt.input_prefix == "" && opt.contig == "" && opt.addi_contig == "") {
+    if (opt.input_prefix.empty() && opt.contig.empty() && opt.addi_contig.empty()) {
       throw std::logic_error("No input files!");
     }
 
-    if (opt.num_cpu_threads == 0) {
-      opt.num_cpu_threads = omp_get_max_threads();
+    if (opt.n_threads == 0) {
+      opt.n_threads = omp_get_max_threads();
     }
 
-    if (opt.num_output_threads == 0) {
-      opt.num_output_threads = std::max(1, opt.num_cpu_threads / 3);
-    }
-
-    if (opt.kmer_k < 9) {
+    if (opt.k < 9) {
       throw std::logic_error("kmer size must be >= 9!");
     }
 
@@ -253,42 +186,14 @@ int main_seq2sdbg(int argc, char **argv) {
   } catch (std::exception &e) {
     std::cerr << e.what() << std::endl;
     std::cerr << "Usage: sdbg_builder seq2sdbg -k kmer_size --contig contigs.fa [--addi_contig "
-                 "add.fa] [--input_prefix "
-                 "input] -o out"
+                 "add.fa] [--input_prefix input] -o out"
               << std::endl;
     std::cerr << "Options:" << std::endl;
     std::cerr << desc << std::endl;
     exit(1);
   }
 
-  cx1_seq2sdbg::seq2sdbg_global_t globals;
-  globals.host_mem = opt.host_mem;
-  globals.num_cpu_threads = opt.num_cpu_threads;
-  globals.num_output_threads = opt.num_output_threads;
-  globals.input_prefix = opt.input_prefix;
-  globals.output_prefix = opt.output_prefix;
-  globals.contig = opt.contig;
-  globals.bubble_seq = opt.bubble_seq;
-  globals.addi_contig = opt.addi_contig;
-  globals.local_contig = opt.local_contig;
-  globals.mem_flag = opt.mem_flag;
-  globals.kmer_k = opt.kmer_k;
-  globals.kmer_from = opt.kmer_from;
-  globals.need_mercy = opt.need_mercy;
-
-  xinfo("Host memory to be used: %lld\n", (long long)globals.host_mem);
-  xinfo("Number CPU threads: %d\n", globals.num_cpu_threads);
-
-  // set & run cx1
-  globals.cx1.g_ = &globals;
-  globals.cx1.encode_lv1_diff_base_func_ = cx1_seq2sdbg::encode_lv1_diff_base;
-  globals.cx1.prepare_func_ = cx1_seq2sdbg::read_seq_and_prepare;
-  globals.cx1.lv0_calc_bucket_size_func_ = cx1_seq2sdbg::lv0_calc_bucket_size;
-  globals.cx1.init_global_and_set_cx1_func_ = cx1_seq2sdbg::init_global_and_set_cx1;
-  globals.cx1.lv1_fill_offset_func_ = cx1_seq2sdbg::lv1_fill_offset;
-  globals.cx1.lv1_sort_and_proc = cx1_seq2sdbg::lv1_direct_sort_and_proc;
-  globals.cx1.post_proc_func_ = cx1_seq2sdbg::post_proc;
-
-  globals.cx1.run();
+  SeqToSdbg runner(opt);
+  runner.Run();
   return 0;
 }

@@ -7,9 +7,9 @@
  * @modified by Dinghua Li
  */
 
-#ifndef __BASIC_HISTGRAM_H__
+#ifndef __BASIC_HISTGRAM_H
 
-#define __BASIC_HISTGRAM_H__
+#define __BASIC_HISTGRAM_H
 
 #include <algorithm>
 #include <cmath>

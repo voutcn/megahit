@@ -17,7 +17,7 @@ FILE(GLOB_RECURSE ASMBL_SOURCE "src/assembly/*.cpp")
 FILE(GLOB_RECURSE LCASM_SOURCE "src/localasm/*.cpp")
 FILE(GLOB_RECURSE IDBA_SOURCE "src/idba/*.cpp")
 FILE(GLOB_RECURSE SDBG_SOURCE "src/sdbg/*.cpp")
-FILE(GLOB_RECURSE CX1_SOURCE "src/cx1/*.cpp")
+FILE(GLOB_RECURSE CX1_SOURCE "src/sorting/*.cpp")
 FILE(GLOB_RECURSE SEQ_SOURCE "src/sequence/*.cpp")
 FILE(GLOB_RECURSE TOOLKIT_SOURCE "src/tools/*.cpp")
 
@@ -39,7 +39,7 @@ find_package(ZLIB REQUIRED)
 find_package(OpenMP REQUIRED)
 
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${OpenMP_CXX_FLAGS}")
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -DXXH_INLINE_ALL -D__STDC_FORMAT_MACROS")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -DXXH_INLINE_ALL -D__STDC_FORMAT_MACROS -ftemplate-depth=3000")
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Wno-unused-function")
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fprefetch-loop-arrays -funroll-loops")
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -D__XROOT__='\"${CMAKE_SOURCE_DIR}/src\"'")
@@ -69,7 +69,7 @@ add_executable(megahit_core_no_hw_accel ${OTHER_SOURCE} ${ASMBL_SOURCE} ${IDBA_S
 set_target_properties(megahit_core PROPERTIES COMPILE_FLAGS "-mbmi2 -DUSE_BMI2 -mpopcnt")
 
 if (STATIC_BUILD)
-    # TODO too dirty
+    # TODO dirty
     set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -Wl,--whole-archive -lpthread -Wl,--no-whole-archive -static")
     set_target_properties(megahit_core megahit_core_no_hw_accel PROPERTIES LINK_SEARCH_START_STATIC ON)
     set_target_properties(megahit_core megahit_core_no_hw_accel PROPERTIES LINK_SEARCH_END_STATIC ON)
@@ -88,9 +88,12 @@ set(TEST_DATA ${CMAKE_SOURCE_DIR}/test_data)
 add_custom_target(
         simple_test
         COMMAND ./megahit --test -t 2
-        COMMAND ./megahit --test -t 2 --no-hw-accel
+        COMMAND MEGAHIT_NUM_MERCY_FACTOR=1.5 ./megahit --test -t 4 --mem-flag 0 --no-hw-accel
         COMMAND ./megahit --test -t 2 --kmin-1pass
         COMMAND rm -rf test-random && python3 ../test_data/generate_random_fasta.py > random.fa && ./megahit -r random.fa --k-list 255 --min-count 1 -o test-random
+        COMMAND rm -rf test-fastg && ./megahit --test -t 2 --mem-flag 2 --keep-tmp-files -o test-fastg
+        COMMAND ./megahit_core contig2fastg 59 test-fastg/intermediate_contigs/k59.contigs.fa > 59.fastg
+        COMMAND ./megahit_core readstat < test-fastg/intermediate_contigs/k59.contigs.fa
 )
 
 add_dependencies(megahit megahit_core megahit_core_no_hw_accel)

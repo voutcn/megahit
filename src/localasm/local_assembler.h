@@ -18,8 +18,8 @@
 
 /* contact: Dinghua Li <dhli@cs.hku.hk> */
 
-#ifndef LOCAL_ASSEMBLER_H__
-#define LOCAL_ASSEMBLER_H__
+#ifndef LOCAL_ASSEMBLER_H
+#define LOCAL_ASSEMBLER_H
 
 #include <stdint.h>
 #include <deque>
@@ -29,7 +29,7 @@
 #include "kmlib/kmbitvector.h"
 #include "parallel_hashmap/phmap.h"
 #include "sequence/kmer_plus.h"
-#include "sequence/lib_info.h"
+#include "sequence/io/lib_info.h"
 #include "sequence/sequence_package.h"
 #include "utils/mutex.h"
 

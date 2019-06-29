@@ -18,29 +18,38 @@
 
 /* contact: Dinghua Li <dhli@cs.hku.hk> */
 
-#ifndef MEGAHIT_UTILS_H__
-#define MEGAHIT_UTILS_H__
+#ifndef MEGAHIT_UTILS_H
+#define MEGAHIT_UTILS_H
 
 #include <fcntl.h>
-#include <stdarg.h>
-#include <stdio.h>
-#include <stdlib.h>
+#include <cstdarg>
+#include <cstdio>
+#include <cstdlib>
 #include <sys/resource.h>
 #include <sys/time.h>
-#include <time.h>
+#include <ctime>
 #include <unistd.h>
+#include <cstdint>
+
+#include "pprintpp/pprintpp.hpp"
 
 template <typename T1, typename T2>
 inline T1 DivCeiling(T1 a, T2 b) {
   return (a + b - 1) / b;
 }
 
-inline void megahit_log__(const char *format, ...) {
-  va_list args;
-  va_start(args, format);
-  vfprintf(stderr, format, args);
-  va_end(args);
+template <typename RandomIt>
+inline uint64_t ComposeUint64(const RandomIt src) {
+  return (static_cast<uint64_t>(src[0]) << 32u) | src[1];
 }
+
+template <typename RandomIt>
+inline void DecomposeUint64(RandomIt dst, uint64_t x) {
+  dst[0] = x >> 32u;
+  dst[1] = x & 0xFFFFFFFFllu;
+}
+
+#define megahit_log__(str, args...) pfprintf(stderr, str, ##args)
 
 #ifndef __XFILE__
 #include <cstring>
@@ -88,15 +97,6 @@ inline const char *GetFile(const char *filename, const char *rootname) {
 #define UNLIKELY(x) (x)
 #endif
 
-inline char *FormatString(const char *fmt, ...) {
-  static char buffer[1u << 20];
-  va_list args;
-  va_start(args, fmt);
-  vsprintf(buffer, fmt, args);
-  va_end(args);
-  return buffer;
-}
-
 struct SimpleTimer {
   timeval tv1, tv2;
   long long time_elapsed;
@@ -133,10 +133,10 @@ struct AutoMaxRssRecorder {
     double stime = 1e-6 * usage.ru_stime.tv_usec + usage.ru_stime.tv_sec;
 
     long long real_time = static_cast<long long>(tv2.tv_sec - tv1.tv_sec) * 1000000 + tv2.tv_usec - tv1.tv_usec;
-    xinfo("Real: %.4lf", real_time / 1000000.0);
-    xinfoc("\tuser: %.4lf\tsys: %.4lf\tmaxrss: %ld\n", utime, stime, usage.ru_maxrss);
+    xinfo("Real: {.4}", real_time / 1000000.0);
+    xinfoc("\tuser: {.4}\tsys: {.4}\tmaxrss: {}\n", utime, stime, usage.ru_maxrss);
 #endif
   }
 };
 
-#endif  // MEGAHIT_UTILS_H__
+#endif  // MEGAHIT_UTILS_H

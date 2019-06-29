@@ -18,13 +18,13 @@
 
 /* contact: Dinghua Li <dhli@cs.hku.hk> */
 
-#ifndef MEGAHIT_DEFINITIONS_H__
-#define MEGAHIT_DEFINITIONS_H__
+#ifndef MEGAHIT_DEFINITIONS_H
+#define MEGAHIT_DEFINITIONS_H
 
 #include <stdint.h>
 
 #ifndef PACKAGE_VERSION
-#define PACKAGE_VERSION "v1.2.4-beta"
+#define PACKAGE_VERSION "v1.2.5-beta"
 #endif
 
 #include "sdbg/sdbg_def.h"
@@ -47,4 +47,4 @@ static const int kUint64PerIdbaKmerMaxK = (kMaxK * 2 + 16 + 63) / 64;
 #include "sequence/kmer.h"
 typedef Kmer<kUint32PerKmerMaxK, uint32_t> GenericKmer;
 
-#endif  // MEGAHIT_DEFINITIONS_H__
+#endif  // MEGAHIT_DEFINITIONS_H

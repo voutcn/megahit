@@ -75,7 +75,7 @@ UnitigGraph::UnitigGraph(SDBG *sdbg) : sdbg_(sdbg), adapter_impl_(this), sudo_ad
       }
     }
   }
-  xinfo("Graph size without loops: %lu, palindrome: %lu\n", vertices_.size(), count_palindrome);
+  xinfo("Graph size without loops: {}, palindrome: {}\n", vertices_.size(), count_palindrome);
 
   // assemble looped paths
   std::mutex loop_lock;
@@ -114,9 +114,9 @@ UnitigGraph::UnitigGraph(SDBG *sdbg) : sdbg_(sdbg), adapter_impl_(this), sudo_ad
 
   if (vertices_.size() >= kMaxNumVertices) {
     xfatal(
-        "Too many vertices in the unitig graph (%llu >= %llu), "
+        "Too many vertices in the unitig graph ({} >= {}), "
         "you may increase the kmer size to remove tons of erroneous kmers.\n",
-        static_cast<unsigned long long>(vertices_.size()), static_cast<unsigned long long>(kMaxNumVertices));
+        vertices_.size(), kMaxNumVertices);
   }
 
   sdbg_->FreeMultiplicity();
@@ -355,7 +355,7 @@ std::string UnitigGraph::VertexToDNAString(VertexAdapter v) {
 
     cur_edge = sdbg_->PrevSimplePathEdge(cur_edge);
     if (cur_edge == SDBG::kNullID) {
-      xfatal("%lld, %lld, %lld, %lld, (%lld, %lld), %d, %d\n", v.b(), v.e(), v.rb(), v.re(),
+      xfatal("{}, {}, {}, {}, ({}, {}), {}, {}\n", v.b(), v.e(), v.rb(), v.re(),
              sdbg_->EdgeReverseComplement(v.e()), sdbg_->EdgeReverseComplement(v.b()), v.GetLength(), i);
     }
   }
@@ -364,7 +364,7 @@ std::string UnitigGraph::VertexToDNAString(VertexAdapter v) {
   label.push_back("ACGT"[cur_char > 4 ? (cur_char - 5) : (cur_char - 1)]);
 
   if (cur_edge != v.b()) {
-    xfatal("fwd: %lld, %lld, rev: %lld, %lld, (%lld, %lld) length: %d\n", v.b(), v.e(), v.rb(), v.re(),
+    xfatal("fwd: {}, {}, rev: {}, {}, ({}, {}) length: {}\n", v.b(), v.e(), v.rb(), v.re(),
            sdbg_->EdgeReverseComplement(v.e()), sdbg_->EdgeReverseComplement(v.b()), v.GetLength());
   }
 

@@ -453,8 +453,8 @@ class SDBG {
   int64_t f_[kAlphabetSize + 2]{};
   int64_t rank_f_[kAlphabetSize + 2]{};  // = rs_last_.Rank(f_[i] - 1)
   kmlib::RankAndSelect<kAlphabetSize, kWAlphabetSize> rs_w_;
-  RankAndSelect1Bit rs_last_;
-  Rank1Bit rs_is_tip_;
+  kmlib::RankAndSelect<1, 2> rs_last_;
+  kmlib::RankAndSelect<1, 2, kmlib::rnsmode::kRankOnly> rs_is_tip_;
 };
 
 #endif  // MEGAHIT_SDBG_H

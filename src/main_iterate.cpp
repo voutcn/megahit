@@ -32,7 +32,7 @@
 #include "definitions.h"
 #include "iterate/contig_flank_index.h"
 #include "iterate/kmer_collector.h"
-#include "sequence/readers/async_sequence_reader.h"
+#include "sequence/io/async_sequence_reader.h"
 #include "utils/options_description.h"
 
 using std::string;
@@ -108,7 +108,7 @@ static bool ReadReadsAndProcessKernel(const Option &opt, const IndexType &index)
   if (KmerType::max_size() < static_cast<unsigned>(opt.kmer_k + opt.step + 1)) {
     return false;
   }
-  xinfo("Selected kmer type size for next k: %u\n", sizeof(KmerType));
+  xinfo("Selected kmer type size for next k: {}\n", sizeof(KmerType));
   AsyncReadReader reader(opt.read_file);
   KmerCollector<KmerType> collector(opt.kmer_k + opt.step + 1, opt.output_prefix);
   int64_t num_aligned_reads = 0;
@@ -116,16 +116,16 @@ static bool ReadReadsAndProcessKernel(const Option &opt, const IndexType &index)
 
   while (true) {
     const auto &read_pkg = reader.Next();
-    if (read_pkg.Size() == 0) {
+    if (read_pkg.SeqCount() == 0) {
       break;
     }
     num_aligned_reads += index.FindNextKmersFromReads(read_pkg, &collector);
-    num_total_reads += read_pkg.Size();
-    xinfo("Processed: %lld, aligned: %lld. Iterative edges: %llu\n", num_total_reads, num_aligned_reads,
+    num_total_reads += read_pkg.SeqCount();
+    xinfo("Processed: {}, aligned: {}. Iterative edges: {}\n", num_total_reads, num_aligned_reads,
           collector.collection().size());
   }
   collector.FlushToFile();
-  xinfo("Total: %lld, aligned: %lld. Iterative edges: %llu\n", num_total_reads, num_aligned_reads,
+  xinfo("Total: {}, aligned: {}. Iterative edges: {}\n", num_total_reads, num_aligned_reads,
         collector.collection().size());
   return true;
 }
@@ -150,19 +150,19 @@ static void ReadContigsAndBuildIndex(const Option &opt, const std::string &file_
     auto &pkg = reader.Next();
     auto &contig_pkg = pkg.first;
     auto &mul = pkg.second;
-    if (contig_pkg.Size() == 0) {
+    if (contig_pkg.SeqCount() == 0) {
       break;
     }
-    xinfo("Read %lu contigs\n", contig_pkg.Size());
+    xinfo("Read {} contigs\n", contig_pkg.SeqCount());
     index->FeedBatchContigs(contig_pkg, mul);
-    xinfo("Number of flank kmers: %lu\n", index->size());
+    xinfo("Number of flank kmers: {}\n", index->size());
   }
 }
 
 template <class KmerType>
 bool KmerTypeSelectAndRun(const Option &opt) {
   if (KmerType::max_size() >= static_cast<unsigned>(opt.kmer_k + 1)) {
-    xinfo("Selected kmer type size for k: %u\n", sizeof(KmerType));
+    xinfo("Selected kmer type size for k: {}\n", sizeof(KmerType));
     ContigFlankIndex<KmerType> index(opt.kmer_k, opt.step);
     ReadContigsAndBuildIndex(opt, opt.contig_file, &index);
     ReadContigsAndBuildIndex(opt, opt.bubble_file, &index);

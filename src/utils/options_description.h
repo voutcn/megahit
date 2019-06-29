@@ -35,6 +35,9 @@ class OptionsDescription {
   void AddOption(const std::string &long_name, const std::string &short_name, int &int_option,
                  const std::string &description);
 
+  void AddOption(const std::string &long_name, const std::string &short_name, unsigned &uint_option,
+                 const std::string &description);
+
   void AddOption(const std::string &long_name, const std::string &short_name, double &double_option,
                  const std::string &description);
 
