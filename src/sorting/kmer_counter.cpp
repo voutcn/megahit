@@ -56,7 +56,7 @@ int64_t KmerCounter::Lv0EncodeDiffBase(int64_t read_id) {
   return EncodeOffset(read_id, 0, 0, seq_pkg_);
 }
 
-KmerCounter::Meta KmerCounter::Initialize() {
+KmerCounter::MemoryStat KmerCounter::Initialize() {
   bool is_reverse = true;
 
   int64_t num_bases, num_reads;

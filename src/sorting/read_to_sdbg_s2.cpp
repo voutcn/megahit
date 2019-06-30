@@ -86,7 +86,7 @@ int64_t Read2SdbgS2::Lv0EncodeDiffBase(int64_t read_id) {
   return EncodeOffset(read_id, 0, 0, seq_pkg_->package, 0);
 }
 
-Read2SdbgS2::Meta Read2SdbgS2::Initialize() {
+Read2SdbgS2::MemoryStat Read2SdbgS2::Initialize() {
 
   words_per_substr_ = DivCeiling(opt_.k * kBitsPerEdgeChar + kBWTCharNumBits + 1, kBitsPerEdgeWord);
   words_per_dummy_node_ = DivCeiling(opt_.k * kBitsPerEdgeChar, kBitsPerEdgeWord);
@@ -103,7 +103,7 @@ Read2SdbgS2::Meta Read2SdbgS2::Initialize() {
   int64_t memory_for_data = DivCeiling(seq_pkg_->is_solid.size(), 8)
       + seq_pkg_->package.size_in_byte();
 
-  Meta ret{
+  MemoryStat ret{
       static_cast<int64_t>(seq_pkg_->package.seq_count()),
       memory_for_data,
       words_per_substr_,
@@ -126,15 +126,18 @@ Read2SdbgS2::Meta Read2SdbgS2::Initialize() {
   read_marker.reset(seq_pkg_->package.seq_count());
 
   for (int fid = 0; fid < seq_pkg_->n_mercy_files; ++fid) {
-    auto file_name = opt_.output_prefix + ".mercy_cand" + std::to_string(fid);
-    FILE *fp = xfopen(file_name.c_str(), "rb");
+    auto file_name = opt_.output_prefix + ".mercy_cand." + std::to_string(fid);
+    std::ifstream mercy_file(file_name, std::ifstream::binary | std::ifstream::in);
     mercy_cand.clear();
 
-    int num_read = 0;
     uint64_t buf[4096];
+    BufferedReader mercy_reader;
+    mercy_reader.reset(&mercy_file);
+    size_t size_read;
 
-    while ((num_read = fread(buf, sizeof(uint64_t), 4096, fp)) > 0) {
-      mercy_cand.insert(mercy_cand.end(), buf, buf + num_read);
+    while ((size_read = mercy_reader.read(buf, 4096)) > 0) {
+      assert(size_read % sizeof(uint64_t) == 0);
+      mercy_cand.insert(mercy_cand.end(), buf, buf + size_read / sizeof(uint64_t));
     }
 
     xinfo("Mercy file: {}, {}\n", file_name.c_str(), mercy_cand.size());
@@ -237,8 +240,6 @@ Read2SdbgS2::Meta Read2SdbgS2::Initialize() {
         }
       }
     }
-
-    fclose(fp);
   }
 
   timer.stop();

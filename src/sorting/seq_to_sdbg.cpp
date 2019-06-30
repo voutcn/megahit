@@ -161,7 +161,8 @@ void SeqToSdbg::GenMercyEdges() {
   InitLookupTable(edge_lookup.data(), seq_pkg_);
 
   SpinLock mercy_lock;
-  AsyncReadReader reader(opt_.input_prefix + ".cand");
+  BinaryReader binary_reader(opt_.input_prefix + ".cand");
+  AsyncSequenceReader reader(&binary_reader);
 
   int num_threads = std::max(1, opt_.n_threads - 1);
   omp_set_num_threads(num_threads);
@@ -326,7 +327,7 @@ void SeqToSdbg::GenMercyEdges() {
   xinfo("Number of reads: {}, Number of mercy edges: {}\n", num_mercy_reads, num_mercy_edges);
 }
 
-SeqToSdbg::Meta SeqToSdbg::Initialize() {
+SeqToSdbg::MemoryStat SeqToSdbg::Initialize() {
   // reserve space
   {
     int64_t bases_to_reserve = 0;

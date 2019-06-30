@@ -51,7 +51,7 @@ class KmerCounter : public BaseSequenceSortingEngine {
   ~KmerCounter() final = default;
 
  public:
-  Meta Initialize() override;
+  MemoryStat Initialize() override;
  protected:
   int64_t Lv0EncodeDiffBase(int64_t) override;
   void Lv0CalcBucketSize(int64_t seq_from, int64_t seq_to, std::array<int64_t, kNumBuckets> *out) override;

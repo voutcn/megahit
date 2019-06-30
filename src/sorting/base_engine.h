@@ -25,7 +25,7 @@ class BaseSequenceSortingEngine {
   static const unsigned kLv1BytePerItem = 4;  // 32-bit differential offset
   static const int64_t kDifferentialLimit = (1llu << 31u) - 1;
 
-  struct Meta {
+  struct MemoryStat {
     int64_t num_sequences;
     int64_t memory_for_data;
     int64_t words_per_lv2;
@@ -202,14 +202,14 @@ class BaseSequenceSortingEngine {
   int64_t host_mem_{};
   int mem_flag_{};
   unsigned n_threads_{};
-  Meta meta_{}; // set by Initialize return
+  MemoryStat meta_{}; // set by Initialize return
   std::function<void(uint32_t *, int64_t)> substr_sort_;  // set after Initialize
 
   /**
    * Interfaces used by `Run` and must be implemented in derived class
    */
  public:
-  virtual Meta Initialize() = 0;
+  virtual MemoryStat Initialize() = 0;
 
  protected:
   virtual int64_t Lv0EncodeDiffBase(int64_t) = 0;

@@ -8,9 +8,9 @@
 #include <memory>
 #include "fastx_reader.h"
 
-class PairEndFastxReader : public BaseSequenceReader {
+class PairedFastxReader : public BaseSequenceReader {
  public:
-  PairEndFastxReader(const std::string &file1, const std::string &file2) {
+  PairedFastxReader(const std::string &file1, const std::string &file2) {
     readers_[0].reset(new FastxReader(file1));
     readers_[1].reset(new FastxReader(file2));
   }

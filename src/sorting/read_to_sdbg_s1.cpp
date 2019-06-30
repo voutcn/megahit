@@ -79,7 +79,7 @@ int64_t Read2SdbgS1::Lv0EncodeDiffBase(int64_t read_id) {
   return EncodeOffset(read_id, 0, 0, seq_pkg_->package);
 }
 
-Read2SdbgS1::Meta Read2SdbgS1::Initialize() {
+Read2SdbgS1::MemoryStat Read2SdbgS1::Initialize() {
   bool is_reverse = true;
   int64_t num_bases, num_reads;
 
@@ -117,8 +117,8 @@ Read2SdbgS1::Meta Read2SdbgS1::Initialize() {
   xinfo("Number of files for mercy candidate reads: {}\n", seq_pkg_->n_mercy_files);
 
   for (int i = 0; i < seq_pkg_->n_mercy_files; ++i) {
-    auto file_name = opt_.output_prefix + ".mercy_cand" + std::to_string(i);
-    mercy_files_.push_back(xfopen(file_name.c_str(), "wb"));
+    auto file_name = opt_.output_prefix + ".mercy_cand." + std::to_string(i);
+    mercy_files_.emplace_back(xfopen(file_name.c_str(), "wb"));
   }
 
   // --- initialize stat ---

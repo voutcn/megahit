@@ -12,11 +12,11 @@
 #include "sequence/sequence_package.h"
 
 template <class PackageType>
-class AsyncSequenceReader {
+class BaseAsyncSequenceReader {
  public:
   using package_type = PackageType;
-  AsyncSequenceReader() = default;
-  virtual ~AsyncSequenceReader() = default;
+  BaseAsyncSequenceReader() = default;
+  virtual ~BaseAsyncSequenceReader() = default;
   package_type &Next() {
     auto &ret = next_pkg_.get();
     AsyncReadNextBatch();
@@ -41,7 +41,27 @@ class AsyncSequenceReader {
   std::future<package_type &> next_pkg_;
 };
 
-class AsyncContigReader : public AsyncSequenceReader<std::pair<SeqPackage, std::vector<float>>> {
+class AsyncSequenceReader : public BaseAsyncSequenceReader<SeqPackage> {
+ public:
+  explicit AsyncSequenceReader(BaseSequenceReader *reader): reader_(reader) {
+    AsyncReadNextBatch();
+  }
+  ~AsyncSequenceReader() override { StopReading(); }
+
+ protected:
+  void ReadOneBatch(SeqPackage *seq_pkg) override {
+    int64_t kMaxNumReads = 1u << 22;
+    int64_t kMaxNumBases = 1u << 28;
+    bool reverse = false;
+    seq_pkg->Clear();
+    reader_->Read(seq_pkg, kMaxNumReads, kMaxNumBases, reverse);
+  }
+
+ private:
+  BaseSequenceReader *reader_;
+};
+
+class AsyncContigReader : public BaseAsyncSequenceReader<std::pair<SeqPackage, std::vector<float>>> {
  public:
   explicit AsyncContigReader(const std::string &file_name) : reader_(file_name) {
     reader_.SetDiscardFlag(contig_flag::kLoop | contig_flag::kStandalone);
@@ -61,27 +81,6 @@ class AsyncContigReader : public AsyncSequenceReader<std::pair<SeqPackage, std::
 
  private:
   ContigReader reader_;
-};
-
-class AsyncReadReader : public AsyncSequenceReader<SeqPackage> {
- public:
-  explicit AsyncReadReader(const std::string &file_name) {
-    reader_.reset(new BinaryReader(file_name));
-    AsyncReadNextBatch();
-  }
-  ~AsyncReadReader() override { StopReading(); }
-
- protected:
-  void ReadOneBatch(SeqPackage *seq_pkg) override {
-    int64_t kMaxNumReads = 1u << 22;
-    int64_t kMaxNumBases = 1u << 28;
-    bool reverse = false;
-    seq_pkg->Clear();
-    reader_->Read(seq_pkg, kMaxNumReads, kMaxNumBases, reverse);
-  }
-
- private:
-  std::unique_ptr<BinaryReader> reader_;
 };
 
 #endif  // MEGAHIT_ASYNC_SEQUENCE_READER_H

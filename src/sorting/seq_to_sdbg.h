@@ -58,7 +58,7 @@ class SeqToSdbg : public BaseSequenceSortingEngine {
       opt_(opt) {}
 
  public:
-  Meta Initialize() override;
+  MemoryStat Initialize() override;
 
  protected:
   int64_t Lv0EncodeDiffBase(int64_t) override;

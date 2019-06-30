@@ -21,8 +21,7 @@
 #ifndef MEGAHIT_READ_TO_SDBG_H
 #define MEGAHIT_READ_TO_SDBG_H
 
-#include <stdint.h>
-#include <mutex>
+#include <cstdint>
 #include <string>
 #include <vector>
 #include "base_engine.h"
@@ -59,7 +58,7 @@ class Read2SdbgS1 : public BaseSequenceSortingEngine {
       : BaseSequenceSortingEngine(opt.host_mem, opt.mem_flag, opt.n_threads), opt_(opt), seq_pkg_(pkg) {}
 
  public:
-  Meta Initialize() override;
+  MemoryStat Initialize() override;
 
  protected:
   int64_t Lv0EncodeDiffBase(int64_t) override;
@@ -89,7 +88,7 @@ class Read2SdbgS2 : public BaseSequenceSortingEngine {
       : BaseSequenceSortingEngine(opt.host_mem, opt.mem_flag, opt.n_threads), opt_(opt), seq_pkg_(pkg) {}
 
  public:
-  Meta Initialize() override;
+  MemoryStat Initialize() override;
 
  protected:
   int64_t Lv0EncodeDiffBase(int64_t) override;

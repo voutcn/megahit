@@ -3,6 +3,7 @@
 //
 
 #include "sequence_lib.h"
+#include "async_sequence_reader.h"
 
 void SequenceLibCollection::Build(const std::string &lib_file, const std::string &out_prefix) {
   std::ifstream lib_config(lib_file);
@@ -13,7 +14,6 @@ void SequenceLibCollection::Build(const std::string &lib_file, const std::string
 
   std::ofstream bin_file(out_prefix + ".bin", std::ofstream::binary | std::ofstream::out);
 
-  SeqPackage seq_batch;
   std::string metadata;
   std::string type;
   std::string file_name1;
@@ -21,7 +21,6 @@ void SequenceLibCollection::Build(const std::string &lib_file, const std::string
 
   int64_t total_reads = 0;
   int64_t total_bases = 0;
-  seq_batch.Clear();
 
   std::vector<SequenceLib> libs;
 
@@ -30,7 +29,7 @@ void SequenceLibCollection::Build(const std::string &lib_file, const std::string
     std::unique_ptr<BaseSequenceReader> reader;
     if (type == "pe") {
       lib_config >> file_name1 >> file_name2;
-      reader.reset(new PairEndFastxReader(file_name1, file_name2));
+      reader.reset(new PairedFastxReader(file_name1, file_name2));
     } else if (type == "se") {
       lib_config >> file_name1;
       reader.reset(new FastxReader(file_name1));
@@ -44,21 +43,20 @@ void SequenceLibCollection::Build(const std::string &lib_file, const std::string
 
     int64_t start = total_reads;
     int64_t num_read = 0;
-    const int reads_per_batch = 1u << 22;
-    const int bases_per_batch = 1u << 28;
-    int max_read_len = 0;
+    unsigned max_read_len = 0;
+
+    AsyncSequenceReader async_reader(reader.get());
 
     while (true) {
-      num_read = reader->Read(&seq_batch, reads_per_batch, bases_per_batch);
-
-      if (num_read == 0) {
+      auto &seq_batch = async_reader.Next();
+      if (seq_batch.seq_count() == 0) {
         break;
       }
 
       total_reads += num_read;
       total_bases += seq_batch.base_count();
       seq_batch.WriteSequences(bin_file);
-      max_read_len = std::max(max_read_len, (int) seq_batch.max_length());
+      max_read_len = std::max(max_read_len, seq_batch.max_length());
       seq_batch.Clear();
     }
 
