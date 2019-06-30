@@ -18,9 +18,8 @@
 
 /* contact: Dinghua Li <dhli@cs.hku.hk> */
 
-#include <assert.h>
+#include <cassert>
 #include <omp.h>
-#include <stdio.h>
 
 #include <algorithm>
 #include <iostream>

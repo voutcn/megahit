@@ -49,7 +49,7 @@ class SeqToSdbg : public BaseSequenceSortingEngine {
 // binary search look up table
   static const unsigned kLookUpPrefixLength = 12;
   static const unsigned kLookUpShift = 32 - kLookUpPrefixLength * 2;
-  static const unsigned kLookUpSize = 1 << (2 * kLookUpPrefixLength);
+  static const unsigned kLookUpSize = 1u << (2 * kLookUpPrefixLength);
   static const unsigned kSentinelValue = 4;
   static const unsigned kBWTCharNumBits = 3;
 
@@ -71,9 +71,7 @@ class SeqToSdbg : public BaseSequenceSortingEngine {
  private:
   // input options
   Seq2SdbgOption opt_;
-
   int64_t words_per_substr_{};
-  int words_per_dummy_node_{};
 
   // big arrays
   SeqPackage seq_pkg_;

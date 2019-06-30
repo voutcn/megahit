@@ -19,7 +19,6 @@ static const small_mul_t kSmallMulSentinel = std::numeric_limits<small_mul_t>::m
 static const unsigned kMaxK = 255;
 static const unsigned kAlphabetSize = 4;
 static const unsigned kBitsPerChar = 2;
-static const unsigned kCharMask = (1u << kBitsPerChar) - 1;
 static const unsigned kWAlphabetSize = 9;
 static const unsigned kBitsPerWChar = 4;
 

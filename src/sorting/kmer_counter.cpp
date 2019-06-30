@@ -81,11 +81,7 @@ KmerCounter::Meta KmerCounter::Initialize() {
   last_0_in_ = std::vector<AtomicWrapper<uint32_t>>(seq_pkg_.seq_count(), 0xFFFFFFFFU);
 
   // --- initialize stat ---
-  thread_edge_counting_.resize(opt_.n_threads);
-  for (auto &c : thread_edge_counting_) {
-    c.resize(kMaxMul + 1);
-    std::fill(c.begin(), c.end(), 0);
-  }
+  edge_counter_.SetNumThreads(opt_.n_threads);
 
   // --- initialize writer ---
   edge_writer_.SetFilePrefix(opt_.output_prefix);
@@ -96,7 +92,7 @@ KmerCounter::Meta KmerCounter::Initialize() {
 
   int64_t memory_for_data = seq_pkg_.size_in_byte() +
       +seq_pkg_.seq_count() * sizeof(first_0_out_[0]) * 2     // first_in0 & last_out0
-      + (kMaxMul + 1) * (opt_.n_threads + 1) * sizeof(int64_t);  // edge_counting
+      + edge_counter_.size_in_byte();  // edge_counting
 
   return {
       num_reads,
@@ -235,7 +231,6 @@ void KmerCounter::Lv2ExtractSubString(unsigned start_bucket, unsigned end_bucket
 void KmerCounter::Lv2Postprocess(int64_t start_index, int64_t end_index, int thread_id, uint32_t *substr_ptr) {
   uint32_t packed_edge[32];
   int64_t count_prev[5], count_next[5];
-  auto &thread_edge_count = thread_edge_counting_[thread_id];
 
   int64_t from_;
   int64_t to_;
@@ -340,8 +335,7 @@ void KmerCounter::Lv2Postprocess(int64_t start_index, int64_t end_index, int thr
         }
       }
     }
-
-    ++thread_edge_count[std::min(count, int64_t(kMaxMul))];
+    edge_counter_.Add(count, thread_id);
 
     if (count >= opt_.solid_threshold) {
       PackEdge(packed_edge, first_item, count);
@@ -353,13 +347,6 @@ void KmerCounter::Lv2Postprocess(int64_t start_index, int64_t end_index, int thr
 }
 
 void KmerCounter::Lv0Postprocess() {
-  std::vector<int64_t> edge_counting(kMaxMul + 1, 0);
-  for (int t = 0; t < opt_.n_threads; ++t) {
-    for (int i = 1; i <= kMaxMul; ++i) {
-      edge_counting[i] += thread_edge_counting_[t][i];
-    }
-  }
-
   // --- output reads for mercy ---
   int64_t num_candidate_reads = 0;
   int64_t num_has_tips = 0;
@@ -382,23 +369,9 @@ void KmerCounter::Lv0Postprocess() {
   fclose(candidate_file);
 
   xinfo("Total number of candidate reads: {} ({})\n", num_candidate_reads, num_has_tips);
-
-  // --- stat ---
-  int64_t num_solid_edges = 0;
-
-  for (int i = opt_.solid_threshold; i <= kMaxMul; ++i) {
-    num_solid_edges += edge_counting[i];
-  }
-  xinfo("Total number of solid edges: {}\n", num_solid_edges);
-
-  FILE *counting_file = xfopen((opt_.output_prefix + ".counting").c_str(), "w");
-
-  for (int64_t i = 1, acc = 0; i <= kMaxMul; ++i) {
-    acc += edge_counting[i];
-    pfprintf(counting_file, "{} {}\n", i, acc);
-  }
-
-  fclose(counting_file);
+  xinfo("Total number of solid edges: {}\n", edge_counter_.GetNumSolidEdges(opt_.solid_threshold));
+  std::ofstream counting_file(opt_.output_prefix + ".counting");
+  edge_counter_.DumpStat(counting_file);
 
   // --- cleaning ---
   edge_writer_.Finalize();

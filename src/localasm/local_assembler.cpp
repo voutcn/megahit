@@ -128,7 +128,7 @@ inline int Mismatch(uint32_t x, uint32_t y) {
   return __builtin_popcount(x);
 }
 
-int LocalAssembler::Match(const SeqPackage::TView &seq_view,
+int LocalAssembler::Match(const SeqPackage::SeqView &seq_view,
     int query_from, int query_to, size_t contig_id, int ref_from, int ref_to, bool strand) {
   auto query_ptr_and_offset = seq_view.raw_address();
   const uint32_t *query_first_word = query_ptr_and_offset.first;
@@ -159,7 +159,7 @@ int LocalAssembler::Match(const SeqPackage::TView &seq_view,
 }
 
 bool LocalAssembler::MapToHashMapper(const mapper_t &mapper,
-    const SeqPackage::TView &seq_view, MappingRecord &rec) {
+    const SeqPackage::SeqView &seq_view, MappingRecord &rec) {
   int len = seq_view.length();
 
   if (len < seed_kmer_ || len < 50) return false;  // too short reads not reliable

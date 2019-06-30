@@ -119,15 +119,10 @@ Read2SdbgS1::Meta Read2SdbgS1::Initialize() {
   }
 
   // --- initialize stat ---
-  thread_edge_counting_.resize(opt_.n_threads);
-  for (auto &c : thread_edge_counting_) {
-    c.resize(kMaxMul + 1);
-    std::fill(c.begin(), c.end(), 0);
-  }
-
+  edge_counter_.SetNumThreads(opt_.n_threads);
   int64_t memory_for_data = DivCeiling(seq_pkg_->is_solid.size(), 8)
       + seq_pkg_->package.size_in_byte()
-      + (kMaxMul + 1) * (opt_.n_threads + 1) * sizeof(int64_t);
+      + edge_counter_.size_in_byte();
 
   return {
       num_reads,
@@ -333,12 +328,11 @@ void Read2SdbgS1::Lv2ExtractSubString(unsigned start_bucket, unsigned end_bucket
   }
 }
 
-void Read2SdbgS1::Lv2Postprocess(int64_t from, int64_t to, int tid, uint32_t *substr) {
+void Read2SdbgS1::Lv2Postprocess(int64_t from, int64_t to, int thread, uint32_t *substr) {
   int64_t end_idx;
   int64_t count_prev_head[5][5];
   int64_t count_tail_next[5][5];
   int64_t count_head_tail[(1 << 2 * kBWTCharNumBits) - 1];
-  auto &thread_edge_count = thread_edge_counting_[tid];
 
   for (int64_t i = from; i < to; i = end_idx) {
     end_idx = i + 1;
@@ -409,7 +403,7 @@ void Read2SdbgS1::Lv2Postprocess(int64_t from, int64_t to, int tid, uint32_t *su
       uint8_t tail = head_and_tail & 7;
 
       if (head != kSentinelValue && tail != kSentinelValue) {
-        ++thread_edge_count[std::min(int64_t(kMaxMul), count_head_tail[head_and_tail])];
+        edge_counter_.Add(count_head_tail[head_and_tail], thread);
       }
       if (head != kSentinelValue && tail != kSentinelValue &&
           count_head_tail[head_and_tail] >= opt_.solid_threshold) {
@@ -499,33 +493,10 @@ void Read2SdbgS1::Lv2Postprocess(int64_t from, int64_t to, int tid, uint32_t *su
 }
 
 void Read2SdbgS1::Lv0Postprocess() {
-  std::vector<int64_t> edge_counting(kMaxMul + 1, 0);
-  for (int t = 0; t < opt_.n_threads; ++t) {
-    for (int i = 1; i <= kMaxMul; ++i) {
-      edge_counting[i] += thread_edge_counting_[t][i];
-    }
-  }
-
   // --- stat ---
-  int64_t num_solid_edges = 0;
-
-  for (int i = opt_.solid_threshold; i <= kMaxMul; ++i) {
-    num_solid_edges += edge_counting[i];
-  }
-
-  xinfo("Total number of solid edges: {}\n", num_solid_edges);
-
-  FILE *counting_file = xfopen((std::string(opt_.output_prefix) + ".counting").c_str(), "w");
-
-  for (int64_t i = 1, acc = 0; i <= kMaxMul; ++i) {
-    acc += edge_counting[i];
-    pfprintf(counting_file, "{} {}\n", i, acc);
-  }
-
-  fclose(counting_file);
-
-  // --- cleaning ---
-  thread_edge_counting_ = std::vector<std::vector<int64_t>>();
+  xinfo("Total number of solid edges: {}\n", edge_counter_.GetNumSolidEdges(opt_.solid_threshold));
+  std::ofstream counting_file(std::string(opt_.output_prefix) + ".counting");
+  edge_counter_.DumpStat(counting_file);
   for (int i = 0; i < seq_pkg_->n_mercy_files; ++i) {
     fclose(mercy_files_[i]);
   }

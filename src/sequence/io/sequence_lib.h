@@ -41,7 +41,7 @@ class SequenceLib {
       : data_holder_(data_holder), held_begin_(held_begin), held_end_(held_end),
         max_read_len_(max_read_length), is_paired_(is_paired), description_(std::move(description)) {}
 
-  SeqPackage::TView GetSequenceView(int64_t seq_id) const {
+  SeqPackage::SeqView GetSequenceView(int64_t seq_id) const {
     assert(seq_id >= 0 && seq_id + held_begin_ < held_end_);
     return data_holder_->GetSeqView(seq_id + held_begin_);
   }

@@ -27,6 +27,7 @@
 #include <vector>
 #include "base_engine.h"
 #include "definitions.h"
+#include "edge_counter.h"
 #include "kmlib/kmbitvector.h"
 #include "sdbg/sdbg_writer.h"
 #include "sequence/io/sequence_lib.h"
@@ -65,7 +66,7 @@ class Read2SdbgS1 : public BaseSequenceSortingEngine {
   void Lv0CalcBucketSize(int64_t seq_from, int64_t seq_to, std::array<int64_t, kNumBuckets> *out) override;
   void Lv1FillOffsets(OffsetFiller &filler, int64_t seq_from, int64_t seq_to) override;
   void Lv2ExtractSubString(unsigned bucket_from, unsigned bucket_to, uint32_t *substr_ptr) override;
-  void Lv2Postprocess(int64_t start_index, int64_t end_index, int thread_id, uint32_t *substr_ptr) override;
+  void Lv2Postprocess(int64_t start_index, int64_t end_index, int thread, uint32_t *substr_ptr) override;
   void Lv0Postprocess() override;
 
  private:
@@ -74,7 +75,7 @@ class Read2SdbgS1 : public BaseSequenceSortingEngine {
 
   int64_t words_per_substr_;  // substrings to be sorted by GPU
   // stat-stage1
-  std::vector<std::vector<int64_t>> thread_edge_counting_;
+  EdgeCounter edge_counter_;
   // output-stage1
   std::vector<FILE *> mercy_files_;
 };

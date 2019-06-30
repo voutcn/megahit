@@ -30,6 +30,7 @@
 #include "sequence/io/edge/edge_writer.h"
 #include "sequence/sequence_package.h"
 #include "utils/atomic_wrapper.h"
+#include "edge_counter.h"
 
 struct KmerCounterOption {
   unsigned k{21};
@@ -71,7 +72,7 @@ class KmerCounter : public BaseSequenceSortingEngine {
   std::vector<AtomicWrapper<uint32_t>> first_0_out_;
   std::vector<AtomicWrapper<uint32_t>> last_0_in_;
   // stat
-  std::vector<std::vector<int64_t>> thread_edge_counting_;
+  EdgeCounter edge_counter_;
   // output
   EdgeWriter edge_writer_;
 };

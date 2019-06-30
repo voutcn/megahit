@@ -125,7 +125,7 @@ struct LocalAssembler {
   void LocalAssemble();
 
   void AddToHashMapper(mapper_t &mapper, unsigned contig_id, int sparsity);
-  int Match(const SeqPackage::TView &seq_view,
+  int Match(const SeqPackage::SeqView &seq_view,
             int query_from,
             int query_to,
             size_t contig_id,
@@ -136,7 +136,7 @@ struct LocalAssembler {
   int AddToMappingDeque(size_t read_id, const MappingRecord &rec, int local_range);
   int AddMateToMappingDeque(size_t read_id, size_t mate_id, const MappingRecord &rec1, const MappingRecord &rec2,
                             bool mapped2, int local_range);
-  bool MapToHashMapper(const mapper_t &mapper, const SeqPackage::TView &seq_view, MappingRecord &rec);
+  bool MapToHashMapper(const mapper_t &mapper, const SeqPackage::SeqView &seq_view, MappingRecord &rec);
 };
 
 #endif

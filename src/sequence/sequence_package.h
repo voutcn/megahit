@@ -66,7 +66,6 @@ class SequencePackage {
 
   using TWord = WordType;
   using TVector = kmlib::CompactVector<2, TWord, kmlib::kBigEndian>;
-  using TView = SeqView;
   using TAddress = std::pair<const TWord*, unsigned>;
   const static unsigned kBasesPerWord = TVector::kBasesPerWord;
 
@@ -103,12 +102,12 @@ class SequencePackage {
 
   unsigned max_length() const { return max_len_; }
 
-  TView GetSeqView(int64_t seq_id) const {
-    return TView(this, seq_id);
+  SeqView GetSeqView(int64_t seq_id) const {
+    return SeqView(this, seq_id);
   }
 
-  TView GetSeqViewByOffset(size_t offset) const {
-    return TView(this, GetSeqID(offset));
+  SeqView GetSeqViewByOffset(size_t offset) const {
+    return SeqView(this, GetSeqID(offset));
   }
 
  private:

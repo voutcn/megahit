@@ -464,7 +464,6 @@ SeqToSdbg::Meta SeqToSdbg::Initialize() {
   seq_pkg_.BuildIndex();
   words_per_substr_ =
       DivCeiling(opt_.k * kBitsPerEdgeChar + kBWTCharNumBits + 1 + kBitsPerMul, kBitsPerEdgeWord);
-  words_per_dummy_node_ = DivCeiling(opt_.k * kBitsPerEdgeChar, kBitsPerEdgeWord);
 
   sdbg_writer_.set_num_threads(opt_.n_threads);
   sdbg_writer_.set_kmer_size(opt_.k);
