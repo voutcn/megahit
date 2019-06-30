@@ -32,7 +32,6 @@
 #include "utils/safe_open.h"
 #include "utils/utils.h"
 #include "pair_end_fastx_reader.h"
-#include "binary_writer.h"
 
 class SequenceLib {
  public:
@@ -81,18 +80,18 @@ class SequenceLib {
 
 class SequenceLibCollection {
  public:
+  SequenceLibCollection() = default;
+  explicit SequenceLibCollection(const std::string &path) : path_(path) {}
+
   static void Build(const std::string &lib_file, const std::string &out_prefix);
 
-  void Read(const std::string &file_prefix, SeqPackage *pkg, bool reverse_seq = false);
-
-  size_t size() const {
-    return libs_.size();
-  }
-
-  const SequenceLib &GetLib(size_t id) const {
-    return libs_[id];
-  }
+  void SetPath(const std::string &path) { path_ = path; }
+  std::pair<int64_t, int64_t> GetSize() const;
+  void Read(SeqPackage *pkg, bool reverse_seq = false);
+  size_t size() const { return libs_.size(); }
+  const SequenceLib &GetLib(size_t id) const { return libs_[id]; }
  private:
+  std::string path_;
   std::vector<SequenceLib> libs_;
 };
 

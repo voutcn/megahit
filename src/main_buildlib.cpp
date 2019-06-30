@@ -1,5 +1,4 @@
-#include <sequence/io/sequence_lib.h>
-#include "sequence/io/binary_writer.h"
+#include "sequence/io/sequence_lib.h"
 #include "utils/utils.h"
 
 void DisplayHelp(const char *program) { pfprintf(stderr, "Usage {s} <read_lib_file> <out_prefix>\n", program); }

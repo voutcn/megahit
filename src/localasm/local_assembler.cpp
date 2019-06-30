@@ -34,7 +34,6 @@
 #include "idba/sequence.h"
 #include "kmlib/kmbit.h"
 
-#include "sequence/io/binary_writer.h"
 #include "sequence/io/contig/contig_reader.h"
 #include "sequence/io/contig/contig_writer.h"
 #include "utils/histgram.h"
@@ -68,7 +67,8 @@ void LocalAssembler::BuildHashMapper() {
 }
 
 void LocalAssembler::AddReadLib(const std::string &file_prefix) {
-  library_collection_.Read(file_prefix, &reads_);
+  library_collection_.SetPath(file_prefix);
+  library_collection_.Read(&reads_);
   insert_sizes_.resize(library_collection_.size(), tlen_t(-1, -1));
 }
 

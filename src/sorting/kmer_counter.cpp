@@ -5,7 +5,6 @@
 #include "sequence/kmer.h"
 #include "sequence/packed_reads.h"
 #include "sequence/io/sequence_lib.h"
-#include "sequence/io/binary_writer.h"
 #include "utils/safe_open.h"
 #include "utils/utils.h"
 
@@ -61,12 +60,15 @@ KmerCounter::Meta KmerCounter::Initialize() {
   bool is_reverse = true;
 
   int64_t num_bases, num_reads;
-  GetBinaryLibSize(opt_.read_lib_file, num_bases, num_reads);
+  SequenceLibCollection seq_collection(opt_.read_lib_file);
+  auto collection_size = seq_collection.GetSize();
+  num_bases = collection_size.first;
+  num_reads = collection_size.second;
 
   seq_pkg_.ReserveSequences(num_reads);
   seq_pkg_.ReserveBases(num_bases);
 
-  SequenceLibCollection().Read(opt_.read_lib_file, &seq_pkg_, is_reverse);
+  seq_collection.Read(&seq_pkg_, is_reverse);
 
   seq_pkg_.BuildIndex();
   num_reads = seq_pkg_.seq_count();
@@ -350,7 +352,7 @@ void KmerCounter::Lv0Postprocess() {
   // --- output reads for mercy ---
   int64_t num_candidate_reads = 0;
   int64_t num_has_tips = 0;
-  FILE *candidate_file = xfopen((opt_.output_prefix + ".cand").c_str(), "wb");
+  std::ofstream candidate_file(opt_.output_prefix + ".cand", std::ofstream::binary | std::ofstream::out);
 
   for (size_t i = 0; i < seq_pkg_.seq_count(); ++i) {
     auto first = first_0_out_[i].v.load(std::memory_order::memory_order_relaxed);
@@ -361,12 +363,10 @@ void KmerCounter::Lv0Postprocess() {
 
       if (last > first) {
         ++num_candidate_reads;
-        WriteBinarySequences(seq_pkg_, candidate_file, i, i);
+        seq_pkg_.WriteSequences(candidate_file, i, i);
       }
     }
   }
-
-  fclose(candidate_file);
 
   xinfo("Total number of candidate reads: {} ({})\n", num_candidate_reads, num_has_tips);
   xinfo("Total number of solid edges: {}\n", edge_counter_.GetNumSolidEdges(opt_.solid_threshold));

@@ -24,6 +24,7 @@
 #include <cassert>
 #include <cstdint>
 #include <vector>
+#include <ostream>
 #include "kmlib/kmbit.h"
 #include "kmlib/kmcompactvector.h"
 #include "utils/utils.h"
@@ -39,7 +40,7 @@ class SequencePackage {
    */
   class SeqView {
    public:
-    SeqView(const SequencePackage *pkg, int64_t seq_id)
+    SeqView(const SequencePackage *pkg, size_t seq_id)
         : package_(pkg), seq_id_(seq_id) {}
 
     unsigned length() const {
@@ -54,14 +55,14 @@ class SequencePackage {
       return package_->GetBase(seq_id_, index);
     }
 
-    int64_t id() const { return seq_id_; }
+    size_t id() const { return seq_id_; }
 
-    int64_t full_offset_in_pkg() const {
+    size_t full_offset_in_pkg() const {
       return package_->StartPos(seq_id_);
     }
    private:
     const SequencePackage *package_;
-    int64_t seq_id_;
+    size_t seq_id_;
   };
 
   using TWord = WordType;
@@ -102,7 +103,7 @@ class SequencePackage {
 
   unsigned max_length() const { return max_len_; }
 
-  SeqView GetSeqView(int64_t seq_id) const {
+  SeqView GetSeqView(size_t seq_id) const {
     return SeqView(this, seq_id);
   }
 
@@ -202,6 +203,22 @@ class SequencePackage {
 
     pos_to_id_.push_back(seq_count());
     pos_to_id_.push_back(seq_count());
+  }
+
+  void WriteSequences(std::ostream &os, int64_t from = 0, int64_t to = -1) {
+    if (to == -1) {
+      to = seq_count() - 1;
+    }
+
+    uint32_t len;
+    std::vector<uint32_t> s;
+
+    for (int64_t i = from; i <= to; ++i) {
+      len = GetSeqView(i).length();
+      FetchSequence(i, &s);
+      os.write(reinterpret_cast<const char*>(&len), sizeof(uint32_t));
+      os.write(reinterpret_cast<const char*>(s.data()), sizeof(uint32_t) * s.size());
+    }
   }
 
  private:

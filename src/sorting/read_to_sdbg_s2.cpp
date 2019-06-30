@@ -27,7 +27,6 @@
 #include "kmlib/kmsort.h"
 #include "sequence/kmer.h"
 #include "sequence/packed_reads.h"
-#include "sequence/io/binary_writer.h"
 #include "utils/safe_open.h"
 #include "utils/utils.h"
 
@@ -139,7 +138,6 @@ Read2SdbgS2::Meta Read2SdbgS2::Initialize() {
     }
 
     xinfo("Mercy file: {}, {}\n", file_name.c_str(), mercy_cand.size());
-
     kmlib::kmsort(mercy_cand.begin(), mercy_cand.end());
 
     // multi threading
@@ -156,7 +154,7 @@ Read2SdbgS2::Meta Read2SdbgS2::Initialize() {
       }
 
       uint64_t this_end = std::min(start_idx[tid] + avg, (uint64_t) mercy_cand.size());
-      int64_t read_id = 0;
+      size_t read_id = 0;
       if (this_end < mercy_cand.size()) {
         read_id = seq_pkg_->package.GetSeqViewByOffset(mercy_cand[this_end] >> 2).id();
       }
@@ -182,7 +180,7 @@ Read2SdbgS2::Meta Read2SdbgS2::Initialize() {
       // go read by read
       while (mercy_index != end_idx[tid]) {
         auto seq_view = seq_pkg_->package.GetSeqViewByOffset(mercy_cand[mercy_index] >> 2);
-        int64_t read_id = seq_view.id();
+        size_t read_id = seq_view.id();
         assert(!read_marker.at(read_id));
         read_marker.set(read_id);
         int first_0_out = seq_pkg_->package.max_length() + 1;

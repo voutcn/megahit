@@ -24,7 +24,6 @@
 
 #include "sequence/kmer.h"
 #include "sequence/packed_reads.h"
-#include "sequence/io/binary_writer.h"
 #include "utils/safe_open.h"
 #include "utils/utils.h"
 
@@ -83,12 +82,16 @@ int64_t Read2SdbgS1::Lv0EncodeDiffBase(int64_t read_id) {
 Read2SdbgS1::Meta Read2SdbgS1::Initialize() {
   bool is_reverse = true;
   int64_t num_bases, num_reads;
-  GetBinaryLibSize(opt_.read_lib_file, num_bases, num_reads);
+
+  SequenceLibCollection seq_collection(opt_.read_lib_file);
+  auto collection_size = seq_collection.GetSize();
+  num_bases = collection_size.first;
+  num_reads = collection_size.second;
 
   seq_pkg_->package.ReserveSequences(num_reads);
   seq_pkg_->package.ReserveBases(num_bases);
 
-  SequenceLibCollection().Read(opt_.read_lib_file, &seq_pkg_->package, is_reverse);
+  seq_collection.Read(&seq_pkg_->package, is_reverse);
   seq_pkg_->package.BuildIndex();
 
   xinfo("{} reads, {} max read length, {} total bases\n", seq_pkg_->package.seq_count(),

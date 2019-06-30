@@ -11,7 +11,7 @@ void SequenceLibCollection::Build(const std::string &lib_file, const std::string
     xfatal("File to open read_lib file: {}\n", lib_file.c_str());
   }
 
-  FILE *bin_file = xfopen((out_prefix + ".bin").c_str(), "wb");
+  std::ofstream bin_file(out_prefix + ".bin", std::ofstream::binary | std::ofstream::out);
 
   SeqPackage seq_batch;
   std::string metadata;
@@ -57,7 +57,7 @@ void SequenceLibCollection::Build(const std::string &lib_file, const std::string
 
       total_reads += num_read;
       total_bases += seq_batch.base_count();
-      WriteBinarySequences(seq_batch, bin_file);
+      seq_batch.WriteSequences(bin_file);
       max_read_len = std::max(max_read_len, (int) seq_batch.max_length());
       seq_batch.Clear();
     }
@@ -88,8 +88,8 @@ void SequenceLibCollection::Build(const std::string &lib_file, const std::string
   lib_info_file.close();
 }
 
-void SequenceLibCollection::Read(const std::string &file_prefix, SeqPackage *pkg, bool reverse_seq) {
-  std::ifstream lib_info_file(file_prefix + ".lib_info");
+void SequenceLibCollection::Read(SeqPackage *pkg, bool reverse_seq) {
+  std::ifstream lib_info_file(path_ + ".lib_info");
   int64_t total_bases, num_reads;
   bool is_paired;
   std::string metadata;
@@ -108,9 +108,17 @@ void SequenceLibCollection::Read(const std::string &file_prefix, SeqPackage *pkg
   pkg->Clear();
   pkg->ReserveSequences(num_reads);
   pkg->ReserveBases(total_bases);
-  BinaryReader reader(file_prefix + ".bin");
+  BinaryReader reader(path_ + ".bin");
 
   xinfo("Before reading, sizeof seq_package: {}\n", pkg->size_in_byte());
   reader.ReadAll(pkg, reverse_seq);
   xinfo("After reading, sizeof seq_package: {}\n", pkg->size_in_byte());
 }
+
+std::pair<int64_t, int64_t> SequenceLibCollection::GetSize() const {
+  std::ifstream lib_info_file(path_ + ".lib_info");
+  int64_t total_bases, num_reads;
+  lib_info_file >> total_bases >> num_reads;
+  return {total_bases, num_reads};
+}
+
