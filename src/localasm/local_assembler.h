@@ -29,7 +29,7 @@
 #include "kmlib/kmbitvector.h"
 #include "parallel_hashmap/phmap.h"
 #include "sequence/kmer_plus.h"
-#include "sequence/io/lib_info.h"
+#include "sequence/io/sequence_lib.h"
 #include "sequence/sequence_package.h"
 #include "utils/mutex.h"
 
@@ -80,13 +80,13 @@ struct LocalAssembler {
   unsigned local_kmin_, local_kmax_, local_step_;
 
   // auto calculated after calling EstimateInsertSize() and MapToContigs()
-  int local_range_;
-  int max_read_len_;
+  int local_range_{};
+  int max_read_len_{};
 
   SeqPackage contigs_;
   SeqPackage reads_;
   mapper_t mapper_;
-  std::vector<lib_info_t> lib_info_;
+  SequenceLibCollection library_collection_;
   std::vector<tlen_t> insert_sizes_;
   SpinLock lock_;
   AtomicBitVector locks_;
@@ -104,33 +104,39 @@ struct LocalAssembler {
 
   ~LocalAssembler() = default;
 
-  void set_kmer(int kmin, int kmax, int step) {
+  void SetKmerSize(int kmin, int kmax, int step) {
     local_kmin_ = kmin;
     local_kmax_ = kmax;
     local_step_ = step;
   }
 
-  void set_mapping_threshold(double similarity, int mapping_len) {
+  void SetMappingThreshold(double similarity, int mapping_len) {
     similarity_ = similarity;
     min_mapped_len_ = mapping_len;
   }
 
-  void set_local_file(const std::string &local_filename) { local_filename_ = local_filename; }
+  void SetLocalContigFile(const std::string &local_filename) { local_filename_ = local_filename; }
 
   void ReadContigs(const std::string &file_name);
-  void BuildHashMapper(bool show_stat = true);
+  void BuildHashMapper();
   void AddReadLib(const std::string &file_prefix);
-  void EstimateInsertSize(bool show_stat = true);
+  void EstimateInsertSize();
   void MapToContigs();
   void LocalAssemble();
 
   void AddToHashMapper(mapper_t &mapper, unsigned contig_id, int sparsity);
-  int Match(size_t read_id, int query_from, int query_to, size_t contig_id, int ref_from, int ref_to, bool strand);
+  int Match(const SeqPackage::TView &seq_view,
+            int query_from,
+            int query_to,
+            size_t contig_id,
+            int ref_from,
+            int ref_to,
+            bool strand);
   int LocalRange(int lib_id);
   int AddToMappingDeque(size_t read_id, const MappingRecord &rec, int local_range);
   int AddMateToMappingDeque(size_t read_id, size_t mate_id, const MappingRecord &rec1, const MappingRecord &rec2,
                             bool mapped2, int local_range);
-  bool MapToHashMapper(const mapper_t &mapper, size_t read_id, MappingRecord &rec);
+  bool MapToHashMapper(const mapper_t &mapper, const SeqPackage::TView &seq_view, MappingRecord &rec);
 };
 
 #endif

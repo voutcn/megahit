@@ -93,9 +93,9 @@ int main_local(int argc, char **argv) {
   omp_set_num_threads(opt.num_threads);
 
   LocalAssembler la(opt.min_contig_len, opt.seed_kmer, opt.sparsity);
-  la.set_kmer(opt.kmin, opt.kmax, opt.step);
-  la.set_mapping_threshold(opt.similarity, opt.min_mapping_len);
-  la.set_local_file(opt.output_file);
+  la.SetKmerSize(opt.kmin, opt.kmax, opt.step);
+  la.SetMappingThreshold(opt.similarity, opt.min_mapping_len);
+  la.SetLocalContigFile(opt.output_file);
 
   SimpleTimer timer;
   timer.reset();

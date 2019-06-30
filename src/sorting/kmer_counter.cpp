@@ -3,10 +3,11 @@
 #include <omp.h>
 #include <algorithm>
 #include <mutex>
+#include <sequence/io/sequence_lib.h>
 
 #include "sequence/kmer.h"
 #include "sequence/packed_reads.h"
-#include "sequence/io/lib_io.h"
+#include "sequence/io/binary_writer.h"
 #include "sequence/io/kseq.h"
 #include "utils/safe_open.h"
 #include "utils/utils.h"
@@ -14,8 +15,8 @@
 /**
  * @brief encode read_id and its offset in one int64_t
  */
-inline int64_t EncodeOffset(int64_t read_id, int offset, int strand, SeqPackage &p) {
-  return ((p.StartPos(read_id) + offset) << 1) | strand;
+inline int64_t EncodeOffset(int64_t read_id, int offset, int strand, const SeqPackage &p) {
+  return ((p.GetSeqView(read_id).full_offset_in_pkg() + offset) << 1) | strand;
 }
 
 inline bool IsDifferentEdges(uint32_t *item1, uint32_t *item2, int num_words, int64_t spacing) {
@@ -68,20 +69,19 @@ KmerCounter::Meta KmerCounter::Initialize() {
   seq_pkg_.ReserveSequences(num_reads);
   seq_pkg_.ReserveBases(num_bases);
 
-  std::vector<lib_info_t> lib_info;
-  ReadBinaryLibs(opt_.read_lib_file, seq_pkg_, lib_info, is_reverse);
+  SequenceLibCollection().Read(opt_.read_lib_file, &seq_pkg_, is_reverse);
 
   seq_pkg_.BuildIndex();
-  num_reads = seq_pkg_.SeqCount();
-  xinfo("{} reads, {} max read length\n", num_reads, seq_pkg_.MaxSequenceLength());
+  num_reads = seq_pkg_.seq_count();
+  xinfo("{} reads, {} max read length\n", num_reads, seq_pkg_.max_length());
 
   words_per_substr_ = DivCeiling((opt_.k + 1) * kBitsPerEdgeChar, kBitsPerEdgeWord);
   words_per_edge_ = DivCeiling((opt_.k + 1) * kBitsPerEdgeChar + kBitsPerMul, kBitsPerEdgeWord);
   xinfo("{} words per substring, {} words per edge\n", words_per_substr_, words_per_edge_);
 
   // --- malloc read first_in / last_out ---
-  first_0_out_ = std::vector<AtomicWrapper<uint32_t>>(seq_pkg_.SeqCount(), 0xFFFFFFFFU);
-  last_0_in_ = std::vector<AtomicWrapper<uint32_t>>(seq_pkg_.SeqCount(), 0xFFFFFFFFU);
+  first_0_out_ = std::vector<AtomicWrapper<uint32_t>>(seq_pkg_.seq_count(), 0xFFFFFFFFU);
+  last_0_in_ = std::vector<AtomicWrapper<uint32_t>>(seq_pkg_.seq_count(), 0xFFFFFFFFU);
 
   // --- initialize stat ---
   thread_edge_counting_.resize(opt_.n_threads);
@@ -97,8 +97,8 @@ KmerCounter::Meta KmerCounter::Initialize() {
   edge_writer_.SetNumBuckets(kNumBuckets);
   edge_writer_.InitFiles();
 
-  int64_t memory_for_data = seq_pkg_.SizeInByte() +
-      +seq_pkg_.SeqCount() * sizeof(first_0_out_[0]) * 2     // first_in0 & last_out0
+  int64_t memory_for_data = seq_pkg_.size_in_byte() +
+      +seq_pkg_.seq_count() * sizeof(first_0_out_[0]) * 2     // first_in0 & last_out0
       + (kMaxMul + 1) * (opt_.n_threads + 1) * sizeof(int64_t);  // edge_counting
 
   return {
@@ -115,13 +115,14 @@ void KmerCounter::Lv0CalcBucketSize(int64_t seq_from, int64_t seq_to, std::array
   GenericKmer edge, rev_edge;  // (k+1)-mer and its rc
 
   for (int64_t read_id = seq_from; read_id < seq_to; ++read_id) {
-    auto read_length = seq_pkg_.SequenceLength(read_id);
+    auto seq_view = seq_pkg_.GetSeqView(read_id);
+    auto read_length = seq_view.length();
 
     if (read_length < opt_.k + 1) {
       continue;
     }
 
-    auto start_ptr_and_offset = seq_pkg_.WordPtrAndOffset(read_id);
+    auto start_ptr_and_offset = seq_view.raw_address();
     edge.InitFromPtr(start_ptr_and_offset.first, start_ptr_and_offset.second, opt_.k + 1);
     rev_edge = edge;
     rev_edge.ReverseComplement(opt_.k + 1);
@@ -138,7 +139,7 @@ void KmerCounter::Lv0CalcBucketSize(int64_t seq_from, int64_t seq_to, std::array
       if (++last_char_offset >= read_length) {
         break;
       } else {
-        int c = seq_pkg_.GetBase(read_id, last_char_offset);
+        int c = seq_view.base_at(last_char_offset);
         edge.ShiftAppend(c, opt_.k + 1);
         rev_edge.ShiftPreappend(3 - c, opt_.k + 1);
       }
@@ -150,13 +151,14 @@ void KmerCounter::Lv1FillOffsets(OffsetFiller &filler, int64_t seq_from, int64_t
   GenericKmer edge, rev_edge;  // (k+1)-mer and its rc
   unsigned key;
   for (int64_t read_id = seq_from; read_id < seq_to; ++read_id) {
-    auto read_length = seq_pkg_.SequenceLength(read_id);
+    auto seq_view = seq_pkg_.GetSeqView(read_id);
+    auto read_length = seq_view.length();
 
     if (read_length < opt_.k + 1) {
       continue;
     }
 
-    auto ptr_and_offset = seq_pkg_.WordPtrAndOffset(read_id);
+    auto ptr_and_offset = seq_view.raw_address();
     edge.InitFromPtr(ptr_and_offset.first, ptr_and_offset.second, opt_.k + 1);
     rev_edge = edge;
     rev_edge.ReverseComplement(opt_.k + 1);
@@ -180,7 +182,7 @@ void KmerCounter::Lv1FillOffsets(OffsetFiller &filler, int64_t seq_from, int64_t
       if (++last_char_offset >= read_length) {
         break;
       } else {
-        int c = seq_pkg_.GetBase(read_id, last_char_offset);
+        int c = seq_view.base_at(last_char_offset);
         edge.ShiftAppend(c, opt_.k + 1);
         rev_edge.ShiftPreappend(3 - c, opt_.k + 1);
       }
@@ -193,13 +195,13 @@ void KmerCounter::Lv2ExtractSubString(unsigned start_bucket, unsigned end_bucket
 
   while (offset_iterator.HasNext()) {
     int64_t full_offset = offset_iterator.Next();
-    int64_t read_id = seq_pkg_.GetSeqID(full_offset >> 1);
+    auto seq_view = seq_pkg_.GetSeqViewByOffset(full_offset >> 1u);
     unsigned strand = full_offset & 1;
-    unsigned offset = (full_offset >> 1) - seq_pkg_.StartPos(read_id);
+    unsigned offset = (full_offset >> 1) - seq_view.full_offset_in_pkg();
     unsigned num_chars_to_copy = opt_.k + 1;
 
-    unsigned read_length = seq_pkg_.SequenceLength(read_id);
-    auto ptr_and_offset = seq_pkg_.WordPtrAndOffset(read_id);
+    unsigned read_length = seq_view.length();
+    auto ptr_and_offset = seq_view.raw_address();
     unsigned start_offset = ptr_and_offset.second;
     unsigned words_this_seq = DivCeiling(start_offset + read_length, 16);
     const uint32_t *read_p = ptr_and_offset.first;
@@ -207,13 +209,13 @@ void KmerCounter::Lv2ExtractSubString(unsigned start_bucket, unsigned end_bucket
     unsigned char prev, next;
 
     if (offset > 0) {
-      prev = seq_pkg_.GetBase(read_id, offset - 1);
+      prev = seq_view.base_at(offset - 1);
     } else {
       prev = kSentinelValue;
     }
 
     if (offset + opt_.k + 1 < read_length) {
-      next = seq_pkg_.GetBase(read_id, offset + opt_.k + 1);
+      next = seq_view.base_at(offset + opt_.k + 1);
     } else {
       next = kSentinelValue;
     }
@@ -287,25 +289,25 @@ void KmerCounter::Lv2Postprocess(int64_t start_index, int64_t end_index, int thr
     if (!has_in && count >= opt_.solid_threshold) {
       for (int64_t j = from_; j < to_; ++j) {
         auto *read_info_ptr = substr_ptr + j * (words_per_substr_ + 2) + words_per_substr_;
-        uint64_t read_info_context = ComposeUint64(read_info_ptr);
-        int64_t read_info = read_info_context >> 6;
-        int64_t read_id = seq_pkg_.GetSeqID(read_info >> 1);
+        int64_t read_info = ComposeUint64(read_info_ptr) >> 6;
+        auto seq_view = seq_pkg_.GetSeqViewByOffset(read_info >> 1);
         int strand = read_info & 1;
-        uint32_t offset = (read_info >> 1) - seq_pkg_.StartPos(read_id);
+        uint32_t offset = (read_info >> 1) - seq_view.full_offset_in_pkg();
 
         if (strand == 0) {
           // update last
-          uint32_t old_value = last_0_in_[read_id].v.load(std::memory_order::memory_order_acquire);
+          uint32_t old_value = last_0_in_[seq_view.id()].v.load(std::memory_order::memory_order_acquire);
           while ((old_value == kSentinelOffset || old_value < offset) &&
-              !last_0_in_[read_id].v.compare_exchange_weak(old_value, offset,
-                                                           std::memory_order::memory_order_release,
-                                                           std::memory_order::memory_order_relaxed)) {
+              !last_0_in_[seq_view.id()].v.compare_exchange_weak(
+                  old_value, offset,
+                  std::memory_order::memory_order_release,
+                  std::memory_order::memory_order_relaxed)) {
           }
         } else {
           // update first
           offset++;
-          uint32_t old_value = first_0_out_[read_id].v.load(std::memory_order::memory_order_acquire);
-          while (old_value > offset && !first_0_out_[read_id].v.compare_exchange_weak(
+          uint32_t old_value = first_0_out_[seq_view.id()].v.load(std::memory_order::memory_order_acquire);
+          while (old_value > offset && !first_0_out_[seq_view.id()].v.compare_exchange_weak(
               old_value, offset, std::memory_order::memory_order_release,
               std::memory_order::memory_order_relaxed)) {
           }
@@ -316,27 +318,27 @@ void KmerCounter::Lv2Postprocess(int64_t start_index, int64_t end_index, int thr
     if (!has_out && count >= opt_.solid_threshold) {
       for (int64_t j = from_; j < to_; ++j) {
         auto *read_info_ptr = substr_ptr + j * (words_per_substr_ + 2) + words_per_substr_;
-        uint64_t read_info_context = ComposeUint64(read_info_ptr);
-        int64_t read_info = read_info_context >> 6;
-        int64_t read_id = seq_pkg_.GetSeqID(read_info >> 1);
+        int64_t read_info = ComposeUint64(read_info_ptr) >> 6;
+        auto seq_view = seq_pkg_.GetSeqViewByOffset(read_info >> 1);
         int strand = read_info & 1;
-        uint32_t offset = (read_info >> 1) - seq_pkg_.StartPos(read_id);
+        uint32_t offset = (read_info >> 1) - seq_view.full_offset_in_pkg();
 
         if (strand == 0) {
           // update first
           offset++;
-          uint32_t old_value = first_0_out_[read_id].v.load(std::memory_order::memory_order_acquire);
-          while (old_value > offset && !first_0_out_[read_id].v.compare_exchange_weak(
+          uint32_t old_value = first_0_out_[seq_view.id()].v.load(std::memory_order::memory_order_acquire);
+          while (old_value > offset && !first_0_out_[seq_view.id()].v.compare_exchange_weak(
               old_value, offset, std::memory_order::memory_order_release,
               std::memory_order::memory_order_relaxed)) {
           }
         } else {
           // update last
-          uint32_t old_value = last_0_in_[read_id].v.load(std::memory_order::memory_order_acquire);
+          uint32_t old_value = last_0_in_[seq_view.id()].v.load(std::memory_order::memory_order_acquire);
           while ((old_value == kSentinelOffset || old_value < offset) &&
-              !last_0_in_[read_id].v.compare_exchange_weak(old_value, offset,
-                                                           std::memory_order::memory_order_release,
-                                                           std::memory_order::memory_order_relaxed)) {
+              !last_0_in_[seq_view.id()].v.compare_exchange_weak(
+                  old_value, offset,
+                  std::memory_order::memory_order_release,
+                  std::memory_order::memory_order_relaxed)) {
           }
         }
       }
@@ -366,7 +368,7 @@ void KmerCounter::Lv0Postprocess() {
   int64_t num_has_tips = 0;
   FILE *candidate_file = xfopen((opt_.output_prefix + ".cand").c_str(), "wb");
 
-  for (size_t i = 0; i < seq_pkg_.SeqCount(); ++i) {
+  for (size_t i = 0; i < seq_pkg_.seq_count(); ++i) {
     auto first = first_0_out_[i].v.load(std::memory_order::memory_order_relaxed);
     auto last = last_0_in_[i].v.load(std::memory_order::memory_order_relaxed);
 

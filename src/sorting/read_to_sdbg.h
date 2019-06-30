@@ -29,7 +29,7 @@
 #include "definitions.h"
 #include "kmlib/kmbitvector.h"
 #include "sdbg/sdbg_writer.h"
-#include "sequence/io/lib_info.h"
+#include "sequence/io/sequence_lib.h"
 #include "sequence/sequence_package.h"
 
 struct Read2SdbgOption {

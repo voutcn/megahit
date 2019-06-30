@@ -1,5 +1,3 @@
-#include <utility>
-
 /*
  *  MEGAHIT
  *  Copyright (C) 2014 - 2015 The University of Hong Kong & L3 Bioinformatics Limited
@@ -20,25 +18,35 @@
 
 /* contact: Dinghua Li <dhli@cs.hku.hk> */
 
-#ifndef LIB_INFO_H
-#define LIB_INFO_H
+#ifndef READ_LIB_FUNCTIONS_INL_H
+#define READ_LIB_FUNCTIONS_INL_H
 
-#include <stdint.h>
+#include <cstdint>
+#include <fstream>
 #include <string>
+#include <vector>
+
 #include "sequence/sequence_package.h"
 
-struct lib_info_t {
-  SeqPackage *p;
-  int64_t from;
-  int64_t to;
-  int max_read_len;
-  bool is_pe;
-  std::string metadata;  // raw file names
+inline void WriteBinarySequences(const SeqPackage &pkg, FILE *file, int64_t from = 0, int64_t to = -1) {
+  if (to == -1) {
+    to = pkg.seq_count() - 1;
+  }
 
-  explicit lib_info_t(SeqPackage *p = nullptr, int64_t from = 0, int64_t to = 0, int max_read_len = 0,
-                      bool is_pe = false, std::string metadata = "")
-      : p(p), from(from), to(to), max_read_len(max_read_len), is_pe(is_pe), metadata(std::move(metadata)) {}
-  ~lib_info_t() = default;
-};
+  uint32_t len;
+  std::vector<uint32_t> s;
+
+  for (int64_t i = from; i <= to; ++i) {
+    len = pkg.GetSeqView(i).length();
+    pkg.FetchSequence(i, &s);
+    fwrite(&len, sizeof(uint32_t), 1, file);
+    fwrite(&s[0], sizeof(uint32_t), s.size(), file);
+  }
+}
+
+inline void GetBinaryLibSize(const std::string &file_prefix, int64_t &total_bases, int64_t &num_reads) {
+  std::ifstream lib_info_file(file_prefix + ".lib_info");
+  lib_info_file >> total_bases >> num_reads;
+}
 
 #endif

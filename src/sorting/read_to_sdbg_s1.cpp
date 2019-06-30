@@ -26,7 +26,7 @@
 
 #include "sequence/kmer.h"
 #include "sequence/packed_reads.h"
-#include "sequence/io/lib_io.h"
+#include "sequence/io/binary_writer.h"
 #include "sequence/io/kseq.h"
 #include "sequence/sequence_package.h"
 #include "utils/safe_open.h"
@@ -37,8 +37,8 @@ namespace { // helper functions
 /**
  * @brief encode read_id and its offset in one int64_t
  */
-inline int64_t EncodeOffset(int64_t read_id, int offset, int strand, SeqPackage &p) {
-  return ((p.StartPos(read_id) + offset) << 1) | strand;
+inline int64_t EncodeOffset(int64_t read_id, int offset, int strand, const SeqPackage &p) {
+  return ((p.GetSeqView(read_id).full_offset_in_pkg() + offset) << 1) | strand;
 }
 
 // helper: see whether two lv2 items have the same (k-1)-mer
@@ -92,21 +92,19 @@ Read2SdbgS1::Meta Read2SdbgS1::Initialize() {
   seq_pkg_->package.ReserveSequences(num_reads);
   seq_pkg_->package.ReserveBases(num_bases);
 
-  std::vector<lib_info_t> lib_info;
-  ReadBinaryLibs(opt_.read_lib_file, seq_pkg_->package, lib_info, is_reverse);
-
+  SequenceLibCollection().Read(opt_.read_lib_file, &seq_pkg_->package, is_reverse);
   seq_pkg_->package.BuildIndex();
 
-  xinfo("{} reads, {} max read length, {} total bases\n", seq_pkg_->package.SeqCount(),
-        seq_pkg_->package.MaxSequenceLength(),
-        seq_pkg_->package.BaseCount());
+  xinfo("{} reads, {} max read length, {} total bases\n", seq_pkg_->package.seq_count(),
+        seq_pkg_->package.max_length(),
+        seq_pkg_->package.base_count());
 
   words_per_substr_ =
       DivCeiling((opt_.k - 1) * kBitsPerEdgeChar + 2 * kBWTCharNumBits, kBitsPerEdgeWord);
   xinfo("{} words per substring\n", words_per_substr_);
 
   if (opt_.solid_threshold > 1) {
-    seq_pkg_->is_solid.reset(seq_pkg_->package.BaseCount());
+    seq_pkg_->is_solid.reset(seq_pkg_->package.base_count());
   }
 
 
@@ -114,7 +112,7 @@ Read2SdbgS1::Meta Read2SdbgS1::Initialize() {
   seq_pkg_->n_mercy_files = 1;
 
   while (seq_pkg_->n_mercy_files * 10485760LL <
-      static_cast<int64_t>(seq_pkg_->package.SeqCount()) && seq_pkg_->n_mercy_files < 64) {
+      static_cast<int64_t>(seq_pkg_->package.seq_count()) && seq_pkg_->n_mercy_files < 64) {
     seq_pkg_->n_mercy_files <<= 1;
   }
   xinfo("Number of files for mercy candidate reads: {}\n", seq_pkg_->n_mercy_files);
@@ -132,7 +130,7 @@ Read2SdbgS1::Meta Read2SdbgS1::Initialize() {
   }
 
   int64_t memory_for_data = DivCeiling(seq_pkg_->is_solid.size(), 8)
-      + seq_pkg_->package.SizeInByte()
+      + seq_pkg_->package.size_in_byte()
       + (kMaxMul + 1) * (opt_.n_threads + 1) * sizeof(int64_t);
 
   return {
@@ -149,13 +147,14 @@ void Read2SdbgS1::Lv0CalcBucketSize(int64_t seq_from, int64_t seq_to, std::array
   GenericKmer k_minus1_mer, rev_k_minus1_mer;  // (k-1)-mer and its rc
 
   for (int64_t read_id = seq_from; read_id < seq_to; ++read_id) {
-    auto read_length = seq_pkg_->package.SequenceLength(read_id);
+    auto seq_view = seq_pkg_->package.GetSeqView(read_id);
+    auto read_length = seq_view.length();
 
     if (read_length < opt_.k + 1) {
       continue;
     }
 
-    auto ptr_and_offset = seq_pkg_->package.WordPtrAndOffset(read_id);
+    auto ptr_and_offset = seq_view.raw_address();
     int64_t offset = ptr_and_offset.second;
     const uint32_t *read_p = ptr_and_offset.first;
 
@@ -168,7 +167,7 @@ void Read2SdbgS1::Lv0CalcBucketSize(int64_t seq_from, int64_t seq_to, std::array
     bucket_sizes[rev_k_minus1_mer.data()[0] >> (kCharsPerEdgeWord - kBucketPrefixLength) * kBitsPerEdgeChar]++;
 
     unsigned last_char_offset = opt_.k - 1;
-    int c = seq_pkg_->package.GetBase(read_id, last_char_offset);
+    int c = seq_view.base_at(last_char_offset);
     k_minus1_mer.ShiftAppend(c, opt_.k - 1);
     rev_k_minus1_mer.ShiftPreappend(3 - c, opt_.k - 1);
 
@@ -181,7 +180,7 @@ void Read2SdbgS1::Lv0CalcBucketSize(int64_t seq_from, int64_t seq_to, std::array
         bucket_sizes[k_minus1_mer.data()[0] >> (kCharsPerEdgeWord - kBucketPrefixLength) * kBitsPerEdgeChar]++;
       }
 
-      c = seq_pkg_->package.GetBase(read_id, ++last_char_offset);
+      c = seq_view.base_at(++last_char_offset);
       k_minus1_mer.ShiftAppend(c, opt_.k - 1);
       rev_k_minus1_mer.ShiftPreappend(3 - c, opt_.k - 1);
     }
@@ -197,13 +196,14 @@ void Read2SdbgS1::Lv1FillOffsets(OffsetFiller &filler, int64_t seq_from, int64_t
   int key;
 
   for (int64_t read_id = seq_from; read_id < seq_to; ++read_id) {
-    auto read_length = seq_pkg_->package.SequenceLength(read_id);
+    auto seq_view = seq_pkg_->package.GetSeqView(read_id);
+    auto read_length = seq_view.length();
 
     if (read_length < opt_.k + 1) {
       continue;
     }
 
-    auto ptr_and_offset = seq_pkg_->package.WordPtrAndOffset(read_id);
+    auto ptr_and_offset = seq_view.raw_address();
     int64_t offset = ptr_and_offset.second;
     const uint32_t *read_p = ptr_and_offset.first;
 
@@ -227,7 +227,7 @@ void Read2SdbgS1::Lv1FillOffsets(OffsetFiller &filler, int64_t seq_from, int64_t
     CHECK_AND_SAVE_OFFSET(0, 1);
 
     unsigned last_char_offset = opt_.k - 1;
-    int c = seq_pkg_->package.GetBase(read_id, last_char_offset);
+    int c = seq_view.base_at(last_char_offset);
     k_minus1_mer.ShiftAppend(c, opt_.k - 1);
     rev_k_minus1_mer.ShiftPreappend(3 - c, opt_.k - 1);
 
@@ -243,8 +243,8 @@ void Read2SdbgS1::Lv1FillOffsets(OffsetFiller &filler, int64_t seq_from, int64_t
         CHECK_AND_SAVE_OFFSET(last_char_offset - opt_.k + 2, 0);
       } else {
         // a not-that-math-correct solution if the edge is palindrome, but works well enough
-        int prev = seq_pkg_->package.GetBase(read_id, last_char_offset - (opt_.k - 1));
-        int next = seq_pkg_->package.GetBase(read_id, last_char_offset + 1);
+        int prev = seq_view.base_at(last_char_offset - (opt_.k - 1));
+        int next = seq_view.base_at(last_char_offset + 1);
 
         if (prev <= 3 - next) {
           key = rev_k_minus1_mer.data()[0] >> (kCharsPerEdgeWord - kBucketPrefixLength) * kBitsPerEdgeChar;
@@ -255,7 +255,7 @@ void Read2SdbgS1::Lv1FillOffsets(OffsetFiller &filler, int64_t seq_from, int64_t
         }
       }
 
-      c = seq_pkg_->package.GetBase(read_id, ++last_char_offset);
+      c = seq_view.base_at(++last_char_offset);
       k_minus1_mer.ShiftAppend(c, opt_.k - 1);
       rev_k_minus1_mer.ShiftPreappend(3 - c, opt_.k - 1);
     }
@@ -275,43 +275,42 @@ void Read2SdbgS1::Lv2ExtractSubString(unsigned start_bucket, unsigned end_bucket
 
   while (offset_iterator.HasNext()) {
     int64_t full_offset = offset_iterator.Next();
-
-    int64_t read_id = seq_pkg_->package.GetSeqID(full_offset >> 1);
+    auto seq_view = seq_pkg_->package.GetSeqViewByOffset(full_offset >> 1);
     unsigned strand = full_offset & 1;
-    unsigned offset = (full_offset >> 1) - seq_pkg_->package.StartPos(read_id);
-    unsigned read_length = seq_pkg_->package.SequenceLength(read_id);
+    unsigned offset = (full_offset >> 1) - seq_view.full_offset_in_pkg();
+    unsigned read_length = seq_view.length();
     unsigned num_chars_to_copy = opt_.k - 1;
     unsigned char prev, next, head, tail;  // (k+1)=abScd, prev=a, head=b, tail=c, next=d
 
     assert(offset < read_length);
 
     if (offset > 1) {
-      head = seq_pkg_->package.GetBase(read_id, offset - 1);
-      prev = seq_pkg_->package.GetBase(read_id, offset - 2);
+      head = seq_view.base_at(offset - 1);
+      prev = seq_view.base_at(offset - 2);
     } else {
       prev = kSentinelValue;
 
       if (offset > 0) {
-        head = seq_pkg_->package.GetBase(read_id, offset - 1);
+        head = seq_view.base_at(offset - 1);
       } else {
         head = kSentinelValue;
       }
     }
 
     if (offset + opt_.k < read_length) {
-      tail = seq_pkg_->package.GetBase(read_id, offset + opt_.k - 1);
-      next = seq_pkg_->package.GetBase(read_id, offset + opt_.k);
+      tail = seq_view.base_at(offset + opt_.k - 1);
+      next = seq_view.base_at(offset + opt_.k);
     } else {
       next = kSentinelValue;
 
       if (offset + opt_.k - 1 < read_length) {
-        tail = seq_pkg_->package.GetBase(read_id, offset + opt_.k - 1);
+        tail = seq_view.base_at(offset + opt_.k - 1);
       } else {
         tail = kSentinelValue;
       }
     }
 
-    auto ptr_and_offset = seq_pkg_->package.WordPtrAndOffset(read_id);
+    auto ptr_and_offset = seq_view.raw_address();
     int start_offset = ptr_and_offset.second;
     const uint32_t *read_p = ptr_and_offset.first;
     int words_this_read = DivCeiling(start_offset + read_length, 16);
@@ -419,11 +418,11 @@ void Read2SdbgS1::Lv2Postprocess(int64_t from, int64_t to, int tid, uint32_t *su
       if (head != kSentinelValue && tail != kSentinelValue &&
           count_head_tail[head_and_tail] >= opt_.solid_threshold) {
         for (int64_t j = 0; j < count_head_tail[head_and_tail]; ++j, ++i) {
-          auto read_info_context = ComposeUint64(substr + i * (2 + words_per_substr_) + words_per_substr_);
-          int64_t read_info = read_info_context >> 6;
+          int64_t read_info = ComposeUint64(substr + i * (2 + words_per_substr_) + words_per_substr_) >> 6;
+          auto seq_view = seq_pkg_->package.GetSeqViewByOffset(read_info >> 1);
           int strand = read_info & 1;
-          int64_t read_id = seq_pkg_->package.GetSeqID(read_info >> 1);
-          int offset = (read_info >> 1) - seq_pkg_->package.StartPos(read_id) - 1;
+          int64_t read_id = seq_view.id();
+          int offset = (read_info >> 1) - seq_view.full_offset_in_pkg() - 1;
           int l_offset = strand == 0 ? offset : offset + 1;
           int r_offset = strand == 0 ? offset + 1 : offset;
 
@@ -432,14 +431,14 @@ void Read2SdbgS1::Lv2Postprocess(int64_t from, int64_t to, int tid, uint32_t *su
 
           if (!(has_in & (1 << head))) {
             // no in
-            int64_t packed_mercy_cand = ((seq_pkg_->package.StartPos(read_id) + l_offset) << 2) | (1 + strand);
+            int64_t packed_mercy_cand = ((seq_view.full_offset_in_pkg() + l_offset) << 2) | (1 + strand);
             fwrite(&packed_mercy_cand, sizeof(packed_mercy_cand), 1,
                    mercy_files_[read_id & (seq_pkg_->n_mercy_files - 1)]);
           }
 
           if (!(has_out & (1 << tail))) {
             // no out
-            int64_t packed_mercy_cand = ((seq_pkg_->package.StartPos(read_id) + r_offset) << 2) | (2 - strand);
+            int64_t packed_mercy_cand = ((seq_view.full_offset_in_pkg() + r_offset) << 2) | (2 - strand);
             fwrite(&packed_mercy_cand, sizeof(packed_mercy_cand), 1,
                    mercy_files_[read_id & (seq_pkg_->n_mercy_files - 1)]);
           }
@@ -447,30 +446,31 @@ void Read2SdbgS1::Lv2Postprocess(int64_t from, int64_t to, int tid, uint32_t *su
       } else {
         // not solid, but we still need to tell whether its left/right kmer is solid
         for (int64_t j = 0; j < count_head_tail[head_and_tail]; ++j, ++i) {
-          auto read_info_context = ComposeUint64(substr + i * (2 + words_per_substr_) + words_per_substr_);
-          int64_t read_info = read_info_context >> 6;
+          int64_t read_info = ComposeUint64(substr + i * (2 + words_per_substr_) + words_per_substr_) >> 6;
+          auto seq_view = seq_pkg_->package.GetSeqViewByOffset(read_info >> 1);
           int strand = read_info & 1;
-          int64_t read_id = seq_pkg_->package.GetSeqID(read_info >> 1);
-          int offset = (read_info >> 1) - seq_pkg_->package.StartPos(read_id) - 1;
+          int64_t read_id = seq_view.id();
+          int offset = (read_info >> 1) - seq_view.full_offset_in_pkg() - 1;
+
           int l_offset = strand == 0 ? offset : offset + 1;
           int r_offset = strand == 0 ? offset + 1 : offset;
 
           if (l_has_out & (1 << head)) {
             if (has_in & (1 << head)) {
               // has both in & out
-              int64_t packed_mercy_cand = ((seq_pkg_->package.StartPos(read_id) + l_offset) << 2) | 0;
+              int64_t packed_mercy_cand = ((seq_view.full_offset_in_pkg() + l_offset) << 2) | 0;
               fwrite(&packed_mercy_cand, sizeof(packed_mercy_cand), 1,
                      mercy_files_[read_id & (seq_pkg_->n_mercy_files - 1)]);
             } else {
               // has out but no in
-              int64_t packed_mercy_cand = ((seq_pkg_->package.StartPos(read_id) + l_offset) << 2) | (1 + strand);
+              int64_t packed_mercy_cand = ((seq_view.full_offset_in_pkg() + l_offset) << 2) | (1 + strand);
               fwrite(&packed_mercy_cand, sizeof(packed_mercy_cand), 1,
                      mercy_files_[read_id & (seq_pkg_->n_mercy_files - 1)]);
             }
           } else {
             if (has_in & (1 << head)) {
               // has in but no out
-              int64_t packed_mercy_cand = ((seq_pkg_->package.StartPos(read_id) + l_offset) << 2) | (2 - strand);
+              int64_t packed_mercy_cand = ((seq_view.full_offset_in_pkg() + l_offset) << 2) | (2 - strand);
               fwrite(&packed_mercy_cand, sizeof(packed_mercy_cand), 1,
                      mercy_files_[read_id & (seq_pkg_->n_mercy_files - 1)]);
             }
@@ -479,19 +479,19 @@ void Read2SdbgS1::Lv2Postprocess(int64_t from, int64_t to, int tid, uint32_t *su
           if (r_has_in & (1 << tail)) {
             if (has_out & (1 << tail)) {
               // has both in & out
-              int64_t packed_mercy_cand = ((seq_pkg_->package.StartPos(read_id) + r_offset) << 2) | 0;
+              int64_t packed_mercy_cand = ((seq_view.full_offset_in_pkg() + r_offset) << 2) | 0;
               fwrite(&packed_mercy_cand, sizeof(packed_mercy_cand), 1,
                      mercy_files_[read_id & (seq_pkg_->n_mercy_files - 1)]);
             } else {
               // has in but no out
-              int64_t packed_mercy_cand = ((seq_pkg_->package.StartPos(read_id) + r_offset) << 2) | (2 - strand);
+              int64_t packed_mercy_cand = ((seq_view.full_offset_in_pkg() + r_offset) << 2) | (2 - strand);
               fwrite(&packed_mercy_cand, sizeof(packed_mercy_cand), 1,
                      mercy_files_[read_id & (seq_pkg_->n_mercy_files - 1)]);
             }
           } else {
             if (has_out & (1 << tail)) {
               // has out but no in
-              int64_t packed_mercy_cand = ((seq_pkg_->package.StartPos(read_id) + r_offset) << 2) | (1 + strand);
+              int64_t packed_mercy_cand = ((seq_view.full_offset_in_pkg() + r_offset) << 2) | (1 + strand);
               fwrite(&packed_mercy_cand, sizeof(packed_mercy_cand), 1,
                      mercy_files_[read_id & (seq_pkg_->n_mercy_files - 1)]);
             }

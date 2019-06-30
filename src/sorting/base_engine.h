@@ -52,7 +52,7 @@ class BaseSequenceSortingEngine {
   //  Sequence divided into n_threads_ partitions
   //  Each thread read one partition when filling Lv1 offsets, but it will fill multiple buckets
   //
-  //  SequenceView
+  //  SeqView
   //  <--------------p0--------------><--------------p1-------------->
   //  |t0---------------------------->|t1---------------------------->
   //

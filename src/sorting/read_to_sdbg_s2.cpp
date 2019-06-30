@@ -28,16 +28,16 @@
 #include "kmlib/kmsort.h"
 #include "sequence/kmer.h"
 #include "sequence/packed_reads.h"
-#include "sequence/io/lib_io.h"
+#include "sequence/io/binary_writer.h"
 #include "utils/safe_open.h"
 #include "utils/utils.h"
 
 namespace {
 
 // helper functions
-inline int64_t EncodeOffset(int64_t read_id, int offset, int strand, SeqPackage &p, int edge_type) {
+inline int64_t EncodeOffset(int64_t read_id, int offset, int strand, const SeqPackage &p, int edge_type) {
   // edge_type: 0 left $; 1 solid; 2 right $
-  return ((p.StartPos(read_id) + offset) << 3) | (edge_type << 1) | strand;
+  return ((p.GetSeqView(read_id).full_offset_in_pkg() + offset) << 3) | (edge_type << 1) | strand;
 }
 
 // helper: see whether two lv2 items have the same (k-1)-mer
@@ -103,10 +103,10 @@ Read2SdbgS2::Meta Read2SdbgS2::Initialize() {
   sdbg_writer_.InitFiles();
 
   int64_t memory_for_data = DivCeiling(seq_pkg_->is_solid.size(), 8)
-      + seq_pkg_->package.SizeInByte();
+      + seq_pkg_->package.size_in_byte();
 
   Meta ret{
-      static_cast<int64_t>(seq_pkg_->package.SeqCount()),
+      static_cast<int64_t>(seq_pkg_->package.seq_count()),
       memory_for_data,
       words_per_substr_,
       0,
@@ -125,7 +125,7 @@ Read2SdbgS2::Meta Read2SdbgS2::Initialize() {
   std::vector<uint64_t> mercy_cand;
   uint64_t num_mercy = 0;
   AtomicBitVector read_marker;
-  read_marker.reset(seq_pkg_->package.SeqCount());
+  read_marker.reset(seq_pkg_->package.seq_count());
 
   for (int fid = 0; fid < seq_pkg_->n_mercy_files; ++fid) {
     auto file_name = opt_.output_prefix + ".mercy_cand" + std::to_string(fid);
@@ -157,12 +157,13 @@ Read2SdbgS2::Meta Read2SdbgS2::Initialize() {
       }
 
       uint64_t this_end = std::min(start_idx[tid] + avg, (uint64_t) mercy_cand.size());
-      uint64_t read_id = 0;
+      int64_t read_id = 0;
       if (this_end < mercy_cand.size()) {
-        read_id = seq_pkg_->package.GetSeqID(mercy_cand[this_end] >> 2);
+        read_id = seq_pkg_->package.GetSeqViewByOffset(mercy_cand[this_end] >> 2).id();
       }
 
-      while (this_end < mercy_cand.size() && seq_pkg_->package.GetSeqID(mercy_cand[this_end] >> 2) == read_id) {
+      while (this_end < mercy_cand.size() &&
+          seq_pkg_->package.GetSeqViewByOffset(mercy_cand[this_end] >> 2).id() == read_id) {
         ++this_end;
       }
 
@@ -173,26 +174,28 @@ Read2SdbgS2::Meta Read2SdbgS2::Initialize() {
 
 #pragma omp parallel for reduction(+ : num_mercy)
     for (int tid = 0; tid < opt_.n_threads; ++tid) {
-      std::vector<bool> no_in(seq_pkg_->package.MaxSequenceLength());
-      std::vector<bool> no_out(seq_pkg_->package.MaxSequenceLength());
-      std::vector<bool> has_solid_kmer(seq_pkg_->package.MaxSequenceLength());
+      std::vector<bool> no_in(seq_pkg_->package.max_length());
+      std::vector<bool> no_out(seq_pkg_->package.max_length());
+      std::vector<bool> has_solid_kmer(seq_pkg_->package.max_length());
 
       uint64_t mercy_index = start_idx[tid];
 
       // go read by read
       while (mercy_index != end_idx[tid]) {
-        uint64_t read_id = seq_pkg_->package.GetSeqID(mercy_cand[mercy_index] >> 2);
+        auto seq_view = seq_pkg_->package.GetSeqViewByOffset(mercy_cand[mercy_index] >> 2);
+        int64_t read_id = seq_view.id();
         assert(!read_marker.at(read_id));
         read_marker.set(read_id);
-        int first_0_out = seq_pkg_->package.MaxSequenceLength() + 1;
+        int first_0_out = seq_pkg_->package.max_length() + 1;
         int last_0_in = -1;
 
         std::fill(no_in.begin(), no_in.end(), false);
         std::fill(no_out.begin(), no_out.end(), false);
         std::fill(has_solid_kmer.begin(), has_solid_kmer.end(), false);
 
-        while (mercy_index != end_idx[tid] && seq_pkg_->package.GetSeqID(mercy_cand[mercy_index] >> 2) == read_id) {
-          int offset = (mercy_cand[mercy_index] >> 2) - seq_pkg_->package.StartPos(read_id);
+        while (mercy_index != end_idx[tid] &&
+            seq_pkg_->package.GetSeqViewByOffset(mercy_cand[mercy_index] >> 2).id() == read_id) {
+          int offset = (mercy_cand[mercy_index] >> 2) - seq_view.full_offset_in_pkg();
           if ((mercy_cand[mercy_index] & 3) == 2) {
             no_out[offset] = true;
             first_0_out = std::min(first_0_out, offset);
@@ -209,11 +212,11 @@ Read2SdbgS2::Meta Read2SdbgS2::Initialize() {
           continue;
         }
 
-        auto read_length = seq_pkg_->package.SequenceLength(read_id);
+        auto read_length = seq_view.length();
         int last_no_out = -1;
 
         for (unsigned i = 0; i + opt_.k < read_length; ++i) {
-          if (seq_pkg_->is_solid.at(seq_pkg_->package.StartPos(read_id) + i)) {
+          if (seq_pkg_->is_solid.at(seq_view.full_offset_in_pkg() + i)) {
             has_solid_kmer[i] = has_solid_kmer[i + 1] = true;
           }
         }
@@ -221,7 +224,7 @@ Read2SdbgS2::Meta Read2SdbgS2::Initialize() {
         for (unsigned i = 0; i + opt_.k <= read_length; ++i) {
           if (no_in[i] && last_no_out != -1) {
             for (unsigned j = last_no_out; j < i; ++j) {
-              seq_pkg_->is_solid.set(seq_pkg_->package.StartPos(read_id) + j);
+              seq_pkg_->is_solid.set(seq_view.full_offset_in_pkg() + j);
             }
 
             num_mercy += i - last_no_out;
@@ -254,13 +257,14 @@ void Read2SdbgS2::Lv0CalcBucketSize(int64_t seq_from, int64_t seq_to, std::array
   GenericKmer edge, rev_edge;  // (k+1)-mer and its rc
 
   for (int64_t read_id = seq_from; read_id < seq_to; ++read_id) {
-    auto read_length = seq_pkg_->package.SequenceLength(read_id);
+    auto seq_view = seq_pkg_->package.GetSeqView(read_id);
+    auto read_length = seq_view.length();
 
     if (read_length < opt_.k + 1) {
       continue;
     }
 
-    auto ptr_and_offset = seq_pkg_->package.WordPtrAndOffset(read_id);
+    auto ptr_and_offset = seq_view.raw_address();
     int64_t offset = ptr_and_offset.second;
     const uint32_t *read_p = ptr_and_offset.first;
 
@@ -269,7 +273,7 @@ void Read2SdbgS2::Lv0CalcBucketSize(int64_t seq_from, int64_t seq_to, std::array
     rev_edge.ReverseComplement(opt_.k + 1);
 
     unsigned last_char_offset = opt_.k;
-    int64_t full_offset = seq_pkg_->package.StartPos(read_id);
+    int64_t full_offset = seq_view.full_offset_in_pkg();
     bool for_sure_solid = opt_.solid_threshold == 1;
 
     while (true) {
@@ -300,7 +304,7 @@ void Read2SdbgS2::Lv0CalcBucketSize(int64_t seq_from, int64_t seq_to, std::array
       if (++last_char_offset >= read_length) {
         break;
       } else {
-        int c = seq_pkg_->package.GetBase(read_id, last_char_offset);
+        int c = seq_view.base_at(last_char_offset);
         edge.ShiftAppend(c, opt_.k + 1);
         rev_edge.ShiftPreappend(3 - c, opt_.k + 1);
       }
@@ -313,13 +317,14 @@ void Read2SdbgS2::Lv1FillOffsets(OffsetFiller &filler, int64_t seq_from, int64_t
   int key;
 
   for (int64_t read_id = seq_from; read_id < seq_to; ++read_id) {
-    auto read_length = seq_pkg_->package.SequenceLength(read_id);
+    auto seq_view = seq_pkg_->package.GetSeqView(read_id);
+    auto read_length = seq_view.length();
 
     if (read_length < opt_.k + 1) {
       continue;
     }
 
-    auto ptr_and_offset = seq_pkg_->package.WordPtrAndOffset(read_id);
+    auto ptr_and_offset = seq_view.raw_address();
     int64_t offset = ptr_and_offset.second;
     const uint32_t *read_p = ptr_and_offset.first;
 
@@ -338,7 +343,7 @@ void Read2SdbgS2::Lv1FillOffsets(OffsetFiller &filler, int64_t seq_from, int64_t
 
     // shift the key char by char
     unsigned last_char_offset = opt_.k;
-    int64_t full_offset = seq_pkg_->package.StartPos(read_id);
+    int64_t full_offset = seq_view.full_offset_in_pkg();
     bool for_sure_solid = opt_.solid_threshold == 1;
 
     while (true) {
@@ -382,7 +387,7 @@ void Read2SdbgS2::Lv1FillOffsets(OffsetFiller &filler, int64_t seq_from, int64_t
       if (++last_char_offset >= read_length) {
         break;
       } else {
-        int c = seq_pkg_->package.GetBase(read_id, last_char_offset);
+        int c = seq_view.base_at(last_char_offset);
         edge.ShiftAppend(c, opt_.k + 1);
         rev_edge.ShiftPreappend(3 - c, opt_.k + 1);
       }
@@ -397,14 +402,13 @@ void Read2SdbgS2::Lv2ExtractSubString(unsigned start_bucket, unsigned end_bucket
 
   while (offset_iterator.HasNext()) {
     int64_t full_offset = offset_iterator.Next();
-
-    int64_t read_id = seq_pkg_->package.GetSeqID(full_offset >> 3);
-    int offset = (full_offset >> 3) - seq_pkg_->package.StartPos(read_id);
+    auto seq_view = seq_pkg_->package.GetSeqViewByOffset(full_offset >> 3);
+    int offset = (full_offset >> 3) - seq_view.full_offset_in_pkg();
     int strand = full_offset & 1;
     int edge_type = (full_offset >> 1) & 3;
-    int read_length = seq_pkg_->package.SequenceLength(read_id);
+    int read_length = seq_view.length();
 
-    auto ptr_and_offset = seq_pkg_->package.WordPtrAndOffset(read_id);
+    auto ptr_and_offset = seq_view.raw_address();
     int64_t start_offset = ptr_and_offset.second;
     const uint32_t *read_p = ptr_and_offset.first;
     int words_this_read = DivCeiling(start_offset + read_length, 16);
@@ -416,11 +420,11 @@ void Read2SdbgS2::Lv2ExtractSubString(unsigned start_bucket, unsigned end_bucket
       switch (edge_type) {
         case 0:break;
 
-        case 1:prev = seq_pkg_->package.GetBase(read_id, offset);
+        case 1:prev = seq_view.base_at(offset);
           offset++;
           break;
 
-        case 2:prev = seq_pkg_->package.GetBase(read_id, offset + 1);
+        case 2:prev = seq_view.base_at(offset + 1);
           offset += 2;
           num_chars_to_copy--;
           break;
@@ -440,10 +444,10 @@ void Read2SdbgS2::Lv2ExtractSubString(unsigned start_bucket, unsigned end_bucket
 
       switch (edge_type) {
         case 0:num_chars_to_copy--;
-          prev = 3 - seq_pkg_->package.GetBase(read_id, offset + opt_.k - 1);
+          prev = 3 - seq_view.base_at(offset + opt_.k - 1);
           break;
 
-        case 1:prev = 3 - seq_pkg_->package.GetBase(read_id, offset + opt_.k);
+        case 1:prev = 3 - seq_view.base_at(offset + opt_.k);
           break;
 
         case 2:offset++;
