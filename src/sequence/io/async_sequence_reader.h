@@ -11,7 +11,7 @@
 #include "sequence/io/contig/contig_reader.h"
 #include "sequence/sequence_package.h"
 
-template <class PackageType>
+template<class PackageType>
 class BaseAsyncSequenceReader {
  public:
   using package_type = PackageType;
@@ -43,22 +43,23 @@ class BaseAsyncSequenceReader {
 
 class AsyncSequenceReader : public BaseAsyncSequenceReader<SeqPackage> {
  public:
-  explicit AsyncSequenceReader(BaseSequenceReader *reader): reader_(reader) {
+  explicit AsyncSequenceReader(BaseSequenceReader *reader, bool reverse = false)
+      : reader_(reader), reverse_(reverse) {
     AsyncReadNextBatch();
   }
   ~AsyncSequenceReader() override { StopReading(); }
 
  protected:
   void ReadOneBatch(SeqPackage *seq_pkg) override {
-    int64_t kMaxNumReads = 1u << 22;
-    int64_t kMaxNumBases = 1u << 28;
-    bool reverse = false;
+    int64_t kMaxNumReads = 1u << 22u;
+    int64_t kMaxNumBases = 1u << 28u;
     seq_pkg->Clear();
-    reader_->Read(seq_pkg, kMaxNumReads, kMaxNumBases, reverse);
+    reader_->Read(seq_pkg, kMaxNumReads, kMaxNumBases, reverse_);
   }
 
  private:
   BaseSequenceReader *reader_;
+  bool reverse_;
 };
 
 class AsyncContigReader : public BaseAsyncSequenceReader<std::pair<SeqPackage, std::vector<float>>> {
@@ -73,8 +74,8 @@ class AsyncContigReader : public BaseAsyncSequenceReader<std::pair<SeqPackage, s
   void ReadOneBatch(package_type *pkg) override {
     pkg->first.Clear();
     pkg->second.clear();
-    const int64_t kMaxNumContigs = 1u << 22;
-    const int64_t kMaxNumBases = 1u << 28;
+    const int64_t kMaxNumContigs = 1u << 22u;
+    const int64_t kMaxNumBases = 1u << 28u;
     const bool reverse = false;
     reader_.ReadWithMultiplicity(&pkg->first, &pkg->second, kMaxNumContigs, kMaxNumBases, reverse);
   }

@@ -205,7 +205,7 @@ class SequencePackage {
     pos_to_id_.push_back(seq_count());
   }
 
-  void WriteSequences(std::ostream &os, int64_t from = 0, int64_t to = -1) {
+  void WriteSequences(std::ostream &os, int64_t from = 0, int64_t to = -1) const {
     if (to == -1) {
       to = seq_count() - 1;
     }

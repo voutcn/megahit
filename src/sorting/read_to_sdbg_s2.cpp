@@ -140,7 +140,7 @@ Read2SdbgS2::MemoryStat Read2SdbgS2::Initialize() {
       mercy_cand.insert(mercy_cand.end(), buf, buf + size_read / sizeof(uint64_t));
     }
 
-    xinfo("Mercy file: {}, {}\n", file_name.c_str(), mercy_cand.size());
+    xinfo("Mercy file: {s}, {}\n", file_name.c_str(), mercy_cand.size());
     kmlib::kmsort(mercy_cand.begin(), mercy_cand.end());
 
     // multi threading

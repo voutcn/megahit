@@ -118,7 +118,7 @@ Read2SdbgS1::MemoryStat Read2SdbgS1::Initialize() {
 
   for (int i = 0; i < seq_pkg_->n_mercy_files; ++i) {
     auto file_name = opt_.output_prefix + ".mercy_cand." + std::to_string(i);
-    mercy_files_.emplace_back(xfopen(file_name.c_str(), "wb"));
+    mercy_files_.push_back(xfopen(file_name.c_str(), "wb"));
   }
 
   // --- initialize stat ---

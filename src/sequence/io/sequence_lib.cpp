@@ -41,39 +41,37 @@ void SequenceLibCollection::Build(const std::string &lib_file, const std::string
       xfatal("Valid types: pe, se, interleaved\n");
     }
 
-    int64_t start = total_reads;
-    int64_t num_read = 0;
+    int64_t begin_index = total_reads;
     unsigned max_read_len = 0;
 
     AsyncSequenceReader async_reader(reader.get());
 
     while (true) {
-      auto &seq_batch = async_reader.Next();
+      const auto &seq_batch = async_reader.Next();
       if (seq_batch.seq_count() == 0) {
         break;
       }
 
-      total_reads += num_read;
+      total_reads += seq_batch.seq_count();
       total_bases += seq_batch.base_count();
       seq_batch.WriteSequences(bin_file);
       max_read_len = std::max(max_read_len, seq_batch.max_length());
-      seq_batch.Clear();
     }
 
-    if (type == "pe" && (total_reads - start) % 2 != 0) {
-      xerr("PE library number of reads is odd: {}!\n", total_reads - start);
-      xfatal("File(s): {}\n", metadata.c_str());
+    if (type == "pe" && (total_reads - begin_index) % 2 != 0) {
+      xerr("PE library number of reads is odd: {}!\n", total_reads - begin_index);
+      xfatal("File(s): {s}\n", metadata.c_str());
     }
 
-    if (type == "interleaved" && (total_reads - start) % 2 != 0) {
-      xerr("PE library number of reads is odd: {}!\n", total_reads - start);
-      xfatal("File(s): {}\n", metadata.c_str());
+    if (type == "interleaved" && (total_reads - begin_index) % 2 != 0) {
+      xerr("PE library number of reads is odd: {}!\n", total_reads - begin_index);
+      xfatal("File(s): {s}\n", metadata.c_str());
     }
 
     xinfo("Lib {} ({s}): {s}, {} reads, {} max length\n", libs.size(), metadata.c_str(), type.c_str(),
-          total_reads - start, max_read_len);
+          total_reads - begin_index, max_read_len);
 
-    libs.emplace_back(nullptr, start, total_reads, max_read_len, type != "se", metadata);
+    libs.emplace_back(nullptr, begin_index, total_reads, max_read_len, type != "se", metadata);
     std::getline(lib_config, metadata);  // eliminate the "\n"
   }
 

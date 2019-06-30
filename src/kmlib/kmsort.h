@@ -21,7 +21,7 @@ namespace internal {
 
 template <class RandomIt, class ValueType, class RadixTraits>
 inline void insert_sort_core(RandomIt s, RandomIt e, RadixTraits rt) {
-  for (RandomIt i = s + 1; i < e; ++i) {
+  for (RandomIt i = s + 1; i != e; ++i) {
     if (rt(*i, *(i - 1))) {
       RandomIt j;
       ValueType tmp = *i;
@@ -97,7 +97,9 @@ inline void radix_sort_core(RandomIt s, RandomIt e, RadixTrait rt, int byte_inde
 
 template <class RandomIt, class ValueType, class RadixTraits>
 inline void radix_sort_entry(RandomIt s, RandomIt e, ValueType *, RadixTraits radix_traits) {
-  if (e - s <= kmsortconst::kInsertSortThreshold) {
+  if (std::distance(s, e) <= 1) {
+    return;
+  } else if (std::distance(s, e) <= kmsortconst::kInsertSortThreshold) {
     insert_sort_core<RandomIt, ValueType, RadixTraits>(s, e, radix_traits);
   } else {
     const int kByteIndexEnd = RadixTraits::n_bytes > 8 ? RadixTraits::n_bytes - 8 : 0;
