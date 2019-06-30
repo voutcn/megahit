@@ -20,15 +20,11 @@
 
 #include "read_to_sdbg.h"
 
-#include <omp.h>
 #include <algorithm>
-#include <mutex>
 
 #include "sequence/kmer.h"
 #include "sequence/packed_reads.h"
 #include "sequence/io/binary_writer.h"
-#include "sequence/io/kseq.h"
-#include "sequence/sequence_package.h"
 #include "utils/safe_open.h"
 #include "utils/utils.h"
 

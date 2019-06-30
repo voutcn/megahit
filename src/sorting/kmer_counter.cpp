@@ -1,14 +1,11 @@
 #include "kmer_counter.h"
 
-#include <omp.h>
 #include <algorithm>
-#include <mutex>
-#include <sequence/io/sequence_lib.h>
 
 #include "sequence/kmer.h"
 #include "sequence/packed_reads.h"
+#include "sequence/io/sequence_lib.h"
 #include "sequence/io/binary_writer.h"
-#include "sequence/io/kseq.h"
 #include "utils/safe_open.h"
 #include "utils/utils.h"
 

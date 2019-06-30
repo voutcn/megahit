@@ -33,17 +33,17 @@
 
 #include "pprintpp/pprintpp.hpp"
 
-template <typename T1, typename T2>
+template<typename T1, typename T2>
 inline T1 DivCeiling(T1 a, T2 b) {
   return (a + b - 1) / b;
 }
 
-template <typename RandomIt>
+template<typename RandomIt>
 inline uint64_t ComposeUint64(const RandomIt src) {
   return (static_cast<uint64_t>(src[0]) << 32u) | src[1];
 }
 
-template <typename RandomIt>
+template<typename RandomIt>
 inline void DecomposeUint64(RandomIt dst, uint64_t x) {
   dst[0] = x >> 32u;
   dst[1] = x & 0xFFFFFFFFllu;
@@ -112,8 +112,7 @@ struct SimpleTimer {
 };
 
 struct AutoMaxRssRecorder {
-  struct timeval tv1 {
-  }, tv2{};
+  struct timeval tv1{}, tv2{};
 
   AutoMaxRssRecorder() { gettimeofday(&tv1, nullptr); }
 

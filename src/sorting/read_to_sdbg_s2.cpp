@@ -20,7 +20,6 @@
 
 #include "read_to_sdbg.h"
 
-#include <mutex>
 #include <string>
 #include <vector>
 #include <omp.h>

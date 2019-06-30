@@ -29,10 +29,10 @@
 
 #include "sdbg/sdbg_def.h"
 
-static const int kBitsPerEdgeWord = 32;
-static const int kBitsPerEdgeChar = 2;
-static const int kCharsPerEdgeWord = 16;
-static const int kEdgeCharMask = 0x3;
+static const unsigned kBitsPerEdgeWord = 32;
+static const unsigned kBitsPerEdgeChar = 2;
+static const unsigned kCharsPerEdgeWord = 16;
+static const unsigned kEdgeCharMask = 0x3;
 
 namespace contig_flag {
 
