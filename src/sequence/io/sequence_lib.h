@@ -31,7 +31,6 @@
 #include "binary_reader.h"
 #include "paired_fastx_reader.h"
 #include "sequence/sequence_package.h"
-#include "utils/safe_open.h"
 #include "utils/utils.h"
 
 class SequenceLib {

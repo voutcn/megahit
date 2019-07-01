@@ -31,7 +31,6 @@
 #include "assembly/contig_stat.h"
 #include "utils/histgram.h"
 #include "utils/options_description.h"
-#include "utils/safe_open.h"
 #include "utils/utils.h"
 
 using std::string;

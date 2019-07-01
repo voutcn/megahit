@@ -38,7 +38,6 @@
 #include "sequence/io/contig/contig_reader.h"
 #include "sequence/io/contig/contig_writer.h"
 #include "utils/histgram.h"
-#include "utils/safe_open.h"
 #include "utils/utils.h"
 
 void LocalAssembler::ReadContigs(const std::string &contig_file_name) {

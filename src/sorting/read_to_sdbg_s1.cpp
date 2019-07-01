@@ -25,7 +25,6 @@
 
 #include "sequence/copy_substr.h"
 #include "sequence/kmer.h"
-#include "utils/safe_open.h"
 #include "utils/utils.h"
 
 namespace {  // helper functions

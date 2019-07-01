@@ -8,7 +8,6 @@
 #include <definitions.h>
 #include <atomic>
 #include <string>
-#include "utils/safe_open.h"
 #include "utils/utils.h"
 
 class ContigWriter {

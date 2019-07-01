@@ -34,6 +34,15 @@
 
 #include "pprintpp/pprintpp.hpp"
 
+inline FILE *xfopen(const char *filename, const char *mode) {
+  FILE *fp;
+  if ((fp = fopen(filename, mode)) == nullptr) {
+    pfprintf(stderr, "[ERROR] Cannot open {s}. Now exit to system...\n", filename);
+    exit(-1);
+  }
+  return fp;
+}
+
 template <typename T1, typename T2>
 inline T1 DivCeiling(T1 a, T2 b) {
   return (a + b - 1) / b;
