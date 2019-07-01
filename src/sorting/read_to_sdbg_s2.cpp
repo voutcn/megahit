@@ -26,7 +26,7 @@
 
 #include "kmlib/kmsort.h"
 #include "sequence/kmer.h"
-#include "sequence/packed_reads.h"
+#include "sequence/copy_substr.h"
 #include "utils/safe_open.h"
 #include "utils/utils.h"
 
@@ -395,11 +395,9 @@ void Read2SdbgS2::Lv1FillOffsets(OffsetFiller &filler, int64_t seq_from, int64_t
 #undef CHECK_AND_SAVE_OFFSET
 }
 
-void Read2SdbgS2::Lv2ExtractSubString(unsigned start_bucket, unsigned end_bucket, uint32_t *substr) {
-  auto offset_iterator = GetOffsetFetcher(start_bucket, end_bucket);
-
-  while (offset_iterator.HasNext()) {
-    int64_t full_offset = offset_iterator.Next();
+void Read2SdbgS2::Lv2ExtractSubString(OffsetFetcher &fetcher, SubstrPtr substr) {
+  while (fetcher.HasNext()) {
+    int64_t full_offset = fetcher.Next();
     auto seq_view = seq_pkg_->package.GetSeqViewByOffset(full_offset >> 3);
     int offset = (full_offset >> 3) - seq_view.full_offset_in_pkg();
     int strand = full_offset & 1;
@@ -433,7 +431,7 @@ void Read2SdbgS2::Lv2ExtractSubString(unsigned start_bucket, unsigned end_bucket
       CopySubstring(substr, read_p, offset + start_offset, num_chars_to_copy, 1, words_this_read,
                     words_per_substr_);
 
-      uint32_t *last_word = substr + (words_per_substr_ - 1) * 1;
+      auto last_word = substr + (words_per_substr_ - 1) * 1;
       *last_word |= unsigned(num_chars_to_copy == opt_.k) << kBWTCharNumBits;
       *last_word |= prev;
     } else {
@@ -441,23 +439,28 @@ void Read2SdbgS2::Lv2ExtractSubString(unsigned start_bucket, unsigned end_bucket
       uint8_t prev = kSentinelValue;
 
       switch (edge_type) {
-        case 0:num_chars_to_copy--;
+        case 0: {
+          num_chars_to_copy--;
           prev = 3 - seq_view.base_at(offset + opt_.k - 1);
           break;
-
-        case 1:prev = 3 - seq_view.base_at(offset + opt_.k);
+        }
+        case 1: {
+          prev = 3 - seq_view.base_at(offset + opt_.k);
           break;
-
-        case 2:offset++;
+        }
+        case 2: {
+          offset++;
           break;
-
-        default:assert(false);
+        }
+        default: {
+          assert(false);
+        }
       }
 
       CopySubstringRC(substr, read_p, offset + start_offset, num_chars_to_copy, 1, words_this_read,
                       words_per_substr_);
 
-      uint32_t *last_word = substr + (words_per_substr_ - 1) * 1;
+      auto last_word = substr + (words_per_substr_ - 1);
       *last_word |= unsigned(num_chars_to_copy == opt_.k) << kBWTCharNumBits;
       *last_word |= prev;
     }

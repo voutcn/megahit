@@ -23,7 +23,7 @@
 #include <algorithm>
 
 #include "sequence/kmer.h"
-#include "sequence/packed_reads.h"
+#include "sequence/copy_substr.h"
 #include "utils/safe_open.h"
 #include "utils/utils.h"
 
@@ -264,11 +264,9 @@ void Read2SdbgS1::Lv1FillOffsets(OffsetFiller &filler, int64_t seq_from, int64_t
 #undef CHECK_AND_SAVE_OFFSET
 }
 
-void Read2SdbgS1::Lv2ExtractSubString(unsigned start_bucket, unsigned end_bucket, uint32_t *substr_ptr) {
-  auto offset_iterator = GetOffsetFetcher(start_bucket, end_bucket);
-
-  while (offset_iterator.HasNext()) {
-    int64_t full_offset = offset_iterator.Next();
+void Read2SdbgS1::Lv2ExtractSubString(OffsetFetcher &fetcher, SubstrPtr substr_ptr) {
+  while (fetcher.HasNext()) {
+    int64_t full_offset = fetcher.Next();
     auto seq_view = seq_pkg_->package.GetSeqViewByOffset(full_offset >> 1);
     unsigned strand = full_offset & 1;
     unsigned offset = (full_offset >> 1) - seq_view.full_offset_in_pkg();
@@ -313,13 +311,13 @@ void Read2SdbgS1::Lv2ExtractSubString(unsigned start_bucket, unsigned end_bucket
     if (strand == 0) {
       CopySubstring(substr_ptr, read_p, offset + start_offset, num_chars_to_copy, 1, words_this_read,
                     words_per_substr_);
-      uint32_t *last_word = substr_ptr + int64_t(words_per_substr_ - 1) * 1;
+      auto last_word = substr_ptr + int64_t(words_per_substr_ - 1) * 1;
       *last_word |= (head << kBWTCharNumBits) | tail;
       read_info = (full_offset << 6) | (prev << 3) | next;
     } else {
       CopySubstringRC(substr_ptr, read_p, offset + start_offset, num_chars_to_copy, 1, words_this_read,
                       words_per_substr_);
-      uint32_t *last_word = substr_ptr + int64_t(words_per_substr_ - 1) * 1;
+      auto last_word = substr_ptr + int64_t(words_per_substr_ - 1) * 1;
       *last_word |= ((tail == kSentinelValue ? kSentinelValue : 3 - tail) << kBWTCharNumBits) |
           (head == kSentinelValue ? kSentinelValue : 3 - head);
       read_info = (full_offset << 6) | ((next == kSentinelValue ? kSentinelValue : (3 - next)) << 3) |

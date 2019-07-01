@@ -26,61 +26,71 @@
 #define PACKED_READS_H
 
 #include <algorithm>
+#include <iterator>
 #include "definitions.h"
 #include "kmlib/kmbit.h"
+
+template <typename Ptr>
+struct is_uint32_ptr {
+  using value_type = typename std::iterator_traits<Ptr>::value_type;
+  static const bool value = std::is_same<value_type, uint32_t>::value;
+};
 
 // 'spacing' is the strip length for read-word "coalescing"
 /**
  * @brief copy src_read[offset...(offset+num_chars_to_copy-1)] to dest
  *
- * @param dest
- * @param src_read
+ * @param dst
+ * @param src
  * @param offset
  * @param num_chars_to_copy
  */
-inline void CopySubstring(uint32_t *dest, const uint32_t *src_read,
+
+template <typename DstIt, typename SrcIt,
+    typename std::enable_if<is_uint32_ptr<DstIt>::value, int>::type = 0,
+    typename std::enable_if<is_uint32_ptr<SrcIt>::value, int>::type = 0>
+inline void CopySubstring(DstIt dst, SrcIt src,
                           unsigned offset, unsigned num_chars_to_copy, uint64_t spacing,
                           unsigned words_per_read, unsigned words_per_substring) {
   // copy words of the suffix to the suffix pool
   unsigned which_word = offset / kCharsPerEdgeWord;
   unsigned word_offset = offset % kCharsPerEdgeWord;
-  const uint32_t *src_p = src_read + which_word;
+  auto src_ptr = src + which_word;
 
   if (!word_offset) {  // special case (word aligned), easy
     unsigned limit = std::min(words_per_read - which_word, words_per_substring);
-    for (unsigned i = 0; i < limit; ++i) {
-      dest[i] = src_p[i];
-    }
+    std::copy(src_ptr, src_ptr + limit, dst);
   } else {  // not word-aligned
     unsigned bit_shift = word_offset * kBitsPerEdgeChar;
     unsigned limit = std::min(words_per_read - which_word - 1, words_per_substring);
+    assert(words_per_read - which_word - 1 >= 0);
 
     for (unsigned i = 0; i < limit; ++i) {
-      dest[i] = (src_p[i] << bit_shift) | (src_p[i + 1] >> (kBitsPerEdgeWord - bit_shift));
+      dst[i] = (src_ptr[i] << bit_shift) | (src_ptr[i + 1] >> (kBitsPerEdgeWord - bit_shift));
     }
     if (limit != words_per_substring) {
-      dest[limit] = src_p[limit] << bit_shift;
+      dst[limit] = src_ptr[limit] << bit_shift;
     }
   }
 
   {
     // now mask the extra bits (TODO can be optimized)
-    unsigned num_bits_to_copy = num_chars_to_copy * 2;
-    unsigned which_word = num_bits_to_copy / kBitsPerEdgeWord;
-    uint32_t *p = dest + which_word * spacing;
+    unsigned num_bits_to_copy = num_chars_to_copy * kBitsPerEdgeChar;
     unsigned bits_to_clear = kBitsPerEdgeWord - num_bits_to_copy % kBitsPerEdgeWord;
+    which_word = num_bits_to_copy / kBitsPerEdgeWord;
+    auto dst_ptr = dst + which_word * spacing;
 
     if (bits_to_clear < kBitsPerEdgeWord) {
-      *p >>= bits_to_clear;
-      *p <<= bits_to_clear;
+      *dst_ptr >>= bits_to_clear;
+      *dst_ptr <<= bits_to_clear;
     } else if (which_word < words_per_substring) {
-      *p = 0;
+      *dst_ptr = 0;
     }
 
-    which_word++;
+    ++which_word;
 
     while (which_word < words_per_substring) {  // fill zero
-      *(p += spacing) = 0;
+      *(dst_ptr += spacing) = 0;
       which_word++;
     }
   }
@@ -89,24 +99,27 @@ inline void CopySubstring(uint32_t *dest, const uint32_t *src_read,
 /**
  * @brief copy the reverse complement of src_read[offset...(offset+num_chars_to_copy-1)] to dest
  *
- * @param dest [description]
- * @param src_read [description]
+ * @param dst [description]
+ * @param src [description]
  * @param offset [description]
  * @param num_chars_to_copy [description]
  */
-inline void CopySubstringRC(uint32_t *dest, const uint32_t *src_read, unsigned offset, unsigned num_chars_to_copy,
+template <typename DstIt, typename SrcIt,
+    typename std::enable_if<is_uint32_ptr<DstIt>::value, int>::type = 0,
+    typename std::enable_if<is_uint32_ptr<SrcIt>::value, int>::type = 0>
+inline void CopySubstringRC(DstIt dst, SrcIt src, unsigned offset, unsigned num_chars_to_copy,
                             uint64_t spacing, unsigned words_per_read, unsigned words_per_substring) {
   unsigned which_word = (offset + num_chars_to_copy - 1) / kCharsPerEdgeWord;
   unsigned word_offset = (offset + num_chars_to_copy - 1) % kCharsPerEdgeWord;
-  uint32_t *dest_p = dest;
+  auto dst_ptr = dst;
 
   if (word_offset == kCharsPerEdgeWord - 1) {  // uint32_t aligned
     unsigned limit = std::min(words_per_substring, which_word + 1);
     for (unsigned i = 0; i < limit; ++i) {
-      dest[i] = src_read[which_word - i];
+      dst[i] = src[which_word - i];
     }
     for (unsigned i = 0; i < words_per_substring && i <= which_word; ++i) {
-      dest[i] = kmlib::bit::ReverseComplement<2>(dest[i]);
+      dst[i] = kmlib::bit::ReverseComplement<2>(dst[i]);
     }
   } else {
     unsigned bit_offset = (kCharsPerEdgeWord - 1 - word_offset) * kBitsPerEdgeChar;
@@ -114,39 +127,39 @@ inline void CopySubstringRC(uint32_t *dest, const uint32_t *src_read, unsigned o
     uint32_t w;
 
     for (i = 0; i < words_per_substring - 1 && i < which_word; ++i) {
-      w = (src_read[which_word - i] >> bit_offset) | (src_read[which_word - i - 1] << (kBitsPerEdgeWord - bit_offset));
+      w = (src[which_word - i] >> bit_offset) | (src[which_word - i - 1] << (kBitsPerEdgeWord - bit_offset));
       w = kmlib::bit::ReverseComplement<2>(w);
-      *dest_p = w;
-      dest_p += spacing;
+      *dst_ptr = w;
+      dst_ptr += spacing;
     }
 
     // last word
-    w = src_read[which_word - i] >> bit_offset;
+    w = src[which_word - i] >> bit_offset;
 
     if (which_word >= i + 1) {
-      w |= (src_read[which_word - i - 1] << (kBitsPerEdgeWord - bit_offset));
+      w |= (src[which_word - i - 1] << (kBitsPerEdgeWord - bit_offset));
     }
-    *dest_p = kmlib::bit::ReverseComplement<2>(w);
+    *dst_ptr = kmlib::bit::ReverseComplement<2>(w);
   }
 
   {
     // now mask the extra bits (TODO can be optimized)
-    unsigned num_bits_to_copy = num_chars_to_copy * 2;
-    unsigned which_word = num_bits_to_copy / kBitsPerEdgeWord;
-    uint32_t *p = dest + which_word * spacing;
+    unsigned num_bits_to_copy = num_chars_to_copy * kBitsPerEdgeChar;
     unsigned bits_to_clear = kBitsPerEdgeWord - num_bits_to_copy % kBitsPerEdgeWord;
+    which_word = num_bits_to_copy / kBitsPerEdgeWord;
+    dst_ptr = dst + which_word * spacing;
 
     if (bits_to_clear < kBitsPerEdgeWord) {
-      *p >>= bits_to_clear;
-      *p <<= bits_to_clear;
+      *dst_ptr >>= bits_to_clear;
+      *dst_ptr <<= bits_to_clear;
     } else if (which_word < words_per_substring) {
-      *p = 0;
+      *dst_ptr = 0;
     }
 
     which_word++;
 
     while (which_word < words_per_substring) {  // fill zero
-      *(p += spacing) = 0;
+      *(dst_ptr += spacing) = 0;
       which_word++;
     }
   }

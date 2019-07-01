@@ -316,7 +316,8 @@ void BaseSequenceSortingEngine::Lv2Sort(BaseSequenceSortingEngine::Lv2ThreadStat
 
   size_t offset = lv1_num_items_ + thread_status->thread_offset[tid] * meta_.words_per_lv2;
   auto substr_ptr = lv1_offsets_.data() + offset;
-  Lv2ExtractSubString(b, b + 1, substr_ptr);
+  auto fetcher = OffsetFetcher(this, b, b + 1);
+  Lv2ExtractSubString(fetcher, lv1_offsets_.begin() + offset);
   substr_sort_(substr_ptr, bucket_sizes_[b]);
   Lv2Postprocess(0, bucket_sizes_[b], tid, substr_ptr);
 }

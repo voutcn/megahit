@@ -75,6 +75,7 @@ class BaseSequenceSortingEngine {
   std::array<unsigned, kNumBuckets> bucket_rank_{};
 
  protected:
+  using SubstrPtr = std::vector<uint32_t>::iterator;
   /**
    * For derived class to fill offsets
    */
@@ -165,10 +166,6 @@ class BaseSequenceSortingEngine {
     std::vector<uint32_t>::const_iterator diff_iter_;
   };
 
-  OffsetFetcher GetOffsetFetcher(unsigned start_bucket, unsigned end_bucket) {
-    return OffsetFetcher(this, start_bucket, end_bucket);
-  }
-
  private:
   void WriteOffset(size_t index, int64_t diff, int64_t full_offset) {
     if (diff > kDifferentialLimit) {
@@ -215,7 +212,7 @@ class BaseSequenceSortingEngine {
   virtual int64_t Lv0EncodeDiffBase(int64_t) = 0;
   virtual void Lv0CalcBucketSize(int64_t seq_from, int64_t seq_to, std::array<int64_t, kNumBuckets> *out) = 0;
   virtual void Lv1FillOffsets(OffsetFiller &filler, int64_t seq_from, int64_t seq_to) = 0;
-  virtual void Lv2ExtractSubString(unsigned bucket_from, unsigned bucket_to, uint32_t *substr_ptr) = 0;
+  virtual void Lv2ExtractSubString(OffsetFetcher &fetcher, SubstrPtr substr_ptr) = 0;
   virtual void Lv2Postprocess(int64_t start_index, int64_t end_index, int thread_id, uint32_t *substr_ptr) = 0;
   virtual void Lv0Postprocess() = 0;
 
