@@ -161,7 +161,7 @@ class HashTableSTConstIterator {
  * @tparam HashFunc
  */
 template <typename Value, typename Key, typename HashFunc = Hash<Key>, typename ExtractKey = GetKey<Key, Value>,
-          typename EqualKey = std::equal_to<Key> >
+          typename EqualKey = std::equal_to<Key>>
 class HashTableST {
  public:
   typedef Key key_type;

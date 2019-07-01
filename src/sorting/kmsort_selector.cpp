@@ -48,6 +48,6 @@ std::function<void(uint32_t *, int64_t)> SelectSortingFuncHelper(int words_per_s
 
 }  // namespace
 
-std::function<void(uint32_t*, int64_t)> SelectSortingFunc(int words_per_substr, int extra_words) {
+std::function<void(uint32_t *, int64_t)> SelectSortingFunc(int words_per_substr, int extra_words) {
   return SelectSortingFuncHelper<kMaxWords, 2>(words_per_substr, extra_words);
 }

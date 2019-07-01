@@ -1,6 +1,7 @@
 /*
  *  MEGAHIT
- *  Copyright (C) 2014 - 2015 The University of Hong Kong & L3 Bioinformatics Limited
+ *  Copyright (C) 2014 - 2015 The University of Hong Kong & L3 Bioinformatics
+ * Limited
  *
  *  This program is free software: you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -46,16 +47,15 @@ struct Seq2SdbgOption {
 
 class SeqToSdbg : public BaseSequenceSortingEngine {
  public:
-// binary search look up table
+  // binary search look up table
   static const unsigned kLookUpPrefixLength = 12;
   static const unsigned kLookUpShift = 32 - kLookUpPrefixLength * 2;
   static const unsigned kLookUpSize = 1u << (2 * kLookUpPrefixLength);
   static const unsigned kSentinelValue = 4;
   static const unsigned kBWTCharNumBits = 3;
 
-  explicit SeqToSdbg(const Seq2SdbgOption &opt) :
-      BaseSequenceSortingEngine(opt.host_mem, opt.mem_flag, opt.n_threads),
-      opt_(opt) {}
+  explicit SeqToSdbg(const Seq2SdbgOption &opt)
+      : BaseSequenceSortingEngine(opt.host_mem, opt.mem_flag, opt.n_threads), opt_(opt) {}
 
  public:
   MemoryStat Initialize() override;

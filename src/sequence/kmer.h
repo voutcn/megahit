@@ -13,7 +13,8 @@
 /**
  * @brief It represents a k-mer. The value of k is limited by the number of
  * words used. The maximum value can be calculated by max_size().
- * The value of k is not stored, many functions require a explict parameter k to work
+ * The value of k is not stored, many functions require a explict parameter k to
+ * work
  */
 template <unsigned NWords = 4, class TWord = uint64_t>
 class Kmer {

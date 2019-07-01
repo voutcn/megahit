@@ -105,8 +105,10 @@ class ContigGraphVertex {
 };
 
 /**
- * @brief It is a adaptor class used to access ContigGraphVertex. Becase a contig and its
- * reverse complement share the same vertex, using adaptor makes sure that modification to
+ * @brief It is a adaptor class used to access ContigGraphVertex. Becase a
+ * contig and its
+ * reverse complement share the same vertex, using adaptor makes sure that
+ * modification to
  * the vertex consistant.
  */
 class ContigGraphVertexAdaptor {

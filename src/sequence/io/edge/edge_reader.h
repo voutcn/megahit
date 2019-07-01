@@ -5,9 +5,8 @@
 #ifndef MEGAHIT_EDGE_READER_H
 #define MEGAHIT_EDGE_READER_H
 
-#include "sequence/io/base_reader.h"
 #include "edge_io_meta.h"
-
+#include "sequence/io/base_reader.h"
 
 class EdgeReader : public BaseSequenceReader {
  public:
@@ -71,7 +70,7 @@ class EdgeReader : public BaseSequenceReader {
   int64_t cur_cnt_{};
   int64_t cur_vol_{};
   bool is_opened_{false};
-  
+
   EdgeIoMetadata metadata_;
 
  private:
@@ -80,18 +79,18 @@ class EdgeReader : public BaseSequenceReader {
     buffer_.resize(metadata_.words_per_edge);
 
     for (unsigned i = 0; i < metadata_.num_files; ++i) {
-      in_streams_.emplace_back(new std::ifstream(file_prefix_ + ".edges." + std::to_string(i),
-                                                 std::ifstream::binary | std::ifstream::in));
+      in_streams_.emplace_back(
+          new std::ifstream(file_prefix_ + ".edges." + std::to_string(i), std::ifstream::binary | std::ifstream::in));
     }
 
     cur_cnt_ = 0;
     cur_vol_ = 0;
     cur_bucket_ = -1;
-    
+
     if (!metadata_.is_sorted) {
       cur_reader_.reset(in_streams_[0].get());
     }
-    
+
     is_opened_ = true;
   }
 
@@ -127,7 +126,7 @@ class EdgeReader : public BaseSequenceReader {
     ++cur_cnt_;
     auto n_read = cur_reader_.read(buffer_.data(), metadata_.words_per_edge);
     assert(n_read == metadata_.words_per_edge * sizeof(uint32_t));
-    (void) n_read;
+    (void)n_read;
     return buffer_.data();
   }
 
@@ -139,7 +138,7 @@ class EdgeReader : public BaseSequenceReader {
     ++cur_cnt_;
     auto n_read = cur_reader_.read(buffer_.data(), metadata_.words_per_edge);
     assert(n_read == metadata_.words_per_edge * sizeof(uint32_t));
-    (void) n_read;
+    (void)n_read;
     return buffer_.data();
   }
 };

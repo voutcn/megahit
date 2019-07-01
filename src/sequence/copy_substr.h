@@ -1,6 +1,7 @@
 /*
  *  MEGAHIT
- *  Copyright (C) 2014 - 2015 The University of Hong Kong & L3 Bioinformatics Limited
+ *  Copyright (C) 2014 - 2015 The University of Hong Kong & L3 Bioinformatics
+ * Limited
  *
  *  This program is free software: you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -46,13 +47,10 @@ struct is_uint32_ptr {
  * @param num_chars_to_copy
  */
 
-template <typename DstIt, typename SrcIt,
-    typename std::enable_if<is_uint32_ptr<DstIt>::value, int>::type = 0,
-    typename std::enable_if<is_uint32_ptr<SrcIt>::value, int>::type = 0>
-inline void CopySubstring(DstIt dst, SrcIt src,
-                          unsigned offset, unsigned num_chars_to_copy, uint64_t spacing,
+template <typename DstIt, typename SrcIt, typename std::enable_if<is_uint32_ptr<DstIt>::value, int>::type = 0,
+          typename std::enable_if<is_uint32_ptr<SrcIt>::value, int>::type = 0>
+inline void CopySubstring(DstIt dst, SrcIt src, unsigned offset, unsigned num_chars_to_copy, uint64_t spacing,
                           unsigned words_per_read, unsigned words_per_substring) {
-  // copy words of the suffix to the suffix pool
   unsigned which_word = offset / kCharsPerEdgeWord;
   unsigned word_offset = offset % kCharsPerEdgeWord;
   auto src_ptr = src + which_word;
@@ -97,18 +95,18 @@ inline void CopySubstring(DstIt dst, SrcIt src,
 }
 
 /**
- * @brief copy the reverse complement of src_read[offset...(offset+num_chars_to_copy-1)] to dest
+ * @brief copy the reverse complement of
+ * src_read[offset...(offset+num_chars_to_copy-1)] to dest
  *
  * @param dst [description]
  * @param src [description]
  * @param offset [description]
  * @param num_chars_to_copy [description]
  */
-template <typename DstIt, typename SrcIt,
-    typename std::enable_if<is_uint32_ptr<DstIt>::value, int>::type = 0,
-    typename std::enable_if<is_uint32_ptr<SrcIt>::value, int>::type = 0>
-inline void CopySubstringRC(DstIt dst, SrcIt src, unsigned offset, unsigned num_chars_to_copy,
-                            uint64_t spacing, unsigned words_per_read, unsigned words_per_substring) {
+template <typename DstIt, typename SrcIt, typename std::enable_if<is_uint32_ptr<DstIt>::value, int>::type = 0,
+          typename std::enable_if<is_uint32_ptr<SrcIt>::value, int>::type = 0>
+inline void CopySubstringRC(DstIt dst, SrcIt src, unsigned offset, unsigned num_chars_to_copy, uint64_t spacing,
+                            unsigned words_per_read, unsigned words_per_substring) {
   unsigned which_word = (offset + num_chars_to_copy - 1) / kCharsPerEdgeWord;
   unsigned word_offset = (offset + num_chars_to_copy - 1) % kCharsPerEdgeWord;
   auto dst_ptr = dst;

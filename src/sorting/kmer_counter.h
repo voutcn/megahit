@@ -1,6 +1,7 @@
 /*
  *  MEGAHIT
- *  Copyright (C) 2014 - 2015 The University of Hong Kong & L3 Bioinformatics Limited
+ *  Copyright (C) 2014 - 2015 The University of Hong Kong & L3 Bioinformatics
+ * Limited
  *
  *  This program is free software: you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -27,10 +28,10 @@
 #include <vector>
 #include "base_engine.h"
 #include "definitions.h"
+#include "edge_counter.h"
 #include "sequence/io/edge/edge_writer.h"
 #include "sequence/sequence_package.h"
 #include "utils/atomic_wrapper.h"
-#include "edge_counter.h"
 
 struct KmerCounterOption {
   unsigned k{21};
@@ -52,6 +53,7 @@ class KmerCounter : public BaseSequenceSortingEngine {
 
  public:
   MemoryStat Initialize() override;
+
  protected:
   int64_t Lv0EncodeDiffBase(int64_t) override;
   void Lv0CalcBucketSize(int64_t seq_from, int64_t seq_to, std::array<int64_t, kNumBuckets> *out) override;
@@ -66,7 +68,8 @@ class KmerCounter : public BaseSequenceSortingEngine {
  private:
   KmerCounterOption opt_;
 
-  int words_per_edge_{};           // number of (32-bit) words needed to represent a (k+1)-mer
+  int words_per_edge_{};        // number of (32-bit) words needed to represent a
+                                // (k+1)-mer
   int64_t words_per_substr_{};  // substrings to be sorted by GPU
   SeqPackage seq_pkg_;
   std::vector<AtomicWrapper<uint32_t>> first_0_out_;

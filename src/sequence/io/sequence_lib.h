@@ -4,7 +4,8 @@
 
 /*
  *  MEGAHIT
- *  Copyright (C) 2014 - 2015 The University of Hong Kong & L3 Bioinformatics Limited
+ *  Copyright (C) 2014 - 2015 The University of Hong Kong & L3 Bioinformatics
+ * Limited
  *
  *  This program is free software: you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -27,47 +28,40 @@
 
 #include <cstdint>
 #include <string>
-#include "sequence/sequence_package.h"
 #include "binary_reader.h"
+#include "paired_fastx_reader.h"
+#include "sequence/sequence_package.h"
 #include "utils/safe_open.h"
 #include "utils/utils.h"
-#include "paired_fastx_reader.h"
 
 class SequenceLib {
  public:
-  SequenceLib(SeqPackage *data_holder, int64_t held_begin, int64_t held_end,
-              unsigned max_read_length, bool is_paired, std::string description)
-      : data_holder_(data_holder), held_begin_(held_begin), held_end_(held_end),
-        max_read_len_(max_read_length), is_paired_(is_paired), description_(std::move(description)) {}
+  SequenceLib(SeqPackage *data_holder, int64_t held_begin, int64_t held_end, unsigned max_read_length, bool is_paired,
+              std::string description)
+      : data_holder_(data_holder),
+        held_begin_(held_begin),
+        held_end_(held_end),
+        max_read_len_(max_read_length),
+        is_paired_(is_paired),
+        description_(std::move(description)) {}
 
   SeqPackage::SeqView GetSequenceView(int64_t seq_id) const {
     assert(seq_id >= 0 && seq_id + held_begin_ < held_end_);
     return data_holder_->GetSeqView(seq_id + held_begin_);
   }
 
-  unsigned GetMaxLength() const {
-    return max_read_len_;
-  }
+  unsigned GetMaxLength() const { return max_read_len_; }
 
-  bool IsPaired() const {
-    return is_paired_;
-  }
+  bool IsPaired() const { return is_paired_; }
 
   void DumpMetadata(std::ostream &os) const {
     os << description_ << '\n';
-    os << held_begin_ << ' '
-       << held_end_ << ' '
-       << max_read_len_ << ' '
-       << is_paired_ << '\n';
+    os << held_begin_ << ' ' << held_end_ << ' ' << max_read_len_ << ' ' << is_paired_ << '\n';
   }
 
-  void LoadMetadata(std::istream &is) {
-    is >> description_ >> held_begin_ >> held_end_ >> max_read_len_ >> is_paired_;
-  }
+  void LoadMetadata(std::istream &is) { is >> description_ >> held_begin_ >> held_end_ >> max_read_len_ >> is_paired_; }
 
-  size_t seq_count() const {
-    return held_end_ - held_begin_;
-  }
+  size_t seq_count() const { return held_end_ - held_begin_; }
 
  private:
   SeqPackage *data_holder_;
@@ -90,6 +84,7 @@ class SequenceLibCollection {
   void Read(SeqPackage *pkg, bool reverse_seq = false);
   size_t size() const { return libs_.size(); }
   const SequenceLib &GetLib(size_t id) const { return libs_[id]; }
+
  private:
   std::string path_;
   std::vector<SequenceLib> libs_;

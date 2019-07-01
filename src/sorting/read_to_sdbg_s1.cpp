@@ -1,6 +1,7 @@
 /*
  *  MEGAHIT
- *  Copyright (C) 2014 - 2015 The University of Hong Kong & L3 Bioinformatics Limited
+ *  Copyright (C) 2014 - 2015 The University of Hong Kong & L3 Bioinformatics
+ * Limited
  *
  *  This program is free software: you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -22,12 +23,12 @@
 
 #include <algorithm>
 
-#include "sequence/kmer.h"
 #include "sequence/copy_substr.h"
+#include "sequence/kmer.h"
 #include "utils/safe_open.h"
 #include "utils/utils.h"
 
-namespace { // helper functions
+namespace {  // helper functions
 
 /**
  * @brief encode read_id and its offset in one int64_t
@@ -71,13 +72,11 @@ inline uint8_t ExtractHeadTail(const uint32_t *item, int64_t spacing, int words_
 
 inline uint8_t ExtractPrevNext(int64_t readinfo) { return readinfo & ((1 << 2 * Read2SdbgS1::kBWTCharNumBits) - 1); }
 
-} // namespace
+}  // namespace
 
 // sorting core functions
 
-int64_t Read2SdbgS1::Lv0EncodeDiffBase(int64_t read_id) {
-  return EncodeOffset(read_id, 0, 0, seq_pkg_->package);
-}
+int64_t Read2SdbgS1::Lv0EncodeDiffBase(int64_t read_id) { return EncodeOffset(read_id, 0, 0, seq_pkg_->package); }
 
 Read2SdbgS1::MemoryStat Read2SdbgS1::Initialize() {
   bool is_reverse = true;
@@ -94,24 +93,21 @@ Read2SdbgS1::MemoryStat Read2SdbgS1::Initialize() {
   seq_collection.Read(&seq_pkg_->package, is_reverse);
   seq_pkg_->package.BuildIndex();
 
-  xinfo("{} reads, {} max read length, {} total bases\n", seq_pkg_->package.seq_count(),
-        seq_pkg_->package.max_length(),
+  xinfo("{} reads, {} max read length, {} total bases\n", seq_pkg_->package.seq_count(), seq_pkg_->package.max_length(),
         seq_pkg_->package.base_count());
 
-  words_per_substr_ =
-      DivCeiling((opt_.k - 1) * kBitsPerEdgeChar + 2 * kBWTCharNumBits, kBitsPerEdgeWord);
+  words_per_substr_ = DivCeiling((opt_.k - 1) * kBitsPerEdgeChar + 2 * kBWTCharNumBits, kBitsPerEdgeWord);
   xinfo("{} words per substring\n", words_per_substr_);
 
   if (opt_.solid_threshold > 1) {
     seq_pkg_->is_solid.reset(seq_pkg_->package.base_count());
   }
 
-
   // --- initialize output mercy files ---
   seq_pkg_->n_mercy_files = 1;
 
-  while (seq_pkg_->n_mercy_files * 10485760LL <
-      static_cast<int64_t>(seq_pkg_->package.seq_count()) && seq_pkg_->n_mercy_files < 64) {
+  while (seq_pkg_->n_mercy_files * 10485760LL < static_cast<int64_t>(seq_pkg_->package.seq_count()) &&
+         seq_pkg_->n_mercy_files < 64) {
     seq_pkg_->n_mercy_files <<= 1;
   }
   xinfo("Number of files for mercy candidate reads: {}\n", seq_pkg_->n_mercy_files);
@@ -123,15 +119,11 @@ Read2SdbgS1::MemoryStat Read2SdbgS1::Initialize() {
 
   // --- initialize stat ---
   edge_counter_.SetNumThreads(opt_.n_threads);
-  int64_t memory_for_data = DivCeiling(seq_pkg_->is_solid.size(), 8)
-      + seq_pkg_->package.size_in_byte()
-      + edge_counter_.size_in_byte();
+  int64_t memory_for_data =
+      DivCeiling(seq_pkg_->is_solid.size(), 8) + seq_pkg_->package.size_in_byte() + edge_counter_.size_in_byte();
 
   return {
-      num_reads,
-      memory_for_data,
-      words_per_substr_ + 2,
-      2,
+      num_reads, memory_for_data, words_per_substr_ + 2, 2,
   };
 }
 
@@ -205,7 +197,7 @@ void Read2SdbgS1::Lv1FillOffsets(OffsetFiller &filler, int64_t seq_from, int64_t
     rev_k_minus1_mer = k_minus1_mer;
     rev_k_minus1_mer.ReverseComplement(opt_.k - 1);
 
-    // ===== this is a macro to save some copy&paste ================
+// ===== this is a macro to save some copy&paste ================
 #define CHECK_AND_SAVE_OFFSET(offset, strand)                                                \
   do {                                                                                       \
     if (filler.IsHandling(key)) {                                                            \
@@ -236,7 +228,8 @@ void Read2SdbgS1::Lv1FillOffsets(OffsetFiller &filler, int64_t seq_from, int64_t
         key = k_minus1_mer.data()[0] >> (kCharsPerEdgeWord - kBucketPrefixLength) * kBitsPerEdgeChar;
         CHECK_AND_SAVE_OFFSET(last_char_offset - opt_.k + 2, 0);
       } else {
-        // a not-that-math-correct solution if the edge is palindrome, but works well enough
+        // a not-that-math-correct solution if the edge is palindrome, but works
+        // well enough
         int prev = seq_view.base_at(last_char_offset - (opt_.k - 1));
         int next = seq_view.base_at(last_char_offset + 1);
 
@@ -319,11 +312,11 @@ void Read2SdbgS1::Lv2ExtractSubString(OffsetFetcher &fetcher, SubstrPtr substr_p
                       words_per_substr_);
       auto last_word = substr_ptr + int64_t(words_per_substr_ - 1) * 1;
       *last_word |= ((tail == kSentinelValue ? kSentinelValue : 3 - tail) << kBWTCharNumBits) |
-          (head == kSentinelValue ? kSentinelValue : 3 - head);
+                    (head == kSentinelValue ? kSentinelValue : 3 - head);
       read_info = (full_offset << 6) | ((next == kSentinelValue ? kSentinelValue : (3 - next)) << 3) |
-          (prev == kSentinelValue ? kSentinelValue : (3 - prev));
+                  (prev == kSentinelValue ? kSentinelValue : (3 - prev));
     }
-    
+
     DecomposeUint64(substr_ptr + words_per_substr_, read_info);
     substr_ptr += words_per_substr_ + 2;
   }
@@ -359,8 +352,7 @@ void Read2SdbgS1::Lv2Postprocess(int64_t from, int64_t to, int thread, uint32_t 
 
       auto read_info = ComposeUint64(first_item + words_per_substr_);
       uint8_t prev_and_next = ExtractPrevNext(read_info);
-      uint8_t head_and_tail =
-          ExtractHeadTail(substr + end_idx * (words_per_substr_ + 2), 1, words_per_substr_);
+      uint8_t head_and_tail = ExtractHeadTail(substr + end_idx * (words_per_substr_ + 2), 1, words_per_substr_);
       count_prev_head[prev_and_next >> 3][head_and_tail >> 3]++;
       count_tail_next[head_and_tail & 7][prev_and_next & 7]++;
       count_head_tail[head_and_tail]++;
@@ -398,16 +390,14 @@ void Read2SdbgS1::Lv2Postprocess(int64_t from, int64_t to, int thread, uint32_t 
     }
 
     while (i < end_idx) {
-      uint8_t head_and_tail =
-          ExtractHeadTail(substr + i * (2 + words_per_substr_), 1, words_per_substr_);
+      uint8_t head_and_tail = ExtractHeadTail(substr + i * (2 + words_per_substr_), 1, words_per_substr_);
       uint8_t head = head_and_tail >> 3;
       uint8_t tail = head_and_tail & 7;
 
       if (head != kSentinelValue && tail != kSentinelValue) {
         edge_counter_.Add(count_head_tail[head_and_tail], thread);
       }
-      if (head != kSentinelValue && tail != kSentinelValue &&
-          count_head_tail[head_and_tail] >= opt_.solid_threshold) {
+      if (head != kSentinelValue && tail != kSentinelValue && count_head_tail[head_and_tail] >= opt_.solid_threshold) {
         for (int64_t j = 0; j < count_head_tail[head_and_tail]; ++j, ++i) {
           int64_t read_info = ComposeUint64(substr + i * (2 + words_per_substr_) + words_per_substr_) >> 6;
           auto seq_view = seq_pkg_->package.GetSeqViewByOffset(read_info >> 1);
@@ -435,7 +425,8 @@ void Read2SdbgS1::Lv2Postprocess(int64_t from, int64_t to, int thread, uint32_t 
           }
         }
       } else {
-        // not solid, but we still need to tell whether its left/right kmer is solid
+        // not solid, but we still need to tell whether its left/right kmer is
+        // solid
         for (int64_t j = 0; j < count_head_tail[head_and_tail]; ++j, ++i) {
           int64_t read_info = ComposeUint64(substr + i * (2 + words_per_substr_) + words_per_substr_) >> 6;
           auto seq_view = seq_pkg_->package.GetSeqViewByOffset(read_info >> 1);

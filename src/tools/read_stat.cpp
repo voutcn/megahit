@@ -1,6 +1,7 @@
 /*
  *  MEGAHIT
- *  Copyright (C) 2014 - 2015 The University of Hong Kong & L3 Bioinformatics Limited
+ *  Copyright (C) 2014 - 2015 The University of Hong Kong & L3 Bioinformatics
+ * Limited
  *
  *  This program is free software: you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -23,8 +24,8 @@
 #include <zlib.h>
 #include <algorithm>
 
-#include "utils/utils.h"
 #include "sequence/io/kseq.h"
+#include "utils/utils.h"
 
 #ifndef KSEQ_INITED
 #define KSEQ_INITED
@@ -54,7 +55,7 @@ int main_read_stat(int argc, char **argv) {
   double avg_len = total_len * 1.0 / num_reads;
 
   pprintf("number reads: {}\ntotal size: {}\nlongest: {}\nshortest: {}\navg: %lf\n", num_reads, total_len, max_len,
-         min_len, avg_len);
+          min_len, avg_len);
 
   kseq_destroy(seq);
   gzclose(fp);

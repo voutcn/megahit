@@ -60,9 +60,12 @@ void FoldPalindrome(std::string &s, unsigned kmer_k, bool is_loop) {
 
 }  // namespace
 
-void OutputContigs(UnitigGraph &graph, ContigWriter *contig_writer,
-    ContigWriter *final_contig_writer, bool change_only, uint32_t min_standalone) {
-  assert(!(change_only && final_contig_writer != nullptr));  // if output changed contigs, must not output final contigs
+void OutputContigs(UnitigGraph &graph, ContigWriter *contig_writer, ContigWriter *final_contig_writer, bool change_only,
+                   uint32_t min_standalone) {
+  assert(!(change_only && final_contig_writer != nullptr));  // if output
+                                                             // changed contigs,
+                                                             // must not output
+                                                             // final contigs
 
 #pragma omp parallel for
   for (UnitigGraph::size_type i = 0; i < graph.size(); ++i) {

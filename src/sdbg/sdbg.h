@@ -224,7 +224,8 @@ class SDBG {
    * An internal function to collect incoming edges & in-degrees
    * @tparam flag
    * @param edge_id
-   * @param incomings the incoming edges will be written in the address if kFlagWriteOut is set
+   * @param incomings the incoming edges will be written in the address if
+   * kFlagWriteOut is set
    * @return in degree of the edge; -1 if edge or flag invalid
    */
   template <uint8_t flag = 0>
@@ -273,7 +274,8 @@ class SDBG {
    * An internal function to collect outgoing edges & in-degrees
    * @tparam flag
    * @param edge_id
-   * @param outgoings the outgoing edges will be written in the address if kFlagWriteOut is set
+   * @param outgoings the outgoing edges will be written in the address if
+   * kFlagWriteOut is set
    * @return out degree of the edge; -1 if edge or flag invalid
    */
   template <uint8_t flag = 0>
@@ -347,7 +349,8 @@ class SDBG {
   bool EdgeOutdegreeZero(uint64_t edge_id) const { return ComputeOutgoings<kFlagMustEq0>(edge_id, nullptr) == 0; }
   /**
    * @param edge_id
-   * @return if the edge has only one outgoing edge, return that one; otherwise -1
+   * @return if the edge has only one outgoing edge, return that one; otherwise
+   * -1
    */
   uint64_t UniqueNextEdge(uint64_t edge_id) const {
     uint64_t ret = 0;
@@ -359,7 +362,8 @@ class SDBG {
   }
   /**
    * @param edge_id
-   * @return if the edge has only one incoming edge, return that one; otherwise -1
+   * @return if the edge has only one incoming edge, return that one; otherwise
+   * -1
    */
   uint64_t UniquePrevEdge(uint64_t edge_id) const {
     uint64_t ret = 0;
@@ -371,7 +375,8 @@ class SDBG {
   }
   /**
    * @param edge_id
-   * @return if the edge has only one incoming edge which is on a simple path, return that one;
+   * @return if the edge has only one incoming edge which is on a simple path,
+   * return that one;
    * otherwise -1
    */
   uint64_t PrevSimplePathEdge(uint64_t edge_id) const {
@@ -384,7 +389,8 @@ class SDBG {
   }
   /**
    * @param edge_id
-   * @return if the edge has only one outgoing edge which is on a simple path, return that one;
+   * @return if the edge has only one outgoing edge which is on a simple path,
+   * return that one;
    * otherwise -1
    */
   uint64_t NextSimplePathEdge(uint64_t edge_id) const {

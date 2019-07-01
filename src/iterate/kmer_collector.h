@@ -7,8 +7,8 @@
 
 #include "parallel_hashmap/phmap.h"
 #include "sdbg/sdbg_def.h"
-#include "sequence/kmer_plus.h"
 #include "sequence/io/edge/edge_writer.h"
+#include "sequence/kmer_plus.h"
 #include "utils/mutex.h"
 
 template <class KmerType>

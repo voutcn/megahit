@@ -4,19 +4,18 @@
 #include <cassert>
 #include <cstdint>
 
+#include <fstream>
+#include <memory>
 #include <string>
 #include <vector>
-#include <memory>
-#include <fstream>
 
 #include "definitions.h"
+#include "edge_io_meta.h"
 #include "utils/buffered_reader.h"
 #include "utils/utils.h"
-#include "edge_io_meta.h"
 
 class EdgeWriter {
  private:
-
   EdgeIoMetadata metadata_{};
   std::string file_prefix_;
   std::vector<std::unique_ptr<std::ofstream>> files_;
@@ -32,7 +31,7 @@ class EdgeWriter {
     friend class EdgeWriter;
   };
 
-  EdgeWriter() : is_opened_(false) {};
+  EdgeWriter() : is_opened_(false){};
   ~EdgeWriter() { Finalize(); }
 
   void SetKmerSize(uint32_t k) {
@@ -97,7 +96,7 @@ class EdgeWriter {
 
   void Finalize() {
     if (is_opened_) {
-      for (auto &file: files_) {
+      for (auto &file : files_) {
         file->close();
       }
       std::ofstream info_file(file_prefix_ + ".edges.info");
@@ -108,4 +107,4 @@ class EdgeWriter {
   }
 };
 
-#endif //MEGAHIT_EDGE_WRITER_H
+#endif  // MEGAHIT_EDGE_WRITER_H

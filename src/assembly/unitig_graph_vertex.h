@@ -40,7 +40,8 @@ class UnitigGraphVertex {
   bool is_palindrome : 1;
   bool is_changed : 1;
   // status that can be modified by adapter during traversal and must be atomic
-  AtomicWrapper<uint8_t> flag;  // bit 0-4: any flag; bit 5: marked as to delete; bit 6 & 7: marked as to disconnect
+  AtomicWrapper<uint8_t> flag;  // bit 0-4: any flag; bit 5: marked as to
+                                // delete; bit 6 & 7: marked as to disconnect
   static const unsigned kToDeleteBit = 5;
   static const unsigned kToDisconnectBit = 6;
   static const uint8_t kFlagMask = (1u << kToDeleteBit) - 1;

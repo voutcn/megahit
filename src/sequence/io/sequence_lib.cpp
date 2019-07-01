@@ -117,4 +117,3 @@ std::pair<int64_t, int64_t> SequenceLibCollection::GetSize() const {
   lib_info_file >> total_bases >> num_reads;
   return {total_bases, num_reads};
 }
-

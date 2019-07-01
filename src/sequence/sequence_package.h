@@ -1,6 +1,7 @@
 /*
  *  MEGAHIT
- *  Copyright (C) 2014 - 2015 The University of Hong Kong & L3 Bioinformatics Limited
+ *  Copyright (C) 2014 - 2015 The University of Hong Kong & L3 Bioinformatics
+ * Limited
  *
  *  This program is free software: you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -23,8 +24,8 @@
 
 #include <cassert>
 #include <cstdint>
-#include <vector>
 #include <ostream>
+#include <vector>
 #include "kmlib/kmbit.h"
 #include "kmlib/kmcompactvector.h"
 #include "utils/utils.h"
@@ -32,7 +33,7 @@
 /**
  * @brief hold a set of sequences
  */
-template<class WordType = unsigned long>
+template <class WordType = unsigned long>
 class SequencePackage {
  public:
   /**
@@ -40,26 +41,20 @@ class SequencePackage {
    */
   class SeqView {
    public:
-    SeqView(const SequencePackage *pkg, size_t seq_id)
-        : package_(pkg), seq_id_(seq_id) {}
+    SeqView(const SequencePackage *pkg, size_t seq_id) : package_(pkg), seq_id_(seq_id) {}
 
-    unsigned length() const {
-      return package_->GetSeqLength(seq_id_);
-    }
+    unsigned length() const { return package_->GetSeqLength(seq_id_); }
 
-    std::pair<const WordType*, unsigned> raw_address(unsigned offset = 0) const {
+    std::pair<const WordType *, unsigned> raw_address(unsigned offset = 0) const {
       return package_->GetRawAddress(seq_id_, offset);
     }
 
-    size_t base_at(unsigned index) const {
-      return package_->GetBase(seq_id_, index);
-    }
+    size_t base_at(unsigned index) const { return package_->GetBase(seq_id_, index); }
 
     size_t id() const { return seq_id_; }
 
-    size_t full_offset_in_pkg() const {
-      return package_->StartPos(seq_id_);
-    }
+    size_t full_offset_in_pkg() const { return package_->StartPos(seq_id_); }
+
    private:
     const SequencePackage *package_;
     size_t seq_id_;
@@ -67,7 +62,7 @@ class SequencePackage {
 
   using TWord = WordType;
   using TVector = kmlib::CompactVector<2, TWord, kmlib::kBigEndian>;
-  using TAddress = std::pair<const TWord*, unsigned>;
+  using TAddress = std::pair<const TWord *, unsigned>;
   const static unsigned kBasesPerWord = TVector::kBasesPerWord;
 
  public:
@@ -98,18 +93,14 @@ class SequencePackage {
 
   size_t size_in_byte() const {
     return sizeof(TWord) * sequences_.word_capacity() + sizeof(uint64_t) * start_pos_.capacity() +
-        sizeof(uint64_t) * pos_to_id_.capacity();
+           sizeof(uint64_t) * pos_to_id_.capacity();
   }
 
   unsigned max_length() const { return max_len_; }
 
-  SeqView GetSeqView(size_t seq_id) const {
-    return SeqView(this, seq_id);
-  }
+  SeqView GetSeqView(size_t seq_id) const { return SeqView(this, seq_id); }
 
-  SeqView GetSeqViewByOffset(size_t offset) const {
-    return SeqView(this, GetSeqID(offset));
-  }
+  SeqView GetSeqViewByOffset(size_t offset) const { return SeqView(this, GetSeqID(offset)); }
 
  private:
   unsigned GetSeqLength(size_t seq_id) const {
@@ -216,8 +207,8 @@ class SequencePackage {
     for (int64_t i = from; i <= to; ++i) {
       len = GetSeqView(i).length();
       FetchSequence(i, &s);
-      os.write(reinterpret_cast<const char*>(&len), sizeof(uint32_t));
-      os.write(reinterpret_cast<const char*>(s.data()), sizeof(uint32_t) * s.size());
+      os.write(reinterpret_cast<const char *>(&len), sizeof(uint32_t));
+      os.write(reinterpret_cast<const char *>(s.data()), sizeof(uint32_t) * s.size());
     }
   }
 

@@ -60,9 +60,9 @@ inline unsigned Popcount(T val) {
 template <typename T>
 inline unsigned Ctz(T val) {
   CHECK_TYPE(T);
-  return sizeof(T) <= sizeof(U)
-             ? __builtin_ctz(val)
-             : sizeof(T) <= sizeof(UL) ? __builtin_ctzl(val) : sizeof(T) <= sizeof(ULL) ? __builtin_ctzll(val) : 0;
+  return sizeof(T) <= sizeof(U) ? __builtin_ctz(val) : sizeof(T) <= sizeof(UL)
+                                                           ? __builtin_ctzl(val)
+                                                           : sizeof(T) <= sizeof(ULL) ? __builtin_ctzll(val) : 0;
 }
 
 template <typename Tx, typename Ty>
@@ -389,7 +389,8 @@ class RankAndSelect {
   // sampling for select
   // rank_interval_lookup_[c][i]=j: the jth interval (0 based)
   // contains the (i*kSelectSampleSize)th (0 based) c
-  // i.e. OccValue(c, j)<=i*kSelectSampleSize and OccValue(c, j+1)>i*kSelectSampleSize
+  // i.e. OccValue(c, j)<=i*kSelectSampleSize and OccValue(c,
+  // j+1)>i*kSelectSampleSize
   std::vector<TInterval> rank2itv_[kAlphabetSize];
   std::vector<uint16_t> l1_occ_[kAlphabetSize];   // level 1 OCC
   std::vector<size_type> l2_occ_[kAlphabetSize];  // level 2 OCC

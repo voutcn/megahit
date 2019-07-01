@@ -1,6 +1,7 @@
 /*
  *  MEGAHIT
- *  Copyright (C) 2014 - 2015 The University of Hong Kong & L3 Bioinformatics Limited
+ *  Copyright (C) 2014 - 2015 The University of Hong Kong & L3 Bioinformatics
+ * Limited
  *
  *  This program is free software: you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -28,8 +29,8 @@
 
 #include "kmlib/kmbitvector.h"
 #include "parallel_hashmap/phmap.h"
-#include "sequence/kmer_plus.h"
 #include "sequence/io/sequence_lib.h"
+#include "sequence/kmer_plus.h"
 #include "sequence/sequence_package.h"
 #include "utils/mutex.h"
 
@@ -91,7 +92,7 @@ struct LocalAssembler {
   SpinLock lock_;
   AtomicBitVector locks_;
 
-  std::vector<std::deque<MappedReadRecord> > mapped_f_, mapped_r_;
+  std::vector<std::deque<MappedReadRecord>> mapped_f_, mapped_r_;
 
   LocalAssembler(int min_contig_len, int seed_kmer, int sparsity)
       : min_contig_len_(min_contig_len), seed_kmer_(seed_kmer), sparsity_(sparsity) {
@@ -125,13 +126,8 @@ struct LocalAssembler {
   void LocalAssemble();
 
   void AddToHashMapper(mapper_t &mapper, unsigned contig_id, int sparsity);
-  int Match(const SeqPackage::SeqView &seq_view,
-            int query_from,
-            int query_to,
-            size_t contig_id,
-            int ref_from,
-            int ref_to,
-            bool strand);
+  int Match(const SeqPackage::SeqView &seq_view, int query_from, int query_to, size_t contig_id, int ref_from,
+            int ref_to, bool strand);
   int LocalRange(int lib_id);
   int AddToMappingDeque(size_t read_id, const MappingRecord &rec, int local_range);
   int AddMateToMappingDeque(size_t read_id, size_t mate_id, const MappingRecord &rec1, const MappingRecord &rec2,

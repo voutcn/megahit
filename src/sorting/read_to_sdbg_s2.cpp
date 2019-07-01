@@ -1,6 +1,7 @@
 /*
  *  MEGAHIT
- *  Copyright (C) 2014 - 2015 The University of Hong Kong & L3 Bioinformatics Limited
+ *  Copyright (C) 2014 - 2015 The University of Hong Kong & L3 Bioinformatics
+ * Limited
  *
  *  This program is free software: you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -20,13 +21,13 @@
 
 #include "read_to_sdbg.h"
 
+#include <omp.h>
 #include <string>
 #include <vector>
-#include <omp.h>
 
 #include "kmlib/kmsort.h"
-#include "sequence/kmer.h"
 #include "sequence/copy_substr.h"
+#include "sequence/kmer.h"
 #include "utils/safe_open.h"
 #include "utils/utils.h"
 
@@ -79,19 +80,15 @@ inline int Extract_a(uint32_t *item, int num_words, int64_t spacing, int kmer_k)
 inline int Extract_b(uint32_t *item, int num_words, int64_t spacing) {
   return item[(num_words - 1) * spacing] & ((1 << Read2SdbgS2::kBWTCharNumBits) - 1);
 }
-} // namespace
+}  // namespace
 
 // sorting core functions
-int64_t Read2SdbgS2::Lv0EncodeDiffBase(int64_t read_id) {
-  return EncodeOffset(read_id, 0, 0, seq_pkg_->package, 0);
-}
+int64_t Read2SdbgS2::Lv0EncodeDiffBase(int64_t read_id) { return EncodeOffset(read_id, 0, 0, seq_pkg_->package, 0); }
 
 Read2SdbgS2::MemoryStat Read2SdbgS2::Initialize() {
-
   words_per_substr_ = DivCeiling(opt_.k * kBitsPerEdgeChar + kBWTCharNumBits + 1, kBitsPerEdgeWord);
   words_per_dummy_node_ = DivCeiling(opt_.k * kBitsPerEdgeChar, kBitsPerEdgeWord);
-  xinfo("{} words per substring, words per dummy node ($v): {}\n", words_per_substr_,
-        words_per_dummy_node_);
+  xinfo("{} words per substring, words per dummy node ($v): {}\n", words_per_substr_, words_per_dummy_node_);
 
   // --- init output ---
   sdbg_writer_.set_num_threads(opt_.n_threads);
@@ -100,14 +97,10 @@ Read2SdbgS2::MemoryStat Read2SdbgS2::Initialize() {
   sdbg_writer_.set_file_prefix(opt_.output_prefix);
   sdbg_writer_.InitFiles();
 
-  int64_t memory_for_data = DivCeiling(seq_pkg_->is_solid.size(), 8)
-      + seq_pkg_->package.size_in_byte();
+  int64_t memory_for_data = DivCeiling(seq_pkg_->is_solid.size(), 8) + seq_pkg_->package.size_in_byte();
 
   MemoryStat ret{
-      static_cast<int64_t>(seq_pkg_->package.seq_count()),
-      memory_for_data,
-      words_per_substr_,
-      0,
+      static_cast<int64_t>(seq_pkg_->package.seq_count()), memory_for_data, words_per_substr_, 0,
   };
 
   if (!opt_.need_mercy || opt_.solid_threshold == 1) {
@@ -156,14 +149,14 @@ Read2SdbgS2::MemoryStat Read2SdbgS2::Initialize() {
         start_idx[tid] = end_idx[tid - 1];
       }
 
-      uint64_t this_end = std::min(start_idx[tid] + avg, (uint64_t) mercy_cand.size());
+      uint64_t this_end = std::min(start_idx[tid] + avg, (uint64_t)mercy_cand.size());
       size_t read_id = 0;
       if (this_end < mercy_cand.size()) {
         read_id = seq_pkg_->package.GetSeqViewByOffset(mercy_cand[this_end] >> 2).id();
       }
 
       while (this_end < mercy_cand.size() &&
-          seq_pkg_->package.GetSeqViewByOffset(mercy_cand[this_end] >> 2).id() == read_id) {
+             seq_pkg_->package.GetSeqViewByOffset(mercy_cand[this_end] >> 2).id() == read_id) {
         ++this_end;
       }
 
@@ -194,7 +187,7 @@ Read2SdbgS2::MemoryStat Read2SdbgS2::Initialize() {
         std::fill(has_solid_kmer.begin(), has_solid_kmer.end(), false);
 
         while (mercy_index != end_idx[tid] &&
-            seq_pkg_->package.GetSeqViewByOffset(mercy_cand[mercy_index] >> 2).id() == read_id) {
+               seq_pkg_->package.GetSeqViewByOffset(mercy_cand[mercy_index] >> 2).id() == read_id) {
           int offset = (mercy_cand[mercy_index] >> 2) - seq_view.full_offset_in_pkg();
           if ((mercy_cand[mercy_index] & 3) == 2) {
             no_out[offset] = true;
@@ -330,7 +323,7 @@ void Read2SdbgS2::Lv1FillOffsets(OffsetFiller &filler, int64_t seq_from, int64_t
     rev_edge = edge;
     rev_edge.ReverseComplement(opt_.k + 1);
 
-    // ===== this is a macro to save some copy&paste ================
+// ===== this is a macro to save some copy&paste ================
 #define CHECK_AND_SAVE_OFFSET(offset, strand, edge_type)                                                \
   do {                                                                                                  \
     if (filler.IsHandling(key)) {                                                                       \
@@ -414,22 +407,25 @@ void Read2SdbgS2::Lv2ExtractSubString(OffsetFetcher &fetcher, SubstrPtr substr) 
       uint8_t prev = kSentinelValue;
 
       switch (edge_type) {
-        case 0:break;
+        case 0:
+          break;
 
-        case 1:prev = seq_view.base_at(offset);
+        case 1:
+          prev = seq_view.base_at(offset);
           offset++;
           break;
 
-        case 2:prev = seq_view.base_at(offset + 1);
+        case 2:
+          prev = seq_view.base_at(offset + 1);
           offset += 2;
           num_chars_to_copy--;
           break;
 
-        default:assert(false);
+        default:
+          assert(false);
       }
 
-      CopySubstring(substr, read_p, offset + start_offset, num_chars_to_copy, 1, words_this_read,
-                    words_per_substr_);
+      CopySubstring(substr, read_p, offset + start_offset, num_chars_to_copy, 1, words_this_read, words_per_substr_);
 
       auto last_word = substr + (words_per_substr_ - 1) * 1;
       *last_word |= unsigned(num_chars_to_copy == opt_.k) << kBWTCharNumBits;
@@ -452,13 +448,10 @@ void Read2SdbgS2::Lv2ExtractSubString(OffsetFetcher &fetcher, SubstrPtr substr) 
           offset++;
           break;
         }
-        default: {
-          assert(false);
-        }
+        default: { assert(false); }
       }
 
-      CopySubstringRC(substr, read_p, offset + start_offset, num_chars_to_copy, 1, words_this_read,
-                      words_per_substr_);
+      CopySubstringRC(substr, read_p, offset + start_offset, num_chars_to_copy, 1, words_this_read, words_per_substr_);
 
       auto last_word = substr + (words_per_substr_ - 1);
       *last_word |= unsigned(num_chars_to_copy == opt_.k) << kBWTCharNumBits;
@@ -481,8 +474,7 @@ void Read2SdbgS2::Lv2Postprocess(int64_t from, int64_t to, int tid, uint32_t *su
     end_idx = start_idx + 1;
     uint32_t *item = substr + start_idx * words_per_substr_;
 
-    while (end_idx < to &&
-        !IsDiffKMinusOneMer(item, substr + end_idx * words_per_substr_, 1, opt_.k)) {
+    while (end_idx < to && !IsDiffKMinusOneMer(item, substr + end_idx * words_per_substr_, 1, opt_.k)) {
       ++end_idx;
     }
 
@@ -554,8 +546,8 @@ void Read2SdbgS2::Lv2Postprocess(int64_t from, int64_t to, int tid, uint32_t *su
         }
       }
 
-      sdbg_writer_.Write(tid, cur_item[0] >> (32 - kBucketPrefixLength * 2), w, last, is_dollar, count,
-                         tip_label, &snapshot);
+      sdbg_writer_.Write(tid, cur_item[0] >> (32 - kBucketPrefixLength * 2), w, last, is_dollar, count, tip_label,
+                         &snapshot);
     }
   }
   sdbg_writer_.SaveSnapshot(snapshot);

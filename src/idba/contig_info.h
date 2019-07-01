@@ -24,7 +24,8 @@ typedef std::basic_string<SequenceCountUnitType> SequenceCount;
 class ContigBuilder;
 
 /**
- * @brief It is used to store information of contigs, like k-mer counts, in-edges,
+ * @brief It is used to store information of contigs, like k-mer counts,
+ * in-edges,
  * out-edges, etc.
  */
 class ContigInfo {

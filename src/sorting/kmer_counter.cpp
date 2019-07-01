@@ -2,9 +2,9 @@
 
 #include <algorithm>
 
-#include "sequence/kmer.h"
 #include "sequence/copy_substr.h"
 #include "sequence/io/sequence_lib.h"
+#include "sequence/kmer.h"
 #include "utils/safe_open.h"
 #include "utils/utils.h"
 
@@ -52,9 +52,7 @@ void KmerCounter::PackEdge(uint32_t *dest, uint32_t *item, int64_t counting) {
 
 // function pass to BaseSequenceSortingEngine
 
-int64_t KmerCounter::Lv0EncodeDiffBase(int64_t read_id) {
-  return EncodeOffset(read_id, 0, 0, seq_pkg_);
-}
+int64_t KmerCounter::Lv0EncodeDiffBase(int64_t read_id) { return EncodeOffset(read_id, 0, 0, seq_pkg_); }
 
 KmerCounter::MemoryStat KmerCounter::Initialize() {
   bool is_reverse = true;
@@ -93,14 +91,11 @@ KmerCounter::MemoryStat KmerCounter::Initialize() {
   edge_writer_.InitFiles();
 
   int64_t memory_for_data = seq_pkg_.size_in_byte() +
-      +seq_pkg_.seq_count() * sizeof(first_0_out_[0]) * 2     // first_in0 & last_out0
-      + edge_counter_.size_in_byte();  // edge_counting
+                            +seq_pkg_.seq_count() * sizeof(first_0_out_[0]) * 2  // first_in0 & last_out0
+                            + edge_counter_.size_in_byte();                      // edge_counting
 
   return {
-      num_reads,
-      memory_for_data,
-      words_per_substr_ + 2,
-      2,
+      num_reads, memory_for_data, words_per_substr_ + 2, 2,
   };
 }
 
@@ -214,14 +209,13 @@ void KmerCounter::Lv2ExtractSubString(OffsetFetcher &fetcher, SubstrPtr substr_p
     }
     uint64_t read_info;
     if (strand == 0) {
-      CopySubstring(substr_ptr, read_p, offset + start_offset, num_chars_to_copy, 1, words_this_seq,
-                    words_per_substr_);
+      CopySubstring(substr_ptr, read_p, offset + start_offset, num_chars_to_copy, 1, words_this_seq, words_per_substr_);
       read_info = (full_offset << 6) | (prev << 3) | next;
     } else {
       CopySubstringRC(substr_ptr, read_p, offset + start_offset, num_chars_to_copy, 1, words_this_seq,
                       words_per_substr_);
       read_info = (full_offset << 6) | ((next == kSentinelValue ? kSentinelValue : (3 - next)) << 3) |
-          (prev == kSentinelValue ? kSentinelValue : (3 - prev));
+                  (prev == kSentinelValue ? kSentinelValue : (3 - prev));
     }
     DecomposeUint64(substr_ptr + words_per_substr_, read_info);
     substr_ptr += words_per_substr_ + 2;
@@ -243,8 +237,7 @@ void KmerCounter::Lv2Postprocess(int64_t start_index, int64_t end_index, int thr
     uint32_t *first_item = substr_ptr + i * (words_per_substr_ + 2);
 
     while (to_ < end_index) {
-      if (IsDifferentEdges(first_item, substr_ptr + to_ * (words_per_substr_ + 2),
-                           words_per_substr_, 1)) {
+      if (IsDifferentEdges(first_item, substr_ptr + to_ * (words_per_substr_ + 2), words_per_substr_, 1)) {
         break;
       }
 
@@ -290,18 +283,18 @@ void KmerCounter::Lv2Postprocess(int64_t start_index, int64_t end_index, int thr
           // update last
           uint32_t old_value = last_0_in_[seq_view.id()].v.load(std::memory_order::memory_order_acquire);
           while ((old_value == kSentinelOffset || old_value < offset) &&
-              !last_0_in_[seq_view.id()].v.compare_exchange_weak(
-                  old_value, offset,
-                  std::memory_order::memory_order_release,
-                  std::memory_order::memory_order_relaxed)) {
+                 !last_0_in_[seq_view.id()].v.compare_exchange_weak(old_value, offset,
+                                                                    std::memory_order::memory_order_release,
+                                                                    std::memory_order::memory_order_relaxed)) {
           }
         } else {
           // update first
           offset++;
           uint32_t old_value = first_0_out_[seq_view.id()].v.load(std::memory_order::memory_order_acquire);
-          while (old_value > offset && !first_0_out_[seq_view.id()].v.compare_exchange_weak(
-              old_value, offset, std::memory_order::memory_order_release,
-              std::memory_order::memory_order_relaxed)) {
+          while (old_value > offset &&
+                 !first_0_out_[seq_view.id()].v.compare_exchange_weak(old_value, offset,
+                                                                      std::memory_order::memory_order_release,
+                                                                      std::memory_order::memory_order_relaxed)) {
           }
         }
       }
@@ -319,18 +312,18 @@ void KmerCounter::Lv2Postprocess(int64_t start_index, int64_t end_index, int thr
           // update first
           offset++;
           uint32_t old_value = first_0_out_[seq_view.id()].v.load(std::memory_order::memory_order_acquire);
-          while (old_value > offset && !first_0_out_[seq_view.id()].v.compare_exchange_weak(
-              old_value, offset, std::memory_order::memory_order_release,
-              std::memory_order::memory_order_relaxed)) {
+          while (old_value > offset &&
+                 !first_0_out_[seq_view.id()].v.compare_exchange_weak(old_value, offset,
+                                                                      std::memory_order::memory_order_release,
+                                                                      std::memory_order::memory_order_relaxed)) {
           }
         } else {
           // update last
           uint32_t old_value = last_0_in_[seq_view.id()].v.load(std::memory_order::memory_order_acquire);
           while ((old_value == kSentinelOffset || old_value < offset) &&
-              !last_0_in_[seq_view.id()].v.compare_exchange_weak(
-                  old_value, offset,
-                  std::memory_order::memory_order_release,
-                  std::memory_order::memory_order_relaxed)) {
+                 !last_0_in_[seq_view.id()].v.compare_exchange_weak(old_value, offset,
+                                                                    std::memory_order::memory_order_release,
+                                                                    std::memory_order::memory_order_relaxed)) {
           }
         }
       }

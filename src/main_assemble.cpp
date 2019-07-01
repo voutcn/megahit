@@ -1,6 +1,7 @@
 /*
  *  MEGAHIT
- *  Copyright (C) 2014 - 2015 The University of Hong Kong & L3 Bioinformatics Limited
+ *  Copyright (C) 2014 - 2015 The University of Hong Kong & L3 Bioinformatics
+ * Limited
  *
  *  This program is free software: you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -26,8 +27,8 @@
 #include <string>
 
 #include "assembly/all_algo.h"
-#include "assembly/contig_stat.h"
 #include "assembly/contig_output.h"
+#include "assembly/contig_stat.h"
 #include "utils/histgram.h"
 #include "utils/options_description.h"
 #include "utils/safe_open.h"
@@ -76,7 +77,8 @@ void ParseAsmOption(int argc, char *argv[]) {
   desc.AddOption("prune_level", "", opt.prune_level, "strength of low local depth contig pruning (0-3)");
   desc.AddOption("low_local_ratio", "", opt.low_local_ratio, "ratio to define low depth contigs");
   desc.AddOption("min_depth", "", opt.min_depth,
-                 "if prune_level >= 2, permanently remove low local coverage unitigs under this threshold");
+                 "if prune_level >= 2, permanently remove low local coverage "
+                 "unitigs under this threshold");
   desc.AddOption("is_final_round", "", opt.is_final_round, "this is the last iteration");
   desc.AddOption("output_standalone", "", opt.output_standalone, "output standalone contigs to *.final.contigs.fa");
   desc.AddOption("careful_bubble", "", opt.careful_bubble, "remove bubble carefully");
@@ -229,7 +231,8 @@ int main_assemble(int argc, char **argv) {
     timer.reset();
     timer.start();
 
-    OutputContigs(graph, &contig_writer, opt.output_standalone ? &standalone_writer : nullptr, false, opt.min_standalone);
+    OutputContigs(graph, &contig_writer, opt.output_standalone ? &standalone_writer : nullptr, false,
+                  opt.min_standalone);
     timer.stop();
     xinfo("Time to output: {}\n", timer.elapsed());
   }
@@ -249,14 +252,17 @@ int main_assemble(int argc, char **argv) {
       n_bubbles = complex_bubble_remover.PopBubbles(graph, false);
       timer.stop();
     }
-    xinfo("Number of local low depth unitigs removed: {}, complex bubbles removed: {}, time: {}\n", num_removed,
-          n_bubbles, timer.elapsed());
+    xinfo(
+        "Number of local low depth unitigs removed: {}, complex bubbles "
+        "removed: {}, time: {}\n",
+        num_removed, n_bubbles, timer.elapsed());
     CalcAndPrintStat(graph);
 
     if (!opt.is_final_round) {
       OutputContigs(graph, &addi_contig_writer, nullptr, true, 0);
     } else {
-      OutputContigs(graph, &contig_writer, opt.output_standalone ? &standalone_writer : nullptr, false, opt.min_standalone);
+      OutputContigs(graph, &contig_writer, opt.output_standalone ? &standalone_writer : nullptr, false,
+                    opt.min_standalone);
     }
 
     auto stat_changed = CalcAndPrintStat(graph, false, true);

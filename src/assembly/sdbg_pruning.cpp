@@ -1,6 +1,7 @@
 /*
  *  MEGAHIT
- *  Copyright (C) 2014 - 2015 The University of Hong Kong & L3 Bioinformatics Limited
+ *  Copyright (C) 2014 - 2015 The University of Hong Kong & L3 Bioinformatics
+ * Limited
  *
  *  This program is free software: you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -19,9 +20,9 @@
 /* contact: Dinghua Li <dhli@cs.hku.hk> */
 
 #include "sdbg_pruning.h"
+#include <algorithm>
 #include <cassert>
 #include <cmath>
-#include <algorithm>
 #include <queue>
 #include <unordered_set>
 #include <vector>

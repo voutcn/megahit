@@ -1,6 +1,7 @@
 /*
  *  MEGAHIT
- *  Copyright (C) 2014 - 2015 The University of Hong Kong & L3 Bioinformatics Limited
+ *  Copyright (C) 2014 - 2015 The University of Hong Kong & L3 Bioinformatics
+ * Limited
  *
  *  This program is free software: you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -22,28 +23,28 @@
 #define MEGAHIT_UTILS_H
 
 #include <fcntl.h>
-#include <cstdarg>
-#include <cstdio>
-#include <cstdlib>
 #include <sys/resource.h>
 #include <sys/time.h>
-#include <ctime>
 #include <unistd.h>
+#include <cstdarg>
 #include <cstdint>
+#include <cstdio>
+#include <cstdlib>
+#include <ctime>
 
 #include "pprintpp/pprintpp.hpp"
 
-template<typename T1, typename T2>
+template <typename T1, typename T2>
 inline T1 DivCeiling(T1 a, T2 b) {
   return (a + b - 1) / b;
 }
 
-template<typename RandomIt>
+template <typename RandomIt>
 inline uint64_t ComposeUint64(const RandomIt src) {
   return (static_cast<uint64_t>(src[0]) << 32u) | src[1];
 }
 
-template<typename RandomIt>
+template <typename RandomIt>
 inline void DecomposeUint64(RandomIt dst, uint64_t x) {
   dst[0] = x >> 32u;
   dst[1] = x & 0xFFFFFFFFllu;
@@ -112,7 +113,8 @@ struct SimpleTimer {
 };
 
 struct AutoMaxRssRecorder {
-  struct timeval tv1{}, tv2{};
+  struct timeval tv1 {
+  }, tv2{};
 
   AutoMaxRssRecorder() { gettimeofday(&tv1, nullptr); }
 

@@ -39,7 +39,7 @@ struct BufferST {
   uint32_t index;
 };
 
-template <typename T, typename Allocator = std::allocator<T> >
+template <typename T, typename Allocator = std::allocator<T>>
 class PoolST {
  public:
   typedef T value_type;

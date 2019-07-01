@@ -1,6 +1,7 @@
 /*
  *  MEGAHIT
- *  Copyright (C) 2014 - 2015 The University of Hong Kong & L3 Bioinformatics Limited
+ *  Copyright (C) 2014 - 2015 The University of Hong Kong & L3 Bioinformatics
+ * Limited
  *
  *  This program is free software: you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -18,8 +19,8 @@
 
 /* contact: Dinghua Li <dhli@cs.hku.hk> */
 
-#include <cassert>
 #include <omp.h>
+#include <cassert>
 
 #include <algorithm>
 #include <iostream>
@@ -58,7 +59,8 @@ static void ParseIterOptions(int argc, char *argv[]) {
   desc.AddOption("num_cpu_threads", "t", opt.num_cpu_threads, "number of cpu threads, at least 2. 0 for auto detect.");
   desc.AddOption("kmer_k", "k", opt.kmer_k, "(*) current kmer size.");
   desc.AddOption("step", "s", opt.step,
-                 "(*) step for iteration (<= 29). i.e. this iteration is from kmer_k to (kmer_k + step)");
+                 "(*) step for iteration (<= 29). i.e. this iteration is from "
+                 "kmer_k to (kmer_k + step)");
   desc.AddOption("output_prefix", "o", opt.output_prefix,
                  "(*) output_prefix.edges.0 and output_prefix.rr.pb will be created.");
 

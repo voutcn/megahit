@@ -11,7 +11,7 @@
 #include "sequence/io/contig/contig_reader.h"
 #include "sequence/sequence_package.h"
 
-template<class PackageType>
+template <class PackageType>
 class BaseAsyncSequenceReader {
  public:
   using package_type = PackageType;
@@ -43,8 +43,7 @@ class BaseAsyncSequenceReader {
 
 class AsyncSequenceReader : public BaseAsyncSequenceReader<SeqPackage> {
  public:
-  explicit AsyncSequenceReader(BaseSequenceReader *reader, bool reverse = false)
-      : reader_(reader), reverse_(reverse) {
+  explicit AsyncSequenceReader(BaseSequenceReader *reader, bool reverse = false) : reader_(reader), reverse_(reverse) {
     AsyncReadNextBatch();
   }
   ~AsyncSequenceReader() override { StopReading(); }

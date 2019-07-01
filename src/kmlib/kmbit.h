@@ -64,7 +64,8 @@ inline T SwapMaskedBits(T value) {
 
 /*!
  * @brief reverse an integer at a resolution base of BaseSize
- * @details e.g. for BaseSize = 2 and T = uint64_t, this function swap the 1st base
+ * @details e.g. for BaseSize = 2 and T = uint64_t, this function swap the 1st
+ * base
  * with the 32th, the 2nd with the 31th and so on. The 1st base the first two
  * bits, and the last base is the last 2 bits
  * @tparam BaseSize the base size, i.e. the number of bits per base

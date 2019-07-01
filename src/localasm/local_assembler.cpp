@@ -1,6 +1,7 @@
 /*
  *  MEGAHIT
- *  Copyright (C) 2014 - 2015 The University of Hong Kong & L3 Bioinformatics Limited
+ *  Copyright (C) 2014 - 2015 The University of Hong Kong & L3 Bioinformatics
+ * Limited
  *
  *  This program is free software: you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -128,8 +129,8 @@ inline int Mismatch(uint32_t x, uint32_t y) {
   return __builtin_popcount(x);
 }
 
-int LocalAssembler::Match(const SeqPackage::SeqView &seq_view,
-    int query_from, int query_to, size_t contig_id, int ref_from, int ref_to, bool strand) {
+int LocalAssembler::Match(const SeqPackage::SeqView &seq_view, int query_from, int query_to, size_t contig_id,
+                          int ref_from, int ref_to, bool strand) {
   auto query_ptr_and_offset = seq_view.raw_address();
   const uint32_t *query_first_word = query_ptr_and_offset.first;
   int query_shift = query_ptr_and_offset.second;
@@ -158,8 +159,7 @@ int LocalAssembler::Match(const SeqPackage::SeqView &seq_view,
   return match_len;
 }
 
-bool LocalAssembler::MapToHashMapper(const mapper_t &mapper,
-    const SeqPackage::SeqView &seq_view, MappingRecord &rec) {
+bool LocalAssembler::MapToHashMapper(const mapper_t &mapper, const SeqPackage::SeqView &seq_view, MappingRecord &rec) {
   int len = seq_view.length();
 
   if (len < seed_kmer_ || len < 50) return false;  // too short reads not reliable
@@ -204,7 +204,8 @@ bool LocalAssembler::MapToHashMapper(const mapper_t &mapper,
     contig_to = std::min(static_cast<int>(contig_view.length() - 1), contig_to);
 
     if (contig_to - contig_from + 1 < len && contig_to - contig_from + 1 < min_mapped_len_) {
-      continue;  // clipped alignment is considered iff its length >= min_mapped_len_
+      continue;  // clipped alignment is considered iff its length >=
+                 // min_mapped_len_
     }
 
     int query_from =
@@ -280,14 +281,12 @@ void LocalAssembler::EstimateInsertSize() {
             int insert_size;
 
             if (rec1.strand == 0) {
-              insert_size =
-                  rec2.contig_to + seq2.length() - rec2.query_to - (rec1.contig_from - rec1.query_from);
+              insert_size = rec2.contig_to + seq2.length() - rec2.query_to - (rec1.contig_from - rec1.query_from);
             } else {
-              insert_size =
-                  rec1.contig_to + seq1.length() - rec1.query_to - (rec2.contig_from - rec2.query_from);
+              insert_size = rec1.contig_to + seq1.length() - rec1.query_to - (rec2.contig_from - rec2.query_from);
             }
 
-            if (insert_size >= (int) seq1.length() && insert_size >= (int) seq2.length()) {
+            if (insert_size >= (int)seq1.length() && insert_size >= (int)seq2.length()) {
               insert_hist.insert(insert_size);
             }
           }
@@ -420,8 +419,10 @@ void LocalAssembler::MapToContigs() {
       }
     }
 
-    xinfo("Lib {}: total {} reads, aligned {}, added {} reads for local assembly\n", lib_id,
-          lib.seq_count(), num_mapped, num_added);
+    xinfo(
+        "Lib {}: total {} reads, aligned {}, added {} reads for local "
+        "assembly\n",
+        lib_id, lib.seq_count(), num_mapped, num_added);
   }
   locks_.reset(0);
 }
@@ -491,7 +492,8 @@ void LocalAssembler::LocalAssemble() {
 
   ContigWriter local_contig_writer(local_filename_);
 
-#pragma omp parallel for private(hash_graph, contig_graph, seq, contig_end, reads, out_contigs, out_contig_infos) schedule(dynamic)
+#pragma omp parallel for private(hash_graph, contig_graph, seq, contig_end, reads, out_contigs, \
+                                 out_contig_infos) schedule(dynamic)
   for (uint64_t cid = 0; cid < contigs_.seq_count(); ++cid) {
     auto contig_view = contigs_.GetSeqView(cid);
     int cl = contig_view.length();

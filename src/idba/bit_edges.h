@@ -14,7 +14,8 @@
 #include "kmlib/kmbit.h"
 
 /**
- * @brief It is compact bit vector used to represent edges in de Bruijn graph (HashGraph).
+ * @brief It is compact bit vector used to represent edges in de Bruijn graph
+ * (HashGraph).
  */
 class BitEdges {
  public:

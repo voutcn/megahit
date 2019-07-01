@@ -1,6 +1,7 @@
 /*
  *  MEGAHIT
- *  Copyright (C) 2014 - 2015 The University of Hong Kong & L3 Bioinformatics Limited
+ *  Copyright (C) 2014 - 2015 The University of Hong Kong & L3 Bioinformatics
+ * Limited
  *
  *  This program is free software: you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -25,8 +26,8 @@
 #include <string>
 #include <vector>
 
-#include "utils/utils.h"
 #include "sequence/io/kseq.h"
+#include "utils/utils.h"
 
 using namespace std;
 
@@ -93,7 +94,7 @@ int main_contig2fastg(int argc, char **argv) {
   vector<double> muls;
   vector<string> node_names;
   vector<string> rev_node_names;
-  map<string, vector<int> > start_kmer_to_id;
+  map<string, vector<int>> start_kmer_to_id;
 
   while (kseq_read(seq) >= 0) {
     if (seq->seq.l < k + 1) {
@@ -103,7 +104,7 @@ int main_contig2fastg(int argc, char **argv) {
     double mul;
     auto n_scanned = sscanf(seq->comment.s + 7, "multi=%lf", &mul);
     assert(n_scanned == 1);
-    (void) n_scanned;
+    (void)n_scanned;
 
     muls.push_back(mul);
     ctgs.push_back(string(seq->seq.s));

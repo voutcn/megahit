@@ -16,7 +16,7 @@ UnitigGraph::UnitigGraph(SDBG *sdbg) : sdbg_(sdbg), adapter_impl_(this), sudo_ad
   SpinLock path_lock;
   AtomicBitVector locks(sdbg_->size());
   size_t count_palindrome = 0;
-  // assemble simple paths
+// assemble simple paths
 #pragma omp parallel for reduction(+ : count_palindrome)
   for (uint64_t edge_idx = 0; edge_idx < sdbg_->size(); ++edge_idx) {
     if (sdbg_->IsValidEdge(edge_idx) && sdbg_->NextSimplePathEdge(edge_idx) == SDBG::kNullID &&
@@ -355,8 +355,8 @@ std::string UnitigGraph::VertexToDNAString(VertexAdapter v) {
 
     cur_edge = sdbg_->PrevSimplePathEdge(cur_edge);
     if (cur_edge == SDBG::kNullID) {
-      xfatal("{}, {}, {}, {}, ({}, {}), {}, {}\n", v.b(), v.e(), v.rb(), v.re(),
-             sdbg_->EdgeReverseComplement(v.e()), sdbg_->EdgeReverseComplement(v.b()), v.GetLength(), i);
+      xfatal("{}, {}, {}, {}, ({}, {}), {}, {}\n", v.b(), v.e(), v.rb(), v.re(), sdbg_->EdgeReverseComplement(v.e()),
+             sdbg_->EdgeReverseComplement(v.b()), v.GetLength(), i);
     }
   }
 

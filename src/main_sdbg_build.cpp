@@ -25,10 +25,10 @@
 #include <stdexcept>
 #include <string>
 
+#include "definitions.h"
 #include "sorting/kmer_counter.h"
 #include "sorting/read_to_sdbg.h"
 #include "sorting/seq_to_sdbg.h"
-#include "definitions.h"
 #include "utils/options_description.h"
 #include "utils/utils.h"
 
@@ -46,7 +46,8 @@ int main_kmer_count(int argc, char **argv) {
   desc.AddOption("read_lib_file", "", opt.read_lib_file, "read library configuration file.");
   desc.AddOption("output_prefix", "", opt.output_prefix, "output prefix");
   desc.AddOption("mem_flag", "", opt.mem_flag,
-                 "memory options. 0: minimize memory usage; 1: automatically use moderate memory; "
+                 "memory options. 0: minimize memory usage; 1: automatically "
+                 "use moderate memory; "
                  "other: use all "
                  "available mem specified by '--host_mem'");
 
@@ -92,7 +93,8 @@ int main_read2sdbg(int argc, char **argv) {
   desc.AddOption("read_lib_file", "", opt.read_lib_file, "input fast[aq] file, can be gzip'ed. \"-\" for stdin.");
   desc.AddOption("output_prefix", "", opt.output_prefix, "output prefix");
   desc.AddOption("mem_flag", "", opt.mem_flag,
-                 "memory options. 0: minimize memory usage; 1: automatically use moderate memory; "
+                 "memory options. 0: minimize memory usage; 1: automatically "
+                 "use moderate memory; "
                  "other: use all "
                  "available mem specified by '--host_mem'");
   desc.AddOption("need_mercy", "", opt.need_mercy, "to add mercy edges.");
@@ -147,7 +149,8 @@ int main_seq2sdbg(int argc, char **argv) {
   Seq2SdbgOption opt;
 
   desc.AddOption("host_mem", "", opt.host_mem,
-                 "memory to be used. No more than 95% of the free memory is recommended. 0 for auto detect.");
+                 "memory to be used. No more than 95% of the free memory is "
+                 "recommended. 0 for auto detect.");
   desc.AddOption("kmer_size", "k", opt.k, "kmer size");
   desc.AddOption("kmer_from", "", opt.k_from, "previous k");
   desc.AddOption("num_cpu_threads", "t", opt.n_threads, "number of CPU threads. At least 2.");
@@ -159,9 +162,11 @@ int main_seq2sdbg(int argc, char **argv) {
                  "files input_prefix.edges.* output by count module, can be gzip'ed.");
   desc.AddOption("output_prefix", "o", opt.output_prefix, "output prefix");
   desc.AddOption("need_mercy", "", opt.need_mercy,
-                 "to add mercy edges. The file input_prefix.cand output by count module should exist.");
+                 "to add mercy edges. The file input_prefix.cand output by "
+                 "count module should exist.");
   desc.AddOption("mem_flag", "", opt.mem_flag,
-                 "memory options. 0: minimize memory usage; 1: automatically use moderate memory; "
+                 "memory options. 0: minimize memory usage; 1: automatically "
+                 "use moderate memory; "
                  "other: use all "
                  "available mem specified by '--host_mem'");
 
@@ -185,7 +190,8 @@ int main_seq2sdbg(int argc, char **argv) {
     }
   } catch (std::exception &e) {
     std::cerr << e.what() << std::endl;
-    std::cerr << "Usage: sdbg_builder seq2sdbg -k kmer_size --contig contigs.fa [--addi_contig "
+    std::cerr << "Usage: sdbg_builder seq2sdbg -k kmer_size --contig "
+                 "contigs.fa [--addi_contig "
                  "add.fa] [--input_prefix input] -o out"
               << std::endl;
     std::cerr << "Options:" << std::endl;

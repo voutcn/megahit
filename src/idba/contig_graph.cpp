@@ -220,7 +220,8 @@ int64_t ContigGraph::Assemble(deque<Sequence> &contigs, deque<ContigInfo> &conti
       vertices_[i].status().Lock(1);
 
       Sequence contig = vertices_[i].contig();
-      // ContigInfo contig_info(vertices_[i].kmer_count(), vertices_[i].in_edges(), vertices_[i].out_edges());
+      // ContigInfo contig_info(vertices_[i].kmer_count(),
+      // vertices_[i].in_edges(), vertices_[i].out_edges());
       ContigInfo contig_info;
       contig_info.set_kmer_count(vertices_[i].kmer_count());
       contig_info.in_edges() = vertices_[i].in_edges();
