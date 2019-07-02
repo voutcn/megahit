@@ -41,7 +41,7 @@ bool RemoveLocalLowDepth(UnitigGraph &graph, double min_depth, uint32_t max_len,
   uint32_t removed = 0;
   std::atomic_bool is_changed{false};
 
-#pragma omp parallel for reduction(+ : removed)
+#pragma omp parallel for reduction(+ : removed) reduction(|| : need_refresh)
   for (UnitigGraph::size_type i = 0; i < graph.size(); ++i) {
     auto adapter = graph.MakeVertexAdapter(i);
     if (adapter.IsStandalone() || adapter.GetLength() > max_len) {
