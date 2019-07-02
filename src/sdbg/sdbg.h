@@ -19,7 +19,7 @@
  */
 class SDBG {
  public:
-  static const uint64_t kNullID = -1;
+  static const uint64_t kNullID = static_cast<uint64_t>(-1);
   SDBG() = default;
   ~SDBG() = default;
 
@@ -198,7 +198,7 @@ class SDBG {
    * @return the length of label (always k)
    */
   uint32_t GetLabel(uint64_t id, uint8_t *seq) const {
-    int64_t x = id;
+    uint64_t x = id;
     for (int i = k_ - 1; i >= 0; --i) {
       if (IsTip(x)) {
         const label_word_t *tip_label = TipLabelStartPtr(x);
@@ -284,7 +284,7 @@ class SDBG {
       return -1;
     }
     uint64_t outdegree = 0;
-    int64_t next_edge = Forward(edge_id);
+    uint64_t next_edge = Forward(edge_id);
     do {
       if (IsValidEdge(next_edge)) {
         if (flag & kFlagMustEq0) {
@@ -299,7 +299,7 @@ class SDBG {
         ++outdegree;
       }
       --next_edge;
-    } while (next_edge >= 0 && !IsLastOrTip(next_edge));
+    } while (next_edge != kNullID && !IsLastOrTip(next_edge));
 
     return outdegree;
   }
@@ -435,7 +435,7 @@ class SDBG {
         return rev_node;
       }
       --rev_node;
-    } while (rev_node >= 0 && !IsLastOrTip(rev_node));
+    } while (rev_node != kNullID && !IsLastOrTip(rev_node));
 
     return kNullID;
   }

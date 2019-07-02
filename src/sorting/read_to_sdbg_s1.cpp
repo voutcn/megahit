@@ -122,7 +122,10 @@ Read2SdbgS1::MemoryStat Read2SdbgS1::Initialize() {
       DivCeiling(seq_pkg_->is_solid.size(), 8) + seq_pkg_->package.size_in_byte() + edge_counter_.size_in_byte();
 
   return {
-      num_reads, memory_for_data, words_per_substr_ + 2, 2,
+      num_reads,
+      memory_for_data,
+      words_per_substr_ + 2,
+      2,
   };
 }
 

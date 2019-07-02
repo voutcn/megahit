@@ -18,16 +18,16 @@ class BaseAsyncSequenceReader {
   BaseAsyncSequenceReader() = default;
   virtual ~BaseAsyncSequenceReader() = default;
   package_type &Next() {
-    auto &ret = next_pkg_.get();
+    auto ret = next_pkg_.get();
     AsyncReadNextBatch();
-    return ret;
+    return *ret;
   }
 
  protected:
   void AsyncReadNextBatch() {
-    auto &pkg = packages_[batch_index_];
-    next_pkg_ = std::async(std::launch::async, [this, &pkg]() -> package_type & {
-      ReadOneBatch(&pkg);
+    auto pkg = &packages_[batch_index_];
+    next_pkg_ = std::async(std::launch::async, [this, pkg]() -> package_type * {
+      ReadOneBatch(pkg);
       return pkg;
     });
     batch_index_ ^= 1;
@@ -38,27 +38,36 @@ class BaseAsyncSequenceReader {
  private:
   unsigned batch_index_{0};
   package_type packages_[2];
-  std::future<package_type &> next_pkg_;
+  std::future<package_type *> next_pkg_;
 };
 
 class AsyncSequenceReader : public BaseAsyncSequenceReader<SeqPackage> {
  public:
-  explicit AsyncSequenceReader(BaseSequenceReader *reader, bool reverse = false) : reader_(reader), reverse_(reverse) {
+  static const int64_t kDefaultNumSeqPerBatch = 1u << 22u;
+  static const int64_t kDefaultNumBasesPerBatch = 1u << 28u;
+
+  explicit AsyncSequenceReader(BaseSequenceReader *reader, bool reverse = false,
+                               int64_t sequences_per_batch = kDefaultNumSeqPerBatch,
+                               int64_t bases_per_batch = kDefaultNumBasesPerBatch)
+      : reader_(reader),
+        reverse_(reverse),
+        max_sequence_per_batch_(sequences_per_batch),
+        max_bases_per_batch_(bases_per_batch) {
     AsyncReadNextBatch();
   }
   ~AsyncSequenceReader() override { StopReading(); }
 
  protected:
   void ReadOneBatch(SeqPackage *seq_pkg) override {
-    int64_t kMaxNumReads = 1u << 22u;
-    int64_t kMaxNumBases = 1u << 28u;
     seq_pkg->Clear();
-    reader_->Read(seq_pkg, kMaxNumReads, kMaxNumBases, reverse_);
+    reader_->Read(seq_pkg, max_sequence_per_batch_, max_bases_per_batch_, reverse_);
   }
 
  private:
   BaseSequenceReader *reader_;
   bool reverse_;
+  int64_t max_sequence_per_batch_{1u << 22u};
+  int64_t max_bases_per_batch_{1u << 28u};
 };
 
 class AsyncContigReader : public BaseAsyncSequenceReader<std::pair<SeqPackage, std::vector<float>>> {

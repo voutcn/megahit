@@ -99,7 +99,10 @@ Read2SdbgS2::MemoryStat Read2SdbgS2::Initialize() {
   int64_t memory_for_data = DivCeiling(seq_pkg_->is_solid.size(), 8) + seq_pkg_->package.size_in_byte();
 
   MemoryStat ret{
-      static_cast<int64_t>(seq_pkg_->package.seq_count()), memory_for_data, words_per_substr_, 0,
+      static_cast<int64_t>(seq_pkg_->package.seq_count()),
+      memory_for_data,
+      words_per_substr_,
+      0,
   };
 
   if (!opt_.need_mercy || opt_.solid_threshold == 1) {

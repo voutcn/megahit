@@ -52,7 +52,7 @@ static std::pair<int64_t, int64_t> AdjustItemNumbers(int64_t mem_avail, int64_t 
 
   return {num_lv1_items, num_lv2_items};
 }
-}
+}  // namespace
 
 void BaseSequenceSortingEngine::AdjustMemory() {
   int64_t max_bucket_size = *std::max_element(bucket_sizes_.begin(), bucket_sizes_.end());

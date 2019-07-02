@@ -60,9 +60,9 @@ inline unsigned Popcount(T val) {
 template <typename T>
 inline unsigned Ctz(T val) {
   CHECK_TYPE(T);
-  return sizeof(T) <= sizeof(U) ? __builtin_ctz(val) : sizeof(T) <= sizeof(UL)
-                                                           ? __builtin_ctzl(val)
-                                                           : sizeof(T) <= sizeof(ULL) ? __builtin_ctzll(val) : 0;
+  return sizeof(T) <= sizeof(U)
+             ? __builtin_ctz(val)
+             : sizeof(T) <= sizeof(UL) ? __builtin_ctzl(val) : sizeof(T) <= sizeof(ULL) ? __builtin_ctzll(val) : 0;
 }
 
 template <typename Tx, typename Ty>

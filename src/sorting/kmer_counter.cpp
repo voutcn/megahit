@@ -94,7 +94,10 @@ KmerCounter::MemoryStat KmerCounter::Initialize() {
                             + edge_counter_.size_in_byte();                      // edge_counting
 
   return {
-      num_reads, memory_for_data, words_per_substr_ + 2, 2,
+      num_reads,
+      memory_for_data,
+      words_per_substr_ + 2,
+      2,
   };
 }
 
@@ -290,10 +293,9 @@ void KmerCounter::Lv2Postprocess(int64_t start_index, int64_t end_index, int thr
           // update first
           offset++;
           uint32_t old_value = first_0_out_[seq_view.id()].v.load(std::memory_order::memory_order_acquire);
-          while (old_value > offset &&
-                 !first_0_out_[seq_view.id()].v.compare_exchange_weak(old_value, offset,
-                                                                      std::memory_order::memory_order_release,
-                                                                      std::memory_order::memory_order_relaxed)) {
+          while (old_value > offset && !first_0_out_[seq_view.id()].v.compare_exchange_weak(
+                                           old_value, offset, std::memory_order::memory_order_release,
+                                           std::memory_order::memory_order_relaxed)) {
           }
         }
       }
@@ -311,10 +313,9 @@ void KmerCounter::Lv2Postprocess(int64_t start_index, int64_t end_index, int thr
           // update first
           offset++;
           uint32_t old_value = first_0_out_[seq_view.id()].v.load(std::memory_order::memory_order_acquire);
-          while (old_value > offset &&
-                 !first_0_out_[seq_view.id()].v.compare_exchange_weak(old_value, offset,
-                                                                      std::memory_order::memory_order_release,
-                                                                      std::memory_order::memory_order_relaxed)) {
+          while (old_value > offset && !first_0_out_[seq_view.id()].v.compare_exchange_weak(
+                                           old_value, offset, std::memory_order::memory_order_release,
+                                           std::memory_order::memory_order_relaxed)) {
           }
         } else {
           // update last

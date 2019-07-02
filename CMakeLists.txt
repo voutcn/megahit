@@ -10,7 +10,8 @@ endif ()
 
 option(COVERAGE "Generate coverage report" OFF)
 option(STATIC_BUILD "Build static executation" OFF)
-option(SANITIZER "Enable santinizers" OFF)
+option(SANITIZER "Enable sanitizers" OFF)
+option(TSAN "Enable thread sanitizers" OFF)
 
 include_directories(src)
 FILE(GLOB_RECURSE ASMBL_SOURCE "src/assembly/*.cpp")
@@ -58,6 +59,10 @@ endif (COVERAGE)
 if (SANITIZER)
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fsanitize=address -fsanitize=leak -fsanitize=undefined")
 endif (SANITIZER)
+
+if (TSAN)
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fsanitize=thread")
+endif (TSAN)
 
 
 message(STATUS "Build type: ${CMAKE_BUILD_TYPE}: ${CMAKE_CXX_FLAGS}")

@@ -28,6 +28,7 @@
 #include <vector>
 #include "kmlib/kmbit.h"
 #include "kmlib/kmcompactvector.h"
+#include "utils/mutex.h"
 #include "utils/utils.h"
 
 /**
@@ -41,15 +42,21 @@ class SequencePackage {
    */
   class SeqView {
    public:
-    SeqView(const SequencePackage *pkg, size_t seq_id) : package_(pkg), seq_id_(seq_id) {}
+    SeqView(const SequencePackage *pkg, size_t seq_id) : package_(pkg), seq_id_(seq_id) {
+      assert(seq_id < pkg->seq_count());
+    }
 
     unsigned length() const { return package_->GetSeqLength(seq_id_); }
 
     std::pair<const WordType *, unsigned> raw_address(unsigned offset = 0) const {
+      assert(offset < length());
       return package_->GetRawAddress(seq_id_, offset);
     }
 
-    size_t base_at(unsigned index) const { return package_->GetBase(seq_id_, index); }
+    size_t base_at(unsigned index) const {
+      assert(index < length());
+      return package_->GetBase(seq_id_, index);
+    }
 
     size_t id() const { return seq_id_; }
 

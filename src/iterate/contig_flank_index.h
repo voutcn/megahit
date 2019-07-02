@@ -37,7 +37,7 @@ class ContigFlankIndex {
         continue;
       }
       for (int strand = 0; strand < 2; ++strand) {
-        auto get_jth_char = [&seq_view, i, strand, seq_len](unsigned j) -> uint8_t {
+        auto get_jth_char = [&seq_view, strand, seq_len](unsigned j) -> uint8_t {
           uint8_t c = seq_view.base_at(strand == 0 ? j : (seq_len - 1 - j));
           return strand == 0 ? c : 3u ^ c;
         };

@@ -37,9 +37,9 @@ double LocalDepth(UnitigGraph &graph, UnitigGraph::VertexAdapter &adapter, uint3
 
 bool RemoveLocalLowDepth(UnitigGraph &graph, double min_depth, uint32_t max_len, uint32_t local_width,
                          double local_ratio, bool permanent_rm, uint32_t *num_removed) {
-  bool is_changed = false;
   bool need_refresh = false;
   uint32_t removed = 0;
+  std::atomic_bool is_changed{false};
 
 #pragma omp parallel for reduction(+ : removed)
   for (UnitigGraph::size_type i = 0; i < graph.size(); ++i) {
@@ -55,17 +55,17 @@ bool RemoveLocalLowDepth(UnitigGraph &graph, double min_depth, uint32_t max_len,
 
     if ((indegree <= 1 && outdegree <= 1) || indegree == 0 || outdegree == 0) {
       double depth = adapter.GetAvgDepth();
-      if (is_changed && depth > min_depth) continue;
+      if (is_changed.load(std::memory_order_relaxed) && depth > min_depth) continue;
       double mean = LocalDepth(graph, adapter, local_width);
       double threshold = min_depth;
 
       if (min_depth < mean * local_ratio)
-        is_changed = true;
+        is_changed.store(true, std::memory_order_relaxed);
       else
         threshold = mean * local_ratio;
 
       if (depth < threshold) {
-        is_changed = true;
+        is_changed.store(true, std::memory_order_relaxed);
         need_refresh = true;
         bool success = adapter.SetToDelete();
         assert(success);

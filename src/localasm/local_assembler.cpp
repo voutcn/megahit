@@ -491,8 +491,8 @@ void LocalAssembler::LocalAssemble() {
 
   ContigWriter local_contig_writer(local_filename_);
 
-#pragma omp parallel for private(hash_graph, contig_graph, seq, contig_end, reads, out_contigs, \
-                                 out_contig_infos) schedule(dynamic)
+#pragma omp parallel for private(hash_graph, contig_graph, seq, contig_end, reads, out_contigs, out_contig_infos) \
+    schedule(dynamic)
   for (uint64_t cid = 0; cid < contigs_.seq_count(); ++cid) {
     auto contig_view = contigs_.GetSeqView(cid);
     int cl = contig_view.length();

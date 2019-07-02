@@ -22,6 +22,7 @@
 #include "seq_to_sdbg.h"
 
 #include <omp.h>
+#include <deque>
 #include <string>
 #include <vector>
 
@@ -161,9 +162,10 @@ void SeqToSdbg::GenMercyEdges() {
   std::vector<int64_t> edge_lookup(kLookUpSize * 2);
   InitLookupTable(edge_lookup.data(), seq_pkg_);
 
-  SpinLock mercy_lock;
   BinaryReader binary_reader(opt_.input_prefix + ".cand");
-  AsyncSequenceReader reader(&binary_reader);
+  AsyncSequenceReader reader(&binary_reader, false, 1 << 16, 1 << 23);
+  std::deque<GenericKmer> mercy_edges;
+  SpinLock mercy_lock;
 
   int num_threads = std::max(1, opt_.n_threads - 1);
   omp_set_num_threads(num_threads);
@@ -172,16 +174,18 @@ void SeqToSdbg::GenMercyEdges() {
   int64_t num_mercy_reads = 0;
 
   while (true) {
-    const auto &rp = reader.Next();
-    if (rp.seq_count() == 0) {
+    const auto &batch_reads = reader.Next();
+    if (batch_reads.seq_count() == 0) {
       break;
     }
-    xinfo("Read {} reads to search for mercy k-mers\n", rp.seq_count());
+    xinfo("Read {} reads to search for mercy k-mers\n", batch_reads.seq_count());
 
-    num_mercy_reads += rp.seq_count();
+    num_mercy_reads += batch_reads.seq_count();
+    mercy_edges.clear();
+
 #pragma omp parallel for reduction(+ : num_mercy_edges)
-    for (unsigned read_id = 0; read_id < rp.seq_count(); ++read_id) {
-      auto seq_view = rp.GetSeqView(read_id);
+    for (unsigned read_id = 0; read_id < batch_reads.seq_count(); ++read_id) {
+      auto seq_view = batch_reads.GetSeqView(read_id);
       unsigned read_len = seq_view.length();
 
       if (read_len < opt_.k + 2) {
@@ -299,7 +303,7 @@ void SeqToSdbg::GenMercyEdges() {
                 auto raw_address = seq_view.raw_address();
                 GenericKmer mercy_edge(raw_address.first, raw_address.second + j, opt_.k + 1);
                 std::lock_guard<SpinLock> lk(mercy_lock);
-                seq_pkg_.AppendCompactSequence(mercy_edge.data(), opt_.k + 1);
+                mercy_edges.emplace_back(mercy_edge);
               }
 
               num_mercy_edges += i - last_no_out;
@@ -320,6 +324,10 @@ void SeqToSdbg::GenMercyEdges() {
           }
         }
       }
+    }
+
+    for (const auto &mercy_edge : mercy_edges) {
+      seq_pkg_.AppendCompactSequence(mercy_edge.data(), opt_.k + 1);
     }
   }
 
@@ -483,7 +491,9 @@ SeqToSdbg::MemoryStat SeqToSdbg::Initialize() {
 
   return {
       static_cast<int64_t>(seq_pkg_.seq_count()),
-      static_cast<int64_t>(seq_pkg_.size_in_byte() + multiplicity.capacity() * sizeof(mul_t)), words_per_substr_, 0,
+      static_cast<int64_t>(seq_pkg_.size_in_byte() + multiplicity.capacity() * sizeof(mul_t)),
+      words_per_substr_,
+      0,
   };
 }
 
