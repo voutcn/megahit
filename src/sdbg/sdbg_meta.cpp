@@ -7,20 +7,7 @@
 #include <algorithm>
 #include <cassert>
 #include <fstream>
-
-/**
- * Helper function to scan name and value
- * @tparam T
- * @param in
- * @param field
- * @param out
- */
-template <typename T>
-static void ScanField(std::ifstream &in, const std::string &field, T &out) {
-  std::string s;
-  in >> s >> out;
-  assert(s == field);
-}
+#include "utils/utils.h"
 
 SdbgMeta &SdbgMeta::FromBucketRecord(const std::vector<SdbgBucketRecord> &bucket_rec, uint32_t k,
                                      uint32_t words_per_tip_label) {

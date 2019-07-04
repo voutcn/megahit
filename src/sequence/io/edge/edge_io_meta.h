@@ -42,15 +42,6 @@ struct EdgeIoMetadata {
     }
   }
 
-  template <typename T>
-  static void ScanField(std::ifstream &in, const std::string &field, T &out) {
-    std::string s;
-    in >> s >> out;
-    if (s != field) {
-      xfatal("Invalid format! Expected {s}, got {}", field.c_str(), s.c_str());
-    }
-  }
-
   void Deserialize(std::ifstream &is) {
     unsigned num_buckets;
     ScanField(is, "kmer_size", kmer_size);

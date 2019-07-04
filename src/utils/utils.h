@@ -31,6 +31,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <ctime>
+#include <istream>
 
 #include "pprintpp/pprintpp.hpp"
 
@@ -148,5 +149,21 @@ struct AutoMaxRssRecorder {
 #endif
   }
 };
+
+/**
+ * Helper function to scan name and value
+ * @tparam T
+ * @param in
+ * @param field
+ * @param out
+ */
+template <typename T>
+static void ScanField(std::istream &in, const std::string &field, T &out) {
+  std::string s;
+  in >> s >> out;
+  if (!in || s != field) {
+    xfatal("Invalid format. Expect field {s}, got {s}\n", field.c_str(), s.c_str());
+  }
+}
 
 #endif  // MEGAHIT_UTILS_H

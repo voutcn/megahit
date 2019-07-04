@@ -16,7 +16,7 @@
  * @param file_prefix the prefix of the SDBG files
  */
 void LoadSdbgRawContent(SdbgRawContent *raw_content, const std::string &file_prefix) {
-  std::ifstream is((file_prefix + ".sdbg_info").c_str());
+  std::ifstream is(file_prefix + ".sdbg_info");
   raw_content->meta.Deserialize(is);
   const auto &metadata = raw_content->meta;
   raw_content->w.resize(metadata.item_count());
