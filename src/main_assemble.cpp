@@ -51,7 +51,9 @@ struct Option {
   int merge_len{20};
   double merge_similar{0.98};
   int prune_level{2};
+  double disconnect_ratio{0.1};
   double low_local_ratio{0.2};
+  int cleaning_rounds{5};
   bool output_standalone{false};
   bool careful_bubble{false};
 
@@ -74,7 +76,9 @@ void ParseAsmOption(int argc, char *argv[]) {
   desc.AddOption("merge_len", "", opt.merge_len, "merge complex bubbles of length <= merge_len * k");
   desc.AddOption("merge_similar", "", opt.merge_similar, "min similarity of complex bubble merging");
   desc.AddOption("prune_level", "", opt.prune_level, "strength of low local depth contig pruning (0-3)");
+  desc.AddOption("disconnect_ratio", "", opt.disconnect_ratio, "ratio threshold for disconnecting contigs");
   desc.AddOption("low_local_ratio", "", opt.low_local_ratio, "ratio to define low depth contigs");
+  desc.AddOption("cleaning_rounds", "", opt.cleaning_rounds, "number of rounds of graphs cleaning");
   desc.AddOption("min_depth", "", opt.min_depth,
                  "if prune_level >= 2, permanently remove low local coverage "
                  "unitigs under this threshold");
@@ -159,8 +163,9 @@ int main_assemble(int argc, char **argv) {
     complex_bubble_remover.SetCarefulThreshold(0.2).SetWriter(&bubble_writer);
   }
 
-  // graph cleaning for 5 rounds
-  for (int round = 1; round <= 5; ++round) {
+  // graph cleaning
+  for (int round = 1; round <= opt.cleaning_rounds; ++round) {
+    xinfo("Graph cleaning round {}\n", round);
     bool changed = false;
     if (round > 1) {
       timer.reset();
@@ -192,7 +197,7 @@ int main_assemble(int argc, char **argv) {
     // disconnect
     timer.reset();
     timer.start();
-    uint32_t num_disconnected = DisconnectWeakLinks(graph, 0.1);
+    uint32_t num_disconnected = DisconnectWeakLinks(graph, opt.disconnect_ratio);
     timer.stop();
     xinfo("Number unitigs disconnected: {}, time: {.3}\n", num_disconnected, timer.elapsed());
     changed |= num_disconnected > 0;
