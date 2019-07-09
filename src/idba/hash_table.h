@@ -284,16 +284,12 @@ class HashTableST {
   }
 
   iterator find(const key_type &key) {
-    uint64_t hash_value = hash_key(key);
-    lock_bucket(hash_value);
     uint64_t index = bucket_index_key(key);
     for (node_type *node = buckets_[index]; node; node = node->next) {
       if (key_equal_(key, get_key_(node->value))) {
-        unlock_bucket(hash_value);
         return iterator(this, node);
       }
     }
-    unlock_bucket(hash_value);
     return iterator();
   }
 
@@ -311,12 +307,10 @@ class HashTableST {
     rehash_if_needed(size_);
 
     uint64_t hash_value = hash(value);
-    lock_bucket(hash_value);
     uint64_t index = bucket_index(hash_value);
 
     for (node_type *node = buckets_[index]; node; node = node->next) {
       if (key_equal_(get_key_(node->value), get_key_(value))) {
-        unlock_bucket(hash_value);
         return node->value;
       }
     }
@@ -326,7 +320,6 @@ class HashTableST {
     p->next = buckets_[index];
     buckets_[index] = p;
     ++size_;
-    unlock_bucket(hash_value);
 
     return p->value;
   }
@@ -459,6 +452,7 @@ class HashTableST {
       }
       buckets_[i] = NULL;
     }
+    
     pool_.clear();
   }
 
@@ -499,13 +493,11 @@ class HashTableST {
         node_type *node = old_buckets[i];
         while (node) {
           uint64_t hash_value = hash(node->value);
-          // lock_bucket(hash_value);
           uint64_t index = bucket_index(hash_value);
           node_type *next = node->next;
           node->next = buckets_[index];
           buckets_[index] = node;
           node = next;
-          // unlock_bucket(hash_value);
         }
       }
     }

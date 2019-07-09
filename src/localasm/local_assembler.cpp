@@ -246,7 +246,6 @@ bool LocalAssembler::MapToHashMapper(const mapper_t &mapper, const SeqPackage::S
 #define CHECK_BEST_UNIQ(rec) do { \
   int match_bases = Match(seq_view, rec.query_from, rec.query_to, \
       rec.contig_id, rec.contig_from, rec.contig_to, rec.strand); \
-  assert(mismatch >= 0); \
   if (match_bases == max_match) { \
     unique_best = nullptr; \
   } else if (match_bases > max_match) { \
@@ -450,19 +449,19 @@ void LocalAssembler::MapToContigs() {
     }
 
     xinfo(
-        "Lib {}: total {} reads, aligned {}, added {} reads for local "
+        "Lib {}: total {} reads, aligned {}, added {} reads to local "
         "assembly\n",
         lib_id, lib.seq_count(), num_mapped, num_added);
   }
   locks_.reset(0);
 }
 
-inline void LaunchIDBA(HashGraph &hash_graph, ContigGraph &contig_graph, std::deque<Sequence> &reads,
-                       Sequence &contig_end, std::deque<Sequence> &out_contigs,
+namespace {
+inline void LaunchIDBA(ContigGraph &contig_graph, const std::deque<Sequence> &reads,
+                       const Sequence &contig_end, std::deque<Sequence> &out_contigs,
                        std::deque<ContigInfo> &out_contig_infos, int mink, int maxk, int step) {
   int local_range = contig_end.size();
-  hash_graph.clear();
-  contig_graph.clear();
+  HashGraph hash_graph;
   out_contigs.clear();
   out_contig_infos.clear();
 
@@ -473,16 +472,14 @@ inline void LaunchIDBA(HashGraph &hash_graph, ContigGraph &contig_graph, std::de
   }
 
   for (int kmer_size = mink; kmer_size <= std::min(maxk, max_read_len); kmer_size += step) {
-    int64_t sum = 0;
-    hash_graph.set_kmer_size(kmer_size);
     hash_graph.clear();
+    hash_graph.set_kmer_size(kmer_size);
 
     for (auto &read : reads) {
       if ((int)read.size() < kmer_size) continue;
 
-      const Sequence &seq(read);
+      const Sequence seq(read);
       hash_graph.InsertKmers(seq);
-      sum += seq.size() - kmer_size + 1;
     }
 
     auto histgram = hash_graph.coverage_histgram();
@@ -495,6 +492,7 @@ inline void LaunchIDBA(HashGraph &hash_graph, ContigGraph &contig_graph, std::de
 
     hash_graph.Assemble(out_contigs, out_contig_infos);
 
+    contig_graph.clear();
     contig_graph.set_kmer_size(kmer_size);
     contig_graph.Initialize(out_contigs, out_contig_infos);
     contig_graph.RemoveDeadEnd(kmer_size * 2);
@@ -509,12 +507,12 @@ inline void LaunchIDBA(HashGraph &hash_graph, ContigGraph &contig_graph, std::de
     }
   }
 }
+}
 
 void LocalAssembler::LocalAssemble() {
   int min_num_reads = local_range_ / max_read_len_;
 
   Sequence seq, contig_end;
-  HashGraph hash_graph;
   ContigGraph contig_graph;
   std::deque<Sequence> reads;
   std::deque<Sequence> out_contigs;
@@ -522,7 +520,7 @@ void LocalAssembler::LocalAssemble() {
 
   ContigWriter local_contig_writer(local_filename_);
 
-#pragma omp parallel for private(hash_graph, contig_graph, seq, contig_end, reads, out_contigs, out_contig_infos) \
+#pragma omp parallel for private(contig_graph, seq, contig_end, reads, out_contigs, out_contig_infos) \
     schedule(dynamic)
   for (uint64_t cid = 0; cid < contigs_.seq_count(); ++cid) {
     auto contig_view = contigs_.GetSeqView(cid);
@@ -570,7 +568,7 @@ void LocalAssembler::LocalAssemble() {
       }
 
       out_contigs.clear();
-      LaunchIDBA(hash_graph, contig_graph, reads, contig_end, out_contigs, out_contig_infos, local_kmin_, local_kmax_,
+      LaunchIDBA(contig_graph, reads, contig_end, out_contigs, out_contig_infos, local_kmin_, local_kmax_,
                  local_step_);
 
       for (uint64_t j = 0; j < out_contigs.size(); ++j) {

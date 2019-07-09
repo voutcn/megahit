@@ -34,7 +34,6 @@ class HashGraph {
 
   explicit HashGraph(uint32_t kmer_size = 0) {
     set_kmer_size(kmer_size);
-    num_edges_ = 0;
   }
   ~HashGraph() {}
 
@@ -69,14 +68,12 @@ class HashGraph {
     if (this != &hash_graph) {
       vertex_table_.swap(hash_graph.vertex_table_);
       std::swap(kmer_size_, hash_graph.kmer_size_);
-      std::swap(num_edges_, hash_graph.num_edges_);
     }
   }
 
   uint64_t num_vertices() const { return vertex_table_.size(); }
   void clear() {
     vertex_table_.clear();
-    num_edges_ = 0;
   }
 
  private:
@@ -149,7 +146,6 @@ class HashGraph {
 
   vertex_table_type vertex_table_;
   uint32_t kmer_size_;
-  uint64_t num_edges_;
 };
 
 namespace std {
