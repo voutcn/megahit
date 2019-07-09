@@ -39,12 +39,27 @@ struct LocalAssembler {
 
   struct MappingRecord {
     uint32_t contig_id;
-    int32_t contig_from : 28;
-    int32_t contig_to : 28;
-    int16_t query_from : 15;
-    int16_t query_to : 15;
-    bool strand : 1;
-    int mismatch : 9;
+    int32_t contig_from;
+    int32_t contig_to;
+    int32_t query_from;
+    int32_t query_to;
+    uint8_t strand : 1;
+    uint32_t mismatch : 31;
+
+    bool operator<(const MappingRecord &rhs) const {
+      if (this->contig_id != rhs.contig_id) return this->contig_id < rhs.contig_id;
+      if (this->contig_from != rhs.contig_from) return this->contig_from < rhs.contig_from;
+      if (this->contig_to != rhs.contig_to) return this->contig_to < rhs.contig_to;
+      if (this->query_from != rhs.query_from) return this->query_from < rhs.query_from;
+      if (this->query_to != rhs.query_to) return this->query_to < rhs.query_to;
+      return this->strand < rhs.strand;
+    }
+
+    bool operator==(const MappingRecord &rhs) const {
+      return this->contig_id == rhs.contig_id && this->contig_from == rhs.contig_from &&
+             this->contig_to == rhs.contig_to && this->query_from == rhs.query_from &&
+             this->query_to == rhs.query_to && this->strand == rhs.strand;
+    };
   };
 
   struct MappedReadRecord {
@@ -73,7 +88,7 @@ struct LocalAssembler {
   typedef phmap::flat_hash_map<kmer_t, uint64_t, KmerHash> mapper_t;
 
   unsigned min_contig_len_;  // only align reads to these contigs
-  int seed_kmer_;            // kmer size for seeding
+  int seed_kmer_size_;       // kmer size for seeding
   double similarity_;        // similarity threshold for alignment
   int sparsity_;             // sparsity of hash mapper
   int min_mapped_len_;
@@ -95,7 +110,7 @@ struct LocalAssembler {
   std::vector<std::deque<MappedReadRecord>> mapped_f_, mapped_r_;
 
   LocalAssembler(int min_contig_len, int seed_kmer, int sparsity)
-      : min_contig_len_(min_contig_len), seed_kmer_(seed_kmer), sparsity_(sparsity) {
+      : min_contig_len_(min_contig_len), seed_kmer_size_(seed_kmer), sparsity_(sparsity) {
     similarity_ = 0.95;
     min_mapped_len_ = 100;
     local_kmin_ = 21;
@@ -132,7 +147,7 @@ struct LocalAssembler {
   int AddToMappingDeque(size_t read_id, const MappingRecord &rec, int local_range);
   int AddMateToMappingDeque(size_t read_id, size_t mate_id, const MappingRecord &rec1, const MappingRecord &rec2,
                             bool mapped2, int local_range);
-  bool MapToHashMapper(const mapper_t &mapper, const SeqPackage::SeqView &seq_view, MappingRecord &rec);
+  bool MapToHashMapper(const mapper_t &mapper, const SeqPackage::SeqView &seq_view, MappingRecord &ret);
 };
 
 #endif

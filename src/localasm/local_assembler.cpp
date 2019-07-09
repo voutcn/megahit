@@ -54,7 +54,7 @@ void LocalAssembler::BuildHashMapper() {
 
 #pragma omp parallel for reduction(+ : estimate_num_kmer)
   for (size_t i = 0; i < sz; ++i) {
-    estimate_num_kmer += (contigs_.GetSeqView(i).length() - seed_kmer_ + sparsity_) / sparsity_;
+    estimate_num_kmer += (contigs_.GetSeqView(i).length() - seed_kmer_size_ + sparsity_) / sparsity_;
   }
 
   mapper_.reserve(estimate_num_kmer);
@@ -72,23 +72,25 @@ void LocalAssembler::AddReadLib(const std::string &file_prefix) {
   insert_sizes_.resize(library_collection_.size(), tlen_t(-1, -1));
 }
 
-inline uint64_t EncodeContigOffset(unsigned contig_id, unsigned contig_offset, bool strand) {
+namespace {
+inline uint64_t EncodeContigOffset(uint32_t contig_id, uint32_t contig_offset, uint8_t strand) {
   return (uint64_t(contig_id) << 32) | (contig_offset << 1) | strand;
 }
 
-inline void DecodeContigOffset(uint64_t code, uint32_t &contig_id, uint32_t &contig_offset, bool &strand) {
+inline void DecodeContigOffset(uint64_t code, uint32_t &contig_id, uint32_t &contig_offset, uint8_t &strand) {
   contig_id = code >> 32;
   contig_offset = (code & 0xFFFFFFFFULL) >> 1;
   strand = code & 1ULL;
+}
 }
 
 void LocalAssembler::AddToHashMapper(mapper_t &mapper, unsigned contig_id, int sparcity) {
   kmer_t key;
   auto contig_view = contigs_.GetSeqView(contig_id);
-  for (int i = 0, len = contig_view.length(); i + seed_kmer_ <= len; i += sparcity) {
+  for (int i = 0, len = contig_view.length(); i + seed_kmer_size_ <= len; i += sparcity) {
     auto ptr_and_offset = contig_view.raw_address(i);
-    key.InitFromPtr(ptr_and_offset.first, ptr_and_offset.second, seed_kmer_);
-    auto kmer = key.unique_format(seed_kmer_);
+    key.InitFromPtr(ptr_and_offset.first, ptr_and_offset.second, seed_kmer_size_);
+    auto kmer = key.unique_format(seed_kmer_size_);
     auto offset = EncodeContigOffset(contig_id, i, key != kmer);
     std::lock_guard<SpinLock> lk(lock_);
     auto res = mapper.emplace(kmer, offset);
@@ -121,11 +123,13 @@ inline uint32_t GetWord(const uint32_t *first_word, uint32_t first_shift, int fr
   return ret;
 }
 
+namespace {
 inline int Mismatch(uint32_t x, uint32_t y) {
   x ^= y;
   x |= x >> 1;
   x &= 0x55555555U;
-  return __builtin_popcount(x);
+  return kmlib::bit::Popcount(x);
+}
 }
 
 int LocalAssembler::Match(const SeqPackage::SeqView &seq_view, int query_from, int query_to, size_t contig_id,
@@ -158,30 +162,31 @@ int LocalAssembler::Match(const SeqPackage::SeqView &seq_view, int query_from, i
   return match_len;
 }
 
-bool LocalAssembler::MapToHashMapper(const mapper_t &mapper, const SeqPackage::SeqView &seq_view, MappingRecord &rec) {
+
+bool LocalAssembler::MapToHashMapper(const mapper_t &mapper, const SeqPackage::SeqView &seq_view, MappingRecord &ret) {
   int len = seq_view.length();
 
-  if (len < seed_kmer_ || len < 50) return false;  // too short reads not reliable
+  if (len < seed_kmer_size_ || len < 50) return false;  // too short reads not reliable
 
-  int tested = 0;
-  MappingRecord tested_rec[3];
+  // small vector optimization
+  static const int kArraySize = 3;
+  std::array<MappingRecord, kArraySize> mapping_records;
+  int n_mapping_records = 0;
+  std::unique_ptr<std::vector<MappingRecord>> v_mapping_records;
 
   auto ptr_and_offset = seq_view.raw_address();
-  kmer_t kmer_f(ptr_and_offset.first, ptr_and_offset.second, seed_kmer_);
+  kmer_t kmer_f(ptr_and_offset.first, ptr_and_offset.second, seed_kmer_size_);
   kmer_t kmer_r = kmer_f;
-  kmer_r.ReverseComplement(seed_kmer_);
-  int num_mapped = 0;
-  uint32_t contig_id, contig_offset;
-  bool contig_strand;
+  kmer_r.ReverseComplement(seed_kmer_size_);
 
-  for (int i = seed_kmer_ - 1; i < len; ++i) {
-    if (i >= seed_kmer_) {
+  for (int i = seed_kmer_size_ - 1; i < len; ++i) {
+    if (i >= seed_kmer_size_) {
       uint8_t ch = seq_view.base_at(i);
-      kmer_f.ShiftAppend(ch, seed_kmer_);
-      kmer_r.ShiftPreappend(3 - ch, seed_kmer_);
+      kmer_f.ShiftAppend(ch, seed_kmer_size_);
+      kmer_r.ShiftPreappend(3 - ch, seed_kmer_size_);
     }
 
-    bool query_strand = kmer_f.cmp(kmer_r, seed_kmer_) <= 0 ? 0 : 1;
+    uint8_t query_strand = kmer_f.cmp(kmer_r, seed_kmer_size_) <= 0 ? 0 : 1;
 
     auto iter = mapper.find(query_strand == 0 ? kmer_f : kmer_r);
 
@@ -189,70 +194,96 @@ bool LocalAssembler::MapToHashMapper(const mapper_t &mapper, const SeqPackage::S
       continue;
     }
 
+    uint32_t contig_id, contig_offset;
+    uint8_t contig_strand;
     DecodeContigOffset(iter->second, contig_id, contig_offset, contig_strand);
 
     auto contig_view = contigs_.GetSeqView(contig_id);
-
-    assert(contig_id < contigs_.seq_count());
     assert(contig_offset < contig_view.length());
 
-    bool mapping_strand = contig_strand ^ query_strand;
-    int contig_from = mapping_strand == 0 ? contig_offset - (i - seed_kmer_ + 1) : contig_offset - (len - 1 - i);
-    int contig_to = mapping_strand == 0 ? contig_offset + seed_kmer_ - 1 + len - 1 - i : contig_offset + i;
+    uint8_t mapping_strand = contig_strand ^ query_strand;
+    int32_t contig_from = mapping_strand == 0 ? contig_offset - (i - seed_kmer_size_ + 1) : contig_offset - (len - 1 - i);
+    int32_t contig_to = mapping_strand == 0 ? contig_offset + seed_kmer_size_ - 1 + len - 1 - i : contig_offset + i;
     contig_from = std::max(contig_from, 0);
-    contig_to = std::min(static_cast<int>(contig_view.length() - 1), contig_to);
+    contig_to = std::min(static_cast<int32_t>(contig_view.length() - 1), contig_to);
 
     if (contig_to - contig_from + 1 < len && contig_to - contig_from + 1 < min_mapped_len_) {
       continue;  // clipped alignment is considered iff its length >=
                  // min_mapped_len_
     }
 
-    int query_from =
-        mapping_strand == 0 ? i - (seed_kmer_ - 1) - (contig_offset - contig_from) : i - (contig_to - contig_offset);
-    int query_to =
-        mapping_strand == 0 ? i - (seed_kmer_ - 1) + (contig_to - contig_offset) : i + (contig_offset - contig_from);
+    int32_t query_from = mapping_strand == 0 ? i - (seed_kmer_size_ - 1) - (contig_offset - contig_from)
+                                         : i - (contig_to - contig_offset);
+    int32_t query_to = mapping_strand == 0 ? i - (seed_kmer_size_ - 1) + (contig_to - contig_offset)
+                                       : i + (contig_offset - contig_from);
 
-    bool has_tested = false;
+    assert(query_from >= 0 && static_cast<uint32_t>(query_from) < seq_view.length());
+    assert(query_to >= 0 && static_cast<uint32_t>(query_to) < seq_view.length());
 
-    for (int j = 0; j < tested; ++j) {
-      if (contig_id == tested_rec[j].contig_id && contig_from == tested_rec[j].contig_from &&
-          contig_to == tested_rec[j].contig_to && query_from == tested_rec[j].query_from &&
-          query_to == tested_rec[j].query_to && mapping_strand == tested_rec[j].strand) {
-        has_tested = true;
-        break;
-      }
-    }
-
-    if (has_tested) {
-      continue;
-    } else {
-      if (tested >= 3) {
-        tested--;
-      }
-
-      tested_rec[tested].contig_id = contig_id;
-      tested_rec[tested].query_from = query_from;
-      tested_rec[tested].query_to = query_to;
-      tested_rec[tested].contig_from = contig_from;
-      tested_rec[tested].contig_to = contig_to;
-      tested_rec[tested].strand = mapping_strand;
-      ++tested;
-    }
-
-    int match_bases = Match(seq_view, query_from, query_to, contig_id, contig_from, contig_to, mapping_strand);
-
-    if (match_bases > 0) {
-      if (num_mapped > 0) {
-        return false;
+    auto rec = MappingRecord{contig_id, contig_from, contig_to, query_from, query_to, mapping_strand, 0};
+    auto end = mapping_records.begin() + n_mapping_records;
+    if (std::find(mapping_records.begin(), end, rec) == end) {
+      if (n_mapping_records < kArraySize) {
+        mapping_records[n_mapping_records] = rec;
+        n_mapping_records++;
       } else {
-        rec = tested_rec[tested - 1];
-        rec.mismatch = query_to - query_from + 1 - match_bases;
-        num_mapped = 1;
+        if (v_mapping_records.get() == nullptr) {
+          v_mapping_records.reset(new std::vector<MappingRecord>(1, rec));
+        } else {
+          v_mapping_records->push_back(rec);
+        }
       }
     }
   }
 
-  return num_mapped == 1;
+  if (n_mapping_records == 0) {
+    return false;
+  }
+
+  MappingRecord *unique_best = nullptr;
+  int32_t max_match = 0;
+
+#define CHECK_BEST_UNIQ(rec) do { \
+  int match_bases = Match(seq_view, rec.query_from, rec.query_to, \
+      rec.contig_id, rec.contig_from, rec.contig_to, rec.strand); \
+  assert(mismatch >= 0); \
+  if (match_bases == max_match) { \
+    unique_best = nullptr; \
+  } else if (match_bases > max_match) { \
+    max_match = match_bases; \
+    int32_t mismatch = rec.query_to - rec.query_from + 1 - match_bases; \
+    rec.mismatch = mismatch; \
+    unique_best = &rec; \
+  } \
+} while (0)
+
+  assert(v_mapping_records.get() == nullptr);
+
+  if (v_mapping_records.get() != nullptr) {
+    if (v_mapping_records->size() > 1) {
+      std::sort(v_mapping_records->begin(), v_mapping_records->end());
+      v_mapping_records->resize(std::unique(v_mapping_records->begin(),
+                                            v_mapping_records->end()) - v_mapping_records->begin());
+    }
+
+    for (auto &rec : *v_mapping_records) {
+      CHECK_BEST_UNIQ(rec);
+    }
+  }
+
+  for (int i = 0; i < n_mapping_records; ++i) {
+    auto &rec = mapping_records[i];
+    CHECK_BEST_UNIQ(rec);
+  }
+
+#undef CHECK_BEST_UNIQ
+
+  if (unique_best != nullptr) {
+    ret = *unique_best;
+    return true;
+  } else {
+   return false;
+  }
 }
 
 void LocalAssembler::EstimateInsertSize() {
