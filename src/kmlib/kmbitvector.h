@@ -29,7 +29,8 @@ class AtomicBitVector {
    * @brief Constructor
    * @param size the size (number of bits) of the bit vector
    */
-  explicit AtomicBitVector(size_type size = 0) : size_(size), data_array_((size + kBitsPerWord - 1) / kBitsPerWord) {}
+  explicit AtomicBitVector(size_type size = 0)
+      : size_(size), data_array_((size + kBitsPerWord - 1) / kBitsPerWord) {}
   /*!
    * @brief Construct a bit vector from iterators of words
    * @tparam WordIterator iterator to access words
@@ -42,7 +43,8 @@ class AtomicBitVector {
   /*!
    * @brief the move constructor
    */
-  AtomicBitVector(AtomicBitVector &&rhs) : size_(rhs.size_), data_array_(std::move(rhs.data_array_)) {}
+  AtomicBitVector(AtomicBitVector &&rhs)
+      : size_(rhs.size_), data_array_(std::move(rhs.data_array_)) {}
   /*!
    * @brief the move operator
    */
@@ -81,7 +83,8 @@ class AtomicBitVector {
    * @return value of the i-th bit
    */
   bool at(size_type i) const {
-    return !!(data_array_[i / kBitsPerWord].v.load(std::memory_order_relaxed) & (word_type(1) << i % kBitsPerWord));
+    return !!(data_array_[i / kBitsPerWord].v.load(std::memory_order_relaxed) &
+              (word_type(1) << i % kBitsPerWord));
   }
 
   /*!
@@ -90,7 +93,8 @@ class AtomicBitVector {
    */
   bool try_lock(size_type i) {
     word_type mask = word_type(1) << (i % kBitsPerWord);
-    word_type old_val = data_array_[i / kBitsPerWord].v.fetch_or(mask, std::memory_order_acquire);
+    word_type old_val = data_array_[i / kBitsPerWord].v.fetch_or(
+        mask, std::memory_order_acquire);
     return !(old_val & mask);
   }
 
@@ -115,7 +119,8 @@ class AtomicBitVector {
    */
   void unlock(size_type i) {
     auto mask = word_type(1) << (i % kBitsPerWord);
-    auto old_val = data_array_[i / kBitsPerWord].v.fetch_and(~mask, std::memory_order_release);
+    auto old_val = data_array_[i / kBitsPerWord].v.fetch_and(
+        ~mask, std::memory_order_release);
     assert(old_val & mask);
     (void)(old_val);
   }
@@ -131,7 +136,8 @@ class AtomicBitVector {
     }
     size_ = size;
     data_array_ = std::move(array_type(0));
-    data_array_ = std::move(array_type((size + kBitsPerWord - 1) / kBitsPerWord, 0));
+    data_array_ =
+        std::move(array_type((size + kBitsPerWord - 1) / kBitsPerWord, 0));
   }
 
   void reset() { std::fill(data_array_.begin(), data_array_.end(), 0); }

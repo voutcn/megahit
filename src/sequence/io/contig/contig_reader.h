@@ -9,7 +9,8 @@
 
 class ContigReader : public FastxReader {
  public:
-  explicit ContigReader(const std::string &file_name) : FastxReader(file_name), file_name_(file_name) {}
+  explicit ContigReader(const std::string &file_name)
+      : FastxReader(file_name), file_name_(file_name) {}
   ContigReader *SetMinLen(unsigned min_len) {
     min_len_ = min_len;
     return this;
@@ -29,22 +30,27 @@ class ContigReader : public FastxReader {
     int64_t num_contigs, num_bases;
     info_fs >> num_contigs >> num_bases;
     if (!info_fs) {
-      xfatal("Invalid format of contig info file: {s}.info", file_name_.c_str());
+      xfatal("Invalid format of contig info file: {s}.info",
+             file_name_.c_str());
     }
     return {num_contigs, num_bases};
   }
 
-  int64_t Read(SeqPackage *pkg, int64_t max_num, int64_t max_num_bases, bool reverse) override {
-    return ReadWithMultiplicity<float>(pkg, nullptr, max_num, max_num_bases, reverse);
+  int64_t Read(SeqPackage *pkg, int64_t max_num, int64_t max_num_bases,
+               bool reverse) override {
+    return ReadWithMultiplicity<float>(pkg, nullptr, max_num, max_num_bases,
+                                       reverse);
   }
 
   template <typename TMul>
-  int64_t ReadAllWithMultiplicity(SeqPackage *pkg, std::vector<TMul> *mul, bool reverse) {
+  int64_t ReadAllWithMultiplicity(SeqPackage *pkg, std::vector<TMul> *mul,
+                                  bool reverse) {
     return ReadWithMultiplicity(pkg, mul, kMaxNumSeq, kMaxNumBases, reverse);
   }
 
   template <typename TMul>
-  int64_t ReadWithMultiplicity(SeqPackage *pkg, std::vector<TMul> *mul, int64_t max_num, int64_t max_num_bases,
+  int64_t ReadWithMultiplicity(SeqPackage *pkg, std::vector<TMul> *mul,
+                               int64_t max_num, int64_t max_num_bases,
                                bool reverse) {
     bool extend_loop = k_from_ < k_to_ && !(discard_flag_ & contig_flag::kLoop);
 

@@ -22,7 +22,8 @@ bool ContigGraphBranchGroup::Search() {
   path.Append(begin_, 0);
   branches_.push_back(path);
 
-  if ((int)begin_.out_edges().size() <= 1 || (int)begin_.out_edges().size() > max_branches_ ||
+  if ((int)begin_.out_edges().size() <= 1 ||
+      (int)begin_.out_edges().size() > max_branches_ ||
       (int)begin_.contig_size() == kmer_size)
     return false;
 
@@ -41,7 +42,8 @@ bool ContigGraphBranchGroup::Search() {
       ContigGraphPath path = branches_[i];
       for (int x = 0; x < 4; ++x) {
         if (current.out_edges()[x]) {
-          ContigGraphVertexAdaptor next = contig_graph_->GetNeighbor(current, x);
+          ContigGraphVertexAdaptor next =
+              contig_graph_->GetNeighbor(current, x);
 
           if (next.status().IsDead()) return false;
 
@@ -66,7 +68,8 @@ bool ContigGraphBranchGroup::Search() {
     if ((int)end_.contig_size() > kmer_size) {
       is_converge = true;
       for (unsigned i = 0; i < branches_.size(); ++i) {
-        if (branches_[i].back() != end_ || (int)branches_[i].internal_size(kmer_size) != max_length_) {
+        if (branches_[i].back() != end_ ||
+            (int)branches_[i].internal_size(kmer_size) != max_length_) {
           is_converge = false;
           break;
         }
@@ -99,7 +102,9 @@ void ContigGraphBranchGroup::Merge() {
   }
 
   ContigGraphPath &path = branches_[best];
-  for (unsigned j = 1; j + 1 < path.num_nodes(); ++j) path[j].status().ResetDeadFlag();
+  for (unsigned j = 1; j + 1 < path.num_nodes(); ++j)
+    path[j].status().ResetDeadFlag();
 
-  for (unsigned j = 0; j + 1 < path.num_nodes(); ++j) contig_graph_->AddEdge(path[j], path[j + 1]);
+  for (unsigned j = 0; j + 1 < path.num_nodes(); ++j)
+    contig_graph_->AddEdge(path[j], path[j + 1]);
 }

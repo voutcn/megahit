@@ -81,7 +81,8 @@ string NodeName(int i, int len, double mul, bool is_rc) {
 
 int main_contig2fastg(int argc, char **argv) {
   if (argc < 3) {
-    pfprintf(stderr, "Usage: {s} <kmer_size> <k_KMER_SIZE.contigs.fa>\n", argv[0]);
+    pfprintf(stderr, "Usage: {s} <kmer_size> <k_KMER_SIZE.contigs.fa>\n",
+             argv[0]);
     exit(1);
   }
 
@@ -112,7 +113,8 @@ int main_contig2fastg(int argc, char **argv) {
 
   for (int i = 0; i < (int)ctgs.size(); ++i) {
     start_kmer_to_id[ctgs[i].substr(0, k)].push_back(i + 1);
-    start_kmer_to_id[RevComp(ctgs[i].substr(ctgs[i].length() - k))].push_back(-i - 1);
+    start_kmer_to_id[RevComp(ctgs[i].substr(ctgs[i].length() - k))].push_back(
+        -i - 1);
   }
 
   for (int i = 0; i < (int)ctgs.size(); ++i) {

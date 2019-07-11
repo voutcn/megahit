@@ -47,18 +47,24 @@ struct LocalAssembler {
     uint32_t mismatch : 31;
 
     bool operator<(const MappingRecord &rhs) const {
-      if (this->contig_id != rhs.contig_id) return this->contig_id < rhs.contig_id;
-      if (this->contig_from != rhs.contig_from) return this->contig_from < rhs.contig_from;
-      if (this->contig_to != rhs.contig_to) return this->contig_to < rhs.contig_to;
-      if (this->query_from != rhs.query_from) return this->query_from < rhs.query_from;
+      if (this->contig_id != rhs.contig_id)
+        return this->contig_id < rhs.contig_id;
+      if (this->contig_from != rhs.contig_from)
+        return this->contig_from < rhs.contig_from;
+      if (this->contig_to != rhs.contig_to)
+        return this->contig_to < rhs.contig_to;
+      if (this->query_from != rhs.query_from)
+        return this->query_from < rhs.query_from;
       if (this->query_to != rhs.query_to) return this->query_to < rhs.query_to;
       return this->strand < rhs.strand;
     }
 
     bool operator==(const MappingRecord &rhs) const {
-      return this->contig_id == rhs.contig_id && this->contig_from == rhs.contig_from &&
-             this->contig_to == rhs.contig_to && this->query_from == rhs.query_from && this->query_to == rhs.query_to &&
-             this->strand == rhs.strand;
+      return this->contig_id == rhs.contig_id &&
+             this->contig_from == rhs.contig_from &&
+             this->contig_to == rhs.contig_to &&
+             this->query_from == rhs.query_from &&
+             this->query_to == rhs.query_to && this->strand == rhs.strand;
     };
   };
 
@@ -69,7 +75,8 @@ struct LocalAssembler {
     bool is_mate : 1;
     uint16_t contig_offset : 14;
     MappedReadRecord() = default;
-    MappedReadRecord(uint16_t contig_offset, bool is_mate, uint8_t mismatch, uint8_t strand, uint64_t read_id)
+    MappedReadRecord(uint16_t contig_offset, bool is_mate, uint8_t mismatch,
+                     uint8_t strand, uint64_t read_id)
         : read_id(read_id),
           strand(strand),
           mismatch(mismatch < 15 ? mismatch : 15),
@@ -79,7 +86,8 @@ struct LocalAssembler {
       assert(strand < 2);
     }
     bool operator<(const MappedReadRecord &rhs) const {
-      return *reinterpret_cast<const uint64_t *>(this) < *reinterpret_cast<const uint64_t *>(&rhs);
+      return *reinterpret_cast<const uint64_t *>(this) <
+             *reinterpret_cast<const uint64_t *>(&rhs);
     }
   };
 
@@ -110,7 +118,9 @@ struct LocalAssembler {
   std::vector<std::deque<uint64_t>> mapped_f_, mapped_r_;
 
   LocalAssembler(int min_contig_len, int seed_kmer, int sparsity)
-      : min_contig_len_(min_contig_len), seed_kmer_size_(seed_kmer), sparsity_(sparsity) {
+      : min_contig_len_(min_contig_len),
+        seed_kmer_size_(seed_kmer),
+        sparsity_(sparsity) {
     similarity_ = 0.95;
     min_mapped_len_ = 100;
     local_kmin_ = 21;
@@ -131,7 +141,9 @@ struct LocalAssembler {
     min_mapped_len_ = mapping_len;
   }
 
-  void SetLocalContigFile(const std::string &local_filename) { local_filename_ = local_filename; }
+  void SetLocalContigFile(const std::string &local_filename) {
+    local_filename_ = local_filename;
+  }
 
   void ReadContigs(const std::string &file_name);
   void BuildHashMapper();
@@ -141,13 +153,17 @@ struct LocalAssembler {
   void LocalAssemble();
 
   void AddToHashMapper(mapper_t &mapper, unsigned contig_id, int sparsity);
-  int Match(const SeqPackage::SeqView &seq_view, int query_from, int query_to, size_t contig_id, int ref_from,
-            int ref_to, bool strand);
+  int Match(const SeqPackage::SeqView &seq_view, int query_from, int query_to,
+            size_t contig_id, int ref_from, int ref_to, bool strand);
   int LocalRange(int lib_id);
-  int AddToMappingDeque(size_t read_id, const MappingRecord &rec, int local_range);
-  int AddMateToMappingDeque(size_t read_id, size_t mate_id, const MappingRecord &rec1, const MappingRecord &rec2,
-                            bool mapped2, int local_range);
-  bool MapToHashMapper(const mapper_t &mapper, const SeqPackage::SeqView &seq_view, MappingRecord &ret);
+  int AddToMappingDeque(size_t read_id, const MappingRecord &rec,
+                        int local_range);
+  int AddMateToMappingDeque(size_t read_id, size_t mate_id,
+                            const MappingRecord &rec1,
+                            const MappingRecord &rec2, bool mapped2,
+                            int local_range);
+  bool MapToHashMapper(const mapper_t &mapper,
+                       const SeqPackage::SeqView &seq_view, MappingRecord &ret);
 };
 
 #endif

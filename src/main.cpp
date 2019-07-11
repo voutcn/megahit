@@ -41,25 +41,26 @@ int main_read_stat(int argc, char **argv);
 int main_filter_by_len(int argc, char **argv);
 
 void show_help(const char *program_name) {
-  pfprintf(stderr,
-           "Usage: {s} <sub_program> [sub options]\n"
-           "    sub-programs:\n"
-           "       assemble       assemble from SdBG\n"
-           "       local          local asssembly\n"
-           "       iterate        extract iterative edges\n"
-           "       buildlib       build read library\n"
-           "       count          kmer counting\n"
-           "       read2sdbg      build sdbg from reads\n"
-           "       seq2sdbg       build sdbg from megahit contigs + edges\n"
-           "       contig2fastg   convert MEGAHIT's k*.contigs.fa to fastg format\n"
-           "       readstat       calculate read stats (# of reads, bases, longest, "
-           "shortest, average)\n"
-           "       filterbylen    filter contigs by length\n"
-           "       checkcpu       check whether the run-time CPU supports POPCNT "
-           "and BMI2\n"
-           "       dumpversion    dump version\n"
-           "       kmax           the largest k value supported\n",
-           program_name);
+  pfprintf(
+      stderr,
+      "Usage: {s} <sub_program> [sub options]\n"
+      "    sub-programs:\n"
+      "       assemble       assemble from SdBG\n"
+      "       local          local asssembly\n"
+      "       iterate        extract iterative edges\n"
+      "       buildlib       build read library\n"
+      "       count          kmer counting\n"
+      "       read2sdbg      build sdbg from reads\n"
+      "       seq2sdbg       build sdbg from megahit contigs + edges\n"
+      "       contig2fastg   convert MEGAHIT's k*.contigs.fa to fastg format\n"
+      "       readstat       calculate read stats (# of reads, bases, longest, "
+      "shortest, average)\n"
+      "       filterbylen    filter contigs by length\n"
+      "       checkcpu       check whether the run-time CPU supports POPCNT "
+      "and BMI2\n"
+      "       dumpversion    dump version\n"
+      "       kmax           the largest k value supported\n",
+      program_name);
 }
 
 int main(int argc, char **argv) {

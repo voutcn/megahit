@@ -38,7 +38,8 @@
 inline FILE *xfopen(const char *filename, const char *mode) {
   FILE *fp;
   if ((fp = fopen(filename, mode)) == nullptr) {
-    pfprintf(stderr, "[ERROR] Cannot open {s}. Now exit to system...\n", filename);
+    pfprintf(stderr, "[ERROR] Cannot open {s}. Now exit to system...\n",
+             filename);
     exit(-1);
   }
   return fp;
@@ -74,7 +75,8 @@ inline const char *GetFile(const char *filename, const char *rootname) {
 }
 #define __XFILE__ GetFile(__FILE__, __XROOT__)
 #else
-#define __XFILE__ (strrchr(__FILE__, '/') ? strrchr(__FILE__, '/') + 1 : __FILE__)
+#define __XFILE__ \
+  (strrchr(__FILE__, '/') ? strrchr(__FILE__, '/') + 1 : __FILE__)
 #endif
 #endif
 
@@ -117,7 +119,8 @@ struct SimpleTimer {
   void start() { gettimeofday(&tv1, nullptr); }
   void stop() {
     gettimeofday(&tv2, nullptr);
-    time_elapsed += static_cast<long long>(tv2.tv_sec - tv1.tv_sec) * 1000000 + tv2.tv_usec - tv1.tv_usec;
+    time_elapsed += static_cast<long long>(tv2.tv_sec - tv1.tv_sec) * 1000000 +
+                    tv2.tv_usec - tv1.tv_usec;
   }
   double elapsed() { return time_elapsed / 1000000.0; }
 };
@@ -143,9 +146,12 @@ struct AutoMaxRssRecorder {
     double utime = 1e-6 * usage.ru_utime.tv_usec + usage.ru_utime.tv_sec;
     double stime = 1e-6 * usage.ru_stime.tv_usec + usage.ru_stime.tv_sec;
 
-    long long real_time = static_cast<long long>(tv2.tv_sec - tv1.tv_sec) * 1000000 + tv2.tv_usec - tv1.tv_usec;
+    long long real_time =
+        static_cast<long long>(tv2.tv_sec - tv1.tv_sec) * 1000000 +
+        tv2.tv_usec - tv1.tv_usec;
     xinfo("Real: {.4}", real_time / 1000000.0);
-    xinfoc("\tuser: {.4}\tsys: {.4}\tmaxrss: {}\n", utime, stime, usage.ru_maxrss);
+    xinfoc("\tuser: {.4}\tsys: {.4}\tmaxrss: {}\n", utime, stime,
+           usage.ru_maxrss);
 #endif
   }
 };
@@ -162,7 +168,8 @@ static void ScanField(std::istream &in, const std::string &field, T &out) {
   std::string s;
   in >> s >> out;
   if (!in || s != field) {
-    xfatal("Invalid format. Expect field {s}, got {s}\n", field.c_str(), s.c_str());
+    xfatal("Invalid format. Expect field {s}, got {s}\n", field.c_str(),
+           s.c_str());
   }
 }
 

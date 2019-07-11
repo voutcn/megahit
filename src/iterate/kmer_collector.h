@@ -16,11 +16,13 @@ class KmerCollector {
  public:
   using kmer_type = KmerType;
   using kmer_plus = KmerPlus<KmerType, mul_t>;
-  using hash_set =
-      phmap::parallel_flat_hash_set<kmer_plus, KmerHash, phmap::container_internal::hash_default_eq<kmer_plus>,
-                                    phmap::container_internal::Allocator<kmer_plus>, 12, SpinLock>;
+  using hash_set = phmap::parallel_flat_hash_set<
+      kmer_plus, KmerHash,
+      phmap::container_internal::hash_default_eq<kmer_plus>,
+      phmap::container_internal::Allocator<kmer_plus>, 12, SpinLock>;
 
-  KmerCollector(unsigned k, const std::string &out_prefix) : k_(k), output_prefix_(out_prefix) {
+  KmerCollector(unsigned k, const std::string &out_prefix)
+      : k_(k), output_prefix_(out_prefix) {
     last_shift_ = k_ % 16;
     last_shift_ = (last_shift_ == 0 ? 0 : 16 - last_shift_) * 2;
     words_per_kmer_ = DivCeiling(k_ * 2 + kBitsPerMul, 32);
@@ -32,7 +34,9 @@ class KmerCollector {
     writer_.InitFiles();
   }
 
-  void Insert(const KmerType &kmer, mul_t mul) { collection_.insert({kmer, mul}); }
+  void Insert(const KmerType &kmer, mul_t mul) {
+    collection_.insert({kmer, mul});
+  }
 
   const hash_set &collection() const { return collection_; }
   void FlushToFile() {

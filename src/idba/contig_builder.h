@@ -57,7 +57,8 @@ class ContigBuilder {
         contig_info_.out_edges_ = x.out_edges();
         contig_info_.kmer_count_ += x.kmer_count();
         SequenceCount counts = x.counts();
-        contig_info_.counts_ += counts.substr(std::min(-d - contig_info_.kmer_size_ + 1, (int)counts.size()));
+        contig_info_.counts_ += counts.substr(
+            std::min(-d - contig_info_.kmer_size_ + 1, (int)counts.size()));
       } else {
         contig_.Append(d, 4);
         contig_.Append(x.contig());

@@ -15,7 +15,8 @@ class PairedFastxReader : public BaseSequenceReader {
     readers_[1].reset(new FastxReader(file2));
   }
 
-  int64_t Read(SeqPackage *pkg, int64_t max_num, int64_t max_num_bases, bool reverse) override;
+  int64_t Read(SeqPackage *pkg, int64_t max_num, int64_t max_num_bases,
+               bool reverse) override;
 
  private:
   std::unique_ptr<FastxReader> readers_[2];

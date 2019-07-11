@@ -47,7 +47,9 @@ struct GetKey {
 
 template <typename Value>
 struct SetKey {
-  inline void operator()(Value *value, const Value &new_key) const { *value = new_key; }
+  inline void operator()(Value *value, const Value &new_key) const {
+    *value = new_key;
+  }
 };
 
 #endif

@@ -10,7 +10,8 @@
 #include "utils/mutex.h"
 #include "utils/utils.h"
 
-UnitigGraph::UnitigGraph(SDBG *sdbg) : sdbg_(sdbg), adapter_impl_(this), sudo_adapter_impl_(this) {
+UnitigGraph::UnitigGraph(SDBG *sdbg)
+    : sdbg_(sdbg), adapter_impl_(this), sudo_adapter_impl_(this) {
   id_map_.clear();
   vertices_.clear();
   SpinLock path_lock;
@@ -19,7 +20,8 @@ UnitigGraph::UnitigGraph(SDBG *sdbg) : sdbg_(sdbg), adapter_impl_(this), sudo_ad
 // assemble simple paths
 #pragma omp parallel for reduction(+ : count_palindrome)
   for (uint64_t edge_idx = 0; edge_idx < sdbg_->size(); ++edge_idx) {
-    if (sdbg_->IsValidEdge(edge_idx) && sdbg_->NextSimplePathEdge(edge_idx) == SDBG::kNullID &&
+    if (sdbg_->IsValidEdge(edge_idx) &&
+        sdbg_->NextSimplePathEdge(edge_idx) == SDBG::kNullID &&
         locks.try_lock(edge_idx)) {
       bool will_be_added = true;
       uint64_t cur_edge = edge_idx;
@@ -27,7 +29,8 @@ UnitigGraph::UnitigGraph(SDBG *sdbg) : sdbg_(sdbg), adapter_impl_(this), sudo_ad
       int64_t depth = sdbg_->EdgeMultiplicity(edge_idx);
       uint32_t length = 1;
 
-      while ((prev_edge = sdbg_->PrevSimplePathEdge(cur_edge)) != SDBG::kNullID) {
+      while ((prev_edge = sdbg_->PrevSimplePathEdge(cur_edge)) !=
+             SDBG::kNullID) {
         cur_edge = prev_edge;
         if (!locks.try_lock(cur_edge)) {
           will_be_added = false;
@@ -55,7 +58,8 @@ UnitigGraph::UnitigGraph(SDBG *sdbg) : sdbg_(sdbg), adapter_impl_(this), sudo_ad
         uint64_t rc_cur_edge = rc_start;
         rc_end = rc_cur_edge;
         bool extend_full = true;
-        while ((rc_cur_edge = sdbg_->NextSimplePathEdge(rc_cur_edge)) != SDBG::kNullID) {
+        while ((rc_cur_edge = sdbg_->NextSimplePathEdge(rc_cur_edge)) !=
+               SDBG::kNullID) {
           rc_end = rc_cur_edge;
           if (!locks.try_lock(rc_cur_edge)) {
             extend_full = false;
@@ -70,12 +74,14 @@ UnitigGraph::UnitigGraph(SDBG *sdbg) : sdbg_(sdbg), adapter_impl_(this), sudo_ad
 
       if (will_be_added) {
         std::lock_guard<SpinLock> lk(path_lock);
-        vertices_.emplace_back(cur_edge, edge_idx, rc_start, rc_end, depth, length);
+        vertices_.emplace_back(cur_edge, edge_idx, rc_start, rc_end, depth,
+                               length);
         count_palindrome += cur_edge == rc_start;
       }
     }
   }
-  xinfo("Graph size without loops: {}, palindrome: {}\n", vertices_.size(), count_palindrome);
+  xinfo("Graph size without loops: {}, palindrome: {}\n", vertices_.size(),
+        count_palindrome);
 
   // assemble looped paths
   std::mutex loop_lock;
@@ -104,8 +110,9 @@ UnitigGraph::UnitigGraph(SDBG *sdbg) : sdbg_(sdbg), adapter_impl_(this), sudo_ad
         if (!rc_marked) {
           uint64_t start = sdbg_->NextSimplePathEdge(edge_idx);
           uint64_t end = edge_idx;
-          vertices_.emplace_back(start, end, sdbg_->EdgeReverseComplement(end), sdbg_->EdgeReverseComplement(start),
-                                 depth, length, true);
+          vertices_.emplace_back(start, end, sdbg_->EdgeReverseComplement(end),
+                                 sdbg_->EdgeReverseComplement(start), depth,
+                                 length, true);
           count_loop += 1;
         }
       }
@@ -181,7 +188,8 @@ void UnitigGraph::RefreshDisconnected() {
       new_end = old_end;
     }
 
-    uint32_t new_length = adapter.GetLength() - to_disconnect - rc_to_disconnect;
+    uint32_t new_length =
+        adapter.GetLength() - to_disconnect - rc_to_disconnect;
     uint64_t new_total_depth = lround(adapter.GetAvgDepth() * new_length);
     adapter.SetBeginEnd(new_start, new_end, new_rc_start, new_rc_end);
     adapter.SetLength(new_length);
@@ -244,7 +252,8 @@ void UnitigGraph::Refresh(bool set_changed) {
         break;
       }
       std::vector<SudoVertexAdapter> linear_path;
-      for (auto cur = NextSimplePathAdapter(adapter); cur.IsValid(); cur = NextSimplePathAdapter(cur)) {
+      for (auto cur = NextSimplePathAdapter(adapter); cur.IsValid();
+           cur = NextSimplePathAdapter(cur)) {
         linear_path.emplace_back(cur);
       }
 
@@ -328,7 +337,10 @@ void UnitigGraph::Refresh(bool set_changed) {
   }
 
   vertices_.resize(std::remove_if(vertices_.begin(), vertices_.end(),
-                                  [](UnitigGraphVertex &a) { return SudoVertexAdapter(a).GetFlag() & kDeleted; }) -
+                                  [](UnitigGraphVertex &a) {
+                                    return SudoVertexAdapter(a).GetFlag() &
+                                           kDeleted;
+                                  }) -
                    vertices_.begin());
 
   size_type num_changed = 0;
@@ -355,7 +367,8 @@ std::string UnitigGraph::VertexToDNAString(VertexAdapter v) {
 
     cur_edge = sdbg_->PrevSimplePathEdge(cur_edge);
     if (cur_edge == SDBG::kNullID) {
-      xfatal("{}, {}, {}, {}, ({}, {}), {}, {}\n", v.b(), v.e(), v.rb(), v.re(), sdbg_->EdgeReverseComplement(v.e()),
+      xfatal("{}, {}, {}, {}, ({}, {}), {}, {}\n", v.b(), v.e(), v.rb(), v.re(),
+             sdbg_->EdgeReverseComplement(v.e()),
              sdbg_->EdgeReverseComplement(v.b()), v.GetLength(), i);
     }
   }
@@ -364,8 +377,9 @@ std::string UnitigGraph::VertexToDNAString(VertexAdapter v) {
   label.push_back("ACGT"[cur_char > 4 ? (cur_char - 5) : (cur_char - 1)]);
 
   if (cur_edge != v.b()) {
-    xfatal("fwd: {}, {}, rev: {}, {}, ({}, {}) length: {}\n", v.b(), v.e(), v.rb(), v.re(),
-           sdbg_->EdgeReverseComplement(v.e()), sdbg_->EdgeReverseComplement(v.b()), v.GetLength());
+    xfatal("fwd: {}, {}, rev: {}, {}, ({}, {}) length: {}\n", v.b(), v.e(),
+           v.rb(), v.re(), sdbg_->EdgeReverseComplement(v.e()),
+           sdbg_->EdgeReverseComplement(v.b()), v.GetLength());
   }
 
   uint8_t seq[kMaxK];

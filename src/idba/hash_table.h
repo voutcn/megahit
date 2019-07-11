@@ -28,16 +28,20 @@ struct HashTableSTNode {
   T value;
 };
 
-template <typename Value, typename Key, typename HashFunc, typename ExtractKey, typename EqualKey>
+template <typename Value, typename Key, typename HashFunc, typename ExtractKey,
+          typename EqualKey>
 class HashTableST;
 
-template <typename Value, typename Key, typename HashFunc, typename ExtractKey, typename EqualKey>
+template <typename Value, typename Key, typename HashFunc, typename ExtractKey,
+          typename EqualKey>
 class HashTableSTIterator;
 
-template <typename Value, typename Key, typename HashFunc, typename ExtractKey, typename EqualKey>
+template <typename Value, typename Key, typename HashFunc, typename ExtractKey,
+          typename EqualKey>
 class HashTableSTConstIterator;
 
-template <typename Value, typename Key, typename HashFunc, typename ExtractKey, typename EqualKey>
+template <typename Value, typename Key, typename HashFunc, typename ExtractKey,
+          typename EqualKey>
 class HashTableSTIterator {
  public:
   typedef Key key_type;
@@ -47,13 +51,17 @@ class HashTableSTIterator {
   typedef value_type &reference;
   typedef const value_type &const_reference;
   typedef HashTableSTNode<value_type> node_type;
-  typedef HashTableST<Value, Key, HashFunc, ExtractKey, EqualKey> hash_table_type;
+  typedef HashTableST<Value, Key, HashFunc, ExtractKey, EqualKey>
+      hash_table_type;
   typedef std::forward_iterator_tag iterator_category;
-  typedef HashTableSTIterator<Value, Key, HashFunc, ExtractKey, EqualKey> iterator;
+  typedef HashTableSTIterator<Value, Key, HashFunc, ExtractKey, EqualKey>
+      iterator;
 
-  HashTableSTIterator(const hash_table_type *owner = NULL, node_type *current = NULL)
+  HashTableSTIterator(const hash_table_type *owner = NULL,
+                      node_type *current = NULL)
       : owner_(owner), current_(current) {}
-  HashTableSTIterator(const iterator &iter) : owner_(iter.owner_), current_(iter.current_) {}
+  HashTableSTIterator(const iterator &iter)
+      : owner_(iter.owner_), current_(iter.current_) {}
 
   const iterator &operator=(const iterator &iter) {
     owner_ = iter.owner_;
@@ -61,8 +69,12 @@ class HashTableSTIterator {
     return *this;
   }
 
-  bool operator==(const iterator &iter) const { return current_ == iter.current_; }
-  bool operator!=(const iterator &iter) const { return current_ != iter.current_; }
+  bool operator==(const iterator &iter) const {
+    return current_ == iter.current_;
+  }
+  bool operator!=(const iterator &iter) const {
+    return current_ != iter.current_;
+  }
 
   reference operator*() const { return current_->value; }
   pointer operator->() const { return &current_->value; }
@@ -85,7 +97,8 @@ class HashTableSTIterator {
       else {
         uint64_t index = owner_->bucket_index_value(current_->value);
         current_ = current_->next;
-        while (current_ == NULL && ++index < owner_->bucket_count()) current_ = owner_->buckets_[index];
+        while (current_ == NULL && ++index < owner_->bucket_count())
+          current_ = owner_->buckets_[index];
       }
     }
   }
@@ -94,7 +107,8 @@ class HashTableSTIterator {
   node_type *current_;
 };
 
-template <typename Value, typename Key, typename HashFunc, typename ExtractKey, typename EqualKey>
+template <typename Value, typename Key, typename HashFunc, typename ExtractKey,
+          typename EqualKey>
 class HashTableSTConstIterator {
  public:
   typedef Key key_type;
@@ -104,13 +118,17 @@ class HashTableSTConstIterator {
   typedef value_type &reference;
   typedef const value_type &const_reference;
   typedef HashTableSTNode<value_type> node_type;
-  typedef HashTableST<Value, Key, HashFunc, ExtractKey, EqualKey> hash_table_type;
+  typedef HashTableST<Value, Key, HashFunc, ExtractKey, EqualKey>
+      hash_table_type;
   typedef std::forward_iterator_tag iterator_category;
-  typedef HashTableSTConstIterator<Value, Key, HashFunc, ExtractKey, EqualKey> const_iterator;
+  typedef HashTableSTConstIterator<Value, Key, HashFunc, ExtractKey, EqualKey>
+      const_iterator;
 
-  HashTableSTConstIterator(const hash_table_type *owner = NULL, const node_type *current = NULL)
+  HashTableSTConstIterator(const hash_table_type *owner = NULL,
+                           const node_type *current = NULL)
       : owner_(owner), current_(current) {}
-  HashTableSTConstIterator(const const_iterator &iter) : owner_(iter.owner_), current_(iter.current_) {}
+  HashTableSTConstIterator(const const_iterator &iter)
+      : owner_(iter.owner_), current_(iter.current_) {}
 
   const const_iterator &operator=(const const_iterator &iter) {
     owner_ = iter.owner_;
@@ -118,8 +136,12 @@ class HashTableSTConstIterator {
     return *this;
   }
 
-  bool operator==(const const_iterator &iter) const { return current_ == iter.current_; }
-  bool operator!=(const const_iterator &iter) const { return current_ != iter.current_; }
+  bool operator==(const const_iterator &iter) const {
+    return current_ == iter.current_;
+  }
+  bool operator!=(const const_iterator &iter) const {
+    return current_ != iter.current_;
+  }
 
   const_reference operator*() const { return current_->value; }
   const_pointer operator->() const { return &current_->value; }
@@ -142,7 +164,8 @@ class HashTableSTConstIterator {
       else {
         uint64_t index = owner_->bucket_index_value(current_->value);
         current_ = current_->next;
-        while (current_ == NULL && ++index < owner_->bucket_count()) current_ = owner_->buckets_[index];
+        while (current_ == NULL && ++index < owner_->bucket_count())
+          current_ = owner_->buckets_[index];
       }
     }
   }
@@ -160,7 +183,8 @@ class HashTableSTConstIterator {
  * @tparam Key
  * @tparam HashFunc
  */
-template <typename Value, typename Key, typename HashFunc = Hash<Key>, typename ExtractKey = GetKey<Key, Value>,
+template <typename Value, typename Key, typename HashFunc = Hash<Key>,
+          typename ExtractKey = GetKey<Key, Value>,
           typename EqualKey = std::equal_to<Key>>
 class HashTableST {
  public:
@@ -179,42 +203,55 @@ class HashTableST {
   typedef EqualKey key_equal_func_type;
 
   typedef HashTableSTNode<value_type> node_type;
-  typedef HashTableST<Value, Key, HashFunc, ExtractKey, EqualKey> hash_table_type;
-  typedef HashTableSTIterator<Value, Key, HashFunc, ExtractKey, EqualKey> iterator;
-  typedef HashTableSTConstIterator<Value, Key, HashFunc, ExtractKey, EqualKey> const_iterator;
+  typedef HashTableST<Value, Key, HashFunc, ExtractKey, EqualKey>
+      hash_table_type;
+  typedef HashTableSTIterator<Value, Key, HashFunc, ExtractKey, EqualKey>
+      iterator;
+  typedef HashTableSTConstIterator<Value, Key, HashFunc, ExtractKey, EqualKey>
+      const_iterator;
   typedef PoolST<node_type> pool_type;
 
   friend class HashTableSTIterator<Value, Key, HashFunc, ExtractKey, EqualKey>;
-  friend class HashTableSTConstIterator<Value, Key, HashFunc, ExtractKey, EqualKey>;
+  friend class HashTableSTConstIterator<Value, Key, HashFunc, ExtractKey,
+                                        EqualKey>;
 
-  template <typename Value_, typename Key_, typename HashFunc_, typename ExtractKey_, typename EqualKey_>
-  friend std::ostream &operator<<(std::ostream &os,
-                                  HashTableST<Value_, Key_, HashFunc_, ExtractKey_, EqualKey_> &hash_table);
+  template <typename Value_, typename Key_, typename HashFunc_,
+            typename ExtractKey_, typename EqualKey_>
+  friend std::ostream &operator<<(
+      std::ostream &os,
+      HashTableST<Value_, Key_, HashFunc_, ExtractKey_, EqualKey_> &hash_table);
 
-  template <typename Value_, typename Key_, typename HashFunc_, typename ExtractKey_, typename EqualKey_>
-  friend std::istream &operator>>(std::istream &os,
-                                  HashTableST<Value_, Key_, HashFunc_, ExtractKey_, EqualKey_> &hash_table);
+  template <typename Value_, typename Key_, typename HashFunc_,
+            typename ExtractKey_, typename EqualKey_>
+  friend std::istream &operator>>(
+      std::istream &os,
+      HashTableST<Value_, Key_, HashFunc_, ExtractKey_, EqualKey_> &hash_table);
 
   static const uint64_t kNumBucketLocks = (1 << 12);
   static const uint64_t kDefaultNumBuckets = (1 << 12);
 
-  explicit HashTableST(const hash_func_type &hash = hash_func_type(),
-                       const get_key_func_type &get_key = get_key_func_type(),
-                       const key_equal_func_type &key_equal = key_equal_func_type())
+  explicit HashTableST(
+      const hash_func_type &hash = hash_func_type(),
+      const get_key_func_type &get_key = get_key_func_type(),
+      const key_equal_func_type &key_equal = key_equal_func_type())
       : hash_(hash), get_key_(get_key), key_equal_(key_equal) {
     size_ = 0;
     rehash(kDefaultNumBuckets);
   }
 
   HashTableST(const hash_table_type &hash_table)
-      : hash_(hash_table.hash_), get_key_(hash_table.get_key_), key_equal_(hash_table.key_equal_) {
+      : hash_(hash_table.hash_),
+        get_key_(hash_table.get_key_),
+        key_equal_(hash_table.key_equal_) {
     size_ = 0;
     assign(hash_table);
   }
 
   ~HashTableST() { clear(); }
 
-  const hash_table_type &operator=(const hash_table_type &hash_table) { return assign(hash_table); }
+  const hash_table_type &operator=(const hash_table_type &hash_table) {
+    return assign(hash_table);
+  }
 
   const hash_table_type &assign(const hash_table_type &hash_table) {
     if (this == &hash_table) return *this;
@@ -394,7 +431,8 @@ class HashTableST {
   template <typename UnaryProc>
   UnaryProc &for_each(UnaryProc &op) {
     for (int64_t i = 0; i < (int64_t)buckets_.size(); ++i) {
-      for (node_type *node = buckets_[i]; node; node = node->next) op(node->value);
+      for (node_type *node = buckets_[i]; node; node = node->next)
+        op(node->value);
     }
     return op;
   }
@@ -402,20 +440,29 @@ class HashTableST {
   template <typename UnaryProc>
   UnaryProc &for_each(UnaryProc &op) const {
     for (int64_t i = 0; i < (int64_t)buckets_.size(); ++i) {
-      for (node_type *node = buckets_[i]; node; node = node->next) op(node->value);
+      for (node_type *node = buckets_[i]; node; node = node->next)
+        op(node->value);
     }
     return op;
   }
 
-  uint64_t hash(const value_type &value) const { return hash_(get_key_(value)); }
+  uint64_t hash(const value_type &value) const {
+    return hash_(get_key_(value));
+  }
 
-  uint64_t bucket_index(uint64_t hash_value) const { return hash_value & (buckets_.size() - 1); }
+  uint64_t bucket_index(uint64_t hash_value) const {
+    return hash_value & (buckets_.size() - 1);
+  }
 
   uint64_t hash_key(const key_type &key) const { return hash_(key); }
 
-  uint64_t bucket_index_value(const value_type &value) const { return hash_(get_key_(value)) & (buckets_.size() - 1); }
+  uint64_t bucket_index_value(const value_type &value) const {
+    return hash_(get_key_(value)) & (buckets_.size() - 1);
+  }
 
-  uint64_t bucket_index_key(const key_type &key) const { return hash_(key) & (buckets_.size() - 1); }
+  uint64_t bucket_index_key(const key_type &key) const {
+    return hash_(key) & (buckets_.size() - 1);
+  }
 
   const hash_func_type &hash_func() const { return hash_; }
   const get_key_func_type &get_key_func() const { return get_key_; }
@@ -512,17 +559,25 @@ class HashTableST {
   uint64_t size_;
 };
 
-template <typename Value, typename Key, typename HashFunc, typename ExtractKey, typename EqualKey>
-std::istream &operator>>(std::istream &is, HashTableST<Value, Key, HashFunc, ExtractKey, EqualKey> &hash_table) {
+template <typename Value, typename Key, typename HashFunc, typename ExtractKey,
+          typename EqualKey>
+std::istream &operator>>(
+    std::istream &is,
+    HashTableST<Value, Key, HashFunc, ExtractKey, EqualKey> &hash_table) {
   hash_table.clear();
   Value value;
-  while (is.read((char *)&value, sizeof(Value))) hash_table.insert_unique(value);
+  while (is.read((char *)&value, sizeof(Value)))
+    hash_table.insert_unique(value);
   return is;
 }
 
-template <typename Value, typename Key, typename HashFunc, typename ExtractKey, typename EqualKey>
-std::ostream &operator<<(std::ostream &os, HashTableST<Value, Key, HashFunc, ExtractKey, EqualKey> &hash_table) {
-  typename HashTableST<Value, Key, HashFunc, ExtractKey, EqualKey>::iterator iter;
+template <typename Value, typename Key, typename HashFunc, typename ExtractKey,
+          typename EqualKey>
+std::ostream &operator<<(
+    std::ostream &os,
+    HashTableST<Value, Key, HashFunc, ExtractKey, EqualKey> &hash_table) {
+  typename HashTableST<Value, Key, HashFunc, ExtractKey, EqualKey>::iterator
+      iter;
   for (iter = hash_table.begin(); iter != hash_table.end(); ++iter) {
     os.write((char *)&*iter, sizeof(Value));
   }
@@ -530,7 +585,8 @@ std::ostream &operator<<(std::ostream &os, HashTableST<Value, Key, HashFunc, Ext
 }
 
 namespace std {
-template <typename Value, typename Key, typename HashFunc, typename ExtractKey, typename EqualKey>
+template <typename Value, typename Key, typename HashFunc, typename ExtractKey,
+          typename EqualKey>
 inline void swap(HashTableST<Value, Key, HashFunc, ExtractKey, EqualKey> &x,
                  HashTableST<Value, Key, HashFunc, ExtractKey, EqualKey> &y) {
   x.swap(y);

@@ -4,7 +4,8 @@
 
 #include "paired_fastx_reader.h"
 
-int64_t PairedFastxReader::Read(SeqPackage *pkg, int64_t max_num, int64_t max_num_bases, bool reverse) {
+int64_t PairedFastxReader::Read(SeqPackage *pkg, int64_t max_num,
+                                int64_t max_num_bases, bool reverse) {
   int64_t num_bases = 0;
   for (int64_t i = 0; i < max_num; i += 2) {
     auto r0 = readers_[0]->ReadNext();

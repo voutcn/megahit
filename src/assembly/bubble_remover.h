@@ -12,7 +12,8 @@
 
 class BaseBubbleRemover {
  public:
-  using checker_type = std::function<bool(const UnitigGraph::VertexAdapter &, const UnitigGraph::VertexAdapter &)>;
+  using checker_type = std::function<bool(const UnitigGraph::VertexAdapter &,
+                                          const UnitigGraph::VertexAdapter &)>;
 
  public:
   BaseBubbleRemover &SetWriter(ContigWriter *bubble_file) {
@@ -29,19 +30,25 @@ class BaseBubbleRemover {
   double careful_threshold_{1 + 1e-3};
 
  protected:
-  size_t PopBubbles(UnitigGraph &graph, bool permanent_rm, uint32_t max_len, const checker_type &checker);
-  int SearchAndPopBubble(UnitigGraph &graph, UnitigGraph::VertexAdapter &adapter, uint32_t max_len,
+  size_t PopBubbles(UnitigGraph &graph, bool permanent_rm, uint32_t max_len,
+                    const checker_type &checker);
+  int SearchAndPopBubble(UnitigGraph &graph,
+                         UnitigGraph::VertexAdapter &adapter, uint32_t max_len,
                          const checker_type &checker);
 };
 
 class NaiveBubbleRemover : public BaseBubbleRemover {
  public:
   size_t PopBubbles(UnitigGraph &graph, bool permanent_rm) {
-    return BaseBubbleRemover::PopBubbles(graph, permanent_rm, graph.k() + 2, Check);
+    return BaseBubbleRemover::PopBubbles(graph, permanent_rm, graph.k() + 2,
+                                         Check);
   }
 
  private:
-  static constexpr bool Check(const UnitigGraph::VertexAdapter &a, const UnitigGraph::VertexAdapter &b) { return true; }
+  static constexpr bool Check(const UnitigGraph::VertexAdapter &a,
+                              const UnitigGraph::VertexAdapter &b) {
+    return true;
+  }
 };
 
 class ComplexBubbleRemover : public BaseBubbleRemover {

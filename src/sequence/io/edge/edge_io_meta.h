@@ -38,7 +38,8 @@ struct EdgeIoMetadata {
        << "is_sorted " << is_sorted << '\n';
 
     for (unsigned i = 0; i < buckets.size(); ++i) {
-      os << i << ' ' << buckets[i].file_id << ' ' << buckets[i].file_offset << ' ' << buckets[i].total_number << '\n';
+      os << i << ' ' << buckets[i].file_id << ' ' << buckets[i].file_offset
+         << ' ' << buckets[i].total_number << '\n';
     }
   }
 
@@ -55,12 +56,14 @@ struct EdgeIoMetadata {
 
     for (unsigned i = 0; i < num_buckets; ++i) {
       unsigned b_id;
-      is >> b_id >> buckets[i].file_id >> buckets[i].file_offset >> buckets[i].total_number;
+      is >> b_id >> buckets[i].file_id >> buckets[i].file_offset >>
+          buckets[i].total_number;
       if (b_id != i) {
         xfatal("Invalid format: bucket id not matched!\n");
       }
       if (buckets[i].file_id >= static_cast<int>(num_files)) {
-        xfatal("Record ID {} is greater than number of files {}\n", buckets[i].file_id, num_files);
+        xfatal("Record ID {} is greater than number of files {}\n",
+               buckets[i].file_id, num_files);
       }
     }
   }

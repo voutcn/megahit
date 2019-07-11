@@ -1,7 +1,6 @@
 # clang-format -i --style=file <file>
 # find . -iname '*.cpp' -o -iname '*.h' -o -iname '*.h.in' | xargs clang-format -i --style=file
 BasedOnStyle : Google
-ColumnLimit : 120
 Language:                               Cpp
 Cpp11BracedListStyle:                   true
 Standard:                               Cpp11

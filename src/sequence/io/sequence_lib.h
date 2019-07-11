@@ -35,8 +35,8 @@
 
 class SequenceLib {
  public:
-  SequenceLib(SeqPackage *data_holder, int64_t held_begin, int64_t held_end, unsigned max_read_length, bool is_paired,
-              std::string description)
+  SequenceLib(SeqPackage *data_holder, int64_t held_begin, int64_t held_end,
+              unsigned max_read_length, bool is_paired, std::string description)
       : data_holder_(data_holder),
         held_begin_(held_begin),
         held_end_(held_end),
@@ -55,10 +55,14 @@ class SequenceLib {
 
   void DumpMetadata(std::ostream &os) const {
     os << description_ << '\n';
-    os << held_begin_ << ' ' << held_end_ << ' ' << max_read_len_ << ' ' << is_paired_ << '\n';
+    os << held_begin_ << ' ' << held_end_ << ' ' << max_read_len_ << ' '
+       << is_paired_ << '\n';
   }
 
-  void LoadMetadata(std::istream &is) { is >> description_ >> held_begin_ >> held_end_ >> max_read_len_ >> is_paired_; }
+  void LoadMetadata(std::istream &is) {
+    is >> description_ >> held_begin_ >> held_end_ >> max_read_len_ >>
+        is_paired_;
+  }
 
   size_t seq_count() const { return held_end_ - held_begin_; }
 

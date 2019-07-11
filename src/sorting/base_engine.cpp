@@ -10,8 +10,10 @@ namespace {
 /**
  * Try to fully use available memory to fit as much lv1 items as possible
  */
-static std::pair<int64_t, int64_t> AdjustItemNumbers(int64_t mem_avail, int64_t bytes_per_lv2_item,
-                                                     int64_t min_lv1_items, int64_t min_lv2_items,
+static std::pair<int64_t, int64_t> AdjustItemNumbers(int64_t mem_avail,
+                                                     int64_t bytes_per_lv2_item,
+                                                     int64_t min_lv1_items,
+                                                     int64_t min_lv2_items,
                                                      int64_t max_lv2_items) {
   int64_t num_lv1_items = 0;
   int64_t num_lv2_items = max_lv2_items;
@@ -28,7 +30,8 @@ static std::pair<int64_t, int64_t> AdjustItemNumbers(int64_t mem_avail, int64_t 
       continue;
     }
 
-    num_lv1_items = (mem_avail - mem_for_lv2) / BaseSequenceSortingEngine::kLv1BytePerItem;
+    num_lv1_items =
+        (mem_avail - mem_for_lv2) / BaseSequenceSortingEngine::kLv1BytePerItem;
     if (num_lv1_items < min_lv1_items || num_lv1_items < num_lv2_items) {
       num_lv2_items *= 0.95;
     } else {
@@ -44,7 +47,8 @@ static std::pair<int64_t, int64_t> AdjustItemNumbers(int64_t mem_avail, int64_t 
   while (num_lv2_items * 4 > num_lv1_items) {
     if (num_lv2_items * 0.95 >= min_lv2_items) {
       num_lv2_items *= 0.95;
-      num_lv1_items = (mem_avail - bytes_per_lv2_item * num_lv2_items) / BaseSequenceSortingEngine::kLv1BytePerItem;
+      num_lv1_items = (mem_avail - bytes_per_lv2_item * num_lv2_items) /
+                      BaseSequenceSortingEngine::kLv1BytePerItem;
     } else {
       break;
     }
@@ -55,7 +59,8 @@ static std::pair<int64_t, int64_t> AdjustItemNumbers(int64_t mem_avail, int64_t 
 }  // namespace
 
 void BaseSequenceSortingEngine::AdjustMemory() {
-  int64_t max_bucket_size = *std::max_element(bucket_sizes_.begin(), bucket_sizes_.end());
+  int64_t max_bucket_size =
+      *std::max_element(bucket_sizes_.begin(), bucket_sizes_.end());
   int64_t total_bucket_size = 0;
   int num_non_empty = 0;
   for (unsigned i = 0; i < kNumBuckets; ++i) {
@@ -65,7 +70,9 @@ void BaseSequenceSortingEngine::AdjustMemory() {
     }
   }
 
-  int64_t est_lv2_items = std::max(3 * total_bucket_size / std::max(1, num_non_empty) * n_threads_, max_bucket_size);
+  int64_t est_lv2_items =
+      std::max(3 * total_bucket_size / std::max(1, num_non_empty) * n_threads_,
+               max_bucket_size);
 
   const int64_t mem_remained = host_mem_ - meta_.memory_for_data;
   const int64_t min_lv1_items = total_bucket_size / (kMaxLv1ScanTime - 0.5);
@@ -76,9 +83,12 @@ void BaseSequenceSortingEngine::AdjustMemory() {
     // auto set memory
     int64_t est_lv1_items = total_bucket_size / (kDefaultLv1ScanTime - 0.5);
     est_lv1_items = std::max(est_lv1_items, max_bucket_size);
-    int64_t mem_needed = est_lv1_items * kLv1BytePerItem + est_lv2_items * lv2_bytes_per_item;
+    int64_t mem_needed =
+        est_lv1_items * kLv1BytePerItem + est_lv2_items * lv2_bytes_per_item;
     if (mem_needed > mem_remained) {
-      n_items = AdjustItemNumbers(mem_remained, lv2_bytes_per_item, min_lv1_items, max_bucket_size, est_lv2_items);
+      n_items =
+          AdjustItemNumbers(mem_remained, lv2_bytes_per_item, min_lv1_items,
+                            max_bucket_size, est_lv2_items);
     } else {
       n_items = {est_lv1_items, est_lv2_items};
     }
@@ -86,16 +96,21 @@ void BaseSequenceSortingEngine::AdjustMemory() {
     // min memory
     int64_t est_lv1_items = total_bucket_size / (kMaxLv1ScanTime - 0.5);
     est_lv1_items = std::max(est_lv1_items, max_bucket_size);
-    int64_t mem_needed = est_lv1_items * kLv1BytePerItem + est_lv2_items * lv2_bytes_per_item;
+    int64_t mem_needed =
+        est_lv1_items * kLv1BytePerItem + est_lv2_items * lv2_bytes_per_item;
 
     if (mem_needed > mem_remained) {
-      n_items = AdjustItemNumbers(mem_remained, lv2_bytes_per_item, min_lv1_items, max_bucket_size, est_lv2_items);
+      n_items =
+          AdjustItemNumbers(mem_remained, lv2_bytes_per_item, min_lv1_items,
+                            max_bucket_size, est_lv2_items);
     } else {
-      n_items = AdjustItemNumbers(mem_needed, lv2_bytes_per_item, min_lv1_items, max_bucket_size, est_lv2_items);
+      n_items = AdjustItemNumbers(mem_needed, lv2_bytes_per_item, min_lv1_items,
+                                  max_bucket_size, est_lv2_items);
     }
   } else {
     // use all
-    n_items = AdjustItemNumbers(mem_remained, lv2_bytes_per_item, min_lv1_items, max_bucket_size, est_lv2_items);
+    n_items = AdjustItemNumbers(mem_remained, lv2_bytes_per_item, min_lv1_items,
+                                max_bucket_size, est_lv2_items);
   }
 
   if (n_items.first < min_lv1_items) {
@@ -109,11 +124,12 @@ void BaseSequenceSortingEngine::AdjustMemory() {
   auto words_required = n_items.first + n_items.second * meta_.words_per_lv2;
   lv1_offsets_.reserve(words_required);
   lv1_offsets_.resize(words_required);
-  substr_sort_ = SelectSortingFunc(meta_.words_per_lv2 - meta_.aux_words_per_lv2, meta_.aux_words_per_lv2);
+  substr_sort_ = SelectSortingFunc(
+      meta_.words_per_lv2 - meta_.aux_words_per_lv2, meta_.aux_words_per_lv2);
 
   xinfo("Lv1 items: {}, Lv2 items: {}\n", n_items.first, n_items.second);
-  xinfo("Memory of derived class: {}, Memory for Lv1+Lv2: {}\n", meta_.memory_for_data,
-        words_required * kLv1BytePerItem);
+  xinfo("Memory of derived class: {}, Memory for Lv1+Lv2: {}\n",
+        meta_.memory_for_data, words_required * kLv1BytePerItem);
 }
 
 void BaseSequenceSortingEngine::Run() {
@@ -158,18 +174,21 @@ void BaseSequenceSortingEngine::Run() {
 
     lv1_timer.reset();
     lv1_timer.start();
-    xinfo("Lv1 scanning from bucket {} to {}\n", lv1_start_bucket_, lv1_end_bucket_);
+    xinfo("Lv1 scanning from bucket {} to {}\n", lv1_start_bucket_,
+          lv1_end_bucket_);
 
     // --- scan to fill offset ---
     Lv1FillOffsetsLaunchMt();
 
     lv1_timer.stop();
-    xinfo("Lv1 scanning done. Large diff: {}. Time elapsed: {.4}\n", lv1_special_offsets_.size(), lv1_timer.elapsed());
+    xinfo("Lv1 scanning done. Large diff: {}. Time elapsed: {.4}\n",
+          lv1_special_offsets_.size(), lv1_timer.elapsed());
     lv1_timer.reset();
     lv1_timer.start();
     Lv1FetchAndSortLaunchMt();
     lv1_timer.stop();
-    xinfo("Lv1 fetching & sorting done. Time elapsed: {.4}\n", lv1_timer.elapsed());
+    xinfo("Lv1 fetching & sorting done. Time elapsed: {.4}\n",
+          lv1_timer.elapsed());
     lv1_start_bucket_ = lv1_end_bucket_;
   }
 
@@ -238,7 +257,8 @@ unsigned BaseSequenceSortingEngine::Lv1FindEndBuckets(unsigned start_bucket) {
       ++used_threads;
     }
 
-    if (num_lv2 * meta_.words_per_lv2 + lv1_num_items_ + bucket_sizes_[end_bucket] >
+    if (num_lv2 * meta_.words_per_lv2 + lv1_num_items_ +
+            bucket_sizes_[end_bucket] >
         static_cast<int64_t>(lv1_offsets_.size())) {
       return end_bucket;
     }
@@ -255,7 +275,8 @@ void BaseSequenceSortingEngine::Lv1ComputeThreadBegin() {
   // set the bucket begin for the first thread
   thread_meta_[0].bucket_begin[lv1_start_bucket_] = 0;
   for (unsigned b = lv1_start_bucket_ + 1; b < lv1_end_bucket_; ++b) {
-    thread_meta_[0].bucket_begin[b] = thread_meta_[0].bucket_begin[b - 1] + bucket_sizes_[b - 1];  // accumulate
+    thread_meta_[0].bucket_begin[b] = thread_meta_[0].bucket_begin[b - 1] +
+                                      bucket_sizes_[b - 1];  // accumulate
   }
 
   // then for the remaining threads
@@ -273,7 +294,8 @@ void BaseSequenceSortingEngine::Lv0CalcBucketSizeLaunchMt() {
 #pragma omp parallel for
   for (unsigned t = 0; t < n_threads_; ++t) {
     auto &thread_meta = thread_meta_[t];
-    Lv0CalcBucketSize(thread_meta.seq_from, thread_meta.seq_to, &thread_meta.bucket_sizes);
+    Lv0CalcBucketSize(thread_meta.seq_from, thread_meta.seq_to,
+                      &thread_meta.bucket_sizes);
   }
   std::fill(bucket_sizes_.begin(), bucket_sizes_.end(), 0);
 
@@ -295,8 +317,9 @@ void BaseSequenceSortingEngine::Lv1FetchAndSortLaunchMt() {
   }
 }
 
-void BaseSequenceSortingEngine::Lv2Sort(BaseSequenceSortingEngine::Lv2ThreadStatus *thread_status, unsigned b,
-                                        int tid) {
+void BaseSequenceSortingEngine::Lv2Sort(
+    BaseSequenceSortingEngine::Lv2ThreadStatus *thread_status, unsigned b,
+    int tid) {
   if (thread_status->thread_offset[tid] == -1) {
     std::lock_guard<std::mutex> lk(thread_status->mutex);
     thread_status->thread_offset[tid] = thread_status->acc;
@@ -309,7 +332,8 @@ void BaseSequenceSortingEngine::Lv2Sort(BaseSequenceSortingEngine::Lv2ThreadStat
     return;
   }
 
-  size_t offset = lv1_num_items_ + thread_status->thread_offset[tid] * meta_.words_per_lv2;
+  size_t offset =
+      lv1_num_items_ + thread_status->thread_offset[tid] * meta_.words_per_lv2;
   auto substr_ptr = lv1_offsets_.data() + offset;
   auto fetcher = OffsetFetcher(this, b, b + 1);
   Lv2ExtractSubString(fetcher, lv1_offsets_.begin() + offset);
@@ -323,7 +347,8 @@ void BaseSequenceSortingEngine::Lv1FillOffsetsLaunchMt() {
 
 #pragma omp parallel for
   for (unsigned t = 0; t < n_threads_; ++t) {
-    OffsetFiller filler(this, lv1_start_bucket_, lv1_end_bucket_, thread_meta_[t]);
+    OffsetFiller filler(this, lv1_start_bucket_, lv1_end_bucket_,
+                        thread_meta_[t]);
     Lv1FillOffsets(filler, thread_meta_[t].seq_from, thread_meta_[t].seq_to);
   }
 }

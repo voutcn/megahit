@@ -4,6 +4,7 @@
 #include <cstdint>
 #include <functional>
 
-std::function<void(uint32_t*, int64_t)> SelectSortingFunc(int words_per_substr, int extra_words);
+std::function<void(uint32_t*, int64_t)> SelectSortingFunc(int words_per_substr,
+                                                          int extra_words);
 
 #endif

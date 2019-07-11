@@ -54,8 +54,9 @@ int main_read_stat(int argc, char **argv) {
 
   double avg_len = total_len * 1.0 / num_reads;
 
-  pprintf("number reads: {}\ntotal size: {}\nlongest: {}\nshortest: {}\navg: %lf\n", num_reads, total_len, max_len,
-          min_len, avg_len);
+  pprintf(
+      "number reads: {}\ntotal size: {}\nlongest: {}\nshortest: {}\navg: %lf\n",
+      num_reads, total_len, max_len, min_len, avg_len);
 
   kseq_destroy(seq);
   gzclose(fp);

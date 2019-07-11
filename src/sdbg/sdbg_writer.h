@@ -30,7 +30,9 @@ class SdbgWriter {
   ~SdbgWriter() { Finalize(); }
 
   void set_num_threads(size_t num_threads) { num_threads_ = num_threads; }
-  void set_file_prefix(const std::string &file_prefix) { file_prefix_ = file_prefix; }
+  void set_file_prefix(const std::string &file_prefix) {
+    file_prefix_ = file_prefix;
+  }
   void set_kmer_size(unsigned k) {
     k_ = k;
     words_per_tip_label_ = (k + kCharsPerLabelWord - 1) / kCharsPerLabelWord;
@@ -38,8 +40,9 @@ class SdbgWriter {
   void set_num_buckets(size_t num_buckets) { num_buckets_ = num_buckets; }
 
   void InitFiles();
-  void Write(unsigned tid, uint32_t bucket_id, uint8_t w, uint8_t last, uint8_t tip, mul_t multiplicity,
-             label_word_t *packed_tip_label, Snapshot *snapshot);
+  void Write(unsigned tid, uint32_t bucket_id, uint8_t w, uint8_t last,
+             uint8_t tip, mul_t multiplicity, label_word_t *packed_tip_label,
+             Snapshot *snapshot);
   void SaveSnapshot(const Snapshot &snapshot);
   void Finalize();
   const SdbgMeta &final_meta() const { return final_meta_; }

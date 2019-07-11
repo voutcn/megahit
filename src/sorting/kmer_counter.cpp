@@ -10,11 +10,13 @@
 /**
  * @brief encode read_id and its offset in one int64_t
  */
-inline int64_t EncodeOffset(int64_t read_id, int offset, int strand, const SeqPackage &p) {
+inline int64_t EncodeOffset(int64_t read_id, int offset, int strand,
+                            const SeqPackage &p) {
   return ((p.GetSeqView(read_id).full_offset_in_pkg() + offset) << 1) | strand;
 }
 
-inline bool IsDifferentEdges(uint32_t *item1, uint32_t *item2, int num_words, int64_t spacing) {
+inline bool IsDifferentEdges(uint32_t *item1, uint32_t *item2, int num_words,
+                             int64_t spacing) {
   for (int i = num_words - 1; i >= 0; --i) {
     if (*(item1 + i * spacing) != *(item2 + i * spacing)) {
       return true;
@@ -51,7 +53,9 @@ void KmerCounter::PackEdge(uint32_t *dest, uint32_t *item, int64_t counting) {
 
 // function pass to BaseSequenceSortingEngine
 
-int64_t KmerCounter::Lv0EncodeDiffBase(int64_t read_id) { return EncodeOffset(read_id, 0, 0, seq_pkg_); }
+int64_t KmerCounter::Lv0EncodeDiffBase(int64_t read_id) {
+  return EncodeOffset(read_id, 0, 0, seq_pkg_);
+}
 
 KmerCounter::MemoryStat KmerCounter::Initialize() {
   bool is_reverse = true;
@@ -71,13 +75,18 @@ KmerCounter::MemoryStat KmerCounter::Initialize() {
   num_reads = seq_pkg_.seq_count();
   xinfo("{} reads, {} max read length\n", num_reads, seq_pkg_.max_length());
 
-  words_per_substr_ = DivCeiling((opt_.k + 1) * kBitsPerEdgeChar, kBitsPerEdgeWord);
-  words_per_edge_ = DivCeiling((opt_.k + 1) * kBitsPerEdgeChar + kBitsPerMul, kBitsPerEdgeWord);
-  xinfo("{} words per substring, {} words per edge\n", words_per_substr_, words_per_edge_);
+  words_per_substr_ =
+      DivCeiling((opt_.k + 1) * kBitsPerEdgeChar, kBitsPerEdgeWord);
+  words_per_edge_ = DivCeiling((opt_.k + 1) * kBitsPerEdgeChar + kBitsPerMul,
+                               kBitsPerEdgeWord);
+  xinfo("{} words per substring, {} words per edge\n", words_per_substr_,
+        words_per_edge_);
 
   // --- malloc read first_in / last_out ---
-  first_0_out_ = std::vector<AtomicWrapper<uint32_t>>(seq_pkg_.seq_count(), 0xFFFFFFFFU);
-  last_0_in_ = std::vector<AtomicWrapper<uint32_t>>(seq_pkg_.seq_count(), 0xFFFFFFFFU);
+  first_0_out_ =
+      std::vector<AtomicWrapper<uint32_t>>(seq_pkg_.seq_count(), 0xFFFFFFFFU);
+  last_0_in_ =
+      std::vector<AtomicWrapper<uint32_t>>(seq_pkg_.seq_count(), 0xFFFFFFFFU);
 
   // --- initialize stat ---
   edge_counter_.SetNumThreads(opt_.n_threads);
@@ -90,8 +99,9 @@ KmerCounter::MemoryStat KmerCounter::Initialize() {
   edge_writer_.InitFiles();
 
   int64_t memory_for_data = seq_pkg_.size_in_byte() +
-                            +seq_pkg_.seq_count() * sizeof(first_0_out_[0]) * 2  // first_in0 & last_out0
-                            + edge_counter_.size_in_byte();                      // edge_counting
+                            +seq_pkg_.seq_count() * sizeof(first_0_out_[0]) *
+                                2  // first_in0 & last_out0
+                            + edge_counter_.size_in_byte();  // edge_counting
 
   return {
       num_reads,
@@ -101,7 +111,8 @@ KmerCounter::MemoryStat KmerCounter::Initialize() {
   };
 }
 
-void KmerCounter::Lv0CalcBucketSize(int64_t seq_from, int64_t seq_to, std::array<int64_t, kNumBuckets> *out) {
+void KmerCounter::Lv0CalcBucketSize(int64_t seq_from, int64_t seq_to,
+                                    std::array<int64_t, kNumBuckets> *out) {
   std::array<int64_t, kNumBuckets> &bucket_sizes = *out;
   std::fill(bucket_sizes.begin(), bucket_sizes.end(), 0);
   GenericKmer edge, rev_edge;  // (k+1)-mer and its rc
@@ -115,7 +126,8 @@ void KmerCounter::Lv0CalcBucketSize(int64_t seq_from, int64_t seq_to, std::array
     }
 
     auto start_ptr_and_offset = seq_view.raw_address();
-    edge.InitFromPtr(start_ptr_and_offset.first, start_ptr_and_offset.second, opt_.k + 1);
+    edge.InitFromPtr(start_ptr_and_offset.first, start_ptr_and_offset.second,
+                     opt_.k + 1);
     rev_edge = edge;
     rev_edge.ReverseComplement(opt_.k + 1);
 
@@ -123,9 +135,13 @@ void KmerCounter::Lv0CalcBucketSize(int64_t seq_from, int64_t seq_to, std::array
 
     while (true) {
       if (rev_edge.cmp(edge, opt_.k + 1) < 0) {
-        bucket_sizes[rev_edge.data()[0] >> (kCharsPerEdgeWord - kBucketPrefixLength) * kBitsPerEdgeChar]++;
+        bucket_sizes[rev_edge.data()[0] >>
+                     (kCharsPerEdgeWord - kBucketPrefixLength) *
+                         kBitsPerEdgeChar]++;
       } else {
-        bucket_sizes[edge.data()[0] >> (kCharsPerEdgeWord - kBucketPrefixLength) * kBitsPerEdgeChar]++;
+        bucket_sizes[edge.data()[0] >>
+                     (kCharsPerEdgeWord - kBucketPrefixLength) *
+                         kBitsPerEdgeChar]++;
       }
 
       if (++last_char_offset >= read_length) {
@@ -139,7 +155,8 @@ void KmerCounter::Lv0CalcBucketSize(int64_t seq_from, int64_t seq_to, std::array
   }
 }
 
-void KmerCounter::Lv1FillOffsets(OffsetFiller &filler, int64_t seq_from, int64_t seq_to) {
+void KmerCounter::Lv1FillOffsets(OffsetFiller &filler, int64_t seq_from,
+                                 int64_t seq_to) {
   GenericKmer edge, rev_edge;  // (k+1)-mer and its rc
   unsigned key;
   for (int64_t read_id = seq_from; read_id < seq_to; ++read_id) {
@@ -160,14 +177,20 @@ void KmerCounter::Lv1FillOffsets(OffsetFiller &filler, int64_t seq_from, int64_t
 
     while (true) {
       if (rev_edge.cmp(edge, opt_.k + 1) < 0) {
-        key = rev_edge.data()[0] >> (kCharsPerEdgeWord - kBucketPrefixLength) * kBitsPerEdgeChar;
+        key = rev_edge.data()[0] >>
+              (kCharsPerEdgeWord - kBucketPrefixLength) * kBitsPerEdgeChar;
         if (filler.IsHandling(key)) {
-          filler.WriteNextOffset(key, EncodeOffset(read_id, last_char_offset - opt_.k, 1, seq_pkg_));
+          filler.WriteNextOffset(
+              key,
+              EncodeOffset(read_id, last_char_offset - opt_.k, 1, seq_pkg_));
         }
       } else {
-        key = edge.data()[0] >> (kCharsPerEdgeWord - kBucketPrefixLength) * kBitsPerEdgeChar;
+        key = edge.data()[0] >>
+              (kCharsPerEdgeWord - kBucketPrefixLength) * kBitsPerEdgeChar;
         if (filler.IsHandling(key)) {
-          filler.WriteNextOffset(key, EncodeOffset(read_id, last_char_offset - opt_.k, 0, seq_pkg_));
+          filler.WriteNextOffset(
+              key,
+              EncodeOffset(read_id, last_char_offset - opt_.k, 0, seq_pkg_));
         }
       }
 
@@ -182,7 +205,8 @@ void KmerCounter::Lv1FillOffsets(OffsetFiller &filler, int64_t seq_from, int64_t
   }
 }
 
-void KmerCounter::Lv2ExtractSubString(OffsetFetcher &fetcher, SubstrPtr substr_ptr) {
+void KmerCounter::Lv2ExtractSubString(OffsetFetcher &fetcher,
+                                      SubstrPtr substr_ptr) {
   while (fetcher.HasNext()) {
     int64_t full_offset = fetcher.Next();
     auto seq_view = seq_pkg_.GetSeqViewByOffset(full_offset >> 1u);
@@ -211,20 +235,24 @@ void KmerCounter::Lv2ExtractSubString(OffsetFetcher &fetcher, SubstrPtr substr_p
     }
     uint64_t read_info;
     if (strand == 0) {
-      CopySubstring(substr_ptr, read_p, offset + start_offset, num_chars_to_copy, 1, words_this_seq, words_per_substr_);
+      CopySubstring(substr_ptr, read_p, offset + start_offset,
+                    num_chars_to_copy, 1, words_this_seq, words_per_substr_);
       read_info = (full_offset << 6) | (prev << 3) | next;
     } else {
-      CopySubstringRC(substr_ptr, read_p, offset + start_offset, num_chars_to_copy, 1, words_this_seq,
-                      words_per_substr_);
-      read_info = (full_offset << 6) | ((next == kSentinelValue ? kSentinelValue : (3 - next)) << 3) |
-                  (prev == kSentinelValue ? kSentinelValue : (3 - prev));
+      CopySubstringRC(substr_ptr, read_p, offset + start_offset,
+                      num_chars_to_copy, 1, words_this_seq, words_per_substr_);
+      read_info =
+          (full_offset << 6) |
+          ((next == kSentinelValue ? kSentinelValue : (3 - next)) << 3) |
+          (prev == kSentinelValue ? kSentinelValue : (3 - prev));
     }
     DecomposeUint64(substr_ptr + words_per_substr_, read_info);
     substr_ptr += words_per_substr_ + 2;
   }
 }
 
-void KmerCounter::Lv2Postprocess(int64_t start_index, int64_t end_index, int thread_id, uint32_t *substr_ptr) {
+void KmerCounter::Lv2Postprocess(int64_t start_index, int64_t end_index,
+                                 int thread_id, uint32_t *substr_ptr) {
   uint32_t packed_edge[32];
   int64_t count_prev[5], count_next[5];
 
@@ -239,7 +267,9 @@ void KmerCounter::Lv2Postprocess(int64_t start_index, int64_t end_index, int thr
     uint32_t *first_item = substr_ptr + i * (words_per_substr_ + 2);
 
     while (to_ < end_index) {
-      if (IsDifferentEdges(first_item, substr_ptr + to_ * (words_per_substr_ + 2), words_per_substr_, 1)) {
+      if (IsDifferentEdges(first_item,
+                           substr_ptr + to_ * (words_per_substr_ + 2),
+                           words_per_substr_, 1)) {
         break;
       }
 
@@ -256,7 +286,8 @@ void KmerCounter::Lv2Postprocess(int64_t start_index, int64_t end_index, int thr
     bool has_out = false;
 
     for (int64_t j = from_; j < to_; ++j) {
-      auto read_info_ptr = substr_ptr + j * (words_per_substr_ + 2) + words_per_substr_;
+      auto read_info_ptr =
+          substr_ptr + j * (words_per_substr_ + 2) + words_per_substr_;
       uint64_t read_info = ComposeUint64(read_info_ptr);
       int prev_and_next = read_info & ((1 << 6) - 1);
       count_prev[prev_and_next >> 3]++;
@@ -275,7 +306,8 @@ void KmerCounter::Lv2Postprocess(int64_t start_index, int64_t end_index, int thr
 
     if (!has_in && count >= opt_.solid_threshold) {
       for (int64_t j = from_; j < to_; ++j) {
-        auto *read_info_ptr = substr_ptr + j * (words_per_substr_ + 2) + words_per_substr_;
+        auto *read_info_ptr =
+            substr_ptr + j * (words_per_substr_ + 2) + words_per_substr_;
         int64_t read_info = ComposeUint64(read_info_ptr) >> 6;
         auto seq_view = seq_pkg_.GetSeqViewByOffset(read_info >> 1);
         int strand = read_info & 1;
@@ -283,19 +315,22 @@ void KmerCounter::Lv2Postprocess(int64_t start_index, int64_t end_index, int thr
 
         if (strand == 0) {
           // update last
-          uint32_t old_value = last_0_in_[seq_view.id()].v.load(std::memory_order::memory_order_acquire);
+          uint32_t old_value = last_0_in_[seq_view.id()].v.load(
+              std::memory_order::memory_order_acquire);
           while ((old_value == kSentinelOffset || old_value < offset) &&
-                 !last_0_in_[seq_view.id()].v.compare_exchange_weak(old_value, offset,
-                                                                    std::memory_order::memory_order_release,
-                                                                    std::memory_order::memory_order_relaxed)) {
+                 !last_0_in_[seq_view.id()].v.compare_exchange_weak(
+                     old_value, offset, std::memory_order::memory_order_release,
+                     std::memory_order::memory_order_relaxed)) {
           }
         } else {
           // update first
           offset++;
-          uint32_t old_value = first_0_out_[seq_view.id()].v.load(std::memory_order::memory_order_acquire);
-          while (old_value > offset && !first_0_out_[seq_view.id()].v.compare_exchange_weak(
-                                           old_value, offset, std::memory_order::memory_order_release,
-                                           std::memory_order::memory_order_relaxed)) {
+          uint32_t old_value = first_0_out_[seq_view.id()].v.load(
+              std::memory_order::memory_order_acquire);
+          while (old_value > offset &&
+                 !first_0_out_[seq_view.id()].v.compare_exchange_weak(
+                     old_value, offset, std::memory_order::memory_order_release,
+                     std::memory_order::memory_order_relaxed)) {
           }
         }
       }
@@ -303,7 +338,8 @@ void KmerCounter::Lv2Postprocess(int64_t start_index, int64_t end_index, int thr
 
     if (!has_out && count >= opt_.solid_threshold) {
       for (int64_t j = from_; j < to_; ++j) {
-        auto *read_info_ptr = substr_ptr + j * (words_per_substr_ + 2) + words_per_substr_;
+        auto *read_info_ptr =
+            substr_ptr + j * (words_per_substr_ + 2) + words_per_substr_;
         int64_t read_info = ComposeUint64(read_info_ptr) >> 6;
         auto seq_view = seq_pkg_.GetSeqViewByOffset(read_info >> 1);
         int strand = read_info & 1;
@@ -312,18 +348,21 @@ void KmerCounter::Lv2Postprocess(int64_t start_index, int64_t end_index, int thr
         if (strand == 0) {
           // update first
           offset++;
-          uint32_t old_value = first_0_out_[seq_view.id()].v.load(std::memory_order::memory_order_acquire);
-          while (old_value > offset && !first_0_out_[seq_view.id()].v.compare_exchange_weak(
-                                           old_value, offset, std::memory_order::memory_order_release,
-                                           std::memory_order::memory_order_relaxed)) {
+          uint32_t old_value = first_0_out_[seq_view.id()].v.load(
+              std::memory_order::memory_order_acquire);
+          while (old_value > offset &&
+                 !first_0_out_[seq_view.id()].v.compare_exchange_weak(
+                     old_value, offset, std::memory_order::memory_order_release,
+                     std::memory_order::memory_order_relaxed)) {
           }
         } else {
           // update last
-          uint32_t old_value = last_0_in_[seq_view.id()].v.load(std::memory_order::memory_order_acquire);
+          uint32_t old_value = last_0_in_[seq_view.id()].v.load(
+              std::memory_order::memory_order_acquire);
           while ((old_value == kSentinelOffset || old_value < offset) &&
-                 !last_0_in_[seq_view.id()].v.compare_exchange_weak(old_value, offset,
-                                                                    std::memory_order::memory_order_release,
-                                                                    std::memory_order::memory_order_relaxed)) {
+                 !last_0_in_[seq_view.id()].v.compare_exchange_weak(
+                     old_value, offset, std::memory_order::memory_order_release,
+                     std::memory_order::memory_order_relaxed)) {
           }
         }
       }
@@ -332,7 +371,9 @@ void KmerCounter::Lv2Postprocess(int64_t start_index, int64_t end_index, int thr
 
     if (count >= opt_.solid_threshold) {
       PackEdge(packed_edge, first_item, count);
-      edge_writer_.Write(packed_edge, packed_edge[0] >> (32 - 2 * kBucketPrefixLength), thread_id, &snapshot);
+      edge_writer_.Write(packed_edge,
+                         packed_edge[0] >> (32 - 2 * kBucketPrefixLength),
+                         thread_id, &snapshot);
     }
   }
 
@@ -343,10 +384,12 @@ void KmerCounter::Lv0Postprocess() {
   // --- output reads for mercy ---
   int64_t num_candidate_reads = 0;
   int64_t num_has_tips = 0;
-  std::ofstream candidate_file(opt_.output_prefix + ".cand", std::ofstream::binary | std::ofstream::out);
+  std::ofstream candidate_file(opt_.output_prefix + ".cand",
+                               std::ofstream::binary | std::ofstream::out);
 
   for (size_t i = 0; i < seq_pkg_.seq_count(); ++i) {
-    auto first = first_0_out_[i].v.load(std::memory_order::memory_order_relaxed);
+    auto first =
+        first_0_out_[i].v.load(std::memory_order::memory_order_relaxed);
     auto last = last_0_in_[i].v.load(std::memory_order::memory_order_relaxed);
 
     if (first != kSentinelOffset && last != kSentinelOffset) {
@@ -359,8 +402,10 @@ void KmerCounter::Lv0Postprocess() {
     }
   }
 
-  xinfo("Total number of candidate reads: {} ({})\n", num_candidate_reads, num_has_tips);
-  xinfo("Total number of solid edges: {}\n", edge_counter_.GetNumSolidEdges(opt_.solid_threshold));
+  xinfo("Total number of candidate reads: {} ({})\n", num_candidate_reads,
+        num_has_tips);
+  xinfo("Total number of solid edges: {}\n",
+        edge_counter_.GetNumSolidEdges(opt_.solid_threshold));
   std::ofstream counting_file(opt_.output_prefix + ".counting");
   edge_counter_.DumpStat(counting_file);
 

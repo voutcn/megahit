@@ -54,8 +54,11 @@ int main_filter_by_len(int argc, char **argv) {
 
   long long total_bases = hist.sum();
 
-  pfprintf(stderr, "{} contigs, total {} bp, min {} bp, max {} bp, avg {} bp, N50 {} bp\n", (int)hist.size(),
-           total_bases, hist.minimum(), hist.maximum(), int(hist.mean() + 0.5), hist.Nx(total_bases * 0.5));
+  pfprintf(
+      stderr,
+      "{} contigs, total {} bp, min {} bp, max {} bp, avg {} bp, N50 {} bp\n",
+      (int)hist.size(), total_bases, hist.minimum(), hist.maximum(),
+      int(hist.mean() + 0.5), hist.Nx(total_bases * 0.5));
 
   kseq_destroy(seq);
   gzclose(fp);

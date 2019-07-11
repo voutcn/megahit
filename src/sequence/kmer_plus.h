@@ -17,7 +17,9 @@ struct KmerPlus {
   using aux_type = Auxiliary;
   static const unsigned n_bytes = kmer_type::n_bytes;
 
-  KmerPlus(const kmer_type &kmer = kmer_type(), const aux_type &ann = aux_type()) : kmer(kmer), aux(ann) {}
+  KmerPlus(const kmer_type &kmer = kmer_type(),
+           const aux_type &ann = aux_type())
+      : kmer(kmer), aux(ann) {}
 
   bool operator<(const KmerPlus &rhs) const { return kmer < rhs.kmer; }
   bool operator==(const KmerPlus &rhs) const { return kmer == rhs.kmer; }
@@ -29,7 +31,8 @@ struct KmerPlus {
 struct KmerHash {
   template <unsigned NumWords, class WordType>
   size_t operator()(const Kmer<NumWords, WordType> &kmer) const {
-    return XXH3_64bits(static_cast<const void *>(kmer.data()), sizeof(WordType) * NumWords);
+    return XXH3_64bits(static_cast<const void *>(kmer.data()),
+                       sizeof(WordType) * NumWords);
   }
   template <class KmerType, class Auxiliary>
   size_t operator()(const KmerPlus<KmerType, Auxiliary> &kmer_plus) const {

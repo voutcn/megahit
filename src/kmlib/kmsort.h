@@ -36,17 +36,21 @@ inline void insert_sort_core(RandomIt s, RandomIt e, RadixTraits rt) {
 
 template <class T, class RadixTrait, int ByteIndex, int ByteIndexEnd>
 inline int kth_byte(const T &val, RadixTrait rt, int byte_index) {
-  return ByteIndex >= ByteIndexEnd ? rt.kth_byte(val, ByteIndex) : rt.kth_byte(val, byte_index);
+  return ByteIndex >= ByteIndexEnd ? rt.kth_byte(val, ByteIndex)
+                                   : rt.kth_byte(val, byte_index);
 }
 
-template <class RandomIt, class ValueType, class RadixTrait, int ByteIndex, int ByteIndexEnd>
-inline void radix_sort_core(RandomIt s, RandomIt e, RadixTrait rt, int byte_index) {
+template <class RandomIt, class ValueType, class RadixTrait, int ByteIndex,
+          int ByteIndexEnd>
+inline void radix_sort_core(RandomIt s, RandomIt e, RadixTrait rt,
+                            int byte_index) {
   RandomIt last_[kmsortconst::kNumBins + 1];
   RandomIt *last = last_ + 1;
   size_t count[kmsortconst::kNumBins] = {0};
 
   for (RandomIt i = s; i < e; ++i) {
-    ++count[kth_byte<ValueType, RadixTrait, ByteIndex, ByteIndexEnd>(*i, rt, byte_index)];
+    ++count[kth_byte<ValueType, RadixTrait, ByteIndex, ByteIndexEnd>(
+        *i, rt, byte_index)];
   }
 
   last_[0] = last_[1] = s;
@@ -63,11 +67,14 @@ inline void radix_sort_core(RandomIt s, RandomIt e, RadixTrait rt, int byte_inde
     }
     while (last[i] != end) {
       ValueType swapper = *last[i];
-      int tag = kth_byte<ValueType, RadixTrait, ByteIndex, ByteIndexEnd>(swapper, rt, byte_index);
+      int tag = kth_byte<ValueType, RadixTrait, ByteIndex, ByteIndexEnd>(
+          swapper, rt, byte_index);
       if (tag != i) {
         do {
           std::swap(swapper, *last[tag]++);
-        } while ((tag = kth_byte<ValueType, RadixTrait, ByteIndex, ByteIndexEnd>(swapper, rt, byte_index)) != i);
+        } while (
+            (tag = kth_byte<ValueType, RadixTrait, ByteIndex, ByteIndexEnd>(
+                 swapper, rt, byte_index)) != i);
         *last[i] = swapper;
       }
       ++last[i];
@@ -78,33 +85,39 @@ inline void radix_sort_core(RandomIt s, RandomIt e, RadixTrait rt, int byte_inde
     const int kNextIndex = ByteIndex > 0 ? ByteIndex - 1 : 0;
     for (int i = 0; i < kmsortconst::kNumBins; ++i) {
       if (count[i] > kmsortconst::kInsertSortThreshold) {
-        radix_sort_core<RandomIt, ValueType, RadixTrait, kNextIndex, ByteIndexEnd>(last[i - 1], last[i], rt,
-                                                                                   kNextIndex);
+        radix_sort_core<RandomIt, ValueType, RadixTrait, kNextIndex,
+                        ByteIndexEnd>(last[i - 1], last[i], rt, kNextIndex);
       } else if (count[i] > 1) {
-        insert_sort_core<RandomIt, ValueType, RadixTrait>(last[i - 1], last[i], rt);
+        insert_sort_core<RandomIt, ValueType, RadixTrait>(last[i - 1], last[i],
+                                                          rt);
       }
     }
   } else if (byte_index > 0) {
     for (int i = 0; i < kmsortconst::kNumBins; ++i) {
       if (count[i] > kmsortconst::kInsertSortThreshold) {
-        radix_sort_core<RandomIt, ValueType, RadixTrait, 0, ByteIndexEnd>(last[i - 1], last[i], rt, byte_index - 1);
+        radix_sort_core<RandomIt, ValueType, RadixTrait, 0, ByteIndexEnd>(
+            last[i - 1], last[i], rt, byte_index - 1);
       } else if (count[i] > 1) {
-        insert_sort_core<RandomIt, ValueType, RadixTrait>(last[i - 1], last[i], rt);
+        insert_sort_core<RandomIt, ValueType, RadixTrait>(last[i - 1], last[i],
+                                                          rt);
       }
     }
   }
 }
 
 template <class RandomIt, class ValueType, class RadixTraits>
-inline void radix_sort_entry(RandomIt s, RandomIt e, ValueType *, RadixTraits radix_traits) {
+inline void radix_sort_entry(RandomIt s, RandomIt e, ValueType *,
+                             RadixTraits radix_traits) {
   if (std::distance(s, e) <= 1) {
     return;
   } else if (std::distance(s, e) <= kmsortconst::kInsertSortThreshold) {
     insert_sort_core<RandomIt, ValueType, RadixTraits>(s, e, radix_traits);
   } else {
-    const int kByteIndexEnd = RadixTraits::n_bytes > 8 ? RadixTraits::n_bytes - 8 : 0;
-    radix_sort_core<RandomIt, ValueType, RadixTraits, RadixTraits::n_bytes - 1, kByteIndexEnd>(
-        s, e, radix_traits, RadixTraits::n_bytes - 1);
+    const int kByteIndexEnd =
+        RadixTraits::n_bytes > 8 ? RadixTraits::n_bytes - 8 : 0;
+    radix_sort_core<RandomIt, ValueType, RadixTraits, RadixTraits::n_bytes - 1,
+                    kByteIndexEnd>(s, e, radix_traits,
+                                   RadixTraits::n_bytes - 1);
   }
 }
 
@@ -131,7 +144,8 @@ struct RadixTraits<T, true> {
   static const int n_bytes = sizeof(T);
   static const T kMSBMask = T(T(-1) < 0) << (sizeof(T) * 8 - 1);
   int kth_byte(const T &x, int k) {
-    return ((x ^ kMSBMask) >> (kmsortconst::kRadixBits * k)) & kmsortconst::kRadixMask;
+    return ((x ^ kMSBMask) >> (kmsortconst::kRadixBits * k)) &
+           kmsortconst::kRadixMask;
   }
   bool operator()(const T &x, const T &y) const { return x < y; }
 };

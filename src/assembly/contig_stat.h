@@ -12,7 +12,8 @@
 
 using ContigStat = std::map<std::string, uint64_t>;
 
-inline ContigStat CalcAndPrintStat(UnitigGraph &graph, bool print = true, bool changed_only = false) {
+inline ContigStat CalcAndPrintStat(UnitigGraph &graph, bool print = true,
+                                   bool changed_only = false) {
   uint32_t n_isolated = 0, n_looped = 0;
   Histgram<uint64_t> hist;
 #pragma omp parallel for reduction(+ : n_looped, n_isolated)
@@ -23,13 +24,17 @@ inline ContigStat CalcAndPrintStat(UnitigGraph &graph, bool print = true, bool c
     }
     hist.insert(adapter.GetLength() + graph.k());
     n_looped += adapter.IsLoop();
-    n_isolated += adapter.IsStandalone() || (graph.InDegree(adapter) == 0 && graph.OutDegree(adapter) == 0);
+    n_isolated += adapter.IsStandalone() || (graph.InDegree(adapter) == 0 &&
+                                             graph.OutDegree(adapter) == 0);
   }
   uint64_t total_size = hist.sum();
-  ContigStat stat = {
-      {"Max", hist.maximum()},        {"Min", hist.minimum()},         {"N50", hist.Nx(0.5 * total_size)},
-      {"total size", total_size},     {"number contigs", hist.size()}, {"number looped", n_looped},
-      {"number isolated", n_isolated}};
+  ContigStat stat = {{"Max", hist.maximum()},
+                     {"Min", hist.minimum()},
+                     {"N50", hist.Nx(0.5 * total_size)},
+                     {"total size", total_size},
+                     {"number contigs", hist.size()},
+                     {"number looped", n_looped},
+                     {"number isolated", n_isolated}};
 
   if (print) {
     xinfo("");

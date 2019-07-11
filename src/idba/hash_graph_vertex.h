@@ -22,9 +22,14 @@
  */
 class HashGraphVertex {
  public:
-  explicit HashGraphVertex(const IdbaKmer &kmer = IdbaKmer()) : kmer_(kmer), count_(0) {}
+  explicit HashGraphVertex(const IdbaKmer &kmer = IdbaKmer())
+      : kmer_(kmer), count_(0) {}
   HashGraphVertex(const HashGraphVertex &x)
-      : kmer_(x.kmer_), count_(x.count_), status_(x.status_), in_edges_(x.in_edges_), out_edges_(x.out_edges_) {}
+      : kmer_(x.kmer_),
+        count_(x.count_),
+        status_(x.status_),
+        in_edges_(x.in_edges_),
+        out_edges_(x.out_edges_) {}
 
   const HashGraphVertex &operator=(const HashGraphVertex &x) {
     kmer_ = x.kmer_;
@@ -92,7 +97,8 @@ class HashGraphVertex {
  */
 class HashGraphVertexAdaptor {
  public:
-  explicit HashGraphVertexAdaptor(HashGraphVertex *vertex = NULL, bool is_reverse = false) {
+  explicit HashGraphVertexAdaptor(HashGraphVertex *vertex = NULL,
+                                  bool is_reverse = false) {
     vertex_ = vertex;
     is_reverse_ = is_reverse;
   }
@@ -108,10 +114,12 @@ class HashGraphVertexAdaptor {
   }
 
   bool operator<(const HashGraphVertexAdaptor &x) const {
-    return (vertex_ != x.vertex_) ? (vertex_ < x.vertex_) : (is_reverse_ < x.is_reverse_);
+    return (vertex_ != x.vertex_) ? (vertex_ < x.vertex_)
+                                  : (is_reverse_ < x.is_reverse_);
   }
   bool operator>(const HashGraphVertexAdaptor &x) const {
-    return (vertex_ != x.vertex_) ? (vertex_ > x.vertex_) : (is_reverse_ > x.is_reverse_);
+    return (vertex_ != x.vertex_) ? (vertex_ > x.vertex_)
+                                  : (is_reverse_ > x.is_reverse_);
   }
 
   bool operator==(const HashGraphVertexAdaptor &x) const {
@@ -144,11 +152,19 @@ class HashGraphVertexAdaptor {
   VertexStatus &status() { return vertex_->status(); }
   const VertexStatus &status() const { return vertex_->status(); }
 
-  BitEdges &in_edges() { return !is_reverse_ ? vertex_->in_edges() : vertex_->out_edges(); }
-  const BitEdges &in_edges() const { return !is_reverse_ ? vertex_->in_edges() : vertex_->out_edges(); }
+  BitEdges &in_edges() {
+    return !is_reverse_ ? vertex_->in_edges() : vertex_->out_edges();
+  }
+  const BitEdges &in_edges() const {
+    return !is_reverse_ ? vertex_->in_edges() : vertex_->out_edges();
+  }
 
-  BitEdges &out_edges() { return !is_reverse_ ? vertex_->out_edges() : vertex_->in_edges(); }
-  const BitEdges &out_edges() const { return !is_reverse_ ? vertex_->out_edges() : vertex_->in_edges(); }
+  BitEdges &out_edges() {
+    return !is_reverse_ ? vertex_->out_edges() : vertex_->in_edges();
+  }
+  const BitEdges &out_edges() const {
+    return !is_reverse_ ? vertex_->out_edges() : vertex_->in_edges();
+  }
 
   void swap(HashGraphVertexAdaptor &x) {
     if (this != &x) {

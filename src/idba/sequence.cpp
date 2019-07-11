@@ -22,7 +22,8 @@ istream &operator>>(istream &is, Sequence &seq) {
   if (!is) return is;
 
   string line;
-  while (is && (isalnum(is.peek()) || is.peek() == '\n') && getline(is, line)) seq.bases_ += line;
+  while (is && (isalnum(is.peek()) || is.peek() == '\n') && getline(is, line))
+    seq.bases_ += line;
   is.clear();
 
   seq.Encode();

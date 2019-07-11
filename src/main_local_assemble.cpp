@@ -50,15 +50,18 @@ void ParseLocalAsmOptions(int argc, char *argv[]) {
   OptionsDescription desc;
 
   desc.AddOption("contig_file", "c", opt.contig_file, "contig file");
-  desc.AddOption("lib_file_prefix", "l", opt.lib_file_prefix, "lib file prefix");
+  desc.AddOption("lib_file_prefix", "l", opt.lib_file_prefix,
+                 "lib file prefix");
   desc.AddOption("kmin", "", opt.kmin, "");
   desc.AddOption("kmax", "", opt.kmax, "");
   desc.AddOption("step", "", opt.step, "");
-  desc.AddOption("seed_kmer", "", opt.seed_kmer, "kmer size for seeding alignments");
+  desc.AddOption("seed_kmer", "", opt.seed_kmer,
+                 "kmer size for seeding alignments");
   desc.AddOption("min_contig_len", "", opt.min_contig_len, "");
   desc.AddOption("min_mapping_len", "", opt.min_mapping_len, "");
   desc.AddOption("sparsity", "", opt.sparsity, "sparsity of hash mapper");
-  desc.AddOption("similarity", "", opt.similarity, "alignment similarity threshold");
+  desc.AddOption("similarity", "", opt.similarity,
+                 "alignment similarity threshold");
   desc.AddOption("num_threads", "t", opt.num_threads, "");
   desc.AddOption("output_file", "o", opt.output_file, "");
 
@@ -78,7 +81,9 @@ void ParseLocalAsmOptions(int argc, char *argv[]) {
     }
   } catch (std::exception &e) {
     std::cerr << e.what() << std::endl;
-    std::cerr << "Usage: " << argv[0] << " -c contigs.fa -r reads.fq -o out.local_contig.fa" << std::endl;
+    std::cerr << "Usage: " << argv[0]
+              << " -c contigs.fa -r reads.fq -o out.local_contig.fa"
+              << std::endl;
     std::cerr << "options:" << std::endl;
     std::cerr << desc << std::endl;
     exit(1);

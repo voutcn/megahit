@@ -46,9 +46,10 @@ class AsyncSequenceReader : public BaseAsyncSequenceReader<SeqPackage> {
   static const int64_t kDefaultNumSeqPerBatch = 1u << 22u;
   static const int64_t kDefaultNumBasesPerBatch = 1u << 28u;
 
-  explicit AsyncSequenceReader(BaseSequenceReader *reader, bool reverse = false,
-                               int64_t sequences_per_batch = kDefaultNumSeqPerBatch,
-                               int64_t bases_per_batch = kDefaultNumBasesPerBatch)
+  explicit AsyncSequenceReader(
+      BaseSequenceReader *reader, bool reverse = false,
+      int64_t sequences_per_batch = kDefaultNumSeqPerBatch,
+      int64_t bases_per_batch = kDefaultNumBasesPerBatch)
       : reader_(reader),
         reverse_(reverse),
         max_sequence_per_batch_(sequences_per_batch),
@@ -60,7 +61,8 @@ class AsyncSequenceReader : public BaseAsyncSequenceReader<SeqPackage> {
  protected:
   void ReadOneBatch(SeqPackage *seq_pkg) override {
     seq_pkg->Clear();
-    reader_->Read(seq_pkg, max_sequence_per_batch_, max_bases_per_batch_, reverse_);
+    reader_->Read(seq_pkg, max_sequence_per_batch_, max_bases_per_batch_,
+                  reverse_);
   }
 
  private:
@@ -70,9 +72,11 @@ class AsyncSequenceReader : public BaseAsyncSequenceReader<SeqPackage> {
   int64_t max_bases_per_batch_{1u << 28u};
 };
 
-class AsyncContigReader : public BaseAsyncSequenceReader<std::pair<SeqPackage, std::vector<float>>> {
+class AsyncContigReader : public BaseAsyncSequenceReader<
+                              std::pair<SeqPackage, std::vector<float>>> {
  public:
-  explicit AsyncContigReader(const std::string &file_name) : reader_(file_name) {
+  explicit AsyncContigReader(const std::string &file_name)
+      : reader_(file_name) {
     reader_.SetDiscardFlag(contig_flag::kLoop | contig_flag::kStandalone);
     AsyncReadNextBatch();
   }
@@ -85,7 +89,8 @@ class AsyncContigReader : public BaseAsyncSequenceReader<std::pair<SeqPackage, s
     const int64_t kMaxNumContigs = 1u << 22u;
     const int64_t kMaxNumBases = 1u << 28u;
     const bool reverse = false;
-    reader_.ReadWithMultiplicity(&pkg->first, &pkg->second, kMaxNumContigs, kMaxNumBases, reverse);
+    reader_.ReadWithMultiplicity(&pkg->first, &pkg->second, kMaxNumContigs,
+                                 kMaxNumBases, reverse);
   }
 
  private:

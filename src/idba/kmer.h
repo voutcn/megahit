@@ -27,7 +27,9 @@ class IdbaKmer {
  public:
   IdbaKmer() { std::memset(data_, 0, sizeof(uint64_t) * kNumUint64); }
 
-  IdbaKmer(const IdbaKmer &kmer) { std::memcpy(data_, kmer.data_, sizeof(uint64_t) * kNumUint64); }
+  IdbaKmer(const IdbaKmer &kmer) {
+    std::memcpy(data_, kmer.data_, sizeof(uint64_t) * kNumUint64);
+  }
 
   explicit IdbaKmer(uint32_t size) {
     std::memset(data_, 0, sizeof(uint64_t) * kNumUint64);
@@ -75,13 +77,16 @@ class IdbaKmer {
 
     resize(0);
 
-    for (unsigned i = 0; i < used_words; ++i) bit_operation::ReverseComplement(data_[i]);
+    for (unsigned i = 0; i < used_words; ++i)
+      bit_operation::ReverseComplement(data_[i]);
 
-    for (unsigned i = 0; i < (used_words >> 1); ++i) std::swap(data_[i], data_[used_words - 1 - i]);
+    for (unsigned i = 0; i < (used_words >> 1); ++i)
+      std::swap(data_[i], data_[used_words - 1 - i]);
 
     if ((kmer_size & 31) != 0) {
       unsigned offset = (32 - (kmer_size & 31)) << 1;
-      for (unsigned i = 0; i + 1 < used_words; ++i) data_[i] = (data_[i] >> offset) | data_[i + 1] << (64 - offset);
+      for (unsigned i = 0; i + 1 < used_words; ++i)
+        data_[i] = (data_[i] >> offset) | data_[i + 1] << (64 - offset);
       data_[used_words - 1] >>= offset;
     }
 
@@ -97,8 +102,10 @@ class IdbaKmer {
 
     resize(0);
 
-    for (unsigned i = 0; i + 1 < used_words; ++i) data_[i] = (data_[i] >> 2) | (data_[i + 1] << 62);
-    data_[used_words - 1] = (data_[used_words - 1] >> 2) | (uint64_t(ch) << (((kmer_size - 1) & 31) << 1));
+    for (unsigned i = 0; i + 1 < used_words; ++i)
+      data_[i] = (data_[i] >> 2) | (data_[i + 1] << 62);
+    data_[used_words - 1] = (data_[used_words - 1] >> 2) |
+                            (uint64_t(ch) << (((kmer_size - 1) & 31) << 1));
 
     resize(kmer_size);
   }
@@ -110,10 +117,12 @@ class IdbaKmer {
 
     resize(0);
 
-    for (int i = used_words - 1; i > 0; --i) data_[i] = (data_[i] << 2) | (data_[i - 1] >> 62);
+    for (int i = used_words - 1; i > 0; --i)
+      data_[i] = (data_[i] << 2) | (data_[i - 1] >> 62);
     data_[0] = (data_[0] << 2) | ch;
 
-    if ((kmer_size & 31) != 0) data_[used_words - 1] &= (1ULL << ((kmer_size & 31) << 1)) - 1;
+    if ((kmer_size & 31) != 0)
+      data_[used_words - 1] &= (1ULL << ((kmer_size & 31) << 1)) - 1;
 
     resize(kmer_size);
   }
@@ -131,26 +140,33 @@ class IdbaKmer {
     return (*this < rev_comp ? *this : rev_comp);
   }
 
-  uint8_t operator[](uint32_t index) const { return (data_[index >> 5] >> ((index & 31) << 1)) & 3; }
+  uint8_t operator[](uint32_t index) const {
+    return (data_[index >> 5] >> ((index & 31) << 1)) & 3;
+  }
 
-  uint8_t get_base(uint32_t index) const { return (data_[index >> 5] >> ((index & 31) << 1)) & 3; }
+  uint8_t get_base(uint32_t index) const {
+    return (data_[index >> 5] >> ((index & 31) << 1)) & 3;
+  }
 
   void set_base(uint32_t index, uint8_t ch) {
     ch &= 3;
     unsigned offset = (index & 31) << 1;
-    data_[index >> 5] = (data_[index >> 5] & ~(3ULL << offset)) | (uint64_t(ch) << offset);
+    data_[index >> 5] =
+        (data_[index >> 5] & ~(3ULL << offset)) | (uint64_t(ch) << offset);
   }
 
   void swap(IdbaKmer &kmer) {
     if (this != &kmer) {
-      for (unsigned i = 0; i < kNumUint64; ++i) std::swap(data_[i], kmer.data_[i]);
+      for (unsigned i = 0; i < kNumUint64; ++i)
+        std::swap(data_[i], kmer.data_[i]);
     }
   }
 
   uint32_t size() const { return data_[kNumUint64 - 1] >> (64 - kBitsForSize); }
   void resize(uint32_t new_size) {
     data_[kNumUint64 - 1] =
-        ((data_[kNumUint64 - 1] << kBitsForSize) >> kBitsForSize) | (uint64_t(new_size) << (64 - kBitsForSize));
+        ((data_[kNumUint64 - 1] << kBitsForSize) >> kBitsForSize) |
+        (uint64_t(new_size) << (64 - kBitsForSize));
   }
 
   void clear() {
@@ -162,7 +178,8 @@ class IdbaKmer {
   static uint32_t max_size() { return kMaxSize; }
 
   static const uint32_t kNumUint64 = kUint64PerIdbaKmerMaxK;
-  static const uint32_t kBitsForSize = ((kNumUint64 <= 2) ? 6 : ((kNumUint64 <= 8) ? 8 : 16));
+  static const uint32_t kBitsForSize =
+      ((kNumUint64 <= 2) ? 6 : ((kNumUint64 <= 8) ? 8 : 16));
   static const uint32_t kBitsForIdbaKmer = (kNumUint64 * 64 - kBitsForSize);
   static const uint32_t kMaxSize = kBitsForIdbaKmer / 2;
 

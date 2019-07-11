@@ -31,11 +31,13 @@
 class ContigGraph {
  public:
   using HashMap = phmap::flat_hash_map<IdbaKmer, uint32_t, Hash<IdbaKmer>>;
-  explicit ContigGraph(uint32_t kmer_size = 0) : num_edges_(0), kmer_size_(kmer_size) {}
+  explicit ContigGraph(uint32_t kmer_size = 0)
+      : num_edges_(0), kmer_size_(kmer_size) {}
 
   ~ContigGraph() { clear(); }
 
-  void Initialize(const std::deque<Sequence> &contigs, const std::deque<ContigInfo> &contig_infos);
+  void Initialize(const std::deque<Sequence> &contigs,
+                  const std::deque<ContigInfo> &contig_infos);
 
   void Refresh();
   void RefreshVertices();
@@ -65,19 +67,23 @@ class ContigGraph {
   int64_t RemoveDeadEnd(int min_length);
   int64_t RemoveBubble();
 
-  double IterateCoverage(int min_length, double min_cover, double max_cover, double factor = 1.1);
+  double IterateCoverage(int min_length, double min_cover, double max_cover,
+                         double factor = 1.1);
 
   bool RemoveLowCoverage(double min_cover, int min_length);
 
-  int64_t Assemble(std::deque<Sequence> &contigs, std::deque<ContigInfo> &contig_infos);
+  int64_t Assemble(std::deque<Sequence> &contigs,
+                   std::deque<ContigInfo> &contig_infos);
 
-  ContigGraphVertexAdaptor GetNeighbor(const ContigGraphVertexAdaptor &current, int x) {
+  ContigGraphVertexAdaptor GetNeighbor(const ContigGraphVertexAdaptor &current,
+                                       int x) {
     IdbaKmer kmer = current.end_kmer(kmer_size_);
     kmer.ShiftAppend(x);
     return FindVertexAdaptorByBeginIdbaKmer(kmer);
   }
 
-  void GetNeighbors(const ContigGraphVertexAdaptor &current, std::deque<ContigGraphVertexAdaptor> &neighbors) {
+  void GetNeighbors(const ContigGraphVertexAdaptor &current,
+                    std::deque<ContigGraphVertexAdaptor> &neighbors) {
     neighbors.clear();
     for (int x = 0; x < 4; ++x) {
       if (current.out_edges()[x]) neighbors.push_back(GetNeighbor(current, x));
@@ -107,22 +113,27 @@ class ContigGraph {
 
   void BuildBeginIdbaKmerMap();
 
-  bool GetNextVertexAdaptor(ContigGraphVertexAdaptor &current, ContigGraphVertexAdaptor &next) {
+  bool GetNextVertexAdaptor(ContigGraphVertexAdaptor &current,
+                            ContigGraphVertexAdaptor &next) {
     if (current.out_edges().size() != 1) return false;
 
     next = GetNeighbor(current, bit_operation::BitToIndex(current.out_edges()));
-    return next.in_edges().size() == 1 && !(next.contig_size() == kmer_size_ && next.contig().IsPalindrome());
+    return next.in_edges().size() == 1 &&
+           !(next.contig_size() == kmer_size_ && next.contig().IsPalindrome());
   }
 
-  bool IsLoop(const ContigGraphPath &path, const ContigGraphVertexAdaptor &next) {
+  bool IsLoop(const ContigGraphPath &path,
+              const ContigGraphVertexAdaptor &next) {
     return path.front().id() == next.id();
   }
 
-  bool IsPalindromeLoop(const ContigGraphPath &path, const ContigGraphVertexAdaptor &next) {
+  bool IsPalindromeLoop(const ContigGraphPath &path,
+                        const ContigGraphVertexAdaptor &next) {
     return path.back().id() == next.id();
   }
 
-  ContigGraphVertexAdaptor FindVertexAdaptorByBeginIdbaKmer(const IdbaKmer &begin_kmer) {
+  ContigGraphVertexAdaptor FindVertexAdaptorByBeginIdbaKmer(
+      const IdbaKmer &begin_kmer) {
     IdbaKmer key = begin_kmer.unique_format();
 
     auto iter = begin_kmer_map_.find(key);
@@ -136,10 +147,12 @@ class ContigGraph {
     return ContigGraphVertexAdaptor();
   }
 
-  bool CycleDetect(ContigGraphVertexAdaptor current, std::map<int, int> &status);
-  void TopSortDFS(std::deque<ContigGraphVertexAdaptor> &order, ContigGraphVertexAdaptor current,
-                  std::map<int, int> &status);
-  int GetDepth(ContigGraphVertexAdaptor current, int length, int &maximum, int min_length);
+  bool CycleDetect(ContigGraphVertexAdaptor current,
+                   std::map<int, int> &status);
+  void TopSortDFS(std::deque<ContigGraphVertexAdaptor> &order,
+                  ContigGraphVertexAdaptor current, std::map<int, int> &status);
+  int GetDepth(ContigGraphVertexAdaptor current, int length, int &maximum,
+               int min_length);
 
   HashMap begin_kmer_map_;
   std::deque<ContigGraphVertex> vertices_;

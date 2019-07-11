@@ -84,10 +84,13 @@ class BaseSequenceSortingEngine {
    */
   class OffsetFiller {
    public:
-    OffsetFiller(BaseSequenceSortingEngine *engine, unsigned start_bucket, unsigned end_bucket, const ThreadMeta &sp)
+    OffsetFiller(BaseSequenceSortingEngine *engine, unsigned start_bucket,
+                 unsigned end_bucket, const ThreadMeta &sp)
         : engine_(engine) {
-      std::fill(prev_full_offsets_.begin() + start_bucket, prev_full_offsets_.begin() + end_bucket, sp.offset_base);
-      std::copy(sp.bucket_begin.begin() + start_bucket, sp.bucket_begin.begin() + end_bucket,
+      std::fill(prev_full_offsets_.begin() + start_bucket,
+                prev_full_offsets_.begin() + end_bucket, sp.offset_base);
+      std::copy(sp.bucket_begin.begin() + start_bucket,
+                sp.bucket_begin.begin() + end_bucket,
                 bucket_index_.begin() + start_bucket);
     }
 
@@ -100,7 +103,9 @@ class BaseSequenceSortingEngine {
       prev_full_offsets_[bucket] = full_offset;
     }
 
-    bool IsHandling(unsigned bucket) const { return engine_->cur_lv1_buckets_[bucket]; }
+    bool IsHandling(unsigned bucket) const {
+      return engine_->cur_lv1_buckets_[bucket];
+    }
 
    private:
     BaseSequenceSortingEngine *engine_;
@@ -113,13 +118,16 @@ class BaseSequenceSortingEngine {
    */
   class OffsetFetcher {
    public:
-    OffsetFetcher(BaseSequenceSortingEngine *engine, unsigned start_bucket, unsigned end_bucket)
+    OffsetFetcher(BaseSequenceSortingEngine *engine, unsigned start_bucket,
+                  unsigned end_bucket)
         : engine_(engine), end_bucket_(end_bucket), cur_bucket_(start_bucket) {
       cur_thread_id_ = 0;
       cur_item_index_ = 0;
       cur_full_offset_ = engine_->thread_meta_[cur_thread_id_].offset_base;
-      cur_n_items_ = engine_->thread_meta_[cur_thread_id_].bucket_sizes[cur_bucket_];
-      diff_iter_ = engine_->lv1_offsets_.cbegin() + engine_->thread_meta_[0].bucket_begin[cur_bucket_];
+      cur_n_items_ =
+          engine_->thread_meta_[cur_thread_id_].bucket_sizes[cur_bucket_];
+      diff_iter_ = engine_->lv1_offsets_.cbegin() +
+                   engine_->thread_meta_[0].bucket_begin[cur_bucket_];
       TryRefill();
     }
 
@@ -153,7 +161,8 @@ class BaseSequenceSortingEngine {
         }
         cur_full_offset_ = engine_->thread_meta_[cur_thread_id_].offset_base;
         cur_item_index_ = 0;
-        cur_n_items_ = engine_->thread_meta_[cur_thread_id_].bucket_sizes[cur_bucket_];
+        cur_n_items_ =
+            engine_->thread_meta_[cur_thread_id_].bucket_sizes[cur_bucket_];
       }
     }
 
@@ -201,8 +210,9 @@ class BaseSequenceSortingEngine {
   int64_t host_mem_{};
   int mem_flag_{};
   unsigned n_threads_{};
-  MemoryStat meta_{};                                     // set by Initialize return
-  std::function<void(uint32_t *, int64_t)> substr_sort_;  // set after Initialize
+  MemoryStat meta_{};  // set by Initialize return
+  std::function<void(uint32_t *, int64_t)>
+      substr_sort_;  // set after Initialize
 
   /**
    * Interfaces used by `Run` and must be implemented in derived class
@@ -212,10 +222,14 @@ class BaseSequenceSortingEngine {
 
  protected:
   virtual int64_t Lv0EncodeDiffBase(int64_t) = 0;
-  virtual void Lv0CalcBucketSize(int64_t seq_from, int64_t seq_to, std::array<int64_t, kNumBuckets> *out) = 0;
-  virtual void Lv1FillOffsets(OffsetFiller &filler, int64_t seq_from, int64_t seq_to) = 0;
-  virtual void Lv2ExtractSubString(OffsetFetcher &fetcher, SubstrPtr substr_ptr) = 0;
-  virtual void Lv2Postprocess(int64_t start_index, int64_t end_index, int thread_id, uint32_t *substr_ptr) = 0;
+  virtual void Lv0CalcBucketSize(int64_t seq_from, int64_t seq_to,
+                                 std::array<int64_t, kNumBuckets> *out) = 0;
+  virtual void Lv1FillOffsets(OffsetFiller &filler, int64_t seq_from,
+                              int64_t seq_to) = 0;
+  virtual void Lv2ExtractSubString(OffsetFetcher &fetcher,
+                                   SubstrPtr substr_ptr) = 0;
+  virtual void Lv2Postprocess(int64_t start_index, int64_t end_index,
+                              int thread_id, uint32_t *substr_ptr) = 0;
   virtual void Lv0Postprocess() = 0;
 
  private:

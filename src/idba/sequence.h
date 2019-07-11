@@ -28,8 +28,12 @@ class Sequence {
   friend std::ostream &operator<<(std::ostream &stream, const Sequence &seq);
 
   Sequence() {}
-  Sequence(const Sequence &seq, int offset = 0, size_t length = std::string::npos) { Assign(seq, offset, length); }
-  explicit Sequence(const std::string &seq, int offset = 0, size_t length = std::string::npos) {
+  Sequence(const Sequence &seq, int offset = 0,
+           size_t length = std::string::npos) {
+    Assign(seq, offset, length);
+  }
+  explicit Sequence(const std::string &seq, int offset = 0,
+                    size_t length = std::string::npos) {
     Assign(seq, offset, length);
   }
   Sequence(uint32_t num, uint8_t ch) { Assign(num, ch); }
@@ -64,11 +68,13 @@ class Sequence {
   bool operator<(const Sequence &seq) const { return bases_ < seq.bases_; }
   bool operator>(const Sequence &seq) const { return bases_ > seq.bases_; }
 
-  const Sequence &Assign(const Sequence &seq, int offset = 0, size_t length = std::string::npos) {
+  const Sequence &Assign(const Sequence &seq, int offset = 0,
+                         size_t length = std::string::npos) {
     if (&seq != this) bases_.assign(seq.bases_, offset, length);
     return *this;
   }
-  const Sequence &Assign(const std::string &s, int offset = 0, size_t length = std::string::npos) {
+  const Sequence &Assign(const std::string &s, int offset = 0,
+                         size_t length = std::string::npos) {
     bases_.assign(s, offset, length);
     Encode();
     return *this;
@@ -79,11 +85,13 @@ class Sequence {
   }
   const Sequence &Assign(const IdbaKmer &kmer);
 
-  const Sequence &Append(const Sequence &seq, int offset = 0, size_t length = std::string::npos) {
+  const Sequence &Append(const Sequence &seq, int offset = 0,
+                         size_t length = std::string::npos) {
     bases_.append(seq.bases_, offset, length);
     return *this;
   }
-  const Sequence &Append(const std::string &seq, int offset = 0, size_t length = std::string::npos) {
+  const Sequence &Append(const std::string &seq, int offset = 0,
+                         size_t length = std::string::npos) {
     bases_.append(seq, offset, length);
     return *this;
   }
@@ -103,7 +111,9 @@ class Sequence {
   IdbaKmer GetIdbaKmer(uint32_t offset, uint32_t kmer_size) const;
 
   uint8_t &operator[](unsigned index) { return (uint8_t &)bases_[index]; }
-  const uint8_t &operator[](unsigned index) const { return (uint8_t &)bases_[index]; }
+  const uint8_t &operator[](unsigned index) const {
+    return (uint8_t &)bases_[index];
+  }
   uint8_t get_base(uint32_t index) const { return (uint8_t)bases_[index]; }
   void set_base(uint32_t index, uint8_t ch) { bases_[index] = ch; }
 
@@ -127,7 +137,8 @@ class Sequence {
   void Decode();
 
   bool IsValid(char ch) const {
-    return ch == 'A' || ch == 'C' || ch == 'G' || ch == 'T' || ch == 0 || ch == 1 || ch == 2 || ch == 3;
+    return ch == 'A' || ch == 'C' || ch == 'G' || ch == 'T' || ch == 0 ||
+           ch == 1 || ch == 2 || ch == 3;
   }
 
  private:
@@ -141,6 +152,7 @@ inline void swap(Sequence &seq1, Sequence &seq2) {
 }
 }  // namespace std
 
-std::ostream &WriteFasta(std::ostream &os, const Sequence &seq, const std::string &comment);
+std::ostream &WriteFasta(std::ostream &os, const Sequence &seq,
+                         const std::string &comment);
 
 #endif

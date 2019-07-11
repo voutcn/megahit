@@ -162,7 +162,8 @@ uint64_t RemoveTips(SDBG &dbg, int max_tip_len) {
     timer.start();
     number_tips += Trim(dbg, len, ignored);
     timer.stop();
-    xinfoc("Accumulated tips removed: {}; time elapsed: {.4}\n", number_tips, timer.elapsed());
+    xinfoc("Accumulated tips removed: {}; time elapsed: {.4}\n", number_tips,
+           timer.elapsed());
   }
 
   xinfo("Removing tips with length less than {}; ", max_tip_len);
@@ -170,7 +171,8 @@ uint64_t RemoveTips(SDBG &dbg, int max_tip_len) {
   timer.start();
   number_tips += Trim(dbg, max_tip_len, ignored);
   timer.stop();
-  xinfoc("Accumulated tips removed: {}; time elapsed: {.4}\n", number_tips, timer.elapsed());
+  xinfoc("Accumulated tips removed: {}; time elapsed: {.4}\n", number_tips,
+         timer.elapsed());
 
   return number_tips;
 }

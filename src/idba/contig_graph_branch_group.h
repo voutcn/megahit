@@ -20,7 +20,8 @@
  */
 class ContigGraphBranchGroup {
  public:
-  ContigGraphBranchGroup(ContigGraph *graph, ContigGraphVertexAdaptor begin, int max_branches = 2, int max_length = 0) {
+  ContigGraphBranchGroup(ContigGraph *graph, ContigGraphVertexAdaptor begin,
+                         int max_branches = 2, int max_length = 0) {
     contig_graph_ = graph;
     begin_ = begin;
     max_branches_ = max_branches;

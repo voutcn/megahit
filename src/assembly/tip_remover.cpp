@@ -7,7 +7,8 @@
 
 uint32_t RemoveTips(UnitigGraph &graph, uint32_t max_tip_len) {
   uint32_t num_removed = 0;
-  for (uint32_t thre = 2; thre < max_tip_len; thre = std::min(thre * 2, max_tip_len)) {
+  for (uint32_t thre = 2; thre < max_tip_len;
+       thre = std::min(thre * 2, max_tip_len)) {
 #pragma omp parallel for reduction(+ : num_removed)
     for (UnitigGraph::size_type i = 0; i < graph.size(); ++i) {
       auto adapter = graph.MakeVertexAdapter(i);

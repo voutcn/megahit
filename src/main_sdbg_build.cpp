@@ -40,10 +40,15 @@ int main_kmer_count(int argc, char **argv) {
   KmerCounterOption opt;
 
   desc.AddOption("kmer_k", "k", opt.k, "kmer size");
-  desc.AddOption("min_kmer_frequency", "m", opt.solid_threshold, "min frequency to output an edge");
-  desc.AddOption("host_mem", "", opt.host_mem, "Max memory to be used. 90% of the free memory is recommended.");
-  desc.AddOption("num_cpu_threads", "", opt.n_threads, "number of CPU threads. At least 2.");
-  desc.AddOption("read_lib_file", "", opt.read_lib_file, "read library configuration file.");
+  desc.AddOption("min_kmer_frequency", "m", opt.solid_threshold,
+                 "min frequency to output an edge");
+  desc.AddOption(
+      "host_mem", "", opt.host_mem,
+      "Max memory to be used. 90% of the free memory is recommended.");
+  desc.AddOption("num_cpu_threads", "", opt.n_threads,
+                 "number of CPU threads. At least 2.");
+  desc.AddOption("read_lib_file", "", opt.read_lib_file,
+                 "read library configuration file.");
   desc.AddOption("output_prefix", "", opt.output_prefix, "output prefix");
   desc.AddOption("mem_flag", "", opt.mem_flag,
                  "memory options. 0: minimize memory usage; 1: automatically "
@@ -67,7 +72,8 @@ int main_kmer_count(int argc, char **argv) {
     }
   } catch (std::exception &e) {
     std::cerr << e.what() << std::endl;
-    std::cerr << "Usage: sdbg_builder count --input_file fastx_file -o out" << std::endl;
+    std::cerr << "Usage: sdbg_builder count --input_file fastx_file -o out"
+              << std::endl;
     std::cerr << "Options:" << std::endl;
     std::cerr << desc << std::endl;
     exit(1);
@@ -87,10 +93,15 @@ int main_read2sdbg(int argc, char **argv) {
   Read2SdbgOption opt;
 
   desc.AddOption("kmer_k", "k", opt.k, "kmer size");
-  desc.AddOption("min_kmer_frequency", "m", opt.solid_threshold, "min frequency to output an edge");
-  desc.AddOption("host_mem", "", opt.host_mem, "Max memory to be used. 90% of the free memory is recommended.");
-  desc.AddOption("num_cpu_threads", "", opt.n_threads, "number of CPU threads. At least 2.");
-  desc.AddOption("read_lib_file", "", opt.read_lib_file, "input fast[aq] file, can be gzip'ed. \"-\" for stdin.");
+  desc.AddOption("min_kmer_frequency", "m", opt.solid_threshold,
+                 "min frequency to output an edge");
+  desc.AddOption(
+      "host_mem", "", opt.host_mem,
+      "Max memory to be used. 90% of the free memory is recommended.");
+  desc.AddOption("num_cpu_threads", "", opt.n_threads,
+                 "number of CPU threads. At least 2.");
+  desc.AddOption("read_lib_file", "", opt.read_lib_file,
+                 "input fast[aq] file, can be gzip'ed. \"-\" for stdin.");
   desc.AddOption("output_prefix", "", opt.output_prefix, "output prefix");
   desc.AddOption("mem_flag", "", opt.mem_flag,
                  "memory options. 0: minimize memory usage; 1: automatically "
@@ -115,7 +126,9 @@ int main_read2sdbg(int argc, char **argv) {
     }
   } catch (std::exception &e) {
     std::cerr << e.what() << std::endl;
-    std::cerr << "Usage: sdbg_builder read2sdbg --read_lib_file fastx_file -o out" << std::endl;
+    std::cerr
+        << "Usage: sdbg_builder read2sdbg --read_lib_file fastx_file -o out"
+        << std::endl;
     std::cerr << "Options:" << std::endl;
     std::cerr << desc << std::endl;
     exit(1);
@@ -153,13 +166,18 @@ int main_seq2sdbg(int argc, char **argv) {
                  "recommended. 0 for auto detect.");
   desc.AddOption("kmer_size", "k", opt.k, "kmer size");
   desc.AddOption("kmer_from", "", opt.k_from, "previous k");
-  desc.AddOption("num_cpu_threads", "t", opt.n_threads, "number of CPU threads. At least 2.");
+  desc.AddOption("num_cpu_threads", "t", opt.n_threads,
+                 "number of CPU threads. At least 2.");
   desc.AddOption("contig", "", opt.contig, "contigs from previous k");
-  desc.AddOption("bubble", "", opt.bubble_seq, "bubble sequence from previous k");
-  desc.AddOption("addi_contig", "", opt.addi_contig, "additional contigs from previous k");
-  desc.AddOption("local_contig", "", opt.local_contig, "local contigs from previous k");
-  desc.AddOption("input_prefix", "", opt.input_prefix,
-                 "files input_prefix.edges.* output by count module, can be gzip'ed.");
+  desc.AddOption("bubble", "", opt.bubble_seq,
+                 "bubble sequence from previous k");
+  desc.AddOption("addi_contig", "", opt.addi_contig,
+                 "additional contigs from previous k");
+  desc.AddOption("local_contig", "", opt.local_contig,
+                 "local contigs from previous k");
+  desc.AddOption(
+      "input_prefix", "", opt.input_prefix,
+      "files input_prefix.edges.* output by count module, can be gzip'ed.");
   desc.AddOption("output_prefix", "o", opt.output_prefix, "output prefix");
   desc.AddOption("need_mercy", "", opt.need_mercy,
                  "to add mercy edges. The file input_prefix.cand output by "
@@ -173,7 +191,8 @@ int main_seq2sdbg(int argc, char **argv) {
   try {
     desc.Parse(argc, argv);
 
-    if (opt.input_prefix.empty() && opt.contig.empty() && opt.addi_contig.empty()) {
+    if (opt.input_prefix.empty() && opt.contig.empty() &&
+        opt.addi_contig.empty()) {
       throw std::logic_error("No input files!");
     }
 

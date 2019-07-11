@@ -120,7 +120,8 @@ class PoolST {
   }
 
   void clear() {
-    for (unsigned i = 0; i < chunks_.size(); ++i) alloc_.deallocate(chunks_[i].address, chunks_[i].size);
+    for (unsigned i = 0; i < chunks_.size(); ++i)
+      alloc_.deallocate(chunks_[i].address, chunks_[i].size);
     chunks_.resize(0);
     fill(heads_.begin(), heads_.end(), (pointer)0);
     fill(buffers_.begin(), buffers_.end(), buffer_type());

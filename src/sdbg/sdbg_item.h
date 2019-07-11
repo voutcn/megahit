@@ -13,7 +13,8 @@
  */
 struct SdbgItem {
   SdbgItem() = default;
-  SdbgItem(uint8_t w, uint8_t last, uint8_t tip, small_mul_t mul) : w(w), last(last), tip(tip), mul(mul) {}
+  SdbgItem(uint8_t w, uint8_t last, uint8_t tip, small_mul_t mul)
+      : w(w), last(last), tip(tip), mul(mul) {}
   uint8_t w : kBitsPerWChar;
   uint8_t last : 1;
   uint8_t tip : 1;

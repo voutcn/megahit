@@ -55,17 +55,22 @@ class SeqToSdbg : public BaseSequenceSortingEngine {
   static const unsigned kBWTCharNumBits = 3;
 
   explicit SeqToSdbg(const Seq2SdbgOption &opt)
-      : BaseSequenceSortingEngine(opt.host_mem, opt.mem_flag, opt.n_threads), opt_(opt) {}
+      : BaseSequenceSortingEngine(opt.host_mem, opt.mem_flag, opt.n_threads),
+        opt_(opt) {}
 
  public:
   MemoryStat Initialize() override;
 
  protected:
   int64_t Lv0EncodeDiffBase(int64_t) override;
-  void Lv0CalcBucketSize(int64_t seq_from, int64_t seq_to, std::array<int64_t, kNumBuckets> *out) override;
-  void Lv1FillOffsets(OffsetFiller &filler, int64_t seq_from, int64_t seq_to) override;
-  void Lv2ExtractSubString(OffsetFetcher &fetcher, SubstrPtr substr_ptr) override;
-  void Lv2Postprocess(int64_t start_index, int64_t end_index, int thread_id, uint32_t *substr_ptr) override;
+  void Lv0CalcBucketSize(int64_t seq_from, int64_t seq_to,
+                         std::array<int64_t, kNumBuckets> *out) override;
+  void Lv1FillOffsets(OffsetFiller &filler, int64_t seq_from,
+                      int64_t seq_to) override;
+  void Lv2ExtractSubString(OffsetFetcher &fetcher,
+                           SubstrPtr substr_ptr) override;
+  void Lv2Postprocess(int64_t start_index, int64_t end_index, int thread_id,
+                      uint32_t *substr_ptr) override;
   void Lv0Postprocess() override;
 
  private:

@@ -5,14 +5,16 @@
 #include "sequence_lib.h"
 #include "async_sequence_reader.h"
 
-void SequenceLibCollection::Build(const std::string &lib_file, const std::string &out_prefix) {
+void SequenceLibCollection::Build(const std::string &lib_file,
+                                  const std::string &out_prefix) {
   std::ifstream lib_config(lib_file);
 
   if (!lib_config.is_open()) {
     xfatal("File to open read_lib file: {}\n", lib_file.c_str());
   }
 
-  std::ofstream bin_file(out_prefix + ".bin", std::ofstream::binary | std::ofstream::out);
+  std::ofstream bin_file(out_prefix + ".bin",
+                         std::ofstream::binary | std::ofstream::out);
 
   std::string metadata;
   std::string type;
@@ -59,19 +61,23 @@ void SequenceLibCollection::Build(const std::string &lib_file, const std::string
     }
 
     if (type == "pe" && (total_reads - begin_index) % 2 != 0) {
-      xerr("PE library number of reads is odd: {}!\n", total_reads - begin_index);
+      xerr("PE library number of reads is odd: {}!\n",
+           total_reads - begin_index);
       xfatal("File(s): {s}\n", metadata.c_str());
     }
 
     if (type == "interleaved" && (total_reads - begin_index) % 2 != 0) {
-      xerr("PE library number of reads is odd: {}!\n", total_reads - begin_index);
+      xerr("PE library number of reads is odd: {}!\n",
+           total_reads - begin_index);
       xfatal("File(s): {s}\n", metadata.c_str());
     }
 
-    xinfo("Lib {} ({s}): {s}, {} reads, {} max length\n", libs.size(), metadata.c_str(), type.c_str(),
-          total_reads - begin_index, max_read_len);
+    xinfo("Lib {} ({s}): {s}, {} reads, {} max length\n", libs.size(),
+          metadata.c_str(), type.c_str(), total_reads - begin_index,
+          max_read_len);
 
-    libs.emplace_back(nullptr, begin_index, total_reads, max_read_len, type != "se", metadata);
+    libs.emplace_back(nullptr, begin_index, total_reads, max_read_len,
+                      type != "se", metadata);
     std::getline(lib_config, metadata);  // eliminate the "\n"
   }
 

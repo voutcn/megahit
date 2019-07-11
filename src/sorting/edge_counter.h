@@ -11,9 +11,9 @@
 #include <vector>
 #include "sdbg/sdbg_def.h"
 
-class EdgeCounter {
+class EdgeMultiplicityRecorder {
  public:
-  EdgeCounter() = default;
+  EdgeMultiplicityRecorder() = default;
 
   void SetNumThreads(unsigned n) {
     counters_.resize(n);
@@ -22,7 +22,9 @@ class EdgeCounter {
     }
   }
 
-  size_t size_in_byte() const { return (kMaxMul + 1) * counters_.size() * sizeof(int64_t); }
+  size_t size_in_byte() const {
+    return (kMaxMul + 1) * counters_.size() * sizeof(int64_t);
+  }
 
   template <typename T>
   void Add(T multiplicity, unsigned thread_id) {

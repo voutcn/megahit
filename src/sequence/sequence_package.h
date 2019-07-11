@@ -42,13 +42,15 @@ class SequencePackage {
    */
   class SeqView {
    public:
-    SeqView(const SequencePackage *pkg, size_t seq_id) : package_(pkg), seq_id_(seq_id) {
+    SeqView(const SequencePackage *pkg, size_t seq_id)
+        : package_(pkg), seq_id_(seq_id) {
       assert(seq_id < pkg->seq_count());
     }
 
     unsigned length() const { return package_->GetSeqLength(seq_id_); }
 
-    std::pair<const WordType *, unsigned> raw_address(unsigned offset = 0) const {
+    std::pair<const WordType *, unsigned> raw_address(
+        unsigned offset = 0) const {
       assert(offset < length());
       return package_->GetRawAddress(seq_id_, offset);
     }
@@ -99,7 +101,8 @@ class SequencePackage {
   size_t base_count() const { return start_pos_.back(); }
 
   size_t size_in_byte() const {
-    return sizeof(TWord) * sequences_.word_capacity() + sizeof(uint64_t) * start_pos_.capacity() +
+    return sizeof(TWord) * sequences_.word_capacity() +
+           sizeof(uint64_t) * start_pos_.capacity() +
            sizeof(uint64_t) * pos_to_id_.capacity();
   }
 
@@ -107,18 +110,23 @@ class SequencePackage {
 
   SeqView GetSeqView(size_t seq_id) const { return SeqView(this, seq_id); }
 
-  SeqView GetSeqViewByOffset(size_t offset) const { return SeqView(this, GetSeqID(offset)); }
+  SeqView GetSeqViewByOffset(size_t offset) const {
+    return SeqView(this, GetSeqID(offset));
+  }
 
  private:
   unsigned GetSeqLength(size_t seq_id) const {
     if (seq_id < num_fixed_len_) {
       return fixed_len_;
     } else {
-      return start_pos_[seq_id - num_fixed_len_ + 1] - start_pos_[seq_id - num_fixed_len_];
+      return start_pos_[seq_id - num_fixed_len_ + 1] -
+             start_pos_[seq_id - num_fixed_len_];
     }
   }
 
-  uint8_t GetBase(size_t seq_id, unsigned offset) const { return sequences_[StartPos(seq_id) + offset]; }
+  uint8_t GetBase(size_t seq_id, unsigned offset) const {
+    return sequences_[StartPos(seq_id) + offset];
+  }
 
   uint64_t StartPos(size_t seq_id) const {
     if (seq_id < num_fixed_len_) {
@@ -137,7 +145,8 @@ class SequencePackage {
     if (full_offset < num_fixed_len_ * fixed_len_) {
       return full_offset / fixed_len_;
     } else {
-      size_t look_up_entry = (full_offset - num_fixed_len_ * fixed_len_) / kLookupStep;
+      size_t look_up_entry =
+          (full_offset - num_fixed_len_ * fixed_len_) / kLookupStep;
       size_t l = pos_to_id_[look_up_entry], r = pos_to_id_[look_up_entry + 1];
 
       while (l < r) {
@@ -155,13 +164,21 @@ class SequencePackage {
   }
 
  public:
-  void AppendStringSequence(const char *s, unsigned len) { AppendStringSequence(s, s + len, len); }
+  void AppendStringSequence(const char *s, unsigned len) {
+    AppendStringSequence(s, s + len, len);
+  }
 
-  void AppendReversedStringSequence(const char *s, unsigned len) { AppendStringSequence(s + len - 1, s - 1, len); }
+  void AppendReversedStringSequence(const char *s, unsigned len) {
+    AppendStringSequence(s + len - 1, s - 1, len);
+  }
 
-  void AppendCompactSequence(const TWord *s, unsigned len) { AppendCompactSequence(s, len, false); }
+  void AppendCompactSequence(const TWord *s, unsigned len) {
+    AppendCompactSequence(s, len, false);
+  }
 
-  void AppendReversedCompactSequence(const TWord *s, unsigned len) { AppendCompactSequence(s, len, true); }
+  void AppendReversedCompactSequence(const TWord *s, unsigned len) {
+    AppendCompactSequence(s, len, true);
+  }
 
   void FetchSequence(size_t seq_id, std::vector<TWord> *s) const {
     TVector cvec(s);
@@ -191,7 +208,8 @@ class SequencePackage {
     size_t cur_id = num_fixed_len_;
 
     while (abs_offset <= start_pos_.back()) {
-      while (cur_id < seq_count() && start_pos_[cur_id - num_fixed_len_ + 1] <= abs_offset) {
+      while (cur_id < seq_count() &&
+             start_pos_[cur_id - num_fixed_len_ + 1] <= abs_offset) {
         ++cur_id;
       }
 
@@ -203,7 +221,8 @@ class SequencePackage {
     pos_to_id_.push_back(seq_count());
   }
 
-  void WriteSequences(std::ostream &os, int64_t from = 0, int64_t to = -1) const {
+  void WriteSequences(std::ostream &os, int64_t from = 0,
+                      int64_t to = -1) const {
     if (to == -1) {
       to = seq_count() - 1;
     }
@@ -215,7 +234,8 @@ class SequencePackage {
       len = GetSeqView(i).length();
       FetchSequence(i, &s);
       os.write(reinterpret_cast<const char *>(&len), sizeof(uint32_t));
-      os.write(reinterpret_cast<const char *>(s.data()), sizeof(uint32_t) * s.size());
+      os.write(reinterpret_cast<const char *>(s.data()),
+               sizeof(uint32_t) * s.size());
     }
   }
 
@@ -253,7 +273,8 @@ class SequencePackage {
       unsigned bases_in_last_word = len % kBasesPerWord;
       if (bases_in_last_word > 0) {
         auto val = kmlib::bit::Reverse<2>(*rptr);
-        sequences_.push_word(val, kBasesPerWord - bases_in_last_word, bases_in_last_word);
+        sequences_.push_word(val, kBasesPerWord - bases_in_last_word,
+                             bases_in_last_word);
         --rptr;
       }
       for (auto p = rptr; p >= ptr; --p) {
@@ -275,7 +296,8 @@ class SequencePackage {
   TVector sequences_;
   unsigned fixed_len_{0};
   size_t num_fixed_len_{0};
-  std::vector<uint64_t> start_pos_;  // the index of the starting position of a sequence
+  std::vector<uint64_t>
+      start_pos_;  // the index of the starting position of a sequence
   char dna_map_[256]{};
   unsigned max_len_{0};
 

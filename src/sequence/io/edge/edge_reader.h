@@ -22,7 +22,8 @@ class EdgeReader : public BaseSequenceReader {
     return this;
   }
 
-  int64_t ReadUnsorted(SeqPackage *pkg, std::vector<mul_t> *mul, int64_t max_num) {
+  int64_t ReadUnsorted(SeqPackage *pkg, std::vector<mul_t> *mul,
+                       int64_t max_num) {
     for (int64_t i = 0; i < max_num; ++i) {
       uint32_t *next_edge = NextUnsortedEdge();
       if (next_edge == nullptr) {
@@ -36,7 +37,8 @@ class EdgeReader : public BaseSequenceReader {
     return max_num;
   }
 
-  int64_t ReadSorted(SeqPackage *pkg, std::vector<mul_t> *mul, int64_t max_num) {
+  int64_t ReadSorted(SeqPackage *pkg, std::vector<mul_t> *mul,
+                     int64_t max_num) {
     for (int64_t i = 0; i < max_num; ++i) {
       uint32_t *next_edge = NextSortedEdge();
       if (next_edge == nullptr) {
@@ -50,7 +52,8 @@ class EdgeReader : public BaseSequenceReader {
     return max_num;
   }
 
-  int64_t Read(SeqPackage *pkg, int64_t max_num, int64_t max_num_bases, bool reverse = false) override {
+  int64_t Read(SeqPackage *pkg, int64_t max_num, int64_t max_num_bases,
+               bool reverse = false) override {
     if (metadata_.is_sorted) {
       return ReadSorted(pkg, mul_, max_num);
     } else {
@@ -80,7 +83,8 @@ class EdgeReader : public BaseSequenceReader {
 
     for (unsigned i = 0; i < metadata_.num_files; ++i) {
       in_streams_.emplace_back(
-          new std::ifstream(file_prefix_ + ".edges." + std::to_string(i), std::ifstream::binary | std::ifstream::in));
+          new std::ifstream(file_prefix_ + ".edges." + std::to_string(i),
+                            std::ifstream::binary | std::ifstream::in));
     }
 
     cur_cnt_ = 0;
@@ -106,7 +110,8 @@ class EdgeReader : public BaseSequenceReader {
     while (cur_cnt_ >= cur_vol_) {
       ++cur_bucket_;
 
-      while (cur_bucket_ < static_cast<int>(metadata_.buckets.size()) && metadata_.buckets[cur_bucket_].file_id < 0) {
+      while (cur_bucket_ < static_cast<int>(metadata_.buckets.size()) &&
+             metadata_.buckets[cur_bucket_].file_id < 0) {
         ++cur_bucket_;
       }
 
@@ -119,8 +124,10 @@ class EdgeReader : public BaseSequenceReader {
       cur_vol_ = bucket.total_number;
       auto is = in_streams_[bucket.file_id].get();
       is->clear();
-      is->seekg(bucket.file_offset * sizeof(uint32_t) * metadata_.words_per_edge);
-      cur_reader_.reset(is, bucket.total_number * sizeof(uint32_t) * metadata_.words_per_edge);
+      is->seekg(bucket.file_offset * sizeof(uint32_t) *
+                metadata_.words_per_edge);
+      cur_reader_.reset(is, bucket.total_number * sizeof(uint32_t) *
+                                metadata_.words_per_edge);
     }
 
     ++cur_cnt_;
