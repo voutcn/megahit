@@ -431,7 +431,7 @@ class RankAndSelect {
   word_type xor_masks_[kAlphabetSize];
   // e.g. if c = 0110(2), popcount_xorers_[c] = 1001 1001 1001 1001...(2),
   // to make all c's in a word 1111
-  static_assert((1 << kBitsPerBase) >= kAlphabetSize, "");
+  static_assert((1ull << kBitsPerBase) >= kAlphabetSize, "");
   static_assert(kBitsPerWord % kBitsPerBase == 0, "");
   static_assert(kBitsPerBase <= 8, "");
   static_assert(kBasesPerL2 <= 65536, "");

@@ -9,8 +9,6 @@
 #include <cassert>
 #include "kmlib/kmsort.h"
 
-std::function<void(uint32_t *, int64_t)> SelectSortingFuncHelper(int substr,
-                                                                 int words);
 namespace {
 template <int NWords, int NExtraWord>
 struct Substr {
