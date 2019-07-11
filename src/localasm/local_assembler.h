@@ -57,8 +57,8 @@ struct LocalAssembler {
 
     bool operator==(const MappingRecord &rhs) const {
       return this->contig_id == rhs.contig_id && this->contig_from == rhs.contig_from &&
-             this->contig_to == rhs.contig_to && this->query_from == rhs.query_from &&
-             this->query_to == rhs.query_to && this->strand == rhs.strand;
+             this->contig_to == rhs.contig_to && this->query_from == rhs.query_from && this->query_to == rhs.query_to &&
+             this->strand == rhs.strand;
     };
   };
 
@@ -107,7 +107,7 @@ struct LocalAssembler {
   SpinLock lock_;
   AtomicBitVector locks_;
 
-  std::vector<std::deque<MappedReadRecord>> mapped_f_, mapped_r_;
+  std::vector<std::deque<uint64_t>> mapped_f_, mapped_r_;
 
   LocalAssembler(int min_contig_len, int seed_kmer, int sparsity)
       : min_contig_len_(min_contig_len), seed_kmer_size_(seed_kmer), sparsity_(sparsity) {

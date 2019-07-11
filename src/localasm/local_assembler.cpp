@@ -40,6 +40,116 @@
 #include "utils/histgram.h"
 #include "utils/utils.h"
 
+namespace {
+inline uint64_t EncodeContigOffset(uint32_t contig_id, uint32_t contig_offset, uint8_t strand) {
+  return (uint64_t(contig_id) << 32) | (contig_offset << 1) | strand;
+}
+
+inline void DecodeContigOffset(uint64_t code, uint32_t &contig_id, uint32_t &contig_offset, uint8_t &strand) {
+  contig_id = code >> 32;
+  contig_offset = (code & 0xFFFFFFFFULL) >> 1;
+  strand = code & 1ULL;
+}
+
+inline uint64_t EncodeMappingRead(uint32_t contig_offset, uint8_t is_mate, uint8_t mismatch, uint8_t strand,
+                                  uint64_t read_id) {
+  assert(contig_offset <= (1 << 14));
+  assert(strand <= 1);
+  uint64_t ret = contig_offset;
+  ret = (ret << 1) | is_mate;
+  ret = (ret << 4) | (mismatch < 15 ? mismatch : 15);
+  ret = (ret << 1) | strand;
+  ret = (ret << 44) | read_id;  // 44 bits for read id
+  return ret;
+}
+
+inline uint64_t GetContigAbsPos(uint64_t encoded) { return encoded >> (44 + 1 + 4); }
+
+inline uint64_t GetReadId(uint64_t encoded) { return encoded & ((1ull << 44) - 1); }
+
+inline uint32_t GetWord(const uint32_t *first_word, uint32_t first_shift, int from, int len, bool strand) {
+  int from_word_idx = (first_shift + from) / 16;
+  int from_word_shift = (first_shift + from) % 16;
+  uint32_t ret = *(first_word + from_word_idx) << from_word_shift * 2;
+  assert(len <= 16);
+
+  if (16 - from_word_shift < len) {
+    ret |= *(first_word + from_word_idx + 1) >> (16 - from_word_shift) * 2;
+  }
+
+  if (len < 16) {
+    ret >>= (16 - len) * 2;
+    ret <<= (16 - len) * 2;
+  }
+
+  if (strand == 1) {
+    ret = kmlib::bit::ReverseComplement<2>(ret);
+    ret <<= (16 - len) * 2;
+  }
+
+  return ret;
+}
+
+inline int Mismatch(uint32_t x, uint32_t y) {
+  x ^= y;
+  x |= x >> 1;
+  x &= 0x55555555U;
+  return kmlib::bit::Popcount(x);
+}
+
+void LaunchIDBA(ContigGraph &contig_graph, const std::deque<Sequence> &reads, const Sequence &contig_end,
+                std::deque<Sequence> &out_contigs, std::deque<ContigInfo> &out_contig_infos, int mink, int maxk,
+                int step) {
+  int local_range = contig_end.size();
+  HashGraph hash_graph;
+  out_contigs.clear();
+  out_contig_infos.clear();
+
+  int max_read_len = 0;
+
+  for (auto &read : reads) {
+    max_read_len = std::max(max_read_len, (int)read.size());
+  }
+
+  for (int kmer_size = mink; kmer_size <= std::min(maxk, max_read_len); kmer_size += step) {
+    hash_graph.clear();
+    hash_graph.set_kmer_size(kmer_size);
+
+    for (auto &read : reads) {
+      if ((int)read.size() < kmer_size) continue;
+
+      const Sequence seq(read);
+      hash_graph.InsertKmers(seq);
+    }
+
+    auto histgram = hash_graph.coverage_histgram();
+    double mean = histgram.percentile(1 - 1.0 * local_range / hash_graph.num_vertices());
+    double threshold = mean;
+
+    hash_graph.InsertKmers(contig_end);
+
+    for (const auto &out_contig : out_contigs) hash_graph.InsertUncountKmers(out_contig);
+
+    hash_graph.Assemble(out_contigs, out_contig_infos);
+
+    contig_graph.clear();
+    contig_graph.set_kmer_size(kmer_size);
+    contig_graph.Initialize(out_contigs, out_contig_infos);
+    contig_graph.RemoveDeadEnd(kmer_size * 2);
+
+    contig_graph.RemoveBubble();
+    contig_graph.IterateCoverage(kmer_size * 2, 1, threshold);
+
+    contig_graph.Assemble(out_contigs, out_contig_infos);
+
+    if (out_contigs.size() == 1) {
+      break;
+    }
+  }
+}
+
+}  // namespace
+
 void LocalAssembler::ReadContigs(const std::string &contig_file_name) {
   ContigReader reader(contig_file_name);
   reader.SetMinLen(min_contig_len_)->SetDiscardFlag(contig_flag::kLoop);
@@ -72,18 +182,6 @@ void LocalAssembler::AddReadLib(const std::string &file_prefix) {
   insert_sizes_.resize(library_collection_.size(), tlen_t(-1, -1));
 }
 
-namespace {
-inline uint64_t EncodeContigOffset(uint32_t contig_id, uint32_t contig_offset, uint8_t strand) {
-  return (uint64_t(contig_id) << 32) | (contig_offset << 1) | strand;
-}
-
-inline void DecodeContigOffset(uint64_t code, uint32_t &contig_id, uint32_t &contig_offset, uint8_t &strand) {
-  contig_id = code >> 32;
-  contig_offset = (code & 0xFFFFFFFFULL) >> 1;
-  strand = code & 1ULL;
-}
-}
-
 void LocalAssembler::AddToHashMapper(mapper_t &mapper, unsigned contig_id, int sparcity) {
   kmer_t key;
   auto contig_view = contigs_.GetSeqView(contig_id);
@@ -98,38 +196,6 @@ void LocalAssembler::AddToHashMapper(mapper_t &mapper, unsigned contig_id, int s
       res.first->second |= 1ULL << 63;
     }
   }
-}
-
-inline uint32_t GetWord(const uint32_t *first_word, uint32_t first_shift, int from, int len, bool strand) {
-  int from_word_idx = (first_shift + from) / 16;
-  int from_word_shift = (first_shift + from) % 16;
-  uint32_t ret = *(first_word + from_word_idx) << from_word_shift * 2;
-  assert(len <= 16);
-
-  if (16 - from_word_shift < len) {
-    ret |= *(first_word + from_word_idx + 1) >> (16 - from_word_shift) * 2;
-  }
-
-  if (len < 16) {
-    ret >>= (16 - len) * 2;
-    ret <<= (16 - len) * 2;
-  }
-
-  if (strand == 1) {
-    ret = kmlib::bit::ReverseComplement<2>(ret);
-    ret <<= (16 - len) * 2;
-  }
-
-  return ret;
-}
-
-namespace {
-inline int Mismatch(uint32_t x, uint32_t y) {
-  x ^= y;
-  x |= x >> 1;
-  x &= 0x55555555U;
-  return kmlib::bit::Popcount(x);
-}
 }
 
 int LocalAssembler::Match(const SeqPackage::SeqView &seq_view, int query_from, int query_to, size_t contig_id,
@@ -161,7 +227,6 @@ int LocalAssembler::Match(const SeqPackage::SeqView &seq_view, int query_from, i
 
   return match_len;
 }
-
 
 bool LocalAssembler::MapToHashMapper(const mapper_t &mapper, const SeqPackage::SeqView &seq_view, MappingRecord &ret) {
   int len = seq_view.length();
@@ -202,7 +267,8 @@ bool LocalAssembler::MapToHashMapper(const mapper_t &mapper, const SeqPackage::S
     assert(contig_offset < contig_view.length());
 
     uint8_t mapping_strand = contig_strand ^ query_strand;
-    int32_t contig_from = mapping_strand == 0 ? contig_offset - (i - seed_kmer_size_ + 1) : contig_offset - (len - 1 - i);
+    int32_t contig_from =
+        mapping_strand == 0 ? contig_offset - (i - seed_kmer_size_ + 1) : contig_offset - (len - 1 - i);
     int32_t contig_to = mapping_strand == 0 ? contig_offset + seed_kmer_size_ - 1 + len - 1 - i : contig_offset + i;
     contig_from = std::max(contig_from, 0);
     contig_to = std::min(static_cast<int32_t>(contig_view.length() - 1), contig_to);
@@ -213,9 +279,9 @@ bool LocalAssembler::MapToHashMapper(const mapper_t &mapper, const SeqPackage::S
     }
 
     int32_t query_from = mapping_strand == 0 ? i - (seed_kmer_size_ - 1) - (contig_offset - contig_from)
-                                         : i - (contig_to - contig_offset);
+                                             : i - (contig_to - contig_offset);
     int32_t query_to = mapping_strand == 0 ? i - (seed_kmer_size_ - 1) + (contig_to - contig_offset)
-                                       : i + (contig_offset - contig_from);
+                                           : i + (contig_offset - contig_from);
 
     assert(query_from >= 0 && static_cast<uint32_t>(query_from) < seq_view.length());
     assert(query_to >= 0 && static_cast<uint32_t>(query_to) < seq_view.length());
@@ -243,26 +309,27 @@ bool LocalAssembler::MapToHashMapper(const mapper_t &mapper, const SeqPackage::S
   MappingRecord *unique_best = nullptr;
   int32_t max_match = 0;
 
-#define CHECK_BEST_UNIQ(rec) do { \
-  int match_bases = Match(seq_view, rec.query_from, rec.query_to, \
-      rec.contig_id, rec.contig_from, rec.contig_to, rec.strand); \
-  if (match_bases == max_match) { \
-    unique_best = nullptr; \
-  } else if (match_bases > max_match) { \
-    max_match = match_bases; \
-    int32_t mismatch = rec.query_to - rec.query_from + 1 - match_bases; \
-    rec.mismatch = mismatch; \
-    unique_best = &rec; \
-  } \
-} while (0)
+#define CHECK_BEST_UNIQ(rec)                                                                                      \
+  do {                                                                                                            \
+    int match_bases =                                                                                             \
+        Match(seq_view, rec.query_from, rec.query_to, rec.contig_id, rec.contig_from, rec.contig_to, rec.strand); \
+    if (match_bases == max_match) {                                                                               \
+      unique_best = nullptr;                                                                                      \
+    } else if (match_bases > max_match) {                                                                         \
+      max_match = match_bases;                                                                                    \
+      int32_t mismatch = rec.query_to - rec.query_from + 1 - match_bases;                                         \
+      rec.mismatch = mismatch;                                                                                    \
+      unique_best = &rec;                                                                                         \
+    }                                                                                                             \
+  } while (0)
 
   assert(v_mapping_records.get() == nullptr);
 
   if (v_mapping_records.get() != nullptr) {
     if (v_mapping_records->size() > 1) {
       std::sort(v_mapping_records->begin(), v_mapping_records->end());
-      v_mapping_records->resize(std::unique(v_mapping_records->begin(),
-                                            v_mapping_records->end()) - v_mapping_records->begin());
+      v_mapping_records->resize(std::unique(v_mapping_records->begin(), v_mapping_records->end()) -
+                                v_mapping_records->begin());
     }
 
     for (auto &rec : *v_mapping_records) {
@@ -281,7 +348,7 @@ bool LocalAssembler::MapToHashMapper(const mapper_t &mapper, const SeqPackage::S
     ret = *unique_best;
     return true;
   } else {
-   return false;
+    return false;
   }
 }
 
@@ -356,12 +423,13 @@ int LocalAssembler::AddToMappingDeque(size_t read_id, const MappingRecord &rec, 
 
   if (rec.contig_to < local_range && rec.query_from != 0 && rec.query_to == read_len - 1) {
     locks_.lock(rec.contig_id);
-    mapped_f_[rec.contig_id].emplace_back(rec.contig_to, 0, rec.mismatch, rec.strand, read_id);
+    mapped_f_[rec.contig_id].push_back(EncodeMappingRead(rec.contig_to, 0, rec.mismatch, rec.strand, read_id));
     locks_.unlock(rec.contig_id);
     ret++;
   } else if (rec.contig_from + local_range >= contig_len && rec.query_to < read_len - 1 && rec.query_from == 0) {
     locks_.lock(rec.contig_id);
-    mapped_r_[rec.contig_id].emplace_back(contig_len - 1 - rec.contig_from, 0, rec.mismatch, rec.strand, read_id);
+    mapped_r_[rec.contig_id].push_back(
+        EncodeMappingRead(contig_len - 1 - rec.contig_from, 0, rec.mismatch, rec.strand, read_id));
     locks_.unlock(rec.contig_id);
     ret++;
   }
@@ -383,12 +451,13 @@ int LocalAssembler::AddMateToMappingDeque(size_t read_id, size_t mate_id, const 
 
   if (rec1.contig_to < local_range && rec1.strand == 1) {
     locks_.lock(rec1.contig_id);
-    mapped_f_[rec1.contig_id].emplace_back(rec1.contig_to, 1, rec1.mismatch, rec1.strand, mate_id);
+    mapped_f_[rec1.contig_id].push_back(EncodeMappingRead(rec1.contig_to, 1, rec1.mismatch, rec1.strand, mate_id));
     locks_.unlock(rec1.contig_id);
     ret++;
   } else if (rec1.contig_from + local_range >= contig_len && rec1.strand == 0) {
     locks_.lock(rec1.contig_id);
-    mapped_r_[rec1.contig_id].emplace_back(contig_len - 1 - rec1.contig_from, 1, rec1.mismatch, rec1.strand, mate_id);
+    mapped_r_[rec1.contig_id].push_back(
+        EncodeMappingRead(contig_len - 1 - rec1.contig_from, 1, rec1.mismatch, rec1.strand, mate_id));
     locks_.unlock(rec1.contig_id);
     ret++;
   }
@@ -456,59 +525,6 @@ void LocalAssembler::MapToContigs() {
   locks_.reset(0);
 }
 
-namespace {
-inline void LaunchIDBA(ContigGraph &contig_graph, const std::deque<Sequence> &reads,
-                       const Sequence &contig_end, std::deque<Sequence> &out_contigs,
-                       std::deque<ContigInfo> &out_contig_infos, int mink, int maxk, int step) {
-  int local_range = contig_end.size();
-  HashGraph hash_graph;
-  out_contigs.clear();
-  out_contig_infos.clear();
-
-  int max_read_len = 0;
-
-  for (auto &read : reads) {
-    max_read_len = std::max(max_read_len, (int)read.size());
-  }
-
-  for (int kmer_size = mink; kmer_size <= std::min(maxk, max_read_len); kmer_size += step) {
-    hash_graph.clear();
-    hash_graph.set_kmer_size(kmer_size);
-
-    for (auto &read : reads) {
-      if ((int)read.size() < kmer_size) continue;
-
-      const Sequence seq(read);
-      hash_graph.InsertKmers(seq);
-    }
-
-    auto histgram = hash_graph.coverage_histgram();
-    double mean = histgram.percentile(1 - 1.0 * local_range / hash_graph.num_vertices());
-    double threshold = mean;
-
-    hash_graph.InsertKmers(contig_end);
-
-    for (const auto &out_contig : out_contigs) hash_graph.InsertUncountKmers(out_contig);
-
-    hash_graph.Assemble(out_contigs, out_contig_infos);
-
-    contig_graph.clear();
-    contig_graph.set_kmer_size(kmer_size);
-    contig_graph.Initialize(out_contigs, out_contig_infos);
-    contig_graph.RemoveDeadEnd(kmer_size * 2);
-
-    contig_graph.RemoveBubble();
-    contig_graph.IterateCoverage(kmer_size * 2, 1, threshold);
-
-    contig_graph.Assemble(out_contigs, out_contig_infos);
-
-    if (out_contigs.size() == 1) {
-      break;
-    }
-  }
-}
-}
-
 void LocalAssembler::LocalAssemble() {
   int min_num_reads = local_range_ / max_read_len_;
 
@@ -520,8 +536,7 @@ void LocalAssembler::LocalAssemble() {
 
   ContigWriter local_contig_writer(local_filename_);
 
-#pragma omp parallel for private(contig_graph, seq, contig_end, reads, out_contigs, out_contig_infos) \
-    schedule(dynamic)
+#pragma omp parallel for private(contig_graph, seq, contig_end, reads, out_contigs, out_contig_infos) schedule(dynamic)
   for (uint64_t cid = 0; cid < contigs_.seq_count(); ++cid) {
     auto contig_view = contigs_.GetSeqView(cid);
     int cl = contig_view.length();
@@ -539,14 +554,14 @@ void LocalAssembler::LocalAssemble() {
       uint64_t last_mapping_pos = -1;
       int pos_count = 0;
 
-      for (auto &mapped_read : mapped_reads) {
-        uint64_t pos = (mapped_read.contig_offset << 1) | mapped_read.is_mate;
+      for (const auto &encoded_mapped_info : mapped_reads) {
+        uint64_t pos = GetContigAbsPos(encoded_mapped_info);
         pos_count = pos == last_mapping_pos ? pos_count + 1 : 1;
         last_mapping_pos = pos;
 
         if (pos_count <= 3) {
           seq.clear();
-          auto read_view = reads_.GetSeqView(mapped_read.read_id);
+          auto read_view = reads_.GetSeqView(GetReadId(encoded_mapped_info));
 
           for (unsigned ri = 0, rsz = read_view.length(); ri < rsz; ++ri) {
             seq.Append(read_view.base_at(ri));
@@ -568,8 +583,7 @@ void LocalAssembler::LocalAssemble() {
       }
 
       out_contigs.clear();
-      LaunchIDBA(contig_graph, reads, contig_end, out_contigs, out_contig_infos, local_kmin_, local_kmax_,
-                 local_step_);
+      LaunchIDBA(contig_graph, reads, contig_end, out_contigs, out_contig_infos, local_kmin_, local_kmax_, local_step_);
 
       for (uint64_t j = 0; j < out_contigs.size(); ++j) {
         if (out_contigs[j].size() > min_contig_len_ && out_contigs[j].size() > local_kmax_) {

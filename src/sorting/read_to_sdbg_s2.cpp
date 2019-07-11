@@ -450,7 +450,9 @@ void Read2SdbgS2::Lv2ExtractSubString(OffsetFetcher &fetcher, SubstrPtr substr) 
           offset++;
           break;
         }
-        default: { assert(false); }
+        default: {
+          assert(false);
+        }
       }
 
       CopySubstringRC(substr, read_p, offset + start_offset, num_chars_to_copy, 1, words_this_read, words_per_substr_);

@@ -32,9 +32,7 @@ class HashGraph {
  public:
   typedef HashTableST<HashGraphVertex, IdbaKmer> vertex_table_type;
 
-  explicit HashGraph(uint32_t kmer_size = 0) {
-    set_kmer_size(kmer_size);
-  }
+  explicit HashGraph(uint32_t kmer_size = 0) { set_kmer_size(kmer_size); }
   ~HashGraph() {}
 
   HashGraphVertexAdaptor FindVertexAdaptor(const IdbaKmer &kmer) {
@@ -72,9 +70,7 @@ class HashGraph {
   }
 
   uint64_t num_vertices() const { return vertex_table_.size(); }
-  void clear() {
-    vertex_table_.clear();
-  }
+  void clear() { vertex_table_.clear(); }
 
  private:
 #if __cplusplus >= 201103L

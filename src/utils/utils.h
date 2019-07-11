@@ -82,22 +82,22 @@ inline const char *GetFile(const char *filename, const char *rootname) {
   do {                          \
     megahit_log__(str, ##args); \
   } while (0)
-#define xinfo(str, args...)                                                    \
-  do {                                                                         \
+#define xinfo(str, args...)                                                \
+  do {                                                                     \
     megahit_log__("INFO  %-30s: %4d - " str, __XFILE__, __LINE__, ##args); \
   } while (0)
-#define xerr(str, args...)                                                     \
-  do {                                                                         \
+#define xerr(str, args...)                                                 \
+  do {                                                                     \
     megahit_log__("ERROR %-30s: %4d - " str, __XFILE__, __LINE__, ##args); \
   } while (0)
-#define xwarn(str, args...)                                                    \
-  do {                                                                         \
+#define xwarn(str, args...)                                                \
+  do {                                                                     \
     megahit_log__("WARN  %-30s: %4d - " str, __XFILE__, __LINE__, ##args); \
   } while (0)
-#define xfatal(str, args...)                                                   \
-  do {                                                                         \
+#define xfatal(str, args...)                                               \
+  do {                                                                     \
     megahit_log__("FATAL %-30s: %4d - " str, __XFILE__, __LINE__, ##args); \
-    exit(1);                                                                   \
+    exit(1);                                                               \
   } while (0)
 
 #ifdef __GNUC__

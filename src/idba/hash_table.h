@@ -452,7 +452,7 @@ class HashTableST {
       }
       buckets_[i] = NULL;
     }
-    
+
     pool_.clear();
   }
 
