@@ -12,22 +12,22 @@
 #include "sequence/sequence_package.h"
 
 template <class PackageType>
-class AsyncSequenceReader {
+class BaseAsyncSequenceReader {
  public:
   using package_type = PackageType;
-  AsyncSequenceReader() = default;
-  virtual ~AsyncSequenceReader() = default;
+  BaseAsyncSequenceReader() = default;
+  virtual ~BaseAsyncSequenceReader() = default;
   package_type &Next() {
-    auto &ret = next_pkg_.get();
+    auto ret = next_pkg_.get();
     AsyncReadNextBatch();
-    return ret;
+    return *ret;
   }
 
  protected:
   void AsyncReadNextBatch() {
-    auto &pkg = packages_[batch_index_];
-    next_pkg_ = std::async(std::launch::async, [this, &pkg]() -> package_type & {
-      ReadOneBatch(&pkg);
+    auto pkg = &packages_[batch_index_];
+    next_pkg_ = std::async(std::launch::async, [this, pkg]() -> package_type * {
+      ReadOneBatch(pkg);
       return pkg;
     });
     batch_index_ ^= 1;
@@ -38,12 +38,45 @@ class AsyncSequenceReader {
  private:
   unsigned batch_index_{0};
   package_type packages_[2];
-  std::future<package_type &> next_pkg_;
+  std::future<package_type *> next_pkg_;
 };
 
-class AsyncContigReader : public AsyncSequenceReader<std::pair<SeqPackage, std::vector<float>>> {
+class AsyncSequenceReader : public BaseAsyncSequenceReader<SeqPackage> {
  public:
-  explicit AsyncContigReader(const std::string &file_name) : reader_(file_name) {
+  static const int64_t kDefaultNumSeqPerBatch = 1u << 22u;
+  static const int64_t kDefaultNumBasesPerBatch = 1u << 28u;
+
+  explicit AsyncSequenceReader(
+      BaseSequenceReader *reader, bool reverse = false,
+      int64_t sequences_per_batch = kDefaultNumSeqPerBatch,
+      int64_t bases_per_batch = kDefaultNumBasesPerBatch)
+      : reader_(reader),
+        reverse_(reverse),
+        max_sequence_per_batch_(sequences_per_batch),
+        max_bases_per_batch_(bases_per_batch) {
+    AsyncReadNextBatch();
+  }
+  ~AsyncSequenceReader() override { StopReading(); }
+
+ protected:
+  void ReadOneBatch(SeqPackage *seq_pkg) override {
+    seq_pkg->Clear();
+    reader_->Read(seq_pkg, max_sequence_per_batch_, max_bases_per_batch_,
+                  reverse_);
+  }
+
+ private:
+  BaseSequenceReader *reader_;
+  bool reverse_;
+  int64_t max_sequence_per_batch_{1u << 22u};
+  int64_t max_bases_per_batch_{1u << 28u};
+};
+
+class AsyncContigReader : public BaseAsyncSequenceReader<
+                              std::pair<SeqPackage, std::vector<float>>> {
+ public:
+  explicit AsyncContigReader(const std::string &file_name)
+      : reader_(file_name) {
     reader_.SetDiscardFlag(contig_flag::kLoop | contig_flag::kStandalone);
     AsyncReadNextBatch();
   }
@@ -53,35 +86,15 @@ class AsyncContigReader : public AsyncSequenceReader<std::pair<SeqPackage, std::
   void ReadOneBatch(package_type *pkg) override {
     pkg->first.Clear();
     pkg->second.clear();
-    const int64_t kMaxNumContigs = 1u << 22;
-    const int64_t kMaxNumBases = 1u << 28;
+    const int64_t kMaxNumContigs = 1u << 22u;
+    const int64_t kMaxNumBases = 1u << 28u;
     const bool reverse = false;
-    reader_.ReadWithMultiplicity(&pkg->first, &pkg->second, kMaxNumContigs, kMaxNumBases, reverse);
+    reader_.ReadWithMultiplicity(&pkg->first, &pkg->second, kMaxNumContigs,
+                                 kMaxNumBases, reverse);
   }
 
  private:
   ContigReader reader_;
-};
-
-class AsyncReadReader : public AsyncSequenceReader<SeqPackage> {
- public:
-  explicit AsyncReadReader(const std::string &file_name) {
-    reader_.reset(new BinaryReader(file_name));
-    AsyncReadNextBatch();
-  }
-  ~AsyncReadReader() override { StopReading(); }
-
- protected:
-  void ReadOneBatch(SeqPackage *seq_pkg) override {
-    int64_t kMaxNumReads = 1u << 22;
-    int64_t kMaxNumBases = 1u << 28;
-    bool reverse = false;
-    seq_pkg->Clear();
-    reader_->Read(seq_pkg, kMaxNumReads, kMaxNumBases, reverse);
-  }
-
- private:
-  std::unique_ptr<BinaryReader> reader_;
 };
 
 #endif  // MEGAHIT_ASYNC_SEQUENCE_READER_H

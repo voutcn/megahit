@@ -24,7 +24,8 @@
 class ContigGraphPath {
  public:
   ContigGraphPath() {}
-  ContigGraphPath(const ContigGraphPath &path) : vertices_(path.vertices_), distances_(path.distances_) {}
+  ContigGraphPath(const ContigGraphPath &path)
+      : vertices_(path.vertices_), distances_(path.distances_) {}
 
   const ContigGraphPath &operator=(const ContigGraphPath &path) {
     vertices_ = path.vertices_;
@@ -40,8 +41,12 @@ class ContigGraphPath {
     return num_nodes() < path.num_nodes();
   }
 
-  ContigGraphVertexAdaptor &operator[](uint32_t index) { return vertices_[index]; }
-  const ContigGraphVertexAdaptor &operator[](uint32_t index) const { return vertices_[index]; }
+  ContigGraphVertexAdaptor &operator[](uint32_t index) {
+    return vertices_[index];
+  }
+  const ContigGraphVertexAdaptor &operator[](uint32_t index) const {
+    return vertices_[index];
+  }
 
   void Append(const ContigGraphVertexAdaptor &vertex, int d) {
     vertices_.push_back(vertex);
@@ -64,7 +69,8 @@ class ContigGraphPath {
 
   const ContigGraphPath &ReverseComplement() {
     std::reverse(vertices_.begin(), vertices_.end());
-    for (unsigned i = 0; i < vertices_.size(); ++i) vertices_[i].ReverseComplement();
+    for (unsigned i = 0; i < vertices_.size(); ++i)
+      vertices_[i].ReverseComplement();
     std::reverse(distances_.begin(), distances_.end());
     return *this;
   }
@@ -74,7 +80,8 @@ class ContigGraphPath {
 
     if (vertices_.size() > 0) {
       contig_builder.Append(vertices_[0], 0);
-      for (unsigned i = 1; i < vertices_.size(); ++i) contig_builder.Append(vertices_[i], distances_[i - 1]);
+      for (unsigned i = 1; i < vertices_.size(); ++i)
+        contig_builder.Append(vertices_[i], distances_[i - 1]);
     }
 
     contig = contig_builder.contig();
@@ -96,13 +103,15 @@ class ContigGraphPath {
 
   uint64_t kmer_count() const {
     uint64_t sum = 0;
-    for (unsigned i = 0; i < vertices_.size(); ++i) sum += vertices_[i].kmer_count();
+    for (unsigned i = 0; i < vertices_.size(); ++i)
+      sum += vertices_[i].kmer_count();
     return sum;
   }
 
   uint32_t size() const {
     uint32_t size = 0;
-    for (unsigned i = 0; i < vertices_.size(); ++i) size += vertices_[i].contig_size();
+    for (unsigned i = 0; i < vertices_.size(); ++i)
+      size += vertices_[i].contig_size();
     for (unsigned i = 0; i < distances_.size(); ++i) size += distances_[i];
     return size;
   }
@@ -111,7 +120,8 @@ class ContigGraphPath {
     if (vertices_.size() <= 1) return vertices_.size();
 
     uint32_t size = kmer_size + 1;
-    for (unsigned i = 1; i + 1 < vertices_.size(); ++i) size += vertices_[i].contig_size();
+    for (unsigned i = 1; i + 1 < vertices_.size(); ++i)
+      size += vertices_[i].contig_size();
     for (unsigned i = 0; i < distances_.size(); ++i) size += distances_[i];
     return size;
   }

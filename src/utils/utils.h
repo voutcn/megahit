@@ -1,6 +1,7 @@
 /*
  *  MEGAHIT
- *  Copyright (C) 2014 - 2015 The University of Hong Kong & L3 Bioinformatics Limited
+ *  Copyright (C) 2014 - 2015 The University of Hong Kong & L3 Bioinformatics
+ * Limited
  *
  *  This program is free software: you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -22,16 +23,27 @@
 #define MEGAHIT_UTILS_H
 
 #include <fcntl.h>
-#include <cstdarg>
-#include <cstdio>
-#include <cstdlib>
 #include <sys/resource.h>
 #include <sys/time.h>
-#include <ctime>
 #include <unistd.h>
+#include <cstdarg>
 #include <cstdint>
+#include <cstdio>
+#include <cstdlib>
+#include <ctime>
+#include <istream>
 
 #include "pprintpp/pprintpp.hpp"
+
+inline FILE *xfopen(const char *filename, const char *mode) {
+  FILE *fp;
+  if ((fp = fopen(filename, mode)) == nullptr) {
+    pfprintf(stderr, "[ERROR] Cannot open {s}. Now exit to system...\n",
+             filename);
+    exit(-1);
+  }
+  return fp;
+}
 
 template <typename T1, typename T2>
 inline T1 DivCeiling(T1 a, T2 b) {
@@ -63,7 +75,8 @@ inline const char *GetFile(const char *filename, const char *rootname) {
 }
 #define __XFILE__ GetFile(__FILE__, __XROOT__)
 #else
-#define __XFILE__ (strrchr(__FILE__, '/') ? strrchr(__FILE__, '/') + 1 : __FILE__)
+#define __XFILE__ \
+  (strrchr(__FILE__, '/') ? strrchr(__FILE__, '/') + 1 : __FILE__)
 #endif
 #endif
 
@@ -71,22 +84,22 @@ inline const char *GetFile(const char *filename, const char *rootname) {
   do {                          \
     megahit_log__(str, ##args); \
   } while (0)
-#define xinfo(str, args...)                                                    \
-  do {                                                                         \
-    megahit_log__("    [INFO  %-25s%4d]   " str, __XFILE__, __LINE__, ##args); \
+#define xinfo(str, args...)                                                \
+  do {                                                                     \
+    megahit_log__("INFO  %-30s: %4d - " str, __XFILE__, __LINE__, ##args); \
   } while (0)
-#define xerr(str, args...)                                                     \
-  do {                                                                         \
-    megahit_log__("    [ERROR %-25s%4d]   " str, __XFILE__, __LINE__, ##args); \
+#define xerr(str, args...)                                                 \
+  do {                                                                     \
+    megahit_log__("ERROR %-30s: %4d - " str, __XFILE__, __LINE__, ##args); \
   } while (0)
-#define xwarn(str, args...)                                                    \
-  do {                                                                         \
-    megahit_log__("    [WARN  %-25s%4d]   " str, __XFILE__, __LINE__, ##args); \
+#define xwarn(str, args...)                                                \
+  do {                                                                     \
+    megahit_log__("WARN  %-30s: %4d - " str, __XFILE__, __LINE__, ##args); \
   } while (0)
-#define xfatal(str, args...)                                                   \
-  do {                                                                         \
-    megahit_log__("    [FATAL %-25s%4d]   " str, __XFILE__, __LINE__, ##args); \
-    exit(1);                                                                   \
+#define xfatal(str, args...)                                               \
+  do {                                                                     \
+    megahit_log__("FATAL %-30s: %4d - " str, __XFILE__, __LINE__, ##args); \
+    exit(1);                                                               \
   } while (0)
 
 #ifdef __GNUC__
@@ -106,7 +119,8 @@ struct SimpleTimer {
   void start() { gettimeofday(&tv1, nullptr); }
   void stop() {
     gettimeofday(&tv2, nullptr);
-    time_elapsed += static_cast<long long>(tv2.tv_sec - tv1.tv_sec) * 1000000 + tv2.tv_usec - tv1.tv_usec;
+    time_elapsed += static_cast<long long>(tv2.tv_sec - tv1.tv_sec) * 1000000 +
+                    tv2.tv_usec - tv1.tv_usec;
   }
   double elapsed() { return time_elapsed / 1000000.0; }
 };
@@ -132,11 +146,31 @@ struct AutoMaxRssRecorder {
     double utime = 1e-6 * usage.ru_utime.tv_usec + usage.ru_utime.tv_sec;
     double stime = 1e-6 * usage.ru_stime.tv_usec + usage.ru_stime.tv_sec;
 
-    long long real_time = static_cast<long long>(tv2.tv_sec - tv1.tv_sec) * 1000000 + tv2.tv_usec - tv1.tv_usec;
+    long long real_time =
+        static_cast<long long>(tv2.tv_sec - tv1.tv_sec) * 1000000 +
+        tv2.tv_usec - tv1.tv_usec;
     xinfo("Real: {.4}", real_time / 1000000.0);
-    xinfoc("\tuser: {.4}\tsys: {.4}\tmaxrss: {}\n", utime, stime, usage.ru_maxrss);
+    xinfoc("\tuser: {.4}\tsys: {.4}\tmaxrss: {}\n", utime, stime,
+           usage.ru_maxrss);
 #endif
   }
 };
+
+/**
+ * Helper function to scan name and value
+ * @tparam T
+ * @param in
+ * @param field
+ * @param out
+ */
+template <typename T>
+static void ScanField(std::istream &in, const std::string &field, T &out) {
+  std::string s;
+  in >> s >> out;
+  if (!in || s != field) {
+    xfatal("Invalid format. Expect field {s}, got {s}\n", field.c_str(),
+           s.c_str());
+  }
+}
 
 #endif  // MEGAHIT_UTILS_H

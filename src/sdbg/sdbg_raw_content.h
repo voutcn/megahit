@@ -25,6 +25,7 @@ struct SdbgRawContent {
   std::vector<mul_t> full_mul;
 };
 
-void LoadSdbgRawContent(SdbgRawContent *raw_content, const std::string &file_prefix);
+void LoadSdbgRawContent(SdbgRawContent *raw_content,
+                        const std::string &file_prefix);
 
 #endif  // MEGAHIT_SDBG_RAW_CONTENT_H

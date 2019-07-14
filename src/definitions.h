@@ -1,6 +1,7 @@
 /*
  *  MEGAHIT
- *  Copyright (C) 2014 - 2015 The University of Hong Kong & L3 Bioinformatics Limited
+ *  Copyright (C) 2014 - 2015 The University of Hong Kong & L3 Bioinformatics
+ * Limited
  *
  *  This program is free software: you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -24,15 +25,15 @@
 #include <stdint.h>
 
 #ifndef PACKAGE_VERSION
-#define PACKAGE_VERSION "v1.2.5-beta"
+#define PACKAGE_VERSION "v1.2.6"
 #endif
 
 #include "sdbg/sdbg_def.h"
 
-static const int kBitsPerEdgeWord = 32;
-static const int kBitsPerEdgeChar = 2;
-static const int kCharsPerEdgeWord = 16;
-static const int kEdgeCharMask = 0x3;
+static const unsigned kBitsPerEdgeWord = 32;
+static const unsigned kBitsPerEdgeChar = 2;
+static const unsigned kCharsPerEdgeWord = 16;
+static const unsigned kEdgeCharMask = 0x3;
 
 namespace contig_flag {
 

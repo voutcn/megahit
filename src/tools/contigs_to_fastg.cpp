@@ -1,6 +1,7 @@
 /*
  *  MEGAHIT
- *  Copyright (C) 2014 - 2015 The University of Hong Kong & L3 Bioinformatics Limited
+ *  Copyright (C) 2014 - 2015 The University of Hong Kong & L3 Bioinformatics
+ * Limited
  *
  *  This program is free software: you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -25,8 +26,8 @@
 #include <string>
 #include <vector>
 
-#include "utils/utils.h"
 #include "sequence/io/kseq.h"
+#include "utils/utils.h"
 
 using namespace std;
 
@@ -54,7 +55,7 @@ char Comp(char c) {
       return 'A';
 
     default:
-      assert(false);
+      return 'N';
   }
 }
 
@@ -80,7 +81,8 @@ string NodeName(int i, int len, double mul, bool is_rc) {
 
 int main_contig2fastg(int argc, char **argv) {
   if (argc < 3) {
-    pfprintf(stderr, "Usage: {s} <kmer_size> <k_KMER_SIZE.contigs.fa>\n", argv[0]);
+    pfprintf(stderr, "Usage: {s} <kmer_size> <k_KMER_SIZE.contigs.fa>\n",
+             argv[0]);
     exit(1);
   }
 
@@ -93,7 +95,7 @@ int main_contig2fastg(int argc, char **argv) {
   vector<double> muls;
   vector<string> node_names;
   vector<string> rev_node_names;
-  map<string, vector<int> > start_kmer_to_id;
+  map<string, vector<int>> start_kmer_to_id;
 
   while (kseq_read(seq) >= 0) {
     if (seq->seq.l < k + 1) {
@@ -103,7 +105,7 @@ int main_contig2fastg(int argc, char **argv) {
     double mul;
     auto n_scanned = sscanf(seq->comment.s + 7, "multi=%lf", &mul);
     assert(n_scanned == 1);
-    (void) n_scanned;
+    (void)n_scanned;
 
     muls.push_back(mul);
     ctgs.push_back(string(seq->seq.s));
@@ -111,7 +113,8 @@ int main_contig2fastg(int argc, char **argv) {
 
   for (int i = 0; i < (int)ctgs.size(); ++i) {
     start_kmer_to_id[ctgs[i].substr(0, k)].push_back(i + 1);
-    start_kmer_to_id[RevComp(ctgs[i].substr(ctgs[i].length() - k))].push_back(-i - 1);
+    start_kmer_to_id[RevComp(ctgs[i].substr(ctgs[i].length() - k))].push_back(
+        -i - 1);
   }
 
   for (int i = 0; i < (int)ctgs.size(); ++i) {

@@ -7,7 +7,8 @@
 #include <stdexcept>
 
 FastxReader::FastxReader(const std::string &file_name) {
-  fp_ = file_name == "-" ? gzdopen(fileno(stdin), "r") : gzopen(file_name.c_str(), "r");
+  fp_ = file_name == "-" ? gzdopen(fileno(stdin), "r")
+                         : gzopen(file_name.c_str(), "r");
   if (fp_ == nullptr) {
     throw std::invalid_argument("Cannot open file " + file_name);
   }
@@ -24,7 +25,8 @@ FastxReader::~FastxReader() {
   }
 }
 
-int64_t FastxReader::Read(SeqPackage *pkg, int64_t max_num, int64_t max_num_bases, bool reverse) {
+int64_t FastxReader::Read(SeqPackage *pkg, int64_t max_num,
+                          int64_t max_num_bases, bool reverse) {
   int64_t num_bases = 0;
   for (int64_t i = 0; i < max_num; ++i) {
     auto record = ReadNext();

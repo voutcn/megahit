@@ -25,7 +25,7 @@ struct EdgeIoMetadata {
   void Serialize(std::ofstream &os) {
     if (is_sorted) {
       num_edges = 0;
-      for (const auto &b: buckets) {
+      for (const auto &b : buckets) {
         num_edges += b.total_number;
       }
     }
@@ -38,19 +38,8 @@ struct EdgeIoMetadata {
        << "is_sorted " << is_sorted << '\n';
 
     for (unsigned i = 0; i < buckets.size(); ++i) {
-      os << i << ' '
-         << buckets[i].file_id << ' '
-         << buckets[i].file_offset << ' '
-         << buckets[i].total_number << '\n';
-    }
-  }
-
-  template<typename T>
-  static void ScanField(std::ifstream &in, const std::string &field, T &out) {
-    std::string s;
-    in >> s >> out;
-    if (s != field) {
-      xfatal("Invalid format! Expected {s}, got {}", field.c_str(), s.c_str());
+      os << i << ' ' << buckets[i].file_id << ' ' << buckets[i].file_offset
+         << ' ' << buckets[i].total_number << '\n';
     }
   }
 
@@ -67,16 +56,17 @@ struct EdgeIoMetadata {
 
     for (unsigned i = 0; i < num_buckets; ++i) {
       unsigned b_id;
-      is >> b_id >> buckets[i].file_id >> buckets[i].file_offset
-                >> buckets[i].total_number;
+      is >> b_id >> buckets[i].file_id >> buckets[i].file_offset >>
+          buckets[i].total_number;
       if (b_id != i) {
         xfatal("Invalid format: bucket id not matched!\n");
       }
       if (buckets[i].file_id >= static_cast<int>(num_files)) {
-        xfatal("Record ID {} is greater than number of files {}\n", buckets[i].file_id, num_files);
+        xfatal("Record ID {} is greater than number of files {}\n",
+               buckets[i].file_id, num_files);
       }
     }
   }
 };
 
-#endif //MEGAHIT_EDGE_IO_META_H
+#endif  // MEGAHIT_EDGE_IO_META_H

@@ -1,6 +1,7 @@
 /*
  *  MEGAHIT
- *  Copyright (C) 2014 - 2015 The University of Hong Kong & L3 Bioinformatics Limited
+ *  Copyright (C) 2014 - 2015 The University of Hong Kong & L3 Bioinformatics
+ * Limited
  *
  *  This program is free software: you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -23,9 +24,9 @@
 #include <zlib.h>
 #include <algorithm>
 
-#include "utils/utils.h"
 #include "sequence/io/kseq.h"
 #include "utils/histgram.h"
+#include "utils/utils.h"
 
 #ifndef KSEQ_INITED
 #define KSEQ_INITED
@@ -53,8 +54,11 @@ int main_filter_by_len(int argc, char **argv) {
 
   long long total_bases = hist.sum();
 
-  pfprintf(stderr, "{} contigs, total {} bp, min {} bp, max {} bp, avg {} bp, N50 {} bp\n", (int)hist.size(),
-          total_bases, hist.minimum(), hist.maximum(), int(hist.mean() + 0.5), hist.Nx(total_bases * 0.5));
+  pfprintf(
+      stderr,
+      "{} contigs, total {} bp, min {} bp, max {} bp, avg {} bp, N50 {} bp\n",
+      (int)hist.size(), total_bases, hist.minimum(), hist.maximum(),
+      int(hist.mean() + 0.5), hist.Nx(total_bases * 0.5));
 
   kseq_destroy(seq);
   gzclose(fp);

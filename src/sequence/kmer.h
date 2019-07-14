@@ -13,7 +13,8 @@
 /**
  * @brief It represents a k-mer. The value of k is limited by the number of
  * words used. The maximum value can be calculated by max_size().
- * The value of k is not stored, many functions require a explict parameter k to work
+ * The value of k is not stored, many functions require a explict parameter k to
+ * work
  */
 template <unsigned NWords = 4, class TWord = uint64_t>
 class Kmer {
@@ -25,7 +26,9 @@ class Kmer {
 
   Kmer(const Kmer &kmer) { std::memcpy(data_, kmer.data_, sizeof(data_)); }
 
-  Kmer(const word_type *seq, unsigned offset, unsigned k) { InitFromPtr(seq, offset, k); }
+  Kmer(const word_type *seq, unsigned offset, unsigned k) {
+    InitFromPtr(seq, offset, k);
+  }
 
   void InitFromPtr(const word_type *seq, unsigned offset, unsigned k) {
     seq += offset / kCharsPerWord;
@@ -44,13 +47,15 @@ class Kmer {
       data_[used_words - 1] = seq[used_words - 1] << offset;
 
       if (offset + k * 2 > kBitsPerWord * used_words) {
-        data_[used_words - 1] |= seq[used_words] >> (kBitsPerWord - offset) % kBitsPerWord;
+        data_[used_words - 1] |=
+            seq[used_words] >> (kBitsPerWord - offset) % kBitsPerWord;
       }
     }
 
     if (k % kCharsPerWord != 0) {
       uint32_t clean_shift = (kCharsPerWord - k % kCharsPerWord) << 1;
-      data_[used_words - 1] = data_[used_words - 1] >> clean_shift << clean_shift;
+      data_[used_words - 1] = data_[used_words - 1] >> clean_shift
+                                                           << clean_shift;
     }
 
     memset(data_ + used_words, 0, sizeof(word_type) * (kNumWords - used_words));
@@ -81,9 +86,13 @@ class Kmer {
     return false;
   }
 
-  bool operator==(const Kmer &kmer) const { return memcmp(data_, kmer.data_, sizeof(data_)) == 0; }
+  bool operator==(const Kmer &kmer) const {
+    return memcmp(data_, kmer.data_, sizeof(data_)) == 0;
+  }
 
-  bool operator!=(const Kmer &kmer) const { return memcmp(data_, kmer.data_, sizeof(data_)) != 0; }
+  bool operator!=(const Kmer &kmer) const {
+    return memcmp(data_, kmer.data_, sizeof(data_)) != 0;
+  }
 
   int cmp(const Kmer &kmer, unsigned k) const {
     unsigned used_words = (k + kCharsPerWord - 1) / kCharsPerWord;
@@ -111,7 +120,8 @@ class Kmer {
       unsigned offset = (kCharsPerWord - k % kCharsPerWord) << 1;
 
       for (unsigned i = 0; i + 1 < used_words; ++i) {
-        data_[i] = (data_[i] << offset) | (data_[i + 1] >> (kBitsPerWord - offset));
+        data_[i] =
+            (data_[i] << offset) | (data_[i + 1] >> (kBitsPerWord - offset));
       }
 
       data_[used_words - 1] <<= offset;
@@ -122,14 +132,16 @@ class Kmer {
 
   void ShiftAppend(uint8_t ch, unsigned k) {
     ch &= 3;
-    uint32_t used_words = std::min(NWords, (k + kCharsPerWord - 1) / kCharsPerWord);
+    uint32_t used_words =
+        std::min(NWords, (k + kCharsPerWord - 1) / kCharsPerWord);
 
     for (unsigned i = 0; i + 1 < used_words; ++i) {
       data_[i] = (data_[i] << 2) | (data_[i + 1] >> (kBitsPerWord - 2));
     }
 
     data_[used_words - 1] =
-        (data_[used_words - 1] << 2) | (word_type(ch) << ((kCharsPerWord - 1 - (k - 1) % kCharsPerWord) << 1));
+        (data_[used_words - 1] << 2) |
+        (word_type(ch) << ((kCharsPerWord - 1 - (k - 1) % kCharsPerWord) << 1));
   }
 
   void ShiftPreappend(uint8_t ch, unsigned k) {
@@ -145,7 +157,8 @@ class Kmer {
 
     if (k % kCharsPerWord != 0) {
       uint32_t clean_shift = (kCharsPerWord - k % kCharsPerWord) << 1;
-      data_[used_words - 1] = data_[used_words - 1] >> clean_shift << clean_shift;
+      data_[used_words - 1] = data_[used_words - 1] >> clean_shift
+                                                           << clean_shift;
     }
   }
 
@@ -164,14 +177,17 @@ class Kmer {
   uint8_t operator[](uint32_t index) const { return GetBase(index); }
 
   uint8_t GetBase(uint32_t index) const {
-    return (data_[index / kCharsPerWord] >> ((kCharsPerWord - 1 - index % kCharsPerWord) << 1)) & 3;
+    return (data_[index / kCharsPerWord] >>
+            ((kCharsPerWord - 1 - index % kCharsPerWord) << 1)) &
+           3;
   }
 
   void SetBase(uint32_t index, uint8_t ch) {
     ch &= 3;
     unsigned offset = (kCharsPerWord - 1 - index % kCharsPerWord) << 1;
     data_[index / kCharsPerWord] =
-        (data_[index / kCharsPerWord] & ~(word_type(3) << offset)) | (word_type(ch) << offset);
+        (data_[index / kCharsPerWord] & ~(word_type(3) << offset)) |
+        (word_type(ch) << offset);
   }
 
   void swap(Kmer &kmer) {
@@ -186,7 +202,9 @@ class Kmer {
 
   static uint32_t max_size() { return kMaxSize; }
 
-  unsigned kth_byte(unsigned k) const { return (data_[k / sizeof(word_type)] >> k % sizeof(word_type) * 8) & 0xFF; }
+  unsigned kth_byte(unsigned k) const {
+    return (data_[k / sizeof(word_type)] >> k % sizeof(word_type) * 8) & 0xFF;
+  }
 
   static const uint32_t kBitsPerWord = sizeof(word_type) * 8;
   static const uint32_t kCharsPerWord = kBitsPerWord / 2;

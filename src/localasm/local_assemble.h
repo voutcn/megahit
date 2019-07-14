@@ -1,8 +1,7 @@
-#include <utility>
-
 /*
  *  MEGAHIT
- *  Copyright (C) 2014 - 2015 The University of Hong Kong & L3 Bioinformatics Limited
+ *  Copyright (C) 2014 - 2015 The University of Hong Kong & L3 Bioinformatics
+ * Limited
  *
  *  This program is free software: you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -20,25 +19,29 @@
 
 /* contact: Dinghua Li <dhli@cs.hku.hk> */
 
-#ifndef LIB_INFO_H
-#define LIB_INFO_H
+#ifndef LOCAL_ASSEMBLER_H
+#define LOCAL_ASSEMBLER_H
 
-#include <stdint.h>
 #include <string>
-#include "sequence/sequence_package.h"
 
-struct lib_info_t {
-  SeqPackage *p;
-  int64_t from;
-  int64_t to;
-  int max_read_len;
-  bool is_pe;
-  std::string metadata;  // raw file names
+struct LocalAsmOption {
+  std::string contig_file;
+  std::string lib_file_prefix;
 
-  explicit lib_info_t(SeqPackage *p = nullptr, int64_t from = 0, int64_t to = 0, int max_read_len = 0,
-                      bool is_pe = false, std::string metadata = "")
-      : p(p), from(from), to(to), max_read_len(max_read_len), is_pe(is_pe), metadata(std::move(metadata)) {}
-  ~lib_info_t() = default;
+  uint32_t kmin{11};
+  uint32_t kmax{41};
+  uint32_t step{6};
+  uint32_t seed_kmer{31};
+
+  uint32_t min_contig_len{200};
+  uint32_t sparsity{8};
+  double similarity{0.8};
+  uint32_t min_mapping_len{75};
+
+  uint32_t num_threads{0};
+  std::string output_file;
 };
+
+void RunLocalAssembly(const LocalAsmOption &opt);
 
 #endif

@@ -15,7 +15,7 @@ class BufferedReader {
  public:
   static constexpr size_t kMaxBufferSize = 65536;
   explicit BufferedReader() = default;
-  void reset(std::ifstream *is, size_t buffer_size = kMaxBufferSize) {
+  void reset(std::istream *is, size_t buffer_size = kMaxBufferSize) {
     is_ = is;
     head_ = tail_ = 0;
     buffer_size_ = std::min(buffer_size, kMaxBufferSize * 1);
@@ -57,7 +57,7 @@ class BufferedReader {
   }
 
  private:
-  std::ifstream *is_{};
+  std::istream *is_{};
   char buffer_[kMaxBufferSize]{};
   size_t buffer_size_{kMaxBufferSize};
   size_t head_{0};

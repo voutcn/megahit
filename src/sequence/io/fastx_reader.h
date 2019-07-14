@@ -21,7 +21,8 @@ class FastxReader : public BaseSequenceReader {
  public:
   explicit FastxReader(const std::string &file_name);
   virtual ~FastxReader();
-  virtual int64_t Read(SeqPackage *pkg, int64_t max_num, int64_t max_num_bases, bool reverse);
+  virtual int64_t Read(SeqPackage *pkg, int64_t max_num, int64_t max_num_bases,
+                       bool reverse);
   static void TrimN(const char *s, int len, int *out_bpos, int *out_epos);
 
   kseq_t *ReadNext() {

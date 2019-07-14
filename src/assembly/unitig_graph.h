@@ -16,7 +16,8 @@ class UnitigGraph {
   using Vertex = UnitigGraphVertex;
   using VertexAdapter = UnitigGraphVertex::Adapter;
   using size_type = VertexAdapter::size_type;
-  static const size_type kMaxNumVertices = std::numeric_limits<size_type>::max() - 1;
+  static const size_type kMaxNumVertices =
+      std::numeric_limits<size_type>::max() - 1;
   static const size_type kNullVertexID = kMaxNumVertices + 1;
 
  public:
@@ -35,15 +36,21 @@ class UnitigGraph {
   /*
    * Function for VertexAdapter obtaining & traversal
    */
-  VertexAdapter MakeVertexAdapter(size_type id, int strand = 0) { return adapter_impl_.MakeVertexAdapter(id, strand); }
+  VertexAdapter MakeVertexAdapter(size_type id, int strand = 0) {
+    return adapter_impl_.MakeVertexAdapter(id, strand);
+  }
   int GetNextAdapters(VertexAdapter &adapter, VertexAdapter *out) {
     return adapter_impl_.GetNextAdapters(adapter, out);
   }
   int GetPrevAdapters(VertexAdapter &adapter, VertexAdapter *out) {
     return adapter_impl_.GetPrevAdapters(adapter, out);
   }
-  int OutDegree(VertexAdapter &adapter) { return adapter_impl_.OutDegree(adapter); }
-  int InDegree(VertexAdapter &adapter) { return adapter_impl_.InDegree(adapter); }
+  int OutDegree(VertexAdapter &adapter) {
+    return adapter_impl_.OutDegree(adapter);
+  }
+  int InDegree(VertexAdapter &adapter) {
+    return adapter_impl_.InDegree(adapter);
+  }
 
  private:
   /*
@@ -59,8 +66,12 @@ class UnitigGraph {
   int GetPrevAdapters(SudoVertexAdapter &adapter, SudoVertexAdapter *out) {
     return sudo_adapter_impl_.GetPrevAdapters(adapter, out);
   }
-  int OutDegree(SudoVertexAdapter &adapter) { return sudo_adapter_impl_.OutDegree(adapter); }
-  int InDegree(SudoVertexAdapter &adapter) { return sudo_adapter_impl_.InDegree(adapter); }
+  int OutDegree(SudoVertexAdapter &adapter) {
+    return sudo_adapter_impl_.OutDegree(adapter);
+  }
+  int InDegree(SudoVertexAdapter &adapter) {
+    return sudo_adapter_impl_.InDegree(adapter);
+  }
   SudoVertexAdapter NextSimplePathAdapter(SudoVertexAdapter &adapter) {
     return sudo_adapter_impl_.NextSimplePathAdapter(adapter);
   }
@@ -79,7 +90,9 @@ class UnitigGraph {
     AdapterImpl(UnitigGraph *graph) : graph_(graph) {}
 
    public:
-    AdapterType MakeVertexAdapter(size_type id, int strand = 0) { return {graph_->vertices_[id], strand, id}; }
+    AdapterType MakeVertexAdapter(size_type id, int strand = 0) {
+      return {graph_->vertices_[id], strand, id};
+    }
     int GetNextAdapters(AdapterType &adapter, AdapterType *out) {
       uint64_t next_starts[4];
       int degree = graph_->sdbg_->OutgoingEdges(adapter.e(), next_starts);
@@ -101,7 +114,9 @@ class UnitigGraph {
       adapter.ReverseComplement();
       return degree;
     }
-    int OutDegree(AdapterType &adapter) { return GetNextAdapters(adapter, nullptr); }
+    int OutDegree(AdapterType &adapter) {
+      return GetNextAdapters(adapter, nullptr);
+    }
     int InDegree(AdapterType &adapter) {
       adapter.ReverseComplement();
       int degree = OutDegree(adapter);

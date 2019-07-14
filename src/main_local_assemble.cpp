@@ -1,6 +1,7 @@
 /*
  *  MEGAHIT
- *  Copyright (C) 2014 - 2015 The University of Hong Kong & L3 Bioinformatics Limited
+ *  Copyright (C) 2014 - 2015 The University of Hong Kong & L3 Bioinformatics
+ * Limited
  *
  *  This program is free software: you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -21,43 +22,31 @@
 #include <omp.h>
 #include <iostream>
 #include <string>
+#include <stdexcept>
 
-#include "localasm/local_assembler.h"
+#include "localasm/local_assemble.h"
 #include "utils/options_description.h"
 #include "utils/utils.h"
 
 namespace {
-struct Option {
-  std::string contig_file;
-  std::string lib_file_prefix;
 
-  int kmin{11};
-  int kmax{41};
-  int step{6};
-  int seed_kmer{31};
-
-  int min_contig_len{200};
-  int sparsity{8};
-  double similarity{0.8};
-  int min_mapping_len{75};
-
-  int num_threads{0};
-  std::string output_file;
-} opt;
-
-void ParseLocalAsmOptions(int argc, char *argv[]) {
+LocalAsmOption ParseLocalAsmOptions(int argc, char *argv[]) {
+  LocalAsmOption opt;
   OptionsDescription desc;
 
   desc.AddOption("contig_file", "c", opt.contig_file, "contig file");
-  desc.AddOption("lib_file_prefix", "l", opt.lib_file_prefix, "lib file prefix");
+  desc.AddOption("lib_file_prefix", "l", opt.lib_file_prefix,
+                 "lib file prefix");
   desc.AddOption("kmin", "", opt.kmin, "");
   desc.AddOption("kmax", "", opt.kmax, "");
   desc.AddOption("step", "", opt.step, "");
-  desc.AddOption("seed_kmer", "", opt.seed_kmer, "kmer size for seeding alignments");
+  desc.AddOption("seed_kmer", "", opt.seed_kmer,
+                 "kmer size for seeding alignments");
   desc.AddOption("min_contig_len", "", opt.min_contig_len, "");
   desc.AddOption("min_mapping_len", "", opt.min_mapping_len, "");
   desc.AddOption("sparsity", "", opt.sparsity, "sparsity of hash mapper");
-  desc.AddOption("similarity", "", opt.similarity, "alignment similarity threshold");
+  desc.AddOption("similarity", "", opt.similarity,
+                 "alignment similarity threshold");
   desc.AddOption("num_threads", "t", opt.num_threads, "");
   desc.AddOption("output_file", "o", opt.output_file, "");
 
@@ -77,56 +66,21 @@ void ParseLocalAsmOptions(int argc, char *argv[]) {
     }
   } catch (std::exception &e) {
     std::cerr << e.what() << std::endl;
-    std::cerr << "Usage: " << argv[0] << " -c contigs.fa -r reads.fq -o out.local_contig.fa" << std::endl;
+    std::cerr << "Usage: " << argv[0]
+              << " -c contigs.fa -r reads.fq -o out.local_contig.fa"
+              << std::endl;
     std::cerr << "options:" << std::endl;
     std::cerr << desc << std::endl;
     exit(1);
   }
+  return opt;
 }
 }  // namespace
 
 int main_local(int argc, char **argv) {
   AutoMaxRssRecorder recorder;
-
-  ParseLocalAsmOptions(argc, argv);
-
+  auto opt = ParseLocalAsmOptions(argc, argv);
   omp_set_num_threads(opt.num_threads);
-
-  LocalAssembler la(opt.min_contig_len, opt.seed_kmer, opt.sparsity);
-  la.set_kmer(opt.kmin, opt.kmax, opt.step);
-  la.set_mapping_threshold(opt.similarity, opt.min_mapping_len);
-  la.set_local_file(opt.output_file);
-
-  SimpleTimer timer;
-  timer.reset();
-  timer.start();
-  la.ReadContigs(opt.contig_file);
-  la.BuildHashMapper();
-  timer.stop();
-  xinfo("Hash mapper construction time elapsed: {}\n", timer.elapsed());
-
-  timer.reset();
-  timer.start();
-  la.AddReadLib(opt.lib_file_prefix);
-  timer.stop();
-  xinfo("Read lib time elapsed: {}\n", timer.elapsed());
-
-  timer.reset();
-  timer.start();
-  la.EstimateInsertSize();
-  timer.stop();
-  xinfo("Insert size estimation time elapsed: {}\n", timer.elapsed());
-
-  timer.reset();
-  timer.start();
-  la.MapToContigs();
-  timer.stop();
-  xinfo("Mapping time elapsed: {}\n", timer.elapsed());
-
-  timer.reset();
-  timer.start();
-  la.LocalAssemble();
-  timer.stop();
-  xinfo("Local assembly time elapsed: {}\n", timer.elapsed());
+  RunLocalAssembly(opt);
   return 0;
 }

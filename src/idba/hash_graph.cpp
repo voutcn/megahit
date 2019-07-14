@@ -37,12 +37,15 @@ int64_t HashGraph::InsertKmers(const Sequence &seq) {
     if (length < (int)kmer_size_) continue;
 
     IdbaKmer key = kmer.unique_format();
-    HashGraphVertex &vertex = vertex_table_.find_or_insert(HashGraphVertex(key));
+    HashGraphVertex &vertex =
+        vertex_table_.find_or_insert(HashGraphVertex(key));
     vertex.count() += 1;
     HashGraphVertexAdaptor adaptor(&vertex, kmer != key);
 
-    if (length > (int)kmer_size_ && seq[i - kmer_size_] < 4) adaptor.in_edges().Add(3 - seq[i - kmer_size_]);
-    if (i + 1 < seq.size() && seq[i + 1] < 4) adaptor.out_edges().Add(seq[i + 1]);
+    if (length > (int)kmer_size_ && seq[i - kmer_size_] < 4)
+      adaptor.in_edges().Add(3 - seq[i - kmer_size_]);
+    if (i + 1 < seq.size() && seq[i + 1] < 4)
+      adaptor.out_edges().Add(seq[i + 1]);
 
     ++num_kmers;
   }
@@ -64,11 +67,14 @@ int64_t HashGraph::InsertUncountKmers(const Sequence &seq) {
 
     IdbaKmer key = kmer.unique_format();
 
-    HashGraphVertex &vertex = vertex_table_.find_or_insert(HashGraphVertex(key));
+    HashGraphVertex &vertex =
+        vertex_table_.find_or_insert(HashGraphVertex(key));
     HashGraphVertexAdaptor adaptor(&vertex, kmer != key);
 
-    if (length > (int)kmer_size_ && seq[i - kmer_size_] < 4) adaptor.in_edges().Add(3 - seq[i - kmer_size_]);
-    if (i + 1 < seq.size() && seq[i + 1] < 4) adaptor.out_edges().Add(seq[i + 1]);
+    if (length > (int)kmer_size_ && seq[i - kmer_size_] < 4)
+      adaptor.in_edges().Add(3 - seq[i - kmer_size_]);
+    if (i + 1 < seq.size() && seq[i + 1] < 4)
+      adaptor.out_edges().Add(seq[i + 1]);
 
     ++num_kmers;
   }
@@ -76,7 +82,8 @@ int64_t HashGraph::InsertUncountKmers(const Sequence &seq) {
   return num_kmers;
 }
 
-int64_t HashGraph::Assemble(std::deque<Sequence> &contigs, std::deque<ContigInfo> &contig_infos) {
+int64_t HashGraph::Assemble(std::deque<Sequence> &contigs,
+                            std::deque<ContigInfo> &contig_infos) {
   contigs.clear();
   contig_infos.clear();
   AssembleFunc func(this);

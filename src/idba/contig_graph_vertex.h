@@ -26,11 +26,15 @@
  */
 class ContigGraphVertex {
  public:
-  explicit ContigGraphVertex(const Sequence &contig = Sequence(), const ContigInfo &contig_info = ContigInfo())
+  explicit ContigGraphVertex(const Sequence &contig = Sequence(),
+                             const ContigInfo &contig_info = ContigInfo())
       : contig_(contig), contig_info_(contig_info) {}
 
   ContigGraphVertex(const ContigGraphVertex &x)
-      : contig_(x.contig_), id_(x.id_), status_(x.status_), contig_info_(x.contig_info_) {}
+      : contig_(x.contig_),
+        id_(x.id_),
+        status_(x.status_),
+        contig_info_(x.contig_info_) {}
 
   const ContigGraphVertex &operator=(const ContigGraphVertex &x) {
     if (this != &x) {
@@ -48,16 +52,22 @@ class ContigGraphVertex {
   uint32_t num_kmer() const { return contig_.size() - kmer_size() + 1; }
 
   const ContigInfo &contig_info() const { return contig_info_; }
-  void set_contig_info(const ContigInfo &contig_info) { contig_info_ = contig_info; }
+  void set_contig_info(const ContigInfo &contig_info) {
+    contig_info_ = contig_info;
+  }
 
   uint64_t kmer_count() const { return contig_info_.kmer_count(); }
-  void set_kmer_count(uint64_t kmer_count) { contig_info_.set_kmer_count(kmer_count); }
+  void set_kmer_count(uint64_t kmer_count) {
+    contig_info_.set_kmer_count(kmer_count);
+  }
 
   uint32_t id() const { return id_; }
   void set_id(uint32_t id) { id_ = id; }
 
   uint32_t kmer_size() const { return contig_info_.kmer_size(); }
-  void set_kmer_size(uint32_t kmer_size) { contig_info_.set_kmer_size(kmer_size); }
+  void set_kmer_size(uint32_t kmer_size) {
+    contig_info_.set_kmer_size(kmer_size);
+  }
 
   VertexStatus &status() { return status_; }
   const VertexStatus &status() const { return status_; }
@@ -68,17 +78,27 @@ class ContigGraphVertex {
   BitEdges &out_edges() { return contig_info_.out_edges(); }
   const BitEdges &out_edges() const { return contig_info_.out_edges(); }
 
-  IdbaKmer begin_kmer(int kmer_size) const { return contig_.GetIdbaKmer(0, kmer_size); }
-  IdbaKmer end_kmer(int kmer_size) const { return contig_.GetIdbaKmer(contig_.size() - kmer_size, kmer_size); }
+  IdbaKmer begin_kmer(int kmer_size) const {
+    return contig_.GetIdbaKmer(0, kmer_size);
+  }
+  IdbaKmer end_kmer(int kmer_size) const {
+    return contig_.GetIdbaKmer(contig_.size() - kmer_size, kmer_size);
+  }
 
-  double coverage() const { return 1.0 * contig_info_.kmer_count() / (contig_size() - kmer_size() + 1); }
+  double coverage() const {
+    return 1.0 * contig_info_.kmer_count() / (contig_size() - kmer_size() + 1);
+  }
 
   const SequenceCount &counts() const { return contig_info_.counts(); }
-  void set_counts(const SequenceCount &counts) { contig_info_.set_counts(counts); }
+  void set_counts(const SequenceCount &counts) {
+    contig_info_.set_counts(counts);
+  }
 
   char get_base(uint32_t index) const { return contig_[index]; }
 
-  SequenceCountUnitType get_count(uint32_t index) const { return contig_info_.counts()[index]; }
+  SequenceCountUnitType get_count(uint32_t index) const {
+    return contig_info_.counts()[index];
+  }
 
   void swap(ContigGraphVertex &x) {
     if (this != &x) {
@@ -105,17 +125,22 @@ class ContigGraphVertex {
 };
 
 /**
- * @brief It is a adaptor class used to access ContigGraphVertex. Becase a contig and its
- * reverse complement share the same vertex, using adaptor makes sure that modification to
+ * @brief It is a adaptor class used to access ContigGraphVertex. Becase a
+ * contig and its
+ * reverse complement share the same vertex, using adaptor makes sure that
+ * modification to
  * the vertex consistant.
  */
 class ContigGraphVertexAdaptor {
  public:
-  explicit ContigGraphVertexAdaptor(ContigGraphVertex *vertex = NULL, bool is_reverse = false) {
+  explicit ContigGraphVertexAdaptor(ContigGraphVertex *vertex = NULL,
+                                    bool is_reverse = false) {
     vertex_ = vertex;
     is_reverse_ = is_reverse;
   }
-  ContigGraphVertexAdaptor(const ContigGraphVertexAdaptor &x) { vertex_ = x.vertex_, is_reverse_ = x.is_reverse_; }
+  ContigGraphVertexAdaptor(const ContigGraphVertexAdaptor &x) {
+    vertex_ = x.vertex_, is_reverse_ = x.is_reverse_;
+  }
 
   const ContigGraphVertexAdaptor &operator=(const ContigGraphVertexAdaptor &x) {
     vertex_ = x.vertex_;
@@ -124,10 +149,12 @@ class ContigGraphVertexAdaptor {
   }
 
   bool operator<(const ContigGraphVertexAdaptor &x) const {
-    return (vertex_ != x.vertex_) ? (vertex_ < x.vertex_) : (is_reverse_ < x.is_reverse_);
+    return (vertex_ != x.vertex_) ? (vertex_ < x.vertex_)
+                                  : (is_reverse_ < x.is_reverse_);
   }
   bool operator>(const ContigGraphVertexAdaptor &x) const {
-    return (vertex_ != x.vertex_) ? (vertex_ > x.vertex_) : (is_reverse_ > x.is_reverse_);
+    return (vertex_ != x.vertex_) ? (vertex_ > x.vertex_)
+                                  : (is_reverse_ > x.is_reverse_);
   }
 
   bool operator==(const ContigGraphVertexAdaptor &x) const {
@@ -164,7 +191,9 @@ class ContigGraphVertexAdaptor {
   void set_kmer_size(uint64_t kmer_size) { vertex_->set_kmer_size(kmer_size); }
 
   uint64_t kmer_count() const { return vertex_->kmer_count(); }
-  void set_kmer_count(uint64_t kmer_count) { vertex_->set_kmer_count(kmer_count); }
+  void set_kmer_count(uint64_t kmer_count) {
+    vertex_->set_kmer_count(kmer_count);
+  }
 
   uint32_t id() const { return vertex_->id(); }
   void set_id(uint32_t id) { vertex_->set_id(id); }
@@ -172,11 +201,19 @@ class ContigGraphVertexAdaptor {
   VertexStatus &status() { return vertex_->status(); }
   const VertexStatus &status() const { return vertex_->status(); }
 
-  BitEdges &in_edges() { return !is_reverse_ ? vertex_->in_edges() : vertex_->out_edges(); }
-  const BitEdges &in_edges() const { return !is_reverse_ ? vertex_->in_edges() : vertex_->out_edges(); }
+  BitEdges &in_edges() {
+    return !is_reverse_ ? vertex_->in_edges() : vertex_->out_edges();
+  }
+  const BitEdges &in_edges() const {
+    return !is_reverse_ ? vertex_->in_edges() : vertex_->out_edges();
+  }
 
-  BitEdges &out_edges() { return !is_reverse_ ? vertex_->out_edges() : vertex_->in_edges(); }
-  const BitEdges &out_edges() const { return !is_reverse_ ? vertex_->out_edges() : vertex_->in_edges(); }
+  BitEdges &out_edges() {
+    return !is_reverse_ ? vertex_->out_edges() : vertex_->in_edges();
+  }
+  const BitEdges &out_edges() const {
+    return !is_reverse_ ? vertex_->out_edges() : vertex_->in_edges();
+  }
 
   SequenceCount counts() {
     if (!is_reverse_)
@@ -189,19 +226,24 @@ class ContigGraphVertexAdaptor {
   }
 
   char get_base(uint32_t index) const {
-    return (!is_reverse_) ? vertex_->get_base(index) : 3 - vertex_->get_base(contig_size() - 1 - index);
+    return (!is_reverse_) ? vertex_->get_base(index)
+                          : 3 - vertex_->get_base(contig_size() - 1 - index);
   }
 
   SequenceCountUnitType get_count(uint32_t index) const {
-    return (!is_reverse_) ? vertex_->get_count(index) : vertex_->get_count(vertex_->counts().size() - 1 - index);
+    return (!is_reverse_)
+               ? vertex_->get_count(index)
+               : vertex_->get_count(vertex_->counts().size() - 1 - index);
   }
 
   IdbaKmer begin_kmer(int kmer_size) const {
-    return !is_reverse_ ? vertex_->begin_kmer(kmer_size) : vertex_->end_kmer(kmer_size).ReverseComplement();
+    return !is_reverse_ ? vertex_->begin_kmer(kmer_size)
+                        : vertex_->end_kmer(kmer_size).ReverseComplement();
   }
 
   IdbaKmer end_kmer(int kmer_size) const {
-    return !is_reverse_ ? vertex_->end_kmer(kmer_size) : vertex_->begin_kmer(kmer_size).ReverseComplement();
+    return !is_reverse_ ? vertex_->end_kmer(kmer_size)
+                        : vertex_->begin_kmer(kmer_size).ReverseComplement();
   }
 
   double coverage() const { return vertex_->coverage(); }

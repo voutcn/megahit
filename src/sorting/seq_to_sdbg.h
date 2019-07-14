@@ -1,6 +1,7 @@
 /*
  *  MEGAHIT
- *  Copyright (C) 2014 - 2015 The University of Hong Kong & L3 Bioinformatics Limited
+ *  Copyright (C) 2014 - 2015 The University of Hong Kong & L3 Bioinformatics
+ * Limited
  *
  *  This program is free software: you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -46,34 +47,36 @@ struct Seq2SdbgOption {
 
 class SeqToSdbg : public BaseSequenceSortingEngine {
  public:
-// binary search look up table
+  // binary search look up table
   static const unsigned kLookUpPrefixLength = 12;
   static const unsigned kLookUpShift = 32 - kLookUpPrefixLength * 2;
-  static const unsigned kLookUpSize = 1 << (2 * kLookUpPrefixLength);
+  static const unsigned kLookUpSize = 1u << (2 * kLookUpPrefixLength);
   static const unsigned kSentinelValue = 4;
   static const unsigned kBWTCharNumBits = 3;
 
-  explicit SeqToSdbg(const Seq2SdbgOption &opt) :
-      BaseSequenceSortingEngine(opt.host_mem, opt.mem_flag, opt.n_threads),
-      opt_(opt) {}
+  explicit SeqToSdbg(const Seq2SdbgOption &opt)
+      : BaseSequenceSortingEngine(opt.host_mem, opt.mem_flag, opt.n_threads),
+        opt_(opt) {}
 
  public:
-  Meta Initialize() override;
+  MemoryStat Initialize() override;
 
  protected:
   int64_t Lv0EncodeDiffBase(int64_t) override;
-  void Lv0CalcBucketSize(int64_t seq_from, int64_t seq_to, std::array<int64_t, kNumBuckets> *out) override;
-  void Lv1FillOffsets(OffsetFiller &filler, int64_t seq_from, int64_t seq_to) override;
-  void Lv2ExtractSubString(unsigned bucket_from, unsigned bucket_to, uint32_t *substr_ptr) override;
-  void Lv2Postprocess(int64_t start_index, int64_t end_index, int thread_id, uint32_t *substr_ptr) override;
+  void Lv0CalcBucketSize(int64_t seq_from, int64_t seq_to,
+                         std::array<int64_t, kNumBuckets> *out) override;
+  void Lv1FillOffsets(OffsetFiller &filler, int64_t seq_from,
+                      int64_t seq_to) override;
+  void Lv2ExtractSubString(OffsetFetcher &fetcher,
+                           SubstrPtr substr_ptr) override;
+  void Lv2Postprocess(int64_t start_index, int64_t end_index, int thread_id,
+                      uint32_t *substr_ptr) override;
   void Lv0Postprocess() override;
 
  private:
   // input options
   Seq2SdbgOption opt_;
-
   int64_t words_per_substr_{};
-  int words_per_dummy_node_{};
 
   // big arrays
   SeqPackage seq_pkg_;

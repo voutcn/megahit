@@ -32,16 +32,15 @@ class HashGraph {
  public:
   typedef HashTableST<HashGraphVertex, IdbaKmer> vertex_table_type;
 
-  explicit HashGraph(uint32_t kmer_size = 0) {
-    set_kmer_size(kmer_size);
-    num_edges_ = 0;
-  }
+  explicit HashGraph(uint32_t kmer_size = 0) { set_kmer_size(kmer_size); }
   ~HashGraph() {}
 
   HashGraphVertexAdaptor FindVertexAdaptor(const IdbaKmer &kmer) {
     IdbaKmer key = kmer.unique_format();
     auto p = vertex_table_.find(key);
-    return ((p != vertex_table_.end()) ? HashGraphVertexAdaptor(&*p, kmer != key) : HashGraphVertexAdaptor(NULL));
+    return ((p != vertex_table_.end())
+                ? HashGraphVertexAdaptor(&*p, kmer != key)
+                : HashGraphVertexAdaptor(NULL));
   }
 
   int64_t InsertKmers(const Sequence &seq);
@@ -52,7 +51,8 @@ class HashGraph {
     vertex_table_.for_each(func);
   }
 
-  int64_t Assemble(std::deque<Sequence> &contigs, std::deque<ContigInfo> &contig_infos);
+  int64_t Assemble(std::deque<Sequence> &contigs,
+                   std::deque<ContigInfo> &contig_infos);
 
   void reserve(uint64_t capacity) { vertex_table_.reserve(capacity); }
 
@@ -69,15 +69,11 @@ class HashGraph {
     if (this != &hash_graph) {
       vertex_table_.swap(hash_graph.vertex_table_);
       std::swap(kmer_size_, hash_graph.kmer_size_);
-      std::swap(num_edges_, hash_graph.num_edges_);
     }
   }
 
   uint64_t num_vertices() const { return vertex_table_.size(); }
-  void clear() {
-    vertex_table_.clear();
-    num_edges_ = 0;
-  }
+  void clear() { vertex_table_.clear(); }
 
  private:
 #if __cplusplus >= 201103L
@@ -88,7 +84,8 @@ class HashGraph {
   const HashGraph &operator=(const HashGraph &);
 #endif
 
-  bool GetNextVertexAdaptor(const HashGraphVertexAdaptor &current, HashGraphVertexAdaptor &next) {
+  bool GetNextVertexAdaptor(const HashGraphVertexAdaptor &current,
+                            HashGraphVertexAdaptor &next) {
     if (current.out_edges().size() != 1) return false;
 
     IdbaKmer kmer = current.kmer();
@@ -111,7 +108,8 @@ class HashGraph {
     IdbaKmer rev_comp = kmer;
     rev_comp.ReverseComplement();
 
-    return contig.GetIdbaKmer(contig.size() - kmer_size_, kmer_size_) == rev_comp;
+    return contig.GetIdbaKmer(contig.size() - kmer_size_, kmer_size_) ==
+           rev_comp;
   }
 
   class ClearStatusFunc {
@@ -139,7 +137,9 @@ class HashGraph {
 
   class CoverageHistgramFunc {
    public:
-    void operator()(HashGraphVertex &vertex) { histgram_.insert(vertex.count()); }
+    void operator()(HashGraphVertex &vertex) {
+      histgram_.insert(vertex.count());
+    }
 
     const Histgram<int, NullMutex> &histgram() { return histgram_; }
 
@@ -149,7 +149,6 @@ class HashGraph {
 
   vertex_table_type vertex_table_;
   uint32_t kmer_size_;
-  uint64_t num_edges_;
 };
 
 namespace std {

@@ -28,17 +28,24 @@ class HashGraphPath {
     return *this;
   }
 
-  HashGraphVertexAdaptor &operator[](uint32_t index) { return vertices_[index]; }
+  HashGraphVertexAdaptor &operator[](uint32_t index) {
+    return vertices_[index];
+  }
 
-  const HashGraphVertexAdaptor &operator[](uint32_t index) const { return vertices_[index]; }
+  const HashGraphVertexAdaptor &operator[](uint32_t index) const {
+    return vertices_[index];
+  }
 
-  void Append(const HashGraphVertexAdaptor &vertex) { vertices_.push_back(vertex); }
+  void Append(const HashGraphVertexAdaptor &vertex) {
+    vertices_.push_back(vertex);
+  }
 
   void Pop() { vertices_.pop_back(); }
 
   const HashGraphPath &ReverseComplement() {
     std::reverse(vertices_.begin(), vertices_.end());
-    for (unsigned i = 0; i < vertices_.size(); ++i) vertices_[i].ReverseComplement();
+    for (unsigned i = 0; i < vertices_.size(); ++i)
+      vertices_[i].ReverseComplement();
     return *this;
   }
 

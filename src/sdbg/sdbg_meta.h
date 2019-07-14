@@ -52,7 +52,8 @@ class SdbgMeta {
   SdbgMeta() = default;
   void Serialize(std::ofstream &os);
   SdbgMeta &Deserialize(std::ifstream &is);
-  SdbgMeta &FromBucketRecord(const std::vector<SdbgBucketRecord> &bucket_rec, uint32_t k, uint32_t words_per_tip_label);
+  SdbgMeta &FromBucketRecord(const std::vector<SdbgBucketRecord> &bucket_rec,
+                             uint32_t k, uint32_t words_per_tip_label);
   ~SdbgMeta() = default;
   uint32_t k() const { return k_; }
   size_t bucket_count() const { return bucket_rec_.size(); }
@@ -62,8 +63,12 @@ class SdbgMeta {
   size_t ones_in_last() const { return ones_in_last_; }
   size_t large_mul_count() const { return large_mul_count_; }
   size_t words_per_tip_label() const { return words_per_tip_label_; }
-  std::vector<SdbgBucketRecord>::const_iterator begin_bucket() const { return bucket_rec_.begin(); }
-  std::vector<SdbgBucketRecord>::const_iterator end_bucket() const { return bucket_rec_.end(); }
+  std::vector<SdbgBucketRecord>::const_iterator begin_bucket() const {
+    return bucket_rec_.begin();
+  }
+  std::vector<SdbgBucketRecord>::const_iterator end_bucket() const {
+    return bucket_rec_.end();
+  }
 };
 
 #endif  // MEGAHIT_SDBG_META_H

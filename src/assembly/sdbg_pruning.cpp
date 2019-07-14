@@ -1,6 +1,7 @@
 /*
  *  MEGAHIT
- *  Copyright (C) 2014 - 2015 The University of Hong Kong & L3 Bioinformatics Limited
+ *  Copyright (C) 2014 - 2015 The University of Hong Kong & L3 Bioinformatics
+ * Limited
  *
  *  This program is free software: you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -19,9 +20,9 @@
 /* contact: Dinghua Li <dhli@cs.hku.hk> */
 
 #include "sdbg_pruning.h"
+#include <algorithm>
 #include <cassert>
 #include <cmath>
-#include <algorithm>
 #include <queue>
 #include <unordered_set>
 #include <vector>
@@ -47,7 +48,7 @@ double InferMinDepth(SDBG &dbg) {
     hist.TrimLow(static_cast<mul_t>(roundf(cov)));
     unsigned median = hist.median();
     double cov1 = sqrt(median);
-    if (abs(cov - cov1) < 1e-2) {
+    if (fabs(cov - cov1) < 1e-2) {
       return cov;
     }
     cov = cov1;
@@ -161,7 +162,8 @@ uint64_t RemoveTips(SDBG &dbg, int max_tip_len) {
     timer.start();
     number_tips += Trim(dbg, len, ignored);
     timer.stop();
-    xinfoc("Accumulated tips removed: {}; time elapsed: {.4}\n", number_tips, timer.elapsed());
+    xinfoc("Accumulated tips removed: {}; time elapsed: {.4}\n", number_tips,
+           timer.elapsed());
   }
 
   xinfo("Removing tips with length less than {}; ", max_tip_len);
@@ -169,7 +171,8 @@ uint64_t RemoveTips(SDBG &dbg, int max_tip_len) {
   timer.start();
   number_tips += Trim(dbg, max_tip_len, ignored);
   timer.stop();
-  xinfoc("Accumulated tips removed: {}; time elapsed: {.4}\n", number_tips, timer.elapsed());
+  xinfoc("Accumulated tips removed: {}; time elapsed: {.4}\n", number_tips,
+         timer.elapsed());
 
   return number_tips;
 }

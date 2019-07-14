@@ -1,15 +1,15 @@
 #ifndef MEGAHIT_BASE_ENGINE_H
 #define MEGAHIT_BASE_ENGINE_H
 
+#include <algorithm>
+#include <array>
 #include <cassert>
 #include <cstdint>
-#include <algorithm>
-#include <vector>
 #include <mutex>
-#include <array>
+#include <vector>
 
-#include "utils/utils.h"
 #include "kmsort_selector.h"
+#include "utils/utils.h"
 
 /**
  * The base class of sequence sorting engine
@@ -25,7 +25,7 @@ class BaseSequenceSortingEngine {
   static const unsigned kLv1BytePerItem = 4;  // 32-bit differential offset
   static const int64_t kDifferentialLimit = (1llu << 31u) - 1;
 
-  struct Meta {
+  struct MemoryStat {
     int64_t num_sequences;
     int64_t memory_for_data;
     int64_t words_per_lv2;
@@ -34,7 +34,7 @@ class BaseSequenceSortingEngine {
 
  public:
   BaseSequenceSortingEngine(int64_t mem, int mem_flag, int n_threads)
-      : host_mem_(mem), mem_flag_(mem_flag), n_threads_(n_threads) {};
+      : host_mem_(mem), mem_flag_(mem_flag), n_threads_(n_threads){};
   virtual ~BaseSequenceSortingEngine() = default;
 
   /**
@@ -50,9 +50,10 @@ class BaseSequenceSortingEngine {
 
  private:
   //  Sequence divided into n_threads_ partitions
-  //  Each thread read one partition when filling Lv1 offsets, but it will fill multiple buckets
+  //  Each thread read one partition when filling Lv1 offsets, but it will fill
+  //  multiple buckets
   //
-  //  SequenceView
+  //  SeqView
   //  <--------------p0--------------><--------------p1-------------->
   //  |t0---------------------------->|t1---------------------------->
   //
@@ -60,10 +61,12 @@ class BaseSequenceSortingEngine {
   //  <------b0------><------b1------><------b2------><------b3------>
   //  |t0---->|t1---->|t0---->|t1---->|t0---->|t1---->|t0---->|t1---->
   //  |                                       |
-  //  \ bucket_begin[0] in thread_meta_[0]    \ bucket_begin[2] in thread_meta_[1]
+  //  \ bucket_begin[0] in thread_meta_[0]    \ bucket_begin[2] in
+  //  thread_meta_[1]
 
   struct ThreadMeta {
-    int64_t seq_from, seq_to;  // start and end IDs of this sequence partition (end is exclusive)
+    int64_t seq_from, seq_to;  // start and end IDs of this sequence partition
+                               // (end is exclusive)
     std::array<int64_t, kNumBuckets> bucket_sizes;
     std::array<int64_t, kNumBuckets> bucket_begin;
     int64_t offset_base;  // the initial offset globals.lv1_items
@@ -75,16 +78,20 @@ class BaseSequenceSortingEngine {
   std::array<unsigned, kNumBuckets> bucket_rank_{};
 
  protected:
+  using SubstrPtr = std::vector<uint32_t>::iterator;
   /**
    * For derived class to fill offsets
    */
   class OffsetFiller {
    public:
-    OffsetFiller(BaseSequenceSortingEngine *engine, unsigned start_bucket, unsigned end_bucket, const ThreadMeta &sp)
+    OffsetFiller(BaseSequenceSortingEngine *engine, unsigned start_bucket,
+                 unsigned end_bucket, const ThreadMeta &sp)
         : engine_(engine) {
-      std::fill(prev_full_offsets_.begin() + start_bucket, prev_full_offsets_.begin() + end_bucket, sp.offset_base);
+      std::fill(prev_full_offsets_.begin() + start_bucket,
+                prev_full_offsets_.begin() + end_bucket, sp.offset_base);
       std::copy(sp.bucket_begin.begin() + start_bucket,
-                sp.bucket_begin.begin() + end_bucket, bucket_index_.begin() + start_bucket);
+                sp.bucket_begin.begin() + end_bucket,
+                bucket_index_.begin() + start_bucket);
     }
 
     void WriteNextOffset(unsigned bucket, int64_t full_offset) {
@@ -111,13 +118,16 @@ class BaseSequenceSortingEngine {
    */
   class OffsetFetcher {
    public:
-    OffsetFetcher(BaseSequenceSortingEngine *engine, unsigned start_bucket, unsigned end_bucket) :
-        engine_(engine), end_bucket_(end_bucket), cur_bucket_(start_bucket) {
+    OffsetFetcher(BaseSequenceSortingEngine *engine, unsigned start_bucket,
+                  unsigned end_bucket)
+        : engine_(engine), end_bucket_(end_bucket), cur_bucket_(start_bucket) {
       cur_thread_id_ = 0;
       cur_item_index_ = 0;
       cur_full_offset_ = engine_->thread_meta_[cur_thread_id_].offset_base;
-      cur_n_items_ = engine_->thread_meta_[cur_thread_id_].bucket_sizes[cur_bucket_];
-      diff_iter_ = engine_->lv1_offsets_.cbegin() + engine_->thread_meta_[0].bucket_begin[cur_bucket_];
+      cur_n_items_ =
+          engine_->thread_meta_[cur_thread_id_].bucket_sizes[cur_bucket_];
+      diff_iter_ = engine_->lv1_offsets_.cbegin() +
+                   engine_->thread_meta_[0].bucket_begin[cur_bucket_];
       TryRefill();
     }
 
@@ -151,9 +161,11 @@ class BaseSequenceSortingEngine {
         }
         cur_full_offset_ = engine_->thread_meta_[cur_thread_id_].offset_base;
         cur_item_index_ = 0;
-        cur_n_items_ = engine_->thread_meta_[cur_thread_id_].bucket_sizes[cur_bucket_];
+        cur_n_items_ =
+            engine_->thread_meta_[cur_thread_id_].bucket_sizes[cur_bucket_];
       }
     }
+
    private:
     BaseSequenceSortingEngine *engine_;
     unsigned end_bucket_;
@@ -164,10 +176,6 @@ class BaseSequenceSortingEngine {
     size_t cur_n_items_;
     std::vector<uint32_t>::const_iterator diff_iter_;
   };
-
-  OffsetFetcher GetOffsetFetcher(unsigned start_bucket, unsigned end_bucket) {
-    return OffsetFetcher(this, start_bucket, end_bucket);
-  }
 
  private:
   void WriteOffset(size_t index, int64_t diff, int64_t full_offset) {
@@ -202,27 +210,29 @@ class BaseSequenceSortingEngine {
   int64_t host_mem_{};
   int mem_flag_{};
   unsigned n_threads_{};
-  Meta meta_{}; // set by Initialize return
-  std::function<void(uint32_t *, int64_t)> substr_sort_;  // set after Initialize
+  MemoryStat meta_{};  // set by Initialize return
+  std::function<void(uint32_t *, int64_t)>
+      substr_sort_;  // set after Initialize
 
   /**
    * Interfaces used by `Run` and must be implemented in derived class
    */
  public:
-  virtual Meta Initialize() = 0;
+  virtual MemoryStat Initialize() = 0;
 
  protected:
   virtual int64_t Lv0EncodeDiffBase(int64_t) = 0;
-  virtual void Lv0CalcBucketSize(int64_t seq_from, int64_t seq_to, std::array<int64_t, kNumBuckets> *out) = 0;
-  virtual void Lv1FillOffsets(OffsetFiller &filler, int64_t seq_from, int64_t seq_to) = 0;
-  virtual void Lv2ExtractSubString(unsigned bucket_from, unsigned bucket_to, uint32_t *substr_ptr) = 0;
-  virtual void Lv2Postprocess(int64_t start_index, int64_t end_index, int thread_id, uint32_t *substr_ptr) = 0;
+  virtual void Lv0CalcBucketSize(int64_t seq_from, int64_t seq_to,
+                                 std::array<int64_t, kNumBuckets> *out) = 0;
+  virtual void Lv1FillOffsets(OffsetFiller &filler, int64_t seq_from,
+                              int64_t seq_to) = 0;
+  virtual void Lv2ExtractSubString(OffsetFetcher &fetcher,
+                                   SubstrPtr substr_ptr) = 0;
+  virtual void Lv2Postprocess(int64_t start_index, int64_t end_index,
+                              int thread_id, uint32_t *substr_ptr) = 0;
   virtual void Lv0Postprocess() = 0;
 
  private:
-  /**
-   * Adjust memory layout of the engine, i.e., how many lv1 and lv2 items
-   */
   void AdjustMemory();
   void Lv0PrepareThreadPartition();
   void Lv0CalcBucketSizeLaunchMt();
@@ -246,4 +256,4 @@ class BaseSequenceSortingEngine {
   void Run();
 };
 
-#endif  //MEGAHIT_BASE_ENGINE_H
+#endif  // MEGAHIT_BASE_ENGINE_H

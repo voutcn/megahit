@@ -19,7 +19,8 @@ class BinaryReader : public BaseSequenceReader {
     reader_.reset(&is_);
   }
 
-  int64_t Read(SeqPackage *pkg, int64_t max_num, int64_t max_num_bases, bool reverse) override {
+  int64_t Read(SeqPackage *pkg, int64_t max_num, int64_t max_num_bases,
+               bool reverse) override {
     max_num = (max_num + 1) / 2 * 2;
     int64_t num_bases = 0;
     uint32_t read_len;
@@ -28,7 +29,7 @@ class BinaryReader : public BaseSequenceReader {
       if (reader_.read(&read_len) == 0) {
         return i;
       }
-      auto num_words = DivCeiling(read_len, SeqPackage::kCharsPerWord);
+      auto num_words = DivCeiling(read_len, SeqPackage::kBasesPerWord);
       if (buf_.size() < num_words) {
         buf_.resize(num_words);
       }
@@ -53,7 +54,7 @@ class BinaryReader : public BaseSequenceReader {
  private:
   std::ifstream is_;
   BufferedReader reader_;
-  std::vector<SeqPackage::word_type> buf_;
+  std::vector<SeqPackage::TWord> buf_;
 };
 
 #endif  // MEGAHIT_BINARY_READER_H

@@ -19,25 +19,31 @@
  */
 class SDBG {
  public:
-  static const uint64_t kNullID = -1;
+  static const uint64_t kNullID = static_cast<uint64_t>(-1);
   SDBG() = default;
   ~SDBG() = default;
 
   void LoadFromFile(const char *dbg_name) {
     LoadSdbgRawContent(&content_, dbg_name);
     k_ = content_.meta.k();
-    rs_is_tip_.from_packed_array(content_.tip.data(), content_.meta.item_count());
+    rs_is_tip_.from_packed_array(content_.tip.data(),
+                                 content_.meta.item_count());
     rs_w_.from_packed_array(content_.w.data(), content_.meta.item_count());
-    rs_last_.from_packed_array(content_.last.data(), content_.meta.item_count());
-    invalid_ = kmlib::AtomicBitVector<uint64_t>(content_.tip.data(), content_.tip.data() + content_.tip.word_count());
+    rs_last_.from_packed_array(content_.last.data(),
+                               content_.meta.item_count());
+    invalid_ = kmlib::AtomicBitVector<uint64_t>(
+        content_.tip.data(), content_.tip.data() + content_.tip.word_count());
     prefix_look_up_.resize(content_.meta.bucket_count());
     std::fill(f_, f_ + kAlphabetSize + 2, 0);
     f_[0] = -1;
-    for (auto it = content_.meta.begin_bucket(); it != content_.meta.end_bucket() && it->bucket_id != it->kNullID;
+    for (auto it = content_.meta.begin_bucket();
+         it != content_.meta.end_bucket() && it->bucket_id != it->kNullID;
          ++it) {
-      f_[it->bucket_id / (content_.meta.bucket_count() / kAlphabetSize) + 2] += it->num_items;
+      f_[it->bucket_id / (content_.meta.bucket_count() / kAlphabetSize) + 2] +=
+          it->num_items;
       prefix_look_up_[it->bucket_id].first = it->accumulate_item_count;
-      prefix_look_up_[it->bucket_id].second = it->accumulate_item_count + it->num_items - 1;
+      prefix_look_up_[it->bucket_id].second =
+          it->accumulate_item_count + it->num_items - 1;
     }
     for (unsigned i = 2; i < kAlphabetSize + 2; ++i) {
       f_[i] += f_[i - 1];
@@ -63,7 +69,9 @@ class SDBG {
   bool IsLast(uint64_t x) const { return content_.last[x]; }
 
   bool IsLastOrTip(uint64_t x) const {
-    return ((content_.last.data()[x / 64] | content_.tip.data()[x / 64]) >> (x % 64)) & 1u;
+    return ((content_.last.data()[x / 64] | content_.tip.data()[x / 64]) >>
+            (x % 64)) &
+           1u;
   }
 
   int64_t GetLastIndex(uint64_t x) const { return rs_last_.succ(x); }
@@ -105,7 +113,8 @@ class SDBG {
     return rs_last_.select(rank_f_[a] + count_a - 1);
   }
 
-  uint64_t Backward(uint64_t edge_id) const {  // the first edge points to edge_id
+  uint64_t Backward(
+      uint64_t edge_id) const {  // the first edge points to edge_id
     uint8_t a = LastCharOf(edge_id);
     int64_t count_a = rs_last_.rank(edge_id - 1) - rank_f_[a];
     return rs_w_.select(a, count_a);
@@ -113,10 +122,14 @@ class SDBG {
 
  private:
   const label_word_t *TipLabelStartPtr(uint64_t edge_id) const {
-    return content_.tip_lables.data() + content_.meta.words_per_tip_label() * (rs_is_tip_.rank(edge_id) - 1);
+    return content_.tip_lables.data() +
+           content_.meta.words_per_tip_label() * (rs_is_tip_.rank(edge_id) - 1);
   }
-  static uint8_t CharAtTipLabel(const label_word_t *label_start_ptr, unsigned offset) {
-    return kmlib::CompactVector<kBitsPerChar, label_word_t>::at(label_start_ptr, offset) + 1;
+  static uint8_t CharAtTipLabel(const label_word_t *label_start_ptr,
+                                unsigned offset) {
+    return kmlib::CompactVector<kBitsPerChar, label_word_t>::at(label_start_ptr,
+                                                                offset) +
+           1;
   }
 
  public:
@@ -127,7 +140,8 @@ class SDBG {
    */
   uint64_t IndexBinarySearch(const uint8_t *seq) const {
     uint64_t prefix = 0;
-    for (uint64_t i = 0; (1u << (i * kBitsPerChar)) < prefix_look_up_.size(); ++i) {
+    for (uint64_t i = 0; (1u << (i * kBitsPerChar)) < prefix_look_up_.size();
+         ++i) {
       prefix = prefix * kAlphabetSize + seq[k_ - 1 - i] - 1;
     }
     auto l = prefix_look_up_[prefix].first;
@@ -198,7 +212,7 @@ class SDBG {
    * @return the length of label (always k)
    */
   uint32_t GetLabel(uint64_t id, uint8_t *seq) const {
-    int64_t x = id;
+    uint64_t x = id;
     for (int i = k_ - 1; i >= 0; --i) {
       if (IsTip(x)) {
         const label_word_t *tip_label = TipLabelStartPtr(x);
@@ -224,7 +238,8 @@ class SDBG {
    * An internal function to collect incoming edges & in-degrees
    * @tparam flag
    * @param edge_id
-   * @param incomings the incoming edges will be written in the address if kFlagWriteOut is set
+   * @param incomings the incoming edges will be written in the address if
+   * kFlagWriteOut is set
    * @return in degree of the edge; -1 if edge or flag invalid
    */
   template <uint8_t flag = 0>
@@ -248,7 +263,8 @@ class SDBG {
       }
     }
 
-    for (uint64_t y = first_income + 1; count_ones < kAlphabetSize + 1 && y < size(); ++y) {
+    for (uint64_t y = first_income + 1;
+         count_ones < kAlphabetSize + 1 && y < size(); ++y) {
       count_ones += IsLastOrTip(y);
       uint8_t cur_char = GetW(y);
 
@@ -273,7 +289,8 @@ class SDBG {
    * An internal function to collect outgoing edges & in-degrees
    * @tparam flag
    * @param edge_id
-   * @param outgoings the outgoing edges will be written in the address if kFlagWriteOut is set
+   * @param outgoings the outgoing edges will be written in the address if
+   * kFlagWriteOut is set
    * @return out degree of the edge; -1 if edge or flag invalid
    */
   template <uint8_t flag = 0>
@@ -282,7 +299,7 @@ class SDBG {
       return -1;
     }
     uint64_t outdegree = 0;
-    int64_t next_edge = Forward(edge_id);
+    uint64_t next_edge = Forward(edge_id);
     do {
       if (IsValidEdge(next_edge)) {
         if (flag & kFlagMustEq0) {
@@ -297,7 +314,7 @@ class SDBG {
         ++outdegree;
       }
       --next_edge;
-    } while (next_edge >= 0 && !IsLastOrTip(next_edge));
+    } while (next_edge != kNullID && !IsLastOrTip(next_edge));
 
     return outdegree;
   }
@@ -308,13 +325,17 @@ class SDBG {
    * @param edge_id
    * @return the in-degree. -1 if id invalid.
    */
-  int EdgeIndegree(uint64_t edge_id) const { return ComputeIncomings(edge_id, nullptr); }
+  int EdgeIndegree(uint64_t edge_id) const {
+    return ComputeIncomings(edge_id, nullptr);
+  }
   /**
    * the out-degree of an edge
    * @param edge_id
    * @return the out-degree. -1 if id invalid
    */
-  int EdgeOutdegree(uint64_t edge_id) const { return ComputeOutgoings(edge_id, nullptr); }
+  int EdgeOutdegree(uint64_t edge_id) const {
+    return ComputeOutgoings(edge_id, nullptr);
+  }
   /**
    * get all incoming edges of an edge
    * @param edge_id
@@ -338,16 +359,21 @@ class SDBG {
    * @param edge_id
    * @return true if the edge's in-degree is 0
    */
-  bool EdgeIndegreeZero(uint64_t edge_id) const { return ComputeIncomings<kFlagMustEq0>(edge_id, nullptr) == 0; }
+  bool EdgeIndegreeZero(uint64_t edge_id) const {
+    return ComputeIncomings<kFlagMustEq0>(edge_id, nullptr) == 0;
+  }
   /**
    * A more efficient way to judge whether an edge's out-degree is 0
    * @param edge_id
    * @return true if the edge's out-degree is 0
    */
-  bool EdgeOutdegreeZero(uint64_t edge_id) const { return ComputeOutgoings<kFlagMustEq0>(edge_id, nullptr) == 0; }
+  bool EdgeOutdegreeZero(uint64_t edge_id) const {
+    return ComputeOutgoings<kFlagMustEq0>(edge_id, nullptr) == 0;
+  }
   /**
    * @param edge_id
-   * @return if the edge has only one outgoing edge, return that one; otherwise -1
+   * @return if the edge has only one outgoing edge, return that one; otherwise
+   * -1
    */
   uint64_t UniqueNextEdge(uint64_t edge_id) const {
     uint64_t ret = 0;
@@ -359,7 +385,8 @@ class SDBG {
   }
   /**
    * @param edge_id
-   * @return if the edge has only one incoming edge, return that one; otherwise -1
+   * @return if the edge has only one incoming edge, return that one; otherwise
+   * -1
    */
   uint64_t UniquePrevEdge(uint64_t edge_id) const {
     uint64_t ret = 0;
@@ -371,7 +398,8 @@ class SDBG {
   }
   /**
    * @param edge_id
-   * @return if the edge has only one incoming edge which is on a simple path, return that one;
+   * @return if the edge has only one incoming edge which is on a simple path,
+   * return that one;
    * otherwise -1
    */
   uint64_t PrevSimplePathEdge(uint64_t edge_id) const {
@@ -384,7 +412,8 @@ class SDBG {
   }
   /**
    * @param edge_id
-   * @return if the edge has only one outgoing edge which is on a simple path, return that one;
+   * @return if the edge has only one outgoing edge which is on a simple path,
+   * return that one;
    * otherwise -1
    */
   uint64_t NextSimplePathEdge(uint64_t edge_id) const {
@@ -429,7 +458,7 @@ class SDBG {
         return rev_node;
       }
       --rev_node;
-    } while (rev_node >= 0 && !IsLastOrTip(rev_node));
+    } while (rev_node != kNullID && !IsLastOrTip(rev_node));
 
     return kNullID;
   }

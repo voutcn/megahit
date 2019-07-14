@@ -20,7 +20,8 @@
 class VertexStatus {
  public:
   VertexStatus() : status_(0) {}
-  VertexStatus(const VertexStatus &vertex_status) : status_(vertex_status.status_) {}
+  VertexStatus(const VertexStatus &vertex_status)
+      : status_(vertex_status.status_) {}
 
   const VertexStatus &operator=(const VertexStatus &vertex_status) {
     status_ = vertex_status.status_;
@@ -44,18 +45,21 @@ class VertexStatus {
     uint16_t old_status = status_;
     if (old_status & kVertexStatusFlagLock) return false;
 
-    status_ = (old_status & ~kVertexStatusMaskLock) | kVertexStatusFlagLock | id;
+    status_ =
+        (old_status & ~kVertexStatusMaskLock) | kVertexStatusFlagLock | id;
     return true;
   }
 
   bool LockPreempt(int id) {
     uint16_t old_status = status_;
     int old_id = -1;
-    if (old_status & kVertexStatusFlagLock) old_id = old_status & kVertexStatusMaskLock;
+    if (old_status & kVertexStatusFlagLock)
+      old_id = old_status & kVertexStatusMaskLock;
 
     if (old_id >= id) return false;
 
-    status_ = (old_status & ~kVertexStatusMaskLock) | kVertexStatusFlagLock | id;
+    status_ =
+        (old_status & ~kVertexStatusMaskLock) | kVertexStatusFlagLock | id;
     return true;
   }
 
