@@ -48,7 +48,7 @@ double InferMinDepth(SDBG &dbg) {
     hist.TrimLow(static_cast<mul_t>(roundf(cov)));
     unsigned median = hist.median();
     double cov1 = sqrt(median);
-    if (abs(cov - cov1) < 1e-2) {
+    if (fabs(cov - cov1) < 1e-2) {
       return cov;
     }
     cov = cov1;

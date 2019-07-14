@@ -22,6 +22,7 @@
 #include <omp.h>
 #include <iostream>
 #include <string>
+#include <stdexcept>
 
 #include "localasm/local_assemble.h"
 #include "utils/options_description.h"
