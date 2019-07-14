@@ -178,12 +178,14 @@ static void ReadContigsAndBuildIndex(const LocalAsmOption &opt,
 }
 
 struct BaseRunner {
+  virtual ~BaseRunner() = default;
   virtual void Run(const LocalAsmOption &opt) = 0;
   virtual uint32_t max_k() const = 0;
 };
 
 template <class KmerType>
 struct Runner : public BaseRunner {
+  ~Runner() override = default;
   void Run(const LocalAsmOption &opt) override {
     xinfo("Selected kmer type size for k: {}\n", sizeof(KmerType));
     ContigFlankIndex<KmerType> index(opt.kmer_k, opt.step);
