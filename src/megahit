@@ -32,6 +32,7 @@ import subprocess
 import sys
 import tempfile
 import time
+import math
 
 logger = logging.getLogger(__name__)
 
@@ -102,9 +103,6 @@ Other Arguments:
     -h/--help                               print the usage message
     -v/--version                            print version
 '''
-
-if sys.version > '3':
-    long = int
 
 
 def check_output(cmd):
@@ -229,11 +227,11 @@ class Options:
         elif self.memory < 1:
             try:
                 total_mem = detect_available_mem()
-                return long(total_mem * self.memory)
+                return math.floor(total_mem * self.memory)
             except Exception:
                 raise Usage('Failed to detect available memory size, please specify memory size in byte via -m option')
         else:
-            return long(self.memory)
+            return math.floor(self.memory)
 
     def dump(self):
         with open(self.option_file_name, 'w') as f:
@@ -587,12 +585,11 @@ def check_reads():
 
 
 def detect_available_mem():
-    if sys.platform.find('linux') != -1:
-        return long(float(os.popen('free').readlines()[1].split()[1]) * 1024)
-    elif sys.platform.find('darwin') != -1:
-        return long(float(os.popen('sysctl hw.memsize').readlines()[0].split()[1]))
-    else:
+    psize = os.sysconf('SC_PAGE_SIZE')
+    pcount = os.sysconf('SC_PHYS_PAGES')
+    if psize < 0 or pcount < 0:
         raise SystemError
+    return psize * pcount
 
 
 def cpu_dispatch():

@@ -244,8 +244,6 @@ MappingRecord HashMapper::TryMap(const SeqPackage::SeqView &seq_view) const {
     }                                                                     \
   } while (0)
 
-  assert(v_mapping_records.get() == nullptr);
-
   if (v_mapping_records.get() != nullptr) {
     if (v_mapping_records->size() > 1) {
       std::sort(v_mapping_records->begin(), v_mapping_records->end());
