@@ -68,7 +68,7 @@ endif (TSAN)
 message(STATUS "Build type: ${CMAKE_BUILD_TYPE}: ${CMAKE_CXX_FLAGS}")
 
 add_executable(megahit_core ${OTHER_SOURCE} ${ASMBL_SOURCE} ${IDBA_SOURCE} ${SDBG_SOURCE} ${LCASM_SOURCE} ${SEQ_SOURCE}
-        ${CX1_SOURCE} ${TOOLKIT_SOURCE} src/sorting/edge_counter.h)
+        ${CX1_SOURCE} ${TOOLKIT_SOURCE})
 add_executable(megahit_core_no_hw_accel ${OTHER_SOURCE} ${ASMBL_SOURCE} ${IDBA_SOURCE} ${SDBG_SOURCE} ${LCASM_SOURCE}
         ${SEQ_SOURCE} ${CX1_SOURCE} ${TOOLKIT_SOURCE})
 set_target_properties(megahit_core PROPERTIES COMPILE_FLAGS "-mbmi2 -DUSE_BMI2 -mpopcnt")

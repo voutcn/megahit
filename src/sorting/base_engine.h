@@ -233,9 +233,6 @@ class BaseSequenceSortingEngine {
   virtual void Lv0Postprocess() = 0;
 
  private:
-  /**
-   * Adjust memory layout of the engine, i.e., how many lv1 and lv2 items
-   */
   void AdjustMemory();
   void Lv0PrepareThreadPartition();
   void Lv0CalcBucketSizeLaunchMt();

@@ -55,7 +55,7 @@ char Comp(char c) {
       return 'A';
 
     default:
-      assert(false);
+      return 'N';
   }
 }
 

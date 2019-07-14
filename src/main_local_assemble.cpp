@@ -23,30 +23,14 @@
 #include <iostream>
 #include <string>
 
-#include "localasm/local_assembler.h"
+#include "localasm/local_assemble.h"
 #include "utils/options_description.h"
 #include "utils/utils.h"
 
 namespace {
-struct Option {
-  std::string contig_file;
-  std::string lib_file_prefix;
 
-  int kmin{11};
-  int kmax{41};
-  int step{6};
-  int seed_kmer{31};
-
-  int min_contig_len{200};
-  int sparsity{8};
-  double similarity{0.8};
-  int min_mapping_len{75};
-
-  int num_threads{0};
-  std::string output_file;
-} opt;
-
-void ParseLocalAsmOptions(int argc, char *argv[]) {
+LocalAsmOption ParseLocalAsmOptions(int argc, char *argv[]) {
+  LocalAsmOption opt;
   OptionsDescription desc;
 
   desc.AddOption("contig_file", "c", opt.contig_file, "contig file");
@@ -88,51 +72,14 @@ void ParseLocalAsmOptions(int argc, char *argv[]) {
     std::cerr << desc << std::endl;
     exit(1);
   }
+  return opt;
 }
 }  // namespace
 
 int main_local(int argc, char **argv) {
   AutoMaxRssRecorder recorder;
-
-  ParseLocalAsmOptions(argc, argv);
-
+  auto opt = ParseLocalAsmOptions(argc, argv);
   omp_set_num_threads(opt.num_threads);
-
-  LocalAssembler la(opt.min_contig_len, opt.seed_kmer, opt.sparsity);
-  la.SetKmerSize(opt.kmin, opt.kmax, opt.step);
-  la.SetMappingThreshold(opt.similarity, opt.min_mapping_len);
-  la.SetLocalContigFile(opt.output_file);
-
-  SimpleTimer timer;
-  timer.reset();
-  timer.start();
-  la.ReadContigs(opt.contig_file);
-  la.BuildHashMapper();
-  timer.stop();
-  xinfo("Hash mapper construction time elapsed: {}\n", timer.elapsed());
-
-  timer.reset();
-  timer.start();
-  la.AddReadLib(opt.lib_file_prefix);
-  timer.stop();
-  xinfo("Read lib time elapsed: {}\n", timer.elapsed());
-
-  timer.reset();
-  timer.start();
-  la.EstimateInsertSize();
-  timer.stop();
-  xinfo("Insert size estimation time elapsed: {}\n", timer.elapsed());
-
-  timer.reset();
-  timer.start();
-  la.MapToContigs();
-  timer.stop();
-  xinfo("Mapping time elapsed: {}\n", timer.elapsed());
-
-  timer.reset();
-  timer.start();
-  la.LocalAssemble();
-  timer.stop();
-  xinfo("Local assembly time elapsed: {}\n", timer.elapsed());
+  RunLocalAssembly(opt);
   return 0;
 }

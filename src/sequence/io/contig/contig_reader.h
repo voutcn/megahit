@@ -5,6 +5,7 @@
 #ifndef MEGAHIT_CONTIG_READER_H
 #define MEGAHIT_CONTIG_READER_H
 
+#include <fstream>
 #include "sequence/io/fastx_reader.h"
 
 class ContigReader : public FastxReader {

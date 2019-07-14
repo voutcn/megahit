@@ -43,7 +43,7 @@ using std::vector;
 
 namespace {
 
-struct Option {
+struct LocalAsmOption {
   string contig_file;
   string bubble_file;
   string read_file;
@@ -115,7 +115,7 @@ static void ParseIterOptions(int argc, char *argv[]) {
 }  // namespace
 
 template <class KmerType, class IndexType>
-static bool ReadReadsAndProcessKernel(const Option &opt,
+static bool ReadReadsAndProcessKernel(const LocalAsmOption &opt,
                                       const IndexType &index) {
   if (KmerType::max_size() < static_cast<unsigned>(opt.kmer_k + opt.step + 1)) {
     return false;
@@ -145,7 +145,8 @@ static bool ReadReadsAndProcessKernel(const Option &opt,
 }
 
 template <class IndexType>
-static void ReadReadsAndProcess(const Option &opt, const IndexType &index) {
+static void ReadReadsAndProcess(const LocalAsmOption &opt,
+                                const IndexType &index) {
   if (ReadReadsAndProcessKernel<Kmer<1, uint64_t>>(opt, index)) return;
   if (ReadReadsAndProcessKernel<Kmer<3, uint32_t>>(opt, index)) return;
   if (ReadReadsAndProcessKernel<Kmer<2, uint64_t>>(opt, index)) return;
@@ -159,7 +160,7 @@ static void ReadReadsAndProcess(const Option &opt, const IndexType &index) {
 }
 
 template <class IndexType>
-static void ReadContigsAndBuildIndex(const Option &opt,
+static void ReadContigsAndBuildIndex(const LocalAsmOption &opt,
                                      const std::string &file_name,
                                      IndexType *index) {
   AsyncContigReader reader(file_name);
@@ -177,13 +178,13 @@ static void ReadContigsAndBuildIndex(const Option &opt,
 }
 
 struct BaseRunner {
-  virtual void Run(const Option &opt) = 0;
+  virtual void Run(const LocalAsmOption &opt) = 0;
   virtual uint32_t max_k() const = 0;
 };
 
 template <class KmerType>
 struct Runner : public BaseRunner {
-  void Run(const Option &opt) override {
+  void Run(const LocalAsmOption &opt) override {
     xinfo("Selected kmer type size for k: {}\n", sizeof(KmerType));
     ContigFlankIndex<KmerType> index(opt.kmer_k, opt.step);
     ReadContigsAndBuildIndex(opt, opt.contig_file, &index);

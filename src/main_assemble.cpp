@@ -37,7 +37,7 @@ using std::string;
 
 namespace {
 
-struct Option {
+struct LocalAsmOption {
   string sdbg_name;
   string output_prefix{"out"};
   int num_cpu_threads{0};
