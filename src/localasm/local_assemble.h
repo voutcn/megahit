@@ -33,7 +33,7 @@ struct LocalAsmOption {
   uint32_t step{6};
   uint32_t seed_kmer{31};
 
-  uint32_t min_contig_len{100};
+  uint32_t min_contig_len{200};
   uint32_t sparsity{8};
   double similarity{0.8};
   uint32_t min_mapping_len{75};

@@ -73,24 +73,24 @@ class MappingResultCollector {
   }
 
   static uint64_t GetContigAbsPos(uint64_t encoded) {
-    return encoded >> (44 + 1 + 4);
+    return encoded >> (44u + 1u + 4u);
   }
 
   static uint64_t GetReadId(uint64_t encoded) {
-    return encoded & ((1ull << 44) - 1);
+    return encoded & ((1ull << 44u) - 1);
   }
 
  private:
   static uint64_t EncodeMappingRead(uint32_t contig_offset, uint8_t is_mate,
-                                    uint8_t mismatch, uint8_t strand,
+                                    uint32_t mismatch, uint8_t strand,
                                     uint64_t read_id) {
-    assert(contig_offset <= (1 << 14));
+    assert(contig_offset <= (1u << 14u));
     assert(strand <= 1);
     uint64_t ret = contig_offset;
-    ret = (ret << 1) | is_mate;
-    ret = (ret << 4) | (mismatch < 15 ? mismatch : 15);
-    ret = (ret << 1) | strand;
-    ret = (ret << 44) | read_id;  // 44 bits for read id
+    ret = (ret << 1u) | is_mate;
+    ret = (ret << 4u) | (mismatch < 15 ? mismatch : 15u);
+    ret = (ret << 1u) | strand;
+    ret = (ret << 44u) | read_id;  // 44 bits for read id
     return ret;
   }
 

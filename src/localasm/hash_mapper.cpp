@@ -226,7 +226,7 @@ MappingRecord HashMapper::TryMap(const SeqPackage::SeqView &seq_view) const {
     return bad_record;
   }
 
-  MappingRecord *unique_best = nullptr;
+  MappingRecord *best = &bad_record;
   int32_t max_match = 0;
 
 #define CHECK_BEST_UNIQ(rec)                                              \
@@ -235,12 +235,12 @@ MappingRecord HashMapper::TryMap(const SeqPackage::SeqView &seq_view) const {
         Match(seq_view, rec.query_from, rec.query_to, rec.contig_id,      \
               rec.contig_from, rec.contig_to, rec.strand);                \
     if (match_bases == max_match) {                                       \
-      unique_best = nullptr;                                              \
+      best = &bad_record;                                                 \
     } else if (match_bases > max_match) {                                 \
       max_match = match_bases;                                            \
       int32_t mismatch = rec.query_to - rec.query_from + 1 - match_bases; \
       rec.mismatch = mismatch;                                            \
-      unique_best = &rec;                                                 \
+      best = &rec;                                                        \
     }                                                                     \
   } while (0)
 
@@ -266,9 +266,5 @@ MappingRecord HashMapper::TryMap(const SeqPackage::SeqView &seq_view) const {
 
 #undef CHECK_BEST_UNIQ
 
-  if (unique_best != nullptr) {
-    return *unique_best;
-  } else {
-    return bad_record;
-  }
+  return *best;
 }
