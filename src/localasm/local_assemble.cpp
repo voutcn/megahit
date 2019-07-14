@@ -184,22 +184,20 @@ void MapToContigs(const HashMapper &mapper,
 
         if (rec1.valid) {
           ++num_mapped;
-          num_added += collector->AddSingle(
-              rec1, mapper.refseq().GetSeqView(rec1.contig_id).length(),
-              seq1.length(), local_range);
-          num_added += collector->AddMate(
-              rec1, rec2, mapper.refseq().GetSeqView(rec1.contig_id).length(),
-              seq2.id(), local_range);
+          auto contig_len = mapper.refseq().GetSeqView(rec1.contig_id).length();
+          num_added += collector->AddSingle(rec1, contig_len, seq1.length(),
+                                            local_range);
+          num_added += collector->AddMate(rec1, rec2, contig_len, seq2.id(),
+                                          local_range);
         }
 
         if (rec2.valid) {
           ++num_mapped;
-          num_added += collector->AddSingle(
-              rec2, mapper.refseq().GetSeqView(rec2.contig_id).length(),
-              seq2.length(), local_range);
-          num_added += collector->AddMate(
-              rec2, rec1, mapper.refseq().GetSeqView(rec2.contig_id).length(),
-              seq1.id(), local_range);
+          auto contig_len = mapper.refseq().GetSeqView(rec2.contig_id).length();
+          num_added += collector->AddSingle(rec2, contig_len, seq2.length(),
+                                            local_range);
+          num_added += collector->AddMate(rec2, rec1, contig_len, seq1.id(),
+                                          local_range);
         }
       }
     } else {

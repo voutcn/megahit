@@ -202,11 +202,11 @@ MappingRecord HashMapper::TryMap(const SeqPackage::SeqView &seq_view) const {
     assert(query_to >= 0 &&
            static_cast<uint32_t>(query_to) < seq_view.length());
 
-    auto rec =
-        MappingRecord{contig_id,      contig_from,
-                      contig_to,      static_cast<uint64_t>(seq_view.id()),
-                      query_from,     query_to,
-                      mapping_strand, 0};
+    auto rec = MappingRecord{contig_id,  contig_from,
+                             contig_to,  static_cast<uint64_t>(seq_view.id()),
+                             query_from, query_to,
+                             0,          mapping_strand,
+                             true};
     auto end = mapping_records.begin() + n_mapping_records;
     if (std::find(mapping_records.begin(), end, rec) == end) {
       if (n_mapping_records < kArraySize) {
