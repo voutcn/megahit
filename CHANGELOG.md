@@ -1,3 +1,10 @@
+### 1.2.6 / 2019-07-13
+-   Refactored and fixed a bug in local assembler
+-   Refactored `megahit` script
+-   Obtain total memory size from `os.sysconf`
+-   Fixed segmentation fault in Mac OS with clang 4.0
+-   Added `--cleaning-rounds` and `--disconnect-ratio` options for more flexible graph cleaning control
+
 ### 1.2.5-beta / 2019-06-28 PST
 -   Fixed a bug that causes higher memory usage in seq2sdbg
 -   Refactor on sequence sorters, edge I/O and contig I/O
