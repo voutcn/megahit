@@ -4,6 +4,7 @@
 
 #include "base_engine.h"
 #include <omp.h>
+#include <cmath>
 
 namespace {
 
@@ -17,30 +18,22 @@ static std::pair<int64_t, int64_t> AdjustItemNumbers(int64_t mem_avail,
                                                      int64_t max_lv2_items) {
   int64_t num_lv1_items = 0;
   int64_t num_lv2_items = max_lv2_items;
-  while (num_lv2_items >= min_lv2_items) {
-    int64_t mem_for_lv2 = bytes_per_lv2_item * num_lv2_items;
+  min_lv1_items = std::max(min_lv1_items, min_lv2_items);
 
-    xinfo(
-        "Adjusting memory layout: num_lv1_items={}, num_lv2_items={}, "
-        "mem_sorting_items={}, mem_avail={}\n",
-        num_lv1_items, num_lv2_items, mem_for_lv2, mem_avail);
-
-    if (mem_avail < mem_for_lv2) {
-      num_lv2_items -= 0.95;
-      continue;
-    }
-
-    num_lv1_items =
-        (mem_avail - mem_for_lv2) / BaseSequenceSortingEngine::kLv1BytePerItem;
-    if (num_lv1_items < min_lv1_items || num_lv1_items < num_lv2_items) {
-      num_lv2_items *= 0.95;
-    } else {
-      break;
-    }
+  if (mem_avail < min_lv1_items * BaseSequenceSortingEngine::kLv1BytePerItem +
+                      min_lv2_items * bytes_per_lv2_item) {
+    xfatal("Failed to adjust items number to fit in {} bytes\n", mem_avail);
   }
 
-  if (num_lv2_items < min_lv2_items) {
-    xfatal("No enough memory to perform sequence sorting.\n");
+  while (num_lv1_items < num_lv2_items || num_lv1_items < min_lv1_items ||
+         num_lv2_items < min_lv2_items) {
+    num_lv2_items = std::max(static_cast<int64_t>(lround(num_lv2_items * 0.95)),
+                             min_lv2_items);
+    num_lv1_items = (mem_avail - bytes_per_lv2_item * num_lv2_items) /
+                    BaseSequenceSortingEngine::kLv1BytePerItem;
+    if (num_lv2_items == min_lv2_items && num_lv1_items < min_lv1_items) {
+      xfatal("No enough memory during item adjustment. Impossible!\n");
+    }
   }
 
   // --- adjust num_lv2_items to fit more lv1 item ---
@@ -74,10 +67,25 @@ void BaseSequenceSortingEngine::AdjustMemory() {
       std::max(3 * total_bucket_size / std::max(1, num_non_empty) * n_threads_,
                max_bucket_size);
 
-  const int64_t mem_remained = host_mem_ - meta_.memory_for_data;
-  const int64_t min_lv1_items = total_bucket_size / (kMaxLv1ScanTime - 0.5);
+  int64_t mem_remained = host_mem_ - meta_.memory_for_data;
+  const int64_t min_lv1_items = std::max(
+      static_cast<int64_t>(total_bucket_size / (kMaxLv1ScanTime - 0.5)),
+      max_bucket_size);
   const int64_t lv2_bytes_per_item = meta_.words_per_lv2 * sizeof(uint32_t);
   std::pair<int64_t, int64_t> n_items;
+
+  auto min_memory_required = meta_.memory_for_data +
+                             min_lv1_items * kLv1BytePerItem +
+                             max_bucket_size * +lv2_bytes_per_item;
+  xinfo("Minimum memory required: {} bytes\n", min_memory_required);
+
+  if (min_memory_required > host_mem_) {
+    xwarn(
+        "Memory available in less than memory required ({} < {}), "
+        "still trying to perform sorting\n",
+        host_mem_, min_memory_required);
+    mem_remained = min_memory_required - meta_.memory_for_data;
+  }
 
   if (mem_flag_ == 1) {
     // auto set memory

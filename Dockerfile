@@ -8,7 +8,6 @@ RUN mkdir -p build
 WORKDIR build
 RUN cmake -DCMAKE_BUILD_TYPE=Release ..
 RUN make -j4
-RUN make simple_test
 RUN make install
 RUN megahit --test
 RUN megahit --test --kmin-1pass

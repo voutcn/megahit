@@ -1,7 +1,10 @@
 MEGAHIT
 =======
 
-[![BioConda Install](https://img.shields.io/conda/dn/bioconda/megahit.svg?style=flag&label=BioConda%20install)](https://anaconda.org/bioconda/megahit) [![Build Status](https://travis-ci.org/voutcn/megahit.svg?branch=master)](https://travis-ci.org/voutcn/megahit) [![codecov](https://codecov.io/gh/voutcn/megahit/branch/master/graph/badge.svg)](https://codecov.io/gh/voutcn/megahit)
+[![BioConda Install](https://img.shields.io/conda/dn/bioconda/megahit.svg?style=flat-square&label=BioConda%20install)](https://anaconda.org/bioconda/megahit)
+[![Downloads](https://img.shields.io/github/downloads/voutcn/megahit/total?style=flat-square)](https://github.com/voutcn/megahit/releases)
+[![Build Status](https://img.shields.io/travis/voutcn/megahit?style=flat-square)](https://travis-ci.org/voutcn/megahit)
+[![codecov](https://img.shields.io/codecov/c/github/voutcn/megahit?style=flat-square)](https://codecov.io/gh/voutcn/megahit)
 
 MEGAHIT is an ultra-fast and memory-efficient NGS assembler. It is optimized for metagenomes, but also works well on generic single genome assembly (small or mammalian size) and single-cell assembly.
 
@@ -16,9 +19,9 @@ conda install -c bioconda megahit
 ### Pre-built binaries for x86_64 Linux
 
 ```sh
-wget https://github.com/voutcn/megahit/releases/download/v1.2.6/MEGAHIT-1.2.6-Linux-x86_64-static.tar.gz
-tar zvxf MEGAHIT-1.2.6-Linux-x86_64-static.tar.gz
-cd MEGAHIT-1.2.6-Linux-x86_64-static/bin/
+wget https://github.com/voutcn/megahit/releases/download/v1.2.7/MEGAHIT-1.2.7-Linux-x86_64-static.tar.gz
+tar zvxf MEGAHIT-1.2.7-Linux-x86_64-static.tar.gz
+cd MEGAHIT-1.2.7-Linux-x86_64-static/bin/
 ./megahit --test  # run on a toy dataset
 ./megahit -1 MY_PE_READ_1.fq.gz -2 MY_PE_READ_2.fq.gz -o MY_OUTPUT_DIR
 ```
