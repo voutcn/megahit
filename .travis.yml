@@ -1,14 +1,14 @@
 dist: xenial
 before_install:
   - sudo apt-get update
-  - sudo apt-get install lcov
+  - sudo apt-get install -y lcov
 language: python
 python:
   - "2.7"
   - "3.4"
 script:
   - mkdir build
-  - cd build && cmake .. -DCMAKE_BUILD_TYPE=Debug -DCOVERAGE=ON
+  - cd build && cmake .. -DCOVERAGE=ON
   - make -j2 simple_test
   - sudo make install
   - megahit --test
@@ -16,11 +16,11 @@ script:
   - megahit --test --no-hw-accel
 after_success:
   # Create lcov report
-  - lcov --capture --directory . --output-file coverage.info
-  - lcov --remove coverage.info '/usr/*' --output-file coverage.info # filter system-files
-  - lcov --remove coverage.info '*xxhash/*' --output-file coverage.info # filter xxhash-files
-  - lcov --remove coverage.info '*parallel_hashmap/*' --output-file coverage.info # filter parallel-hashmap-files
-  - lcov --remove coverage.info '*pprintpp/*' --output-file coverage.info # filter pprintpp files
-  - lcov --list coverage.info # debug info
+  - lcov --capture --directory . --output-file coverage.info.1
+  - lcov --remove coverage.info.1 '/usr/*' --output-file coverage.info.2 # filter system-files
+  - lcov --remove coverage.info.2 '*xxhash/*' --output-file coverage.info.3 # filter xxhash-files
+  - lcov --remove coverage.info.3 '*parallel_hashmap/*' --output-file coverage.info.4 # filter parallel-hashmap-files
+  - lcov --remove coverage.info.4 '*pprintpp/*' --output-file coverage.info.5 # filter pprintpp files
+  - lcov --list coverage.info.5 # debug info
   # Uploading report to CodeCov
-  - bash <(curl -s https://codecov.io/bash) -f coverage.info || echo "Codecov did not collect coverage reports"
+  - bash <(curl -s https://codecov.io/bash) -f coverage.info.5 || echo "Codecov did not collect coverage reports"

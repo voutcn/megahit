@@ -1,3 +1,9 @@
+### 1.2.7 / 2019-07-28
+-   Symbol link `megahit_core_no_hw_accel` to `megahit_toolkit` for backward compatibility
+-   Better logging and for memory adjustment during SDBG building
+-   Attempt to continue SDBG building even user-specified memory size is not sufficient
+
+
 ### 1.2.6 / 2019-07-13
 -   Refactored and fixed a bug in local assembler
 -   Refactored `megahit` script

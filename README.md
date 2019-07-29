@@ -8,26 +8,31 @@ MEGAHIT is an ultra-fast and memory-efficient NGS assembler. It is optimized for
 Installation
 ---------------
 
-#### Prebuilt binaries for x86_64 Linux
+### Conda
+```sh
+conda install -c bioconda megahit
+```
+
+### Pre-built binaries for x86_64 Linux
 
 ```sh
-wget https://github.com/voutcn/megahit/releases/download/v1.2.6/MEGAHIT-1.2.6-Linux-x86_64-static.tar.gz
-tar zvxf MEGAHIT-1.2.6-Linux-x86_64-static.tar.gz
-cd MEGAHIT-1.2.6-Linux-x86_64-static/bin/
+wget https://github.com/voutcn/megahit/releases/download/v1.2.7/MEGAHIT-1.2.7-Linux-x86_64-static.tar.gz
+tar zvxf MEGAHIT-1.2.7-Linux-x86_64-static.tar.gz
+cd MEGAHIT-1.2.7-Linux-x86_64-static/bin/
 ./megahit --test  # run on a toy dataset
 ./megahit -1 MY_PE_READ_1.fq.gz -2 MY_PE_READ_2.fq.gz -o MY_OUTPUT_DIR
 ```
 
-#### Prebuilt Docker image
+### Pre-built docker image
 ``` sh
-# in the directory with your input reads
+# in the directory with the input reads
 docker run -v $(pwd):/workspace -w /workspace --user $(id -u):$(id -g) vout/megahit \
   megahit -1 MY_PE_READ_1.fq.gz -2 MY_PE_READ_2.fq.gz -o MY_OUTPUT_DIR
 ```
 
-#### Building from source
+### Building from source
 
-##### Prerequisites
+#### Prerequisites
 
 -   For building: zlib, cmake &gt;= 2.8, g++ &gt;= 4.8.4
 -   For running: gzip and bzip2
@@ -37,7 +42,7 @@ git clone https://github.com/voutcn/megahit.git
 cd megahit
 git submodule update --init
 mkdir build && cd build
-cmake .. -DCMAKE_BUILD_TYPE=Release  # add -DCMAKE_INSTALL_PREFIX=YOUR_PREFIX if needed
+cmake .. -DCMAKE_BUILD_TYPE=Release  # add -DCMAKE_INSTALL_PREFIX=MY_PREFIX if needed
 make -j4
 make simple_test  # will test MEGAHIT with a toy dataset
 # make install if needed
@@ -46,7 +51,7 @@ make simple_test  # will test MEGAHIT with a toy dataset
 Usage
 -----
 
-#### Basic usage
+### Basic usage
 ```sh
 megahit -1 pe_1.fq -2 pe_2.fq -o out  # 1 paired-end library
 megahit --12 interleaved.fq -o out # one paired & interleaved paired-end library
@@ -55,7 +60,7 @@ megahit_core contig2fastg 119 out/intermediate_contigs/k119.contig.fa > k119.fas
 ```
 The contigs can be found `final.contigs.fa` in the output directory.
 
-#### Advanced usage
+### Advanced usage
 - `--kmin-1pass`: if sequencing depth is low and too much memory used when build the graph of k_min
 - `--presets meta-large`: if the metagenome is complex (i.e., bio-diversity is high, for example soil metagenomes)
 - `--cleaning-rounds 1 --disconnect-ratio 0`: get less pruned assembly (usually shorter contigs)
