@@ -52,7 +52,7 @@ set(CMAKE_CXX_FLAGS_RELEASE "-O3 -DNDEBUG")
 set(CMAKE_CXX_FLAGS_DEBUG "-g -ggdb -O1 -D_LIBCPP_DEBUG -D_GLIBCXX_DEBUG")
 
 if (COVERAGE)
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} --coverage")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -g -O0 --coverage")
     set(COV_PY "coverage run")
 endif (COVERAGE)
 
@@ -84,9 +84,12 @@ target_link_libraries(megahit_core ${ZLIB_LIBRARIES})
 target_link_libraries(megahit_core_no_hw_accel ${ZLIB_LIBRARIES})
 
 add_custom_target(
-        megahit
+        megahit ALL
         COMMAND cp ${CMAKE_SOURCE_DIR}/src/megahit .
 )
+
+add_custom_target(megahit_toolkit ALL
+        COMMAND ${CMAKE_COMMAND} -E create_symlink megahit_core_no_hw_accel megahit_toolkit)
 
 set(TEST_DATA ${CMAKE_SOURCE_DIR}/test_data)
 
@@ -97,13 +100,13 @@ add_custom_target(
         COMMAND ./megahit --test -t 2 --kmin-1pass
         COMMAND rm -rf test-random && python3 ../test_data/generate_random_fasta.py > random.fa && ./megahit -r random.fa --k-list 255 --min-count 1 -o test-random
         COMMAND rm -rf test-fastg && ./megahit --test -t 2 --mem-flag 2 --keep-tmp-files -o test-fastg
-        COMMAND ./megahit_core contig2fastg 59 test-fastg/intermediate_contigs/k59.contigs.fa > 59.fastg
-        COMMAND ./megahit_core readstat < test-fastg/intermediate_contigs/k59.contigs.fa
+        COMMAND ./megahit_toolkit contig2fastg 59 test-fastg/intermediate_contigs/k59.contigs.fa > 59.fastg
+        COMMAND ./megahit_toolkit readstat < test-fastg/intermediate_contigs/k59.contigs.fa
 )
 
-add_dependencies(megahit megahit_core megahit_core_no_hw_accel)
+add_dependencies(megahit megahit_core megahit_core_no_hw_accel megahit_toolkit)
 add_dependencies(simple_test megahit)
 
 install(TARGETS megahit_core megahit_core_no_hw_accel DESTINATION bin)
-install(PROGRAMS src/megahit DESTINATION bin)
+install(PROGRAMS ${CMAKE_CURRENT_BINARY_DIR}/megahit ${CMAKE_CURRENT_BINARY_DIR}/megahit_toolkit DESTINATION bin)
 install(DIRECTORY test_data DESTINATION share/${PROJECT_NAME})
