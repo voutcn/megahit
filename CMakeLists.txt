@@ -69,18 +69,22 @@ message(STATUS "Build type: ${CMAKE_BUILD_TYPE}: ${CMAKE_CXX_FLAGS}")
 
 add_executable(megahit_core ${OTHER_SOURCE} ${ASMBL_SOURCE} ${IDBA_SOURCE} ${SDBG_SOURCE} ${LCASM_SOURCE} ${SEQ_SOURCE}
         ${CX1_SOURCE} ${TOOLKIT_SOURCE})
+add_executable(megahit_core_popcnt ${OTHER_SOURCE} ${ASMBL_SOURCE} ${IDBA_SOURCE} ${SDBG_SOURCE} ${LCASM_SOURCE} ${SEQ_SOURCE}
+        ${CX1_SOURCE} ${TOOLKIT_SOURCE})
 add_executable(megahit_core_no_hw_accel ${OTHER_SOURCE} ${ASMBL_SOURCE} ${IDBA_SOURCE} ${SDBG_SOURCE} ${LCASM_SOURCE}
         ${SEQ_SOURCE} ${CX1_SOURCE} ${TOOLKIT_SOURCE})
 set_target_properties(megahit_core PROPERTIES COMPILE_FLAGS "-mbmi2 -DUSE_BMI2 -mpopcnt")
+set_target_properties(megahit_core_popcnt PROPERTIES COMPILE_FLAGS "-mpopcnt")
 
 if (STATIC_BUILD)
     # TODO dirty
     set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -Wl,--whole-archive -lpthread -Wl,--no-whole-archive -static")
-    set_target_properties(megahit_core megahit_core_no_hw_accel PROPERTIES LINK_SEARCH_START_STATIC ON)
-    set_target_properties(megahit_core megahit_core_no_hw_accel PROPERTIES LINK_SEARCH_END_STATIC ON)
+    set_target_properties(megahit_core megahit_core_popcnt megahit_core_no_hw_accel PROPERTIES LINK_SEARCH_START_STATIC ON)
+    set_target_properties(megahit_core megahit_core_popcnt megahit_core_no_hw_accel PROPERTIES LINK_SEARCH_END_STATIC ON)
 endif (STATIC_BUILD)
 
 target_link_libraries(megahit_core ${ZLIB_LIBRARIES})
+target_link_libraries(megahit_core_popcnt ${ZLIB_LIBRARIES})
 target_link_libraries(megahit_core_no_hw_accel ${ZLIB_LIBRARIES})
 
 add_custom_target(
@@ -104,9 +108,9 @@ add_custom_target(
         COMMAND ./megahit_toolkit readstat < test-fastg/intermediate_contigs/k59.contigs.fa
 )
 
-add_dependencies(megahit megahit_core megahit_core_no_hw_accel megahit_toolkit)
+add_dependencies(megahit megahit_core megahit_core_popcnt megahit_core_no_hw_accel megahit_toolkit)
 add_dependencies(simple_test megahit)
 
-install(TARGETS megahit_core megahit_core_no_hw_accel DESTINATION bin)
+install(TARGETS megahit_core megahit_core_popcnt megahit_core_no_hw_accel DESTINATION bin)
 install(PROGRAMS ${CMAKE_CURRENT_BINARY_DIR}/megahit ${CMAKE_CURRENT_BINARY_DIR}/megahit_toolkit DESTINATION bin)
 install(DIRECTORY test_data DESTINATION share/${PROJECT_NAME})
