@@ -140,6 +140,7 @@ class EarlyTerminate(Exception):
 class SoftwareInfo(object):
     script_path = os.path.dirname(os.path.realpath(__file__))
     megahit_core = os.path.join(script_path, 'megahit_core')
+    megahit_core_popcnt = os.path.join(script_path, 'megahit_core_popcnt')
     megahit_core_no_hw_accel = os.path.join(script_path, 'megahit_core_no_hw_accel')
 
     @property
@@ -171,6 +172,7 @@ class Options:
         self.auto_k = True
         self.set_list_by_min_max_step = False
         self.min_count = 2
+        self.has_popcnt = True
         self.hw_accel = True
         self.max_tip_len = -1
         self.no_mercy = False
@@ -217,6 +219,8 @@ class Options:
     def megahit_core(self):
         if self.hw_accel:
             return software_info.megahit_core
+        elif self.has_popcnt:
+            return software_info.megahit_core_popcnt
         else:
             return software_info.megahit_core_no_hw_accel
 
@@ -419,6 +423,7 @@ def parse_option(argv):
             opt.test_mode = True
         elif option == '--no-hw-accel':
             opt.hw_accel = False
+            opt.has_popcnt = False
         else:
             raise Usage('Invalid option {0}'.format(option))
 
@@ -603,7 +608,13 @@ def cpu_dispatch():
             logger.info('Using megahit_core with POPCNT and BMI2 support')
         else:
             opt.hw_accel = False
-            logger.info('Using megahit_core without POPCNT and BMI2 support, '
+            has_popcnt = subprocess.Popen([opt.megahit_core, 'checkpopcnt'],
+                                        stdout=subprocess.PIPE).communicate()[0].rstrip().decode('utf-8')
+            if has_popcnt == '1':
+                opt.has_popcnt = True
+                logger.info('Using megahit_core with POPCNT support')
+            else:
+                logger.info('Using megahit_core without POPCNT and BMI2 support, '
                         'because the features not detected by CPUID ')
 
 
