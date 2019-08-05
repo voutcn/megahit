@@ -233,7 +233,8 @@ class Options:
                 total_mem = detect_available_mem()
                 return math.floor(total_mem * self.memory)
             except Exception:
-                raise Usage('Failed to detect available memory size, please specify memory size in byte via -m option')
+                raise Usage('Failed to detect available memory size, '
+                            'please specify memory size in byte via -m option')
         else:
             return math.floor(self.memory)
 
@@ -429,7 +430,7 @@ def parse_option(argv):
 
 
 def setup_output_dir():
-    if opt.out_dir == '':
+    if not opt.out_dir:
         if opt.test_mode:
             opt.out_dir = tempfile.mkdtemp(prefix='megahit_test_')
         else:
@@ -437,14 +438,14 @@ def setup_output_dir():
 
     check_point.set_file(os.path.join(opt.out_dir, 'checkpoints.txt'))
 
+    if opt.continue_mode and not os.path.exists(opt.option_file_name):
+        print('Cannot find {0}, switching to normal mode'.format(opt.option_file_name), file=sys.stderr)
+        opt.continue_mode = False
+
     if opt.continue_mode:
-        if not os.path.exists(opt.option_file_name):
-            raise Usage('Cannot find {0}, Please check whether the output directory is correctly set by -o'.format(
-                opt.option_file_name))
-        else:
-            print('Continue mode activated. Ignore all options except for -o/--out-dir.', file=sys.stderr)
-            opt.load_for_continue()
-            check_point.load_for_continue()
+        print('Continue mode activated. Ignore all options except for -o/--out-dir.', file=sys.stderr)
+        opt.load_for_continue()
+        check_point.load_for_continue()
     else:
         if not opt.force_overwrite and not opt.test_mode and os.path.exists(opt.out_dir):
             raise Usage(
@@ -549,18 +550,18 @@ def check_and_correct_option():
     if opt.cleaning_rounds <= 0:
         raise Usage('--cleaning-rounds must be >= 1')
     if opt.num_cpu_threads > multiprocessing.cpu_count():
-        logger.warn('Maximum number of available CPU thread is %d.' % multiprocessing.cpu_count())
-        logger.warn('Number of thread is reset to the %d.' % multiprocessing.cpu_count())
+        logger.warning('Maximum number of available CPU thread is %d.' % multiprocessing.cpu_count())
+        logger.warning('Number of thread is reset to the %d.' % multiprocessing.cpu_count())
         opt.num_cpu_threads = multiprocessing.cpu_count()
     if opt.num_cpu_threads == 0:
         opt.num_cpu_threads = multiprocessing.cpu_count()
     if opt.prune_depth < 0 and opt.prune_level < 3:
         opt.prune_depth = opt.min_count
     if opt.bubble_level < 0:
-        logger.warn('Reset bubble level to 0.')
+        logger.warning('Reset bubble level to 0.')
         opt.bubble_level = 0
     if opt.bubble_level > 2:
-        logger.warn('Reset bubble level to 2.')
+        logger.warning('Reset bubble level to 2.')
         opt.bubble_level = 2
 
 
@@ -602,14 +603,13 @@ def cpu_dispatch():
         logger.info('Using megahit_core without POPCNT and BMI2 support, '
                     'because --no-hw-accel option manually specified')
     else:
-        has_hw_accel = subprocess.Popen([opt.megahit_core, 'checkcpu'],
-                                        stdout=subprocess.PIPE).communicate()[0].rstrip().decode('utf-8')
+        has_hw_accel = check_output([opt.megahit_core, 'checkcpu'])
+
         if has_hw_accel == '1':
             logger.info('Using megahit_core with POPCNT and BMI2 support')
         else:
             opt.hw_accel = False
-            has_popcnt = subprocess.Popen([opt.megahit_core, 'checkpopcnt'],
-                                        stdout=subprocess.PIPE).communicate()[0].rstrip().decode('utf-8')
+            has_popcnt = check_output([opt.megahit_core, 'checkpopcnt'])
             if has_popcnt == '1':
                 opt.has_popcnt = True
                 logger.info('Using megahit_core with POPCNT support')
