@@ -19,9 +19,9 @@ conda install -c bioconda megahit
 ### Pre-built binaries for x86_64 Linux
 
 ```sh
-wget https://github.com/voutcn/megahit/releases/download/v1.2.7/MEGAHIT-1.2.7-Linux-x86_64-static.tar.gz
-tar zvxf MEGAHIT-1.2.7-Linux-x86_64-static.tar.gz
-cd MEGAHIT-1.2.7-Linux-x86_64-static/bin/
+wget https://github.com/voutcn/megahit/releases/download/v1.2.8/MEGAHIT-1.2.8-Linux-x86_64-static.tar.gz
+tar zvxf MEGAHIT-1.2.8-Linux-x86_64-static.tar.gz
+cd MEGAHIT-1.2.8-Linux-x86_64-static/bin/
 ./megahit --test  # run on a toy dataset
 ./megahit -1 MY_PE_READ_1.fq.gz -2 MY_PE_READ_2.fq.gz -o MY_OUTPUT_DIR
 ```

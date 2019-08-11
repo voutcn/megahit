@@ -1,3 +1,7 @@
+### 1.2.8 / 2019-08-10
+-   Add intermediate `megahit_core_popcnt` for CPUs that have ABM but not BMI2
+-   Allow new assembly task with `--continue`
+
 ### 1.2.7 / 2019-07-28
 -   Symbol link `megahit_core_no_hw_accel` to `megahit_toolkit` for backward compatibility
 -   Better logging and for memory adjustment during SDBG building
