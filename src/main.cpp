@@ -58,6 +58,8 @@ void show_help(const char *program_name) {
       "       filterbylen    filter contigs by length\n"
       "       checkcpu       check whether the run-time CPU supports POPCNT "
       "and BMI2\n"
+      "       checkpopcnt    check whether the run-time CPU supports POPCNT\n"
+      "       checkbmi2      check whether the run-time CPU supports BMI2\n"
       "       dumpversion    dump version\n"
       "       kmax           the largest k value supported\n",
       program_name);
@@ -91,6 +93,10 @@ int main(int argc, char **argv) {
     return main_filter_by_len(argc - 1, argv + 1);
   } else if (strcmp(argv[1], "checkcpu") == 0) {
     pprintf("{}\n", HasPopcnt() && HasBmi2());
+  } else if (strcmp(argv[1], "checkpopcnt") == 0) {
+    pprintf("{}\n", HasPopcnt());
+  } else if (strcmp(argv[1], "checkbmi2") == 0) {
+    pprintf("{}\n", HasBmi2());
   } else if (strcmp(argv[1], "dumpversion") == 0) {
     pprintf("{s}\n", PACKAGE_VERSION);
   } else if (strcmp(argv[1], "kmax") == 0) {
