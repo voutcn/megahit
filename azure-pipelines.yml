@@ -22,14 +22,14 @@ jobs:
       - script: |
           mkdir build
           cd build
-          cmake .. -DCMAKE_BUILD_TYPE=$(build.type) -SANITIZER=$(sanitizer) -DSTATIC_BUILD=$(static)
+          cmake -DCMAKE_BUILD_TYPE=$(build.type) -SANITIZER=$(sanitizer) -DSTATIC_BUILD=$(static) ..
           make simple_test -j `nproc`
         displayName: 'build and test'
 
   - job: macos
     strategy:
       matrix:
-        os1013:
+        1013:
           image: macos-10.13
         latest:
           image: macos-latest
@@ -45,3 +45,23 @@ jobs:
           CC=gcc-9 CXX=g++-9 cmake ..
           make simple_test -j `sysctl -n hw.physicalcpu`
         displayName: 'build and test'
+
+  - job: assembly
+    pool:
+      vmImage: 'Ubuntu-16.04'
+    steps:
+      - script: |
+          mkdir build
+          cd build
+          cmake -DCMAKE_BUILD_TYPE=Release ..
+          make simple_test -j `nproc`
+          sudo make install
+        displayName: 'build and test'
+      - script: |
+          sudo apt update
+          sudo apt install -y axel
+          axel -n4 ftp://ftp.sra.ebi.ac.uk/vol1/fastq/SRR752/007/SRR7521507/SRR7521507.fastq.gz
+          axel -n4 ftp://ftp.sra.ebi.ac.uk/vol1/fastq/SRR752/007/SRR7521507/SRR7521507_1.fastq.gz
+          axel -n4 ftp://ftp.sra.ebi.ac.uk/vol1/fastq/SRR752/007/SRR7521507/SRR7521507_2.fastq.gz
+          megahit -r SRR7521507.fastq.gz -1 SRR7521507_1.fastq.gz -2 SRR7521507_2.fastq.gz -m 5e9 --k-min 27 --k-max 87 --k-step 20
+        displayName: assemble
