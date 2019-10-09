@@ -14,7 +14,6 @@ jobs:
           build.type: 'Release'
           sanitizer: 'OFF'
           static: 'ON'
-
     steps:
       - task: UsePythonVersion@0
         inputs:
@@ -25,27 +24,24 @@ jobs:
           cd build
           cmake .. -DCMAKE_BUILD_TYPE=$(build.type) -SANITIZER=$(sanitizer) -DSTATIC_BUILD=$(static)
           make simple_test -j `nproc`
-  
-  - job: macos_latest
-    pool:
-      vmImage: 'macos-latest'
-    steps:
-      - script: |
-          brew install cmake gcc@9 zlib bzip2
-      - script: |
-          mkdir build
-          cd build
-          CC=gcc-9 CXX=g++-9 cmake -DCMAKE_BUILD_TYPE=debug -SANITIZER=ON ..
-          make simple_test -j `sysctl -n hw.physicalcpu`
+        displayName: 'build and test'
 
-  - job: macos_1013
+  - job: macos
+    strategy:
+      matrix:
+        os1013:
+          image: macos-10.13
+        latest:
+          image: macos-latest
     pool:
-      vmImage: 'macos-10.13'
+      vmImage: $(image)
     steps:
       - script: |
           brew install cmake gcc@9 zlib bzip2
+        displayName: 'install dependencies'
       - script: |
           mkdir build
           cd build
-          CC=gcc-9 CXX=g++-9 cmake -DCMAKE_BUILD_TYPE=debug -SANITIZER=ON ..
+          CC=gcc-9 CXX=g++-9 cmake ..
           make simple_test -j `sysctl -n hw.physicalcpu`
+        displayName: 'build and test'
