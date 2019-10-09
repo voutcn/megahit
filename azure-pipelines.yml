@@ -6,8 +6,17 @@
 trigger:
 - master
 
+strategy:
+  matrix:
+    linux:
+      imageName: 'ubuntu-latest'
+    mac-10.13:
+      imageName: 'macos-10.13'
+    mac-latest:
+      imageName: 'macos-latest'
+
 pool:
-  vmImage: 'ubuntu-latest'
+  vmImage: $(imageName)
 
 steps:
 - script: |
@@ -15,7 +24,5 @@ steps:
     mkdir build
     cd build
     cmake ..
-    make -j4
-    make simple_tests
-    make install
+    make -j4 simple_tests
   displayName: 'build'
