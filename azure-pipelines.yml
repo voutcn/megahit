@@ -8,13 +8,11 @@ jobs:
           python.version: '3.6'
         Python27:
           python.version: '2.7'
-        Python26:
-          python.version: '2.6'
     steps:
       - task: UsePythonVersion@0
         inputs:
           versionSpec: '$(python.version)'
-          addToPath: true 
+          addToPath: true
       - script: |
           mkdir build
           cd build
@@ -30,7 +28,7 @@ jobs:
       - script: |
           mkdir build
           cd build
-          CC=gcc-9 CXX=g++-9 cmake .. -DCMAKE_BUILD_TYPE=debug -SANITIZER=ON
+          CC=gcc-9 CXX=g++-9 cmake -DCMAKE_BUILD_TYPE=debug -SANITIZER=ON ..
           make simple_test -j2
 
   - job: macos_1013
@@ -42,5 +40,5 @@ jobs:
       - script: |
           mkdir build
           cd build
-          CC=gcc-9 CXX=g++-9 cmake .. -DCMAKE_BUILD_TYPE=debug -SANITIZER=ON
+          CC=gcc-9 CXX=g++-9 cmake -DCMAKE_BUILD_TYPE=debug -SANITIZER=ON ..
           make simple_test -j2
