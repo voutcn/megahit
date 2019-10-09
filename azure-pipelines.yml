@@ -1,6 +1,5 @@
 jobs:
   - job: ubuntu_1604
-    displayName: ubuntu-1604
     pool:
       vmImage: 'Ubuntu-16.04'
     strategy:
@@ -22,8 +21,7 @@ jobs:
           cmake .. -DCMAKE_BUILD_TYPE=debug -SANITIZER=ON
           make simple_test -j2
   
-  - job: macos-latest
-    displayName: macos-latest
+  - job: macos_latest
     pool:
       vmImage: 'macos-latest'
     steps:
@@ -35,8 +33,7 @@ jobs:
           CC=gcc-9 CXX=g++-9 cmake .. -DCMAKE_BUILD_TYPE=debug -SANITIZER=ON
           make simple_test -j2
 
-  - job: macos-1013
-    displayName: macos-1013
+  - job: macos_1013
     pool:
       vmImage: 'macos-10.13'
     steps:
