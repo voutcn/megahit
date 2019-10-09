@@ -6,8 +6,15 @@ jobs:
       matrix:
         python36:
           python.version: '3.6'
+          build.type: 'Debug'
+          sanitizer: 'ON'
+          static: 'OFF'
         Python27:
           python.version: '2.7'
+          build.type: 'Release'
+          sanitizer: 'OFF'
+          static: 'ON'
+
     steps:
       - task: UsePythonVersion@0
         inputs:
@@ -16,8 +23,8 @@ jobs:
       - script: |
           mkdir build
           cd build
-          cmake .. -DCMAKE_BUILD_TYPE=debug -SANITIZER=ON
-          make simple_test -j2
+          cmake .. -DCMAKE_BUILD_TYPE=$(build.type) -SANITIZER=$(sanitizer) -DSTATIC_BUILD=$(static)
+          make simple_test -j `nproc`
   
   - job: macos_latest
     pool:
@@ -29,7 +36,7 @@ jobs:
           mkdir build
           cd build
           CC=gcc-9 CXX=g++-9 cmake -DCMAKE_BUILD_TYPE=debug -SANITIZER=ON ..
-          make simple_test -j2
+          make simple_test -j `sysctl -n hw.physicalcpu`
 
   - job: macos_1013
     pool:
@@ -41,4 +48,4 @@ jobs:
           mkdir build
           cd build
           CC=gcc-9 CXX=g++-9 cmake -DCMAKE_BUILD_TYPE=debug -SANITIZER=ON ..
-          make simple_test -j2
+          make simple_test -j `sysctl -n hw.physicalcpu`
