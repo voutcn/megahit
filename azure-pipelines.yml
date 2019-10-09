@@ -1,0 +1,49 @@
+jobs:
+  - job: ubuntu_1604
+    displayName: ubuntu-1604
+    pool:
+      vmImage: 'Ubuntu-16.04'
+    strategy:
+      matrix:
+        python36:
+          python.version: '3.6'
+        Python27:
+          python.version: '2.7'
+        Python26:
+          python.version: '2.6'
+    steps:
+      - task: UsePythonVersion@0
+        inputs:
+          versionSpec: '$(python.version)'
+          addToPath: true 
+      - script: |
+          mkdir build
+          cd build
+          cmake .. -DCMAKE_BUILD_TYPE=debug -SANITIZER=ON
+          make simple_test -j2
+  
+  - job: macos-latest
+    displayName: macos-latest
+    pool:
+      vmImage: 'macos-latest'
+    steps:
+      - script: |
+          brew install cmake gcc@9 zlib bzip2
+      - script: |
+          mkdir build
+          cd build
+          CC=gcc-9 CXX=g++-9 cmake .. -DCMAKE_BUILD_TYPE=debug -SANITIZER=ON
+          make simple_test -j2
+
+  - job: macos-1013
+    displayName: macos-1013
+    pool:
+      vmImage: 'macos-10.13'
+    steps:
+      - script: |
+          brew install cmake gcc@9 zlib bzip2
+      - script: |
+          mkdir build
+          cd build
+          CC=gcc-9 CXX=g++-9 cmake .. -DCMAKE_BUILD_TYPE=debug -SANITIZER=ON
+          make simple_test -j2
