@@ -312,7 +312,6 @@ void UnitigGraph::Refresh(bool set_changed) {
       while (true) {
         next_adapter = NextSimplePathAdapter(next_adapter);
         assert(next_adapter.IsValid());
-        assert(!(next_adapter.GetFlag() & kDeleted));
         if (next_adapter.b() == adapter.b()) {
           break;
         }
