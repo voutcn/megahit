@@ -259,6 +259,12 @@ class SequencePackage {
   }
 
   void AppendStringSequence(const char *from, const char *to, unsigned len) {
+    if (len == 0) {
+      // Fake a sequence whose length is 1, as we need all sequences' length > 0
+      // to make `GetSeqID` working
+      auto fake_sequence = "A";
+      return AppendStringSequence(fake_sequence, fake_sequence + 1, 1);
+    }
     UpdateLength(len);
     std::ptrdiff_t step = from < to ? 1 : -1;
     for (auto ptr = from; ptr != to; ptr += step) {
@@ -267,7 +273,14 @@ class SequencePackage {
   }
 
   void AppendCompactSequence(const TWord *ptr, unsigned len, bool rev) {
+    if (len == 0) {
+      // Fake a sequence whose length is 1, as we need all sequences' length > 0
+      // to make `GetSeqID` working
+      TWord fake_sequence = 0;
+      return AppendCompactSequence(&fake_sequence, 1, false);
+    }
     UpdateLength(len);
+
     if (rev) {
       auto rptr = ptr + DivCeiling(len, kBasesPerWord) - 1;
       unsigned bases_in_last_word = len % kBasesPerWord;

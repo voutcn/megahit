@@ -224,9 +224,11 @@ void MapToContigs(const HashMapper &mapper,
 
 void AssembleAndOutput(const HashMapper &mapper, const SeqPackage &read_pkg,
                        MappingResultCollector &result_collector,
-                       const std::string &output_file, int32_t local_range,
+                       const std::string &output_file,
+                       const int32_t local_range,
                        const LocalAsmOption &opt) {
-  size_t min_num_reads = local_range / read_pkg.max_length();
+  const size_t min_num_reads = read_pkg.max_length() > 0 ?
+      local_range / read_pkg.max_length(): 1;
   xinfo("Minimum number of reads to do local assembly: {}\n", min_num_reads);
 
   Sequence seq, contig_end;
