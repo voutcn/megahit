@@ -1,3 +1,11 @@
+trigger:
+  paths:
+    exclude:
+      - CHANGELOG.md
+      - README.md
+pr:
+  - master
+
 jobs:
   - job: ubuntu_1604
     pool:
@@ -47,6 +55,7 @@ jobs:
         displayName: 'build and test'
 
   - job: assembly
+    timeoutInMinutes: 0
     pool:
       vmImage: 'Ubuntu-16.04'
     steps:
@@ -54,14 +63,31 @@ jobs:
           mkdir build
           cd build
           cmake -DCMAKE_BUILD_TYPE=Release ..
-          make simple_test -j `nproc`
+          make -j `nproc`
           sudo make install
         displayName: 'build and test'
       - script: |
           sudo apt update
           sudo apt install -y axel
-          axel -n4 ftp://ftp.sra.ebi.ac.uk/vol1/fastq/SRR752/007/SRR7521507/SRR7521507.fastq.gz
           axel -n4 ftp://ftp.sra.ebi.ac.uk/vol1/fastq/SRR752/007/SRR7521507/SRR7521507_1.fastq.gz
           axel -n4 ftp://ftp.sra.ebi.ac.uk/vol1/fastq/SRR752/007/SRR7521507/SRR7521507_2.fastq.gz
-          megahit -r SRR7521507.fastq.gz -1 SRR7521507_1.fastq.gz -2 SRR7521507_2.fastq.gz -m 5e9 --k-min 27 --k-max 87 --k-step 20
-        displayName: assemble
+          megahit -r SRR7521507.fastq.gz -1 SRR7521507_1.fastq.gz -2 SRR7521507_2.fastq.gz -m 5e9 --k-min 27 --k-max 87 --k-step 20 --kmin-1pass
+        displayName: 'assemble'
+
+  - job: partial_assembly
+    timeoutInMinutes: 0
+    pool:
+      vmImage: 'Ubuntu-16.04'
+    steps:
+      - script: |
+          mkdir build
+          cd build
+          cmake -DCMAKE_BUILD_TYPE=Debug -DSANITIZER=ON ..
+          make -j `nproc`
+          sudo make install
+        displayName: 'build and test'
+      - script: |
+          curl -o- ftp://ftp.sra.ebi.ac.uk/vol1/fastq/SRR752/007/SRR7521507/SRR7521507_1.fastq.gz | head -4000000 |  gzip -cd | gzip -1 > 1.fq.gz
+          curl -o- ftp://ftp.sra.ebi.ac.uk/vol1/fastq/SRR752/007/SRR7521507/SRR7521507_1.fastq.gz | head -4000000 |  gzip -cd | gzip -1 > 2.fq.gz
+          megahit --presets meta-large -1 1.fq.gz -2 2.fq.gz
+        displayName: 'assemble'
