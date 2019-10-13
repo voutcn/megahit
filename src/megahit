@@ -195,6 +195,7 @@ class Options:
         self.pe12 = []
         self.se = []
         self.presets = ''
+        self.verbose = False
 
     @property
     def log_file_name(self):
@@ -321,6 +322,7 @@ def parse_option(argv):
                                     'mem-flag=',
                                     'continue',
                                     'version',
+                                    'verbose',
                                     'out-prefix=',
                                     'presets=',
                                     'test',
@@ -398,6 +400,8 @@ def parse_option(argv):
         elif option in ('-v', '--version'):
             print(software_info.megahit_version)
             exit(0)
+        elif option == '--verbose':
+            opt.verbose = True
         elif option == '--continue':
             opt.continue_mode = True
         elif option == '--out-prefix':
@@ -934,6 +938,8 @@ def merge_final(final_k):
 
 
 def run_sub_command(cmd, msg, verbose=False):
+    if opt.verbose:
+        verbose = True
     logger.info(msg)
     logger.debug('command %s' % ' '.join(cmd))
 

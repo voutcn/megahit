@@ -13,17 +13,4 @@ script:
   - sudo make install
   - megahit --test
   - megahit --test --kmin-1pass
-  - megahit --test --no-hw-accel
-after_success:
-  # Create lcov report
-  - wget http://downloads.sourceforge.net/ltp/lcov-1.14.tar.gz
-  - tar zvxf lcov-1.14.tar.gz
-  - export PATH=lcov-1.14/bin/:${PATH}
-  - lcov --capture --directory . --output-file coverage.info
-  - lcov --remove coverage.info '/usr/*' --output-file coverage.info # filter system-files
-  - lcov --remove coverage.info '*xxhash/*' --output-file coverage.info # filter xxhash-files
-  - lcov --remove coverage.info '*parallel_hashmap/*' --output-file coverage.info # filter parallel-hashmap-files
-  - lcov --remove coverage.info '*pprintpp/*' --output-file coverage.info # filter pprintpp files
-  - lcov --list coverage.info # debug info
-  # Uploading report to CodeCov
-  - bash <(curl -s https://codecov.io/bash) -f coverage.info || echo "Codecov did not collect coverage reports"
+  - megahit --test --no-hw-accelo || echo "Codecov did not collect coverage reports"
