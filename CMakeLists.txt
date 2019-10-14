@@ -101,7 +101,7 @@ add_custom_target(
         simple_test
         COMMAND ./megahit --test -t 2
         COMMAND MEGAHIT_NUM_MERCY_FACTOR=1.5 ./megahit --test -t 4 --mem-flag 0 --no-hw-accel
-        COMMAND ./megahit --test -t 2 --kmin-1pass
+        COMMAND ./megahit --test -t 2 --kmin-1pass --prune-level 3 --prune-depth 0
         COMMAND rm -rf test-random && python3 ${TEST_DATA}/generate_random_fasta.py > random.fa && ./megahit -r random.fa --k-list 255 --min-count 1 -o test-random
         COMMAND rm -rf test-fastg && ./megahit --test -t 2 --mem-flag 2 --keep-tmp-files -o test-fastg
         COMMAND rm -rf test-empty && ./megahit -r ${TEST_DATA}/empty.fa -o test-empty
