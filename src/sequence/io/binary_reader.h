@@ -12,7 +12,8 @@
 
 class BinaryReader : public BaseSequenceReader {
  public:
-  explicit BinaryReader(const std::string &filename) : is_(filename) {
+  explicit BinaryReader(const std::string &filename)
+      : is_(filename), buf_(120) {
     if (is_.bad()) {
       throw std::invalid_argument("Failed to open file " + filename);
     }
@@ -33,14 +34,14 @@ class BinaryReader : public BaseSequenceReader {
       if (buf_.size() < num_words) {
         buf_.resize(num_words);
       }
-      auto bytes_read = reader_.read(&buf_[0], num_words);
+      auto bytes_read = reader_.read(buf_.data(), num_words);
       assert(bytes_read == num_words * sizeof(buf_[0]));
       (void)(bytes_read);
 
       if (!reverse) {
-        pkg->AppendCompactSequence(&buf_[0], read_len);
+        pkg->AppendCompactSequence(buf_.data(), read_len);
       } else {
-        pkg->AppendReversedCompactSequence(&buf_[0], read_len);
+        pkg->AppendReversedCompactSequence(buf_.data(), read_len);
       }
 
       num_bases += read_len;

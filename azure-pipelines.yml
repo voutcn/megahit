@@ -1,0 +1,90 @@
+jobs:
+  - job: ubuntu_1604
+    pool:
+      vmImage: 'Ubuntu-16.04'
+    strategy:
+      matrix:
+        python36:
+          python.version: '3.6'
+          build.type: 'Debug'
+          sanitizer: 'ON'
+          static: 'OFF'
+        Python27:
+          python.version: '2.7'
+          build.type: 'Release'
+          sanitizer: 'OFF'
+          static: 'ON'
+    steps:
+      - task: UsePythonVersion@0
+        inputs:
+          versionSpec: '$(python.version)'
+          addToPath: true
+      - script: |
+          mkdir build
+          cd build
+          cmake -DCMAKE_BUILD_TYPE=$(build.type) -DSANITIZER=$(sanitizer) -DSTATIC_BUILD=$(static) ..
+          make simple_test -j `nproc`
+        displayName: 'build and test'
+
+  - job: macos
+    strategy:
+      matrix:
+        1013:
+          image: macos-10.13
+        latest:
+          image: macos-latest
+    pool:
+      vmImage: $(image)
+    steps:
+      - script: |
+          brew install cmake gcc@9 zlib bzip2
+        displayName: 'install dependencies'
+      - script: |
+          mkdir build
+          cd build
+          CC=gcc-9 CXX=g++-9 cmake ..
+          make simple_test -j `sysctl -n hw.physicalcpu`
+        displayName: 'build and test'
+
+  - job: assembly
+    timeoutInMinutes: 0
+    strategy:
+      matrix:
+        codecov:
+          build.type: 'Release'
+          sanitizer: 'OFF'
+          coverage: 'ON'
+        sanitize:
+          build.type: 'Debug'
+          sanitizer: 'ON'
+          coverage: 'OFF'
+    pool:
+      vmImage: 'Ubuntu-16.04'
+    steps:
+      - script: |
+          mkdir build
+          cd build
+          cmake -DCMAKE_BUILD_TYPE=$(build.type) -DSANITIZER=$(sanitizer) -DCOVERAGE=$(coverage) ..
+          make -j `nproc`
+          make simple_test
+          sudo make install
+        displayName: 'build and test'
+      - script: |
+          curl -o- ftp://ftp.sra.ebi.ac.uk/vol1/fastq/SRR752/007/SRR7521507/SRR7521507_1.fastq.gz | gzip -cd | head -4000000 | gzip -1 > 1.fq.gz
+          curl -o- ftp://ftp.sra.ebi.ac.uk/vol1/fastq/SRR752/007/SRR7521507/SRR7521507_2.fastq.gz | gzip -cd | head -4000000 | gzip -1 > 2.fq.gz
+          megahit --presets meta-large -1 1.fq.gz -2 2.fq.gz -m5e9 --verbose
+        displayName: 'assemble'
+      - script: |
+          if [ $(coverage) = 'ON' ]; then
+            wget http://downloads.sourceforge.net/ltp/lcov-1.14.tar.gz
+            tar zvxf lcov-1.14.tar.gz
+            export PATH=lcov-1.14/bin/:${PATH}
+            lcov --capture --directory . --output-file coverage.info
+            lcov --remove coverage.info '/usr/*' --output-file coverage.info # filter system-files
+            lcov --remove coverage.info '*xxhash/*' --output-file coverage.info # filter xxhash-files
+            lcov --remove coverage.info '*parallel_hashmap/*' --output-file coverage.info # filter parallel-hashmap-files
+            lcov --remove coverage.info '*pprintpp/*' --output-file coverage.info # filter pprintpp files
+            lcov --list coverage.info # debug info
+            bash <(curl -s https://codecov.io/bash) -f coverage.info -t $(CODECOV_TOKEN) || echo "Codecov did not collect coverage reports"
+          fi
+        displayName: 'codecov'

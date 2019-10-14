@@ -218,7 +218,8 @@ void BaseSequenceSortingEngine::Lv0PrepareThreadPartition() {
     int64_t average = meta_.num_sequences / n_threads_;
     meta.seq_from = t * average;
     meta.seq_to = t < n_threads_ - 1 ? (t + 1) * average : meta_.num_sequences;
-    meta.offset_base = Lv0EncodeDiffBase(meta.seq_from);
+    meta.offset_base = meta.seq_from < meta_.num_sequences ?
+        Lv0EncodeDiffBase(meta.seq_from) : std::numeric_limits<int64_t>::max();
   }
 
   for (unsigned i = 0; i < kNumBuckets; ++i) {

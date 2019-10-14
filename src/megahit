@@ -195,6 +195,7 @@ class Options:
         self.pe12 = []
         self.se = []
         self.presets = ''
+        self.verbose = False
 
     @property
     def log_file_name(self):
@@ -321,6 +322,7 @@ def parse_option(argv):
                                     'mem-flag=',
                                     'continue',
                                     'version',
+                                    'verbose',
                                     'out-prefix=',
                                     'presets=',
                                     'test',
@@ -398,6 +400,8 @@ def parse_option(argv):
         elif option in ('-v', '--version'):
             print(software_info.megahit_version)
             exit(0)
+        elif option == '--verbose':
+            opt.verbose = True
         elif option == '--continue':
             opt.continue_mode = True
         elif option == '--out-prefix':
@@ -591,11 +595,19 @@ def check_reads():
 
 
 def detect_available_mem():
-    psize = os.sysconf('SC_PAGE_SIZE')
-    pcount = os.sysconf('SC_PHYS_PAGES')
-    if psize < 0 or pcount < 0:
-        raise SystemError
-    return psize * pcount
+    try:
+        psize = os.sysconf('SC_PAGE_SIZE')
+        pcount = os.sysconf('SC_PHYS_PAGES')
+        if psize < 0 or pcount < 0:
+            raise SystemError
+        return psize * pcount
+    except ValueError:
+        if sys.platform.find("darwin") != -1:
+            return int(float(os.popen("sysctl hw.memsize").readlines()[0].split()[1]))
+        elif sys.platform.find("linux") != -1:
+            return int(float(os.popen("free").readlines()[1].split()[1]) * 1024)
+        else:
+            raise
 
 
 def cpu_dispatch():
@@ -926,6 +938,8 @@ def merge_final(final_k):
 
 
 def run_sub_command(cmd, msg, verbose=False):
+    if opt.verbose:
+        verbose = True
     logger.info(msg)
     logger.debug('command %s' % ' '.join(cmd))
 

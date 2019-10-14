@@ -22,7 +22,10 @@ class Kmer {
   using word_type = TWord;
   static const unsigned kNumWords = NWords;
 
-  Kmer() { std::memset(data_, 0, sizeof(data_)); }
+  Kmer() {
+    static_assert(sizeof(*this) == sizeof(TWord) * NWords, "");
+    std::memset(data_, 0, sizeof(data_));
+  }
 
   Kmer(const Kmer &kmer) { std::memcpy(data_, kmer.data_, sizeof(data_)); }
 
@@ -214,7 +217,7 @@ class Kmer {
 
  private:
   word_type data_[kNumWords];
-} __attribute__((packed));
+};
 
 namespace std {
 template <const unsigned NumWords, typename T>
