@@ -1,3 +1,9 @@
+### 1.2.9 / 2019-10-13
+-   Fix segfault triggered by length-zero sequences
+-   Fix memory detection problem for some outdated MacOS versions
+-   Fix an incorrect assertion in unitig graph refreshing
+-   Added `--verbose` to output full log to the screen
+
 ### 1.2.8 / 2019-08-10
 -   Add intermediate `megahit_core_popcnt` for CPUs that have ABM but not BMI2
 -   Allow new assembly task with `--continue`
