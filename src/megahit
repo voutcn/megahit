@@ -58,7 +58,7 @@ Optional Arguments:
   Another way to set --k-list (overrides --k-list if one of them set):
     --k-min                  <int>          minimum kmer size (<= {0}), must be odd number [21]
     --k-max                  <int>          maximum kmer size (<= {0}), must be odd number [141]
-    --k-step                 <int>          increment of kmer size of each iteration (<= 28), must be even number [12]
+    --k-step                 <int>          increment of kmer size of each iteration (<= 28), must be even number [10]
 
   Advanced assembly options:
     --no-mercy                              do not add mercy kmers
