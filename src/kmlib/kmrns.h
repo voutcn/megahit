@@ -8,7 +8,6 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <x86intrin.h>
 #include <vector>
 
 namespace kmlib {
