@@ -1,3 +1,10 @@
+trigger:
+  paths:
+    exclude:
+      - '*.md'
+      - Dockerfile
+      - .travis.yml
+
 jobs:
   - job: ubuntu_1604
     pool:

@@ -1,13 +1,27 @@
 FROM ubuntu:18.04
-RUN apt-get update
-RUN apt-get install -y g++ make zlib1g-dev gzip bzip2 cmake python --no-install-recommends
+
 COPY . /root/megahit
 WORKDIR /root/megahit
-RUN rm -rf build
-RUN mkdir -p build
-WORKDIR build
-RUN cmake -DCMAKE_BUILD_TYPE=Release ..
-RUN make -j4
-RUN make install
-RUN megahit --test
-RUN megahit --test --kmin-1pass
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    bzip2 \
+    cmake \
+    gzip \
+    g++ \
+    libgomp1 \
+    make \
+    python \
+    zlib1g-dev && \
+    rm -rf build && \
+    mkdir -p build && \
+    cd build && \
+    cmake -DCMAKE_BUILD_TYPE=Release .. && \
+    make -j4 install && \
+    apt-get autoremove --purge -y \
+    cmake \
+    g++ \
+    make \
+    zlib1g-dev
+
+RUN megahit --test && megahit --test --kmin-1pass
+ENTRYPOINT ["megahit"]
