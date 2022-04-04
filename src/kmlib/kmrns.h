@@ -8,6 +8,12 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
+#if defined(__GNUC__) && defined(__aarch64__)
+  #define SIMDE_ENABLE_NATIVE_ALIASES
+  #include "../simde/x86/avx2.h"
+#else
+  #include <x86intrin.h>
+#endif
 #include <vector>
 
 namespace kmlib {

@@ -73,8 +73,29 @@ add_executable(megahit_core_popcnt ${OTHER_SOURCE} ${ASMBL_SOURCE} ${IDBA_SOURCE
         ${CX1_SOURCE} ${TOOLKIT_SOURCE})
 add_executable(megahit_core_no_hw_accel ${OTHER_SOURCE} ${ASMBL_SOURCE} ${IDBA_SOURCE} ${SDBG_SOURCE} ${LCASM_SOURCE}
         ${SEQ_SOURCE} ${CX1_SOURCE} ${TOOLKIT_SOURCE})
-#set_target_properties(megahit_core PROPERTIES COMPILE_FLAGS "-mbmi2 -DUSE_BMI2 -mpopcnt")
-#set_target_properties(megahit_core_popcnt PROPERTIES COMPILE_FLAGS "-mpopcnt")
+
+include(CheckCXXCompilerFlag)
+#check_cxx_compiler_flag("-march=native" USE_ARCH_NATIVE)
+#if(USE_ARCH_NATIVE)
+#  message(STATUS "Using native tuning (-march=native compiler flag set)")
+#  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -march=native")
+#endif() 
+
+check_cxx_compiler_flag("-mpopcnt" USE_POPCNT)
+if(USE_POPCNT)
+  message(STATUS "Using popcnt instructions (-mpopcnt compiler flag set)")
+  set_target_properties(megahit_core_popcnt PROPERTIES COMPILE_FLAGS "-mpopcnt")
+else()
+  message(STATUS "popcnt not found ")
+endif()
+
+check_cxx_compiler_flag("-mbmi2" USE_BMI2)
+if(USE_BMI2 AND USE_POPCNT)
+  message(STATUS "Using bmi2 instructions (-mbmi2 compiler flag set)")
+  set_target_properties(megahit_core PROPERTIES COMPILE_FLAGS "-mbmi2 -DUSE_BMI2 -mpopcnt")
+else()
+  message(STATUS "bmi2 not found")
+endif()
 
 if (STATIC_BUILD)
     # TODO dirty
