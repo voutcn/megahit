@@ -7,6 +7,7 @@ if (CMAKE_VERSION VERSION_LESS "3.1")
 else ()
     set(CMAKE_CXX_STANDARD 11)
 endif ()
+# target_compile_features(<proj> PUBLIC cxx_std_11)
 
 option(COVERAGE "Generate coverage report" OFF)
 option(STATIC_BUILD "Build static executation" OFF)
@@ -34,7 +35,7 @@ LIST(APPEND OTHER_SOURCE
 
 if (STATIC_BUILD)
     set(CMAKE_FIND_LIBRARY_SUFFIXES ".a")
-endif (STATIC_BUILD)
+endif ()
 
 find_package(ZLIB REQUIRED)
 find_package(OpenMP REQUIRED)
@@ -54,18 +55,19 @@ set(CMAKE_CXX_FLAGS_DEBUG "-g -ggdb -O1 -D_LIBCPP_DEBUG -D_GLIBCXX_DEBUG")
 if (COVERAGE)
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -g -O0 --coverage")
     set(COV_PY "coverage run")
-endif (COVERAGE)
+endif ()
 
 if (SANITIZER)
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fsanitize=address -fsanitize=leak -fsanitize=undefined")
-endif (SANITIZER)
+endif ()
 
 if (TSAN)
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fsanitize=thread")
-endif (TSAN)
+endif ()
 
 
 message(STATUS "Build type: ${CMAKE_BUILD_TYPE}: ${CMAKE_CXX_FLAGS}")
+message(STATUS "Compiler: ${CMAKE_CXX_COMPILER_ID}" )
 
 add_executable(megahit_core ${OTHER_SOURCE} ${ASMBL_SOURCE} ${IDBA_SOURCE} ${SDBG_SOURCE} ${LCASM_SOURCE} ${SEQ_SOURCE}
         ${CX1_SOURCE} ${TOOLKIT_SOURCE})
@@ -73,15 +75,32 @@ add_executable(megahit_core_popcnt ${OTHER_SOURCE} ${ASMBL_SOURCE} ${IDBA_SOURCE
         ${CX1_SOURCE} ${TOOLKIT_SOURCE})
 add_executable(megahit_core_no_hw_accel ${OTHER_SOURCE} ${ASMBL_SOURCE} ${IDBA_SOURCE} ${SDBG_SOURCE} ${LCASM_SOURCE}
         ${SEQ_SOURCE} ${CX1_SOURCE} ${TOOLKIT_SOURCE})
-set_target_properties(megahit_core PROPERTIES COMPILE_FLAGS "-mbmi2 -DUSE_BMI2 -mpopcnt")
-set_target_properties(megahit_core_popcnt PROPERTIES COMPILE_FLAGS "-mpopcnt")
+
+include(CheckCXXCompilerFlag)
+#check_cxx_compiler_flag("-march=native" USE_ARCH_NATIVE)
+#if(USE_ARCH_NATIVE)
+#  message(STATUS "Using native tuning (-march=native compiler flag set)")
+#  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -march=native")
+#endif() 
+
+check_cxx_compiler_flag("-mpopcnt" USE_POPCNT)
+if(USE_POPCNT)
+  message(STATUS "Using popcnt instructions (-mpopcnt compiler flag set)")
+  set_target_properties(megahit_core_popcnt PROPERTIES COMPILE_FLAGS "-mpopcnt")
+endif()
+
+check_cxx_compiler_flag("-mbmi2" USE_BMI2)
+if(USE_BMI2 AND USE_POPCNT)
+  message(STATUS "Using bmi2 instructions (-mbmi2 compiler flag set)")
+  set_target_properties(megahit_core PROPERTIES COMPILE_FLAGS "-mbmi2 -DUSE_BMI2 -mpopcnt")
+endif()
 
 if (STATIC_BUILD)
     # TODO dirty
     set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -Wl,--whole-archive -lpthread -Wl,--no-whole-archive -static")
     set_target_properties(megahit_core megahit_core_popcnt megahit_core_no_hw_accel PROPERTIES LINK_SEARCH_START_STATIC ON)
     set_target_properties(megahit_core megahit_core_popcnt megahit_core_no_hw_accel PROPERTIES LINK_SEARCH_END_STATIC ON)
-endif (STATIC_BUILD)
+endif ()
 
 target_link_libraries(megahit_core ${ZLIB_LIBRARIES})
 target_link_libraries(megahit_core_popcnt ${ZLIB_LIBRARIES})
