@@ -16,6 +16,11 @@ Installation
 conda install -c bioconda megahit
 ```
 
+### Guix
+```sh
+guix install megahit
+```
+
 ### Pre-built binaries for x86_64 Linux
 
 ```sh
