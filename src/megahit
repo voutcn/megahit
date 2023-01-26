@@ -19,7 +19,6 @@
 # -------------------------------------------------------------------------
 
 
-from __future__ import print_function
 
 import getopt
 import json
@@ -375,7 +374,7 @@ def parse_option(argv):
         elif option == '--max-tip-len':
             opt.max_tip_len = int(value)
         elif option == '--merge-level':
-            (opt.merge_len, opt.merge_similar) = map(float, value.split(','))
+            (opt.merge_len, opt.merge_similar) = list(map(float, value.split(',')))
             opt.merge_len = int(opt.merge_len)
         elif option == '--prune-level':
             opt.prune_level = int(value)
