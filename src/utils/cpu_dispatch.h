@@ -5,6 +5,11 @@
 #ifndef MEGAHIT_CPU_DISPATCH_H
 #define MEGAHIT_CPU_DISPATCH_H
 
+#if defined(__GNUC__) && defined(__aarch64__)
+inline bool HasPopcnt() { return false; }
+inline bool HasBmi2() { return false; }
+#else
+
 inline bool HasPopcnt() {
   unsigned eax, ebx, ecx, edx;
 #ifdef _MSC_VER
@@ -32,5 +37,6 @@ inline bool HasBmi2() {
 #endif
   return ebx >> 8U & 1U;
 }
+#endif 
 
 #endif  // MEGAHIT_CPU_DISPATCH_H
