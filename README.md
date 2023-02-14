@@ -78,6 +78,11 @@ To see the full manual, run `megahit` without parameters or with `-h`.
 
 Also, our [wiki](https://github.com/voutcn/megahit/wiki) may be helpful.
 
+### Examples
+
+There is an example of a real assembly on this [wiki page](https://github.com/voutcn/megahit/wiki/An-example-of-real-assembly) 
+and its corresponding [interactive Jupyter notebook](https://biotutorials.org/megahit).
+
 Publications
 ------------
 
