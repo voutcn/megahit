@@ -22,6 +22,7 @@
 #ifndef LOCAL_ASSEMBLER_H
 #define LOCAL_ASSEMBLER_H
 
+#include <cstdint>
 #include <string>
 
 struct LocalAsmOption {
