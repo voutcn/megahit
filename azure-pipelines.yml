@@ -33,25 +33,25 @@ jobs:
           make simple_test -j `nproc`
         displayName: 'build and test'
 
-  # - job: macos
-  #   strategy:
-  #     matrix:
-  #       1013:
-  #         image: macos-10.13
-  #       latest:
-  #         image: macos-latest
-  #   pool:
-  #     vmImage: $(image)
-  #   steps:
-  #     - script: |
-  #         brew install cmake gcc@9 zlib bzip2 libomp
-  #       displayName: 'install dependencies'
-  #     - script: |
-  #         mkdir build
-  #         cd build
-  #         CC=gcc CXX=g++ cmake ..
-  #         make simple_test -j `sysctl -n hw.physicalcpu`
-  #       displayName: 'build and test'
+  - job: macos
+    strategy:
+      matrix:
+        1013:
+          image: macos-10.13
+        latest:
+          image: macos-latest
+    pool:
+      vmImage: $(image)
+    steps:
+      - script: |
+          brew install cmake gcc@9 zlib bzip2
+        displayName: 'install dependencies'
+      - script: |
+          mkdir build
+          cd build
+          CC=gcc-9 CXX=g++-9 cmake ..
+          make simple_test -j `sysctl -n hw.physicalcpu`
+        displayName: 'build and test'
 
   - job: assembly
     timeoutInMinutes: 0
