@@ -49,7 +49,7 @@ jobs:
       - script: |
           mkdir build
           cd build
-          CC=gcc-9 CXX=g++-9 cmake ..
+          CC=gcc CXX=g++ cmake ..
           make simple_test -j `sysctl -n hw.physicalcpu`
         displayName: 'build and test'
 
