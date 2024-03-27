@@ -44,7 +44,7 @@ jobs:
       vmImage: $(image)
     steps:
       - script: |
-          brew install cmake gcc@9 zlib bzip2
+          brew install cmake gcc@9 zlib bzip2 libomp
         displayName: 'install dependencies'
       - script: |
           mkdir build
