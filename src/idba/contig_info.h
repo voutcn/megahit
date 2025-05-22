@@ -14,12 +14,13 @@
 
 #include <algorithm>
 #include <deque>
+#include <vector>
 #include <istream>
 #include <ostream>
 #include <string>
 
 typedef uint32_t SequenceCountUnitType;
-typedef std::basic_string<SequenceCountUnitType> SequenceCount;
+typedef std::vector<SequenceCountUnitType> SequenceCount;
 
 class ContigBuilder;
 
