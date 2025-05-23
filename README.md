@@ -35,7 +35,7 @@ cd MEGAHIT-1.2.9-Linux-x86_64-static/bin/
 ``` sh
 # in the directory with the input reads
 docker run -v $(pwd):/workspace -w /workspace --user $(id -u):$(id -g) vout/megahit \
-  megahit -1 MY_PE_READ_1.fq.gz -2 MY_PE_READ_2.fq.gz -o MY_OUTPUT_DIR
+  -1 MY_PE_READ_1.fq.gz -2 MY_PE_READ_2.fq.gz -o MY_OUTPUT_DIR
 ```
 
 ### Building from source
