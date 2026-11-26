@@ -201,7 +201,7 @@ void MapToContigs(const HashMapper &mapper,
         }
       }
     } else {
-#pragma omp parallel reduction(+ : num_added, num_mapped)
+#pragma omp parallel for reduction(+ : num_added, num_mapped)
       for (size_t i = 0; i < lib.seq_count(); ++i) {
         auto seq = lib.GetSequenceView(i);
         auto rec = mapper.TryMap(seq);
